@@ -1,0 +1,133 @@
+<!DOCTYPE html><head>
+<title>LittleJS Tweakables Template</title>
+<meta charset="utf-8">
+</head><body style="background:#000">
+<script src="../dist/littlejs.js?1780079206468"></script>
+<script src="gameFx.js?1780079206468"></script>
+<script src="textureGenerator.js?1780079206468"></script>
+<script src="menus.js?1780079206468"></script>
+<script src="tweakables.js?1780079206468"></script>
+<script>
+'use strict';
+
+// engine settings, do not remove
+debugWatermark = false;
+showEngineVersion = false;
+paused = false;
+
+// engine settings, customize if necessary
+gravity = vec2(0, -.01);
+cameraPos = vec2(0, 0);
+cameraScale = 32;
+
+///////////////////////////////////////////////////////////////////////////////
+// TWEAKABLES TEMPLATE
+// Press ~ (backtick) to open the tweakables panel.
+// Demonstrates every tweakable type in one small bouncing-ball scene.
+
+// game state — these globals are tweakables
+let ballRadius = 1.5;
+let ballSpeed = 1;
+let bounceCount = 5;
+let showTrail = true;
+let ballColor = hsl(.1, .8, .6);
+let ballPos = vec2(0, 5);
+let ballVel = vec2(0, 0);
+let trail = [];
+
+///////////////////////////////////////////////////////////////////////////////
+async function gameInit()
+{
+    saveDataInit('LittleJS Tweakable Demo');
+    tweakEngineDefaults();
+
+    tweak('ballRadius');                                  // no range -> number input only
+    tweak('ballSpeed', {min: 0, max: 10});                // slider
+    tweak('bounceCount', {min: 1, max: 20, step: 1});     // integer slider
+    tweak('showTrail');                                   // boolean
+    tweak('ballColor');                                   // color picker
+    tweak('ballPos', {min: -15, max: 15});                // vec2 paired with sliders
+    tweak('gravity.y', {min: -.05, max: 0});              // dotted path with slider
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdate()
+{
+    // simple physics: gravity + floor bounce + click to launch
+    ballVel = ballVel.add(gravity);
+    ballPos = ballPos.add(ballVel);
+
+    const floorY = -8;
+    if (ballPos.y - ballRadius < floorY)
+    {
+        ballPos = vec2(ballPos.x, floorY + ballRadius);
+        ballVel = vec2(ballVel.x, abs(ballVel.y) * .8);
+    }
+
+    // walls
+    const wall = 14;
+    if (abs(ballPos.x) + ballRadius > wall)
+    {
+        ballPos = vec2(sign(ballPos.x) * (wall - ballRadius), ballPos.y);
+        ballVel = vec2(-ballVel.x * .8, ballVel.y);
+    }
+
+    // click to launch the ball toward the mouse
+    if (mouseWasPressed(0))
+    {
+        const dir = mousePos.subtract(ballPos);
+        const len = dir.length() || 1;
+        const speed = min(ballSpeed / len, .1);
+        ballVel = dir.scale(speed);
+    }
+
+    // trail
+    if (showTrail)
+    {
+        trail.push(ballPos);
+        if (trail.length > bounceCount * 8) trail.shift();
+    }
+    else
+    {
+        trail.length = 0;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRender()
+{
+    drawRectGradient(cameraPos, getCameraSize(),
+        hsl(.6, .3, .15), hsl(.6, .3, .05));
+
+    // floor and walls
+    drawRect(vec2(0, -9), vec2(30, 2), hsl(0, 0, .2));
+    drawRect(vec2(-15, 0), vec2(2, 20), hsl(0, 0, .2));
+    drawRect(vec2(15, 0), vec2(2, 20), hsl(0, 0, .2));
+
+    // trail
+    if (showTrail)
+    {
+        for (let i = 0; i < trail.length; ++i)
+        {
+            const a = i / trail.length;
+            drawCircle(trail[i], ballRadius * a * .8,
+                rgb(ballColor.r, ballColor.g, ballColor.b, a * .4));
+        }
+    }
+
+    // ball
+    drawCircle(ballPos, ballRadius * 2, ballColor);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRenderPost()
+{
+    drawTextScreen('Press ~ to tweak.  Click to launch the ball.',
+        vec2(mainCanvasSize.x/2, 30), 24,
+        hsl(0, 0, 1), 4, hsl(0, 0, 0));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+engineInit(gameInit, gameUpdate, () => {}, gameRender, gameRenderPost);
+
+</script>

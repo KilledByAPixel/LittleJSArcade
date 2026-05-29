@@ -1,0 +1,316 @@
+<!DOCTYPE html><head>
+<title>LittleJS Playing Cards Template</title>
+<meta charset="utf-8">
+</head><body style="background:#000">
+<script src="../dist/littlejs.js?1780079206468"></script>
+<script src="gameFx.js?1780079206468"></script>
+<script src="textureGenerator.js?1780079206468"></script>
+<script src="cards.js?1780079206468"></script>
+<script>
+'use strict';
+
+// engine settings, do not remove
+debugWatermark = false;
+showEngineVersion = false;
+paused = false;
+tilesPixelated = false;
+
+// engine settings, customize if necessary
+gravity = vec2(0, 0);
+cameraPos = vec2(0, 0);
+cameraScale = 32;
+canvasMaxSize = vec2(2048, 2048);
+canvasClearColor = new Color().setHex('#264d40');   // felt green
+
+///////////////////////////////////////////////////////////////////////////////
+// PLAYING CARDS TEMPLATE
+//
+// A rules-free starter for a card game built on templates/cards.js. It shows
+// how to use the shared model layer:
+//   shuffledDeck()       — build a shuffled 52-card deck of Card instances
+//   CardStack(pos, type, offsetFn) — a pile; offsetFn fans cards downward
+//   stack.putCardOnTop / moveManyToStack(..., true) — move cards, tween = true
+//   updateCardTweens(stacks)        — clear finished tweens once per frame
+//   drawCard / drawCardBack         — render face-up / face-down (Card.faceUp)
+//   drawCardSlot(pos)               — empty-slot outline
+//   CardHistory({serialize, deserialize}) — undo/redo (in-memory here; it also
+//       autosaves through menus.js's saveData when that helper is loaded)
+//
+// There are NO legality rules — you can drag any card onto any pile. Add your
+// own isMoveLegal()/win check on top of this skeleton to make a real game.
+//
+// Controls:
+//   Click the stock (top-left) — deal a card to the waste; click when empty to
+//                                recycle the waste back into the stock
+//   Left-click + drag          — pick up a card (and everything on top of it in
+//                                a tableau column) and drop it on any pile
+//   Right-click                — flip the hovered/held card face-up <-> down
+//   Z / Shift+Z / Y            — undo / redo / redo
+//   R                          — reshuffle and redeal
+//   ` (backtick)               — LittleJS debug overlay
+
+const COL_COUNT    = 7;        // tableau columns
+const COL_PITCH_X  = 7;        // horizontal spacing between piles
+const CARD_PITCH_Y = 1.6;      // vertical fan gap in a tableau column
+const TOP_MARGIN   = 2.5;      // empty felt above the top row
+const MAX_DEPTH    = 9;        // camera height budget, in fan-pitches
+
+// Opaque stack tags. Tableau columns fan; stock/waste pile on the anchor.
+const StackType = { Stock: 0, Waste: 1, Tableau: 2 };
+
+// Tableau fan: each card sits CARD_PITCH_Y below the one before it (Y-up).
+function tableauOffset(index) { return vec2(0, -CARD_PITCH_Y * index); }
+
+let stacks       = [];
+let handStack    = null;        // cards currently glued to the cursor
+let pickupOrigin = null;
+let mouseHoldPos = vec2();
+let history      = null;        // CardHistory
+
+// Board anchors — recomputed by setupLayout (also refits on canvas resize).
+let layoutLeftX = -21, layoutTopY = 8, layoutCascadeY = -2;
+
+function setupLayout()
+{
+    layoutLeftX    = -((COL_COUNT - 1) * COL_PITCH_X) / 2;
+    layoutTopY     = 8;
+    layoutCascadeY = layoutTopY - CARD_SIZE.y - 1;
+
+    const topY    = layoutTopY + CARD_SIZE.y/2;
+    const bottomY = layoutCascadeY - CARD_PITCH_Y * MAX_DEPTH - CARD_SIZE.y/2;
+    const tableW  = (COL_COUNT - 1) * COL_PITCH_X + CARD_SIZE.x + 2;
+    const tableH  = topY - bottomY + TOP_MARGIN + 1;
+    cameraScale   = min(mainCanvasSize.x / tableW, mainCanvasSize.y / tableH);
+    const viewH   = mainCanvasSize.y / cameraScale;
+    cameraPos     = vec2(0, topY + TOP_MARGIN - viewH/2);
+}
+
+function buildTable()
+{
+    stacks = [];
+    const stock = new CardStack(vec2(layoutLeftX, layoutTopY), StackType.Stock);
+    const waste = new CardStack(vec2(layoutLeftX + COL_PITCH_X, layoutTopY), StackType.Waste);
+    stacks.push(stock, waste);
+
+    const cascades = [];
+    for (let i = 0; i < COL_COUNT; ++i)
+    {
+        const c = new CardStack(vec2(layoutLeftX + i * COL_PITCH_X, layoutCascadeY),
+            StackType.Tableau, tableauOffset);
+        cascades.push(c);
+        stacks.push(c);
+    }
+    window.stockStack = stock;
+    window.wasteStack = waste;
+
+    // Deal 4 face-up cards into each column; the rest become the face-down stock.
+    const deck = shuffledDeck();
+    let idx = 0;
+    for (let row = 0; row < 4; ++row)
+        for (let col = 0; col < COL_COUNT; ++col)
+        {
+            const card = deck[idx++];
+            card.faceUp = true;
+            cascades[col].putCardOnTop(card);
+        }
+    while (idx < deck.length)
+        stock.putCardOnTop(deck[idx++]);   // faceUp stays false
+
+    handStack    = new CardStack(vec2(0, 0), StackType.Tableau);
+    pickupOrigin = null;
+}
+
+// Topmost card / empty stack under `worldPoint` (see cardAtPoint in cards.js).
+function stackUnderPoint(worldPoint) { return cardAtPoint(stacks, worldPoint); }
+
+// Cards that would lift if `hit` were grabbed now. Free-form: any tableau card
+// (face-up or down) takes everything stacked on top of it; waste takes its top
+// card; the stock is click-to-deal only.
+function pickableTail(hit)
+{
+    if (!hit || !hit.card) return [];
+    if (hit.stack.type === StackType.Stock) return [];
+    if (hit.stack.type === StackType.Tableau)
+        return hit.stack.cards.slice(hit.stack.cards.indexOf(hit.card));
+    return hit.card === hit.stack.topCard() ? [hit.card] : [];
+}
+
+// Deal the top stock card to the waste, or recycle the waste when empty.
+function dealFromStock()
+{
+    if (!stockStack.isEmpty())
+    {
+        const card = stockStack.cards.pop();
+        card.faceUp = true;
+        wasteStack.putCardOnTop(card, true);
+    }
+    else if (!wasteStack.isEmpty())
+    {
+        while (!wasteStack.isEmpty())
+        {
+            const card = wasteStack.cards.pop();
+            card.faceUp = false;
+            stockStack.putCardOnTop(card);
+        }
+    }
+    else return;
+    history.save();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// CardHistory hooks: serialize current state and apply a snapshot.
+function snapshot()
+{
+    return { stacks: stacks.map(s => s.cards.map(c => [c.value, c.suit, c.faceUp ? 1 : 0])) };
+}
+function loadState(snap)
+{
+    if (!snap || !snap.stacks) return;
+    for (let i = 0; i < stacks.length; ++i)
+    {
+        stacks[i].cards = snap.stacks[i].map(([v, s, f]) => new Card(v, s, !!f));
+        stacks[i].relayout();
+    }
+    for (const s of stacks) for (const c of s.cards) c.tweenFrom = null;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+async function gameInit()
+{
+    initCardAtlas();   // default look (matches games/freecell.html)
+    setupLayout();
+    history = new CardHistory({ serialize: snapshot, deserialize: loadState });
+    buildTable();
+    history.reset();   // seed the initial snapshot
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdate()
+{
+    // Pickup / stock-deal on press.
+    if (mouseWasPressed(0) && handStack.isEmpty())
+    {
+        const hit = stackUnderPoint(mousePos);
+        if (hit && hit.stack.type === StackType.Stock) { dealFromStock(); return; }
+        if (pickableTail(hit).length)
+        {
+            pickupOrigin = hit.stack;
+            mouseHoldPos = hit.card.pos.subtract(mousePos);
+            handStack.type = hit.stack.type;
+            hit.stack.moveManyToStack(handStack, hit.card);
+        }
+    }
+
+    // Drag: glue the held run to the cursor.
+    if (!handStack.isEmpty())
+    {
+        const head = mousePos.add(mouseHoldPos);
+        for (let i = 0; i < handStack.cards.length; ++i)
+            handStack.cards[i].pos = head.add(vec2(0, -CARD_PITCH_Y * i));
+    }
+
+    // Drop on the most-overlapped pile (any pile — no rules), else snap back.
+    if (mouseWasReleased(0) && !handStack.isEmpty())
+    {
+        const head = mousePos.add(mouseHoldPos);
+        let target = null, bestArea = 0;
+        for (const s of stacks)
+        {
+            if (s === pickupOrigin) continue;
+            const p  = s.topCard() ? s.topCard().pos : s.pos;
+            const dx = CARD_SIZE.x - abs(head.x - p.x);
+            const dy = CARD_SIZE.y - abs(head.y - p.y);
+            if (dx > 0 && dy > 0 && dx * dy > bestArea) { bestArea = dx * dy; target = s; }
+        }
+        handStack.moveManyToStack(target || pickupOrigin, undefined, true);   // tween home
+        if (target) history.save();
+        pickupOrigin = null;
+    }
+
+    // Right-click flips the held (or hovered) card.
+    if (mouseWasPressed(2))
+    {
+        const held = !handStack.isEmpty();
+        const card = held ? handStack.topCard() : (stackUnderPoint(mousePos) || {}).card;
+        if (card) { card.faceUp = !card.faceUp; if (!held) history.save(); }
+    }
+
+    const shift = keyIsDown('ShiftLeft') || keyIsDown('ShiftRight');
+    if (keyWasPressed('KeyZ')) shift ? history.redoMove() : history.undoMove();
+    if (keyWasPressed('KeyY')) history.redoMove();
+    if (keyWasPressed('KeyR')) { buildTable(); history.reset(); }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdatePost()
+{
+    setupLayout();              // refit camera on resize
+    updateCardTweens(stacks);   // release finished tweens
+
+    let cursor = 'default';
+    if (!handStack.isEmpty())
+        cursor = 'grabbing';
+    else
+    {
+        const hit = stackUnderPoint(mousePos);
+        if (pickableTail(hit).length || (hit && hit.stack.type === StackType.Stock))
+            cursor = 'grab';
+    }
+    setCursor(cursor);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function drawAnyCard(c, pos, tint)
+{
+    if (c.faceUp) drawCard(pos, c.value, c.suit, {tint});
+    else          drawCardBack(pos, {tint});
+}
+
+function gameRender()
+{
+    if (!stacks.length) return;
+
+    // Empty-slot outlines (back layer) — see cardSlotVisible() in cards.js.
+    for (const s of stacks)
+        if (cardSlotVisible(s))
+            drawCardSlot(s.pos);
+
+    // Hover highlight on the tail that would lift if clicked.
+    const HOVER    = new Color(0.55, 0.8, 1.0, 0.4);
+    const hoverSet = handStack.isEmpty()
+        ? new Set(pickableTail(stackUnderPoint(mousePos))) : null;
+    const tintFor  = c => (hoverSet && hoverSet.has(c)) ? HOVER : null;
+
+    for (const s of stacks)
+        for (const c of s.cards)
+            if (!c.isTweening())
+                drawAnyCard(c, c.pos, tintFor(c));
+
+    // Tweening cards drawn last so the flight path stays on top.
+    for (const s of stacks)
+        for (const c of s.cards)
+            if (c.isTweening())
+                drawAnyCard(c, c.drawnPos(), null);
+
+    // Held cards on top with a soft shadow.
+    const shadow = new Color(0, 0, 0, 0.35);
+    for (const c of handStack.cards)
+        drawCardShape(c.pos.add(vec2(0.25, -0.25)), CARD_SIZE.add(vec2(0.1, 0.1)), shadow);
+    for (const c of handStack.cards)
+        drawAnyCard(c, c.pos, null);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRenderPost()
+{
+    drawTextScreen('Playing Cards Template',
+        vec2(mainCanvasSize.x / 2, 60), 50, WHITE, 4, BLACK);
+    drawTextScreen(
+        'Click stock = deal/recycle   Drag = move   Right-click = flip   Z/Y = undo/redo   R = reshuffle',
+        vec2(mainCanvasSize.x / 2, 110), 22, hsl(0, 0, .85), 2, BLACK);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+
+</script></body></html>

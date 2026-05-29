@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+  },
+  "include": [  
+    "./dist/littlejs.js",
+    "./games/*.js",
+    "./local/*.js",
+  ],
+  "exclude": [
+  ]
+}

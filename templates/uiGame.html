@@ -1,0 +1,110 @@
+<!DOCTYPE html><head>
+<title>LittleJS UI System Template</title>
+<meta charset="utf-8">
+</head><body style="background:#000">
+<script src="../dist/littlejs.js?1780079206468"></script>
+<script src="gameFx.js?1780079206468"></script>
+<script src="textureGenerator.js?1780079206468"></script>
+<script src="tweakables.js?1780079206468"></script>
+<script>
+'use strict';
+
+// engine settings, do not remove
+debugWatermark = false;
+showEngineVersion = false;
+paused = false;
+
+///////////////////////////////////////////////////////////////////////////////
+// UI SYSTEM TEMPLATE
+
+///////////////////////////////////////////////////////////////////////////////
+async function gameInit()
+{
+    // setup ui system plugin
+    new UISystemPlugin;
+    uiSystem.defaultSoundPress = new Sound([.5,0,220]);
+    uiSystem.defaultSoundClick = new Sound([.5,0,440]);
+    uiSystem.defaultCornerRadius = 8;
+    uiSystem.defaultShadowColor = BLACK;
+
+    // setup example menu
+    let navigationIndex = 0;
+    const uiMenu = new UIObject(vec2(), vec2(700,450));
+    canvasClearColor = hsl(0,0,.8);
+
+    // example text
+    uiMenu.addChild(new UIText(vec2(0,-120), vec2(600, 80),
+        'LittleJS UI\nSystem Demo'));
+
+    // example checkbox
+    const checkbox = new UICheckbox(vec2(-170,0), vec2(50));
+    checkbox.navigationIndex = ++navigationIndex;
+    checkbox.onChange = ()=> button1.disabled = checkbox.checked;
+    uiMenu.addChild(checkbox);
+
+    // example text input
+    const textInput = new UITextInput(vec2(50,0), vec2(300, 80), 'Text Input');
+    textInput.textHeight = 60;
+    textInput.maxLength = 16;
+    textInput.navigationIndex = ++navigationIndex;
+    uiMenu.addChild(textInput);
+    textInput.onChange = ()=> canvasClearColor = randColor();
+
+    // example slider
+    const slider = new UISlider(vec2(0,90), vec2(400, 50),
+        soundVolume, 'Volume');
+    slider.navigationIndex = ++navigationIndex;
+    uiMenu.addChild(slider);
+    slider.onChange = ()=> setSoundVolume(slider.value);
+
+    // exit button
+    const button1 = new UIButton(vec2(0,170), vec2(200, 50), 'Exit Menu');
+    button1.textHeight = 40;
+    button1.navigationIndex = ++navigationIndex;
+    button1.navigationAutoSelect = true;
+    uiMenu.addChild(button1);
+    button1.onClick = ()=> uiSystem.showConfirmDialog('Exit menu?',
+        ()=> { uiMenu.visible = false; buttonBack.visible = true; });
+
+    // example button that returns to menu
+    const buttonBack = new UIButton(vec2(), vec2(200),
+        'Back\nto\nMenu');
+    buttonBack.visible = false;
+    buttonBack.textHeight = 60;
+    buttonBack.navigationIndex = ++navigationIndex;
+    buttonBack.navigationAutoSelect = true;
+    buttonBack.onClick = ()=>
+        { uiMenu.visible = true; buttonBack.visible = false; };
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdate()
+{
+    // called every frame at 60 frames per second
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdatePost()
+{
+    // called after physics and objects are updated
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRender()
+{
+    // called before objects are rendered
+    // background is drawn by canvasClearColor
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRenderPost()
+{
+    // called after objects are rendered
+    // UI is drawn automatically by the UISystemPlugin
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Startup LittleJS Engine
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+
+</script></body></html>

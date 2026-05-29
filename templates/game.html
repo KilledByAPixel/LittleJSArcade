@@ -1,0 +1,77 @@
+<!DOCTYPE html><head>
+<title>LittleJS AI Starter Project</title>
+<meta charset="utf-8">
+</head><body style="background:#000">
+<script src="../dist/littlejs.js?1780079206468"></script>
+<script src="gameFx.js?1780079206468"></script>
+<script src="textureGenerator.js?1780079206468"></script>
+<script src="tweakables.js?1780079206468"></script>
+<script>
+'use strict';
+
+// engine settings, do not remove
+debugWatermark = false; // Hide debug watermark in corner
+showEngineVersion = false; // Hide engine version console display
+paused = false; // Start unpaused
+
+// engine settings, customize if necessary
+gravity = vec2(0, 0); // No gravity by default
+cameraPos = vec2(0, 0); // Camera centered at origin
+cameraScale = 32; // Camera zoom, larger is more zoomed in
+
+///////////////////////////////////////////////////////////////////////////////
+async function gameInit()
+{
+    // called once after the engine starts up
+    // setup the game
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdate()
+{
+    // called every frame at 60 frames per second
+    // handle input and update the game state
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdatePost()
+{
+    // called after physics and objects are updated
+    // setup camera and prepare for render
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRender()
+{
+    // called before objects are rendered
+    // draw any background effects that appear behind objects
+
+    // draw background gradient
+    drawRectGradient(cameraPos, getCameraSize(), BLACK, WHITE);
+        
+    // draw some shapes
+    drawCircle(vec2(5,-3), 5, RED);
+    drawRect(vec2(-5,-3), vec2(5,5), BLUE);
+    drawLine(cameraPos, mousePos, 1,  YELLOW);
+
+    // draw world space text
+    drawText(`LittleJS Engine`, vec2(0,3), 3);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRenderPost()
+{
+    // called after objects are rendered
+    // draw effects or hud that appear above all objects
+
+    // draw screen space text
+    drawTextScreen(`Hello World!`, 
+        vec2(mainCanvasSize.x/2, 70), 80,   // position, size
+        hsl(0,0,1), 6, hsl(0,0,0));         // color, outline size and color
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Startup LittleJS Engine
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+
+</script>
