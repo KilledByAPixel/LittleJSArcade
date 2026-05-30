@@ -214,7 +214,7 @@ class Ball
                 this.pos.x = boardLeftX - BALL_RADIUS;
                 this.vel.x = -this.vel.x * .5;
                 this.touchedRimOrBoard = true;
-                sClank.play();
+                sClank.play(this.pos);
             }
             else
             {
@@ -246,7 +246,7 @@ class Ball
                     const friction    = 0.94;
                     this.vel = n.scale(-vn * restitution).add(tangent.scale(vt * friction));
                     this.touchedRimOrBoard = true;
-                    sClank.play();
+                    sClank.play(this.pos);
                 }
             }
         }
@@ -290,7 +290,7 @@ function onBallScored(ball)
     if (!onFire && streak >= STREAK_FOR_FIRE)
     {
         onFire = true;
-        sFire.play();
+        sFire.play(ball.pos);
         showMenuToast({icon:'🔥', title:'ON FIRE', text:'+1 per shot until you miss', duration: 2, position:'top-left'});
     }
 
@@ -300,13 +300,13 @@ function onBallScored(ball)
 
     if (swish)
     {
-        sSwish.play();
+        sSwish.play(ball.pos);
         swishTimer.set(1.1);             // light up the big SWISH banner
         addScreenShake(.35, .4);
     }
     else
     {
-        sScore.play();
+        sScore.play(ball.pos);
         addScreenShake(.15, .25);
     }
 }
@@ -474,7 +474,6 @@ async function gameInit()
         items: [
             {type:'label',  id:'finalScore', text:'SCORE: 0'},
             {type:'label',  id:'bestScore',  text:'BEST:  0'},
-            {type:'separator'},
             {type:'button', label:'PLAY AGAIN', onClick: () =>
             {
                 hideMenu('gameover');
@@ -788,13 +787,12 @@ function gameRenderPost()
         const tColor = timeLeft < 10 ? hsl(.02, .9, .65) : hsl(.13, .9, .65);
         drawTextScreen(`0:${tStr}`, vec2(c.x/2, 100), 28, tColor, 3, hsl(0,0,0));
 
-        // streak (top left)
-        if (streak > 0)
-        {
-            const label = onFire ? `🔥 ${streak}` : `× ${streak}`;
-            const col = onFire ? hsl(.05, 1, .65) : hsl(0,0,.95);
-            drawTextScreen(label, vec2(80, 56), 32, col, 3, hsl(0,0,0));
-        }
+        // combo (top left) — only show a real combo (2+ in a row), or the
+        // ON FIRE streak. A streak of 1 isn't a combo, so it stays hidden.
+        if (onFire)
+            drawTextScreen(`🔥 ${streak}`, vec2(20, 56), 32, hsl(.05, 1, .65), 3, hsl(0,0,0), 'left');
+        else if (streak >= 2)
+            drawTextScreen(`COMBO ×${streak}`, vec2(20, 56), 46, hsl(0,0,.95), 3, hsl(0,0,0), 'left');
 
         // big SWISH! banner, just under the clock
         if (swishTimer.isSet() && swishTimer.active())
