@@ -444,6 +444,7 @@ async function gameInit()
     setOrientationLock('landscape');
     // Box2D first — every body needs the world to exist.
     await box2dInit();
+    setCanvasFixedSize(vec2(700, 1080));
 
     canvasClearColor = new Color().setHex('#0a0e1a');
     gravity = vec2(0, -50);

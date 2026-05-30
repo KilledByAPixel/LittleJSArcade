@@ -558,14 +558,12 @@ async function gameInit()
 function fitCameraToCanvas()
 {
     // Fit the spiral (outerR + a small margin) into the smaller canvas dimension.
-    const fitR = SPIRAL_OUTER_R + 1.5;
+    const fitR = SPIRAL_OUTER_R + 1;
     cameraScale = Math.min(mainCanvasSize.x, mainCanvasSize.y) / (2 * fitR);
 }
 
 function gameUpdate()
 {
-    fitCameraToCanvas();
-
     if (bindPauseKey({when: () => isPlaying() && !gameOverPending})) return;
     if (!isPlaying() || gameOverPending) return;
 
@@ -620,7 +618,10 @@ function gameUpdate()
     else if (chain.length > 0 && chain[0].arc >= pathTotalArc) endGame(false);
 }
 
-function gameUpdatePost() { }
+function gameUpdatePost()
+{
+    fitCameraToCanvas();
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Render

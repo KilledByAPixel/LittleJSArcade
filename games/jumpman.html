@@ -13,6 +13,8 @@ debugWatermark = false;
 showEngineVersion = false;
 paused = false;
 
+setCanvasFixedSize(vec2(1280, 720));
+
 ///////////////////////////////////////////////////////////////////////////////
 // Tile system
 ///////////////////////////////////////////////////////////////////////////////
@@ -1514,6 +1516,8 @@ function gameInit()
     cameraScale = 60;
     inputWASDEmulateDirection = true;
     touchGamepadEnable = true;
+    touchGamepadButtonCount = 2;
+    touchGamepadAnalog = false;
 
     // Tiny non-zero gravity so the engine's `wasFalling` check picks the right axis
     // when resolving collisions. Each entity disables auto-gravity (gravityScale=0) and

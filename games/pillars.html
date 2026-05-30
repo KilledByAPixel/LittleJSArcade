@@ -27,6 +27,7 @@
 
  let piece, nextPiece;
  let fallCounter = 0;
+ let gamepadDirPrev = vec2(); // previous-frame gamepad dpad/stick dir, for edge-triggered moves
  let score = 0;
  let level = 1;
  let combo = 0;
@@ -611,9 +612,9 @@ function spawnClearParticles(cellX, cellY, colorIndex)
          onHide: popMenu,
          items: [
              {type:'text', text:
-                 'Move the falling 3-jewel column with Left/Right.\n' +
-                 'Press Up to cycle the jewel colors in the column.\n' +
-                 'Down soft-drops, Space hard-drops.\n\n' +
+                 'Move the falling 3-jewel column with Left/Right (or the d-pad).\n' +
+                 'Press Up (or A) to cycle the jewel colors in the column.\n' +
+                 'Down soft-drops, Space (or B) hard-drops.\n\n' +
                  'Match 3 or more of the same color in a line — ' +
                  'horizontal, vertical, or diagonal — to clear them. ' +
                  'Chains formed by falling jewels score huge bonuses!'},
@@ -713,16 +714,35 @@ function spawnClearParticles(cellX, cellY, colorIndex)
          return;
      }
 
-     // input
-     if (keyWasPressed('ArrowLeft'))
+     // input — merge keyboard with physical + touch gamepad.
+     // The dpad/stick (gamepadStick(0)) carries direction for BOTH a real
+     // gamepad (standard mapping copies the dpad onto stick 0) and the touch
+     // gamepad (which only fills the stick/dpad vectors, not the dpad buttons),
+     // so reading the stick covers every device. We edge-detect it so a held
+     // direction moves/rotates once per push, matching the keyboard feel.
+     const stick = gamepadStick(0);
+     const padX = abs(stick.x) > .5 ? sign(stick.x) : 0;
+     const padY = abs(stick.y) > .5 ? sign(stick.y) : 0;
+     const padLeftEdge  = padX < 0 && !(gamepadDirPrev.x < 0);
+     const padRightEdge = padX > 0 && !(gamepadDirPrev.x > 0);
+     const padUpEdge    = padY > 0 && !(gamepadDirPrev.y > 0);
+     gamepadDirPrev = vec2(padX, padY);
+
+     // face buttons: A (0) rotates, B (1) hard-drops (also the two touch buttons)
+     const moveLeft  = keyWasPressed('ArrowLeft')  || padLeftEdge;
+     const moveRight = keyWasPressed('ArrowRight') || padRightEdge;
+     const doRotate  = keyWasPressed('ArrowUp')    || padUpEdge || gamepadWasPressed(0);
+     const doHard    = keyWasPressed('Space')      || gamepadWasPressed(1);
+
+     if (moveLeft)
      {
          if (tryMove(-1, 0)) sfxMove.play();
      }
-     if (keyWasPressed('ArrowRight'))
+     if (moveRight)
      {
          if (tryMove(1, 0)) sfxMove.play();
      }
-     if (keyWasPressed('ArrowUp'))
+     if (doRotate)
      {
          const old = piece.c.slice();
          rotatePiece();
@@ -731,14 +751,14 @@ function spawnClearParticles(cellX, cellY, colorIndex)
          else
              sfxRotate.play();
      }
-     if (keyWasPressed('Space'))
+     if (doHard)
      {
          hardDrop();
          return;
      }
 
      // falling
-     const softDrop = keyDirection().y < 0;
+     const softDrop = keyDirection().y < 0 || padY < 0;
      const interval = softDrop ? 2 : fallInterval();
      fallCounter++;
      if (fallCounter >= interval)
