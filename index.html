@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- meta tags for social media -->
 <meta name='twitter:title'       content='LittleJS Games Browser'>
@@ -617,12 +617,8 @@
     /* ===================== Theme toggle (top-right of the launcher) ===================== */
     #theme-toggle {
         position: fixed;
-        /* Offset by the safe top inset (status bar / notch / URL bar). Driven
-           by the JS --safe-top var (visualViewport-based) because iOS leaves
-           env() stale after rotation; env() is the pre-JS fallback. max() keeps
-           the desktop spacing where the inset is 0. */
-        top: max(12px, var(--safe-top, env(safe-area-inset-top)));
-        right: max(22px, env(safe-area-inset-right));
+        top: 12px;
+        right: 22px;
         z-index: 100;
         width: 40px;
         height: 40px;
@@ -646,10 +642,9 @@
     #hamburger {
         display: flex;             /* always shown (mobile + desktop) */
         position: fixed;
-        /* Same safe-top handling as #theme-toggle (see there). Sits in the
-           top-right, just left of #theme-toggle (40px wide + 8px gap). */
-        top: max(12px, var(--safe-top, env(safe-area-inset-top)));
-        right: calc(max(22px, env(safe-area-inset-right)) + 48px);
+        /* Sits in the top-right, just left of #theme-toggle (40px wide + 8px gap). */
+        top: 12px;
+        right: 70px;
         z-index: 100;
         width: 40px;
         height: 40px;
@@ -783,9 +778,7 @@
         #welcome-tagline { font-size: 13px; }
 
         /* Bigger touch targets + readable text inside the drawer. */
-        /* Drawer overlays from the top edge on mobile — pad the logo clear of
-           the notch / URL bar using the same safe-top inset as the buttons. */
-        #sidebar-header { padding: max(14px, var(--safe-top, env(safe-area-inset-top))) 14px 12px; }
+        #sidebar-header { padding: 14px 14px 12px; }
         #search { padding: 11px 12px; font-size: 15px; }
         .card { padding: 12px 14px; }
         .card .title { font-size: 16px; }
@@ -1578,35 +1571,6 @@ window.addEventListener('message', e => {
         setDrawer(true);
     }
 });
-
-// ===================== Safe-area top inset (capture-and-reuse) =====================
-// iOS (especially Chrome) leaves env(safe-area-inset-top) STALE after an
-// orientation round-trip — it reads the correct ~47px on first load, but after
-// rotating to landscape and back it stays at the landscape value (~0), so the
-// top UI loses its padding and Chrome's URL bar eats it. visualViewport.offset
-// Top is 0 throughout (it doesn't see the URL bar), so there's no live signal
-// to read. The fix: remember the largest top inset we've ever seen IN PORTRAIT
-// (captured while env is still correct), and reuse it when env later goes
-// stale. Landscape genuinely has ~0 top inset (notch moves to the side), so we
-// only reuse the captured value in portrait. We write it to a --safe-top var.
-const _saProbe = document.createElement('div');
-_saProbe.style.cssText = 'position:fixed;top:0;left:0;visibility:hidden;'
-    + 'pointer-events:none;padding-top:env(safe-area-inset-top)';
-document.body.appendChild(_saProbe);
-let _maxPortraitTop = 0;
-function updateSafeTop() {
-    const envTop = parseFloat(getComputedStyle(_saProbe).paddingTop) || 0;
-    const portrait = window.innerHeight >= window.innerWidth;
-    if (portrait) _maxPortraitTop = Math.max(_maxPortraitTop, envTop);
-    const top = portrait ? Math.max(envTop, _maxPortraitTop) : envTop;
-    document.documentElement.style.setProperty('--safe-top', top + 'px');
-}
-if (window.visualViewport) {
-    visualViewport.addEventListener('resize', () => requestAnimationFrame(updateSafeTop));
-    visualViewport.addEventListener('scroll', () => requestAnimationFrame(updateSafeTop));
-}
-window.addEventListener('orientationchange', () => setTimeout(updateSafeTop, 300));
-updateSafeTop();
 
 document.addEventListener('keydown', e => {
     if (document.activeElement === searchEl && e.key !== 'Escape') return;
