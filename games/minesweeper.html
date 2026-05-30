@@ -693,13 +693,9 @@ function gameRenderPost()
 
     const top = 36;
 
-    drawTextScreen(`Mines: ${minesLeft}   Time: ${t|0}s   (Left: reveal, Right/Shift+Left: flag, R: restart)`,
+    drawTextScreen(`Mines: ${minesLeft}   Time: ${t|0}s`,
         vec2(mainCanvasSize.x/2, top), 28,
         hsl(0,0,1), 4, hsl(0,0,0));
-
-    if (firstClick)
-        drawTextScreen('Click a cell to start (first click is always safe).', vec2(mainCanvasSize.x/2, top+38), 30,
-            hsl(.15,.4,.8), 4, hsl(0,0,0));
 
     if (gameOver)
         drawTextScreen('BOOM! Press R to try again.', vec2(mainCanvasSize.x/2, mainCanvasSize.y-60), 52,
