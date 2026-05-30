@@ -1948,6 +1948,14 @@ button.ljs-grid-cell { cursor: pointer; }
 .ljs-menu-toolbar.anchor-bottom-left  { bottom: var(--toolbar-margin); left: var(--toolbar-margin); }
 .ljs-menu-toolbar.anchor-bottom-right { bottom: var(--toolbar-margin); right: var(--toolbar-margin); }
 .ljs-menu-toolbar.dir-vertical { flex-direction: column; }
+/* iOS top-URL-bar browsers (see the ios-topbar tag) overlap fixed top content
+   in PORTRAIT; drop the top toolbar + the rotate-overlay button clear of the
+   bar. Landscape hides the bar, and desktop/Safari never get the class. */
+@media (orientation: portrait) {
+    html.ios-topbar .ljs-menu-toolbar.anchor-top-left,
+    html.ios-topbar .ljs-menu-toolbar.anchor-top-right { top: 48px; }
+    html.ios-topbar .ljs-orient-panel-btn { top: 48px; }
+}
 .ljs-menu-toolbar button {
     /* font-size stays at 1em so the em-based width/height resolve against
        the parent's base font-size, not against a bumped button size. The
@@ -2097,6 +2105,13 @@ function initMenuSystem()
             menuSounds.activate = () => _defaultActivate.play();
         }
     }
+
+    // Non-Safari iOS browsers (Chrome/Edge/Firefox = CriOS/EdgiOS/FxiOS) keep
+    // their URL bar at the TOP and overlap fixed top content; tag the document
+    // so the toolbar + orientation-overlay CSS can clear it in portrait. Safari
+    // (URL bar at the bottom) is excluded.
+    if (/CriOS|EdgiOS|FxiOS/.test(navigator.userAgent))
+        document.documentElement.classList.add('ios-topbar');
 
     injectStyles();
 

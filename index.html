@@ -663,6 +663,14 @@
     /* Hide while a game is loaded — same as the theme toggle. */
     body.in-game #hamburger { display: none; }
 
+    /* iOS top-URL-bar browsers (see the ios-topbar script) overlap fixed top
+       content in PORTRAIT (in landscape Chrome hides its bar, so no offset).
+       Drop the top buttons clear of the bar there. Desktop/Safari unaffected. */
+    @media (orientation: portrait) {
+        html.ios-topbar #theme-toggle,
+        html.ios-topbar #hamburger { top: 48px; }
+    }
+
     /* 2×2 grid icon — clearly "library / apps", and doesn't collide with the
           hamburger pattern many games use for their own pause menus. */
     #hamburger .grid {
@@ -804,6 +812,15 @@
         .quick-btn { padding: 14px 22px; font-size: 15px; }
     }
 </style>
+<script>
+    // Non-Safari iOS browsers (Chrome/Edge/Firefox = CriOS/EdgiOS/FxiOS) keep
+    // their URL bar at the TOP and overlap fixed top content. Tag the document
+    // so the CSS can nudge top-pinned buttons clear of it in portrait. Safari
+    // (URL bar at the bottom) is intentionally excluded. Set in <head> to avoid
+    // a position flash on load.
+    if (/CriOS|EdgiOS|FxiOS/.test(navigator.userAgent))
+        document.documentElement.classList.add('ios-topbar');
+</script>
 </head>
 <body>
 
