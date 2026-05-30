@@ -1944,10 +1944,12 @@ button.ljs-grid-cell { cursor: pointer; }
     background: var(--toolbar-bg);
 }
 /* Each offset clears the larger of the configured margin and the device
-   safe-area inset for that edge, so toolbars dodge the status bar / notch on
-   mobile (viewport-fit=cover is set at init). Insets are 0 on desktop. */
-.ljs-menu-toolbar.anchor-top-left     { top: max(var(--toolbar-margin), env(safe-area-inset-top)); left: max(var(--toolbar-margin), env(safe-area-inset-left)); }
-.ljs-menu-toolbar.anchor-top-right    { top: max(var(--toolbar-margin), env(safe-area-inset-top)); right: max(var(--toolbar-margin), env(safe-area-inset-right)); }
+   safe inset for that edge, so toolbars dodge the status bar / notch / URL bar
+   on mobile. The top uses the JS-driven --safe-top var (visualViewport-based,
+   rotation-proof — env() goes stale on iOS); other edges use env() directly.
+   All insets are 0 on desktop. */
+.ljs-menu-toolbar.anchor-top-left     { top: max(var(--toolbar-margin), var(--safe-top, env(safe-area-inset-top))); left: max(var(--toolbar-margin), env(safe-area-inset-left)); }
+.ljs-menu-toolbar.anchor-top-right    { top: max(var(--toolbar-margin), var(--safe-top, env(safe-area-inset-top))); right: max(var(--toolbar-margin), env(safe-area-inset-right)); }
 .ljs-menu-toolbar.anchor-bottom-left  { bottom: max(var(--toolbar-margin), env(safe-area-inset-bottom)); left: max(var(--toolbar-margin), env(safe-area-inset-left)); }
 .ljs-menu-toolbar.anchor-bottom-right { bottom: max(var(--toolbar-margin), env(safe-area-inset-bottom)); right: max(var(--toolbar-margin), env(safe-area-inset-right)); }
 .ljs-menu-toolbar.dir-vertical { flex-direction: column; }
@@ -2039,7 +2041,7 @@ button.ljs-grid-cell { cursor: pointer; }
    by the safe-area so the status bar / notch doesn't clip it on mobile. */
 .ljs-orient-panel-btn {
     position: absolute;
-    top:  max(10px, env(safe-area-inset-top));
+    top:  max(10px, var(--safe-top, env(safe-area-inset-top)));
     left: max(10px, env(safe-area-inset-left));
     width: 40px; height: 40px; padding: 0;
     display: inline-flex; align-items: center; justify-content: center;
@@ -2111,20 +2113,31 @@ function initMenuSystem()
     if (_vp && !/viewport-fit/.test(_vp.content))
         _vp.content += ', viewport-fit=cover';
 
-    // iOS (especially Chrome) leaves env(safe-area-inset-*) stale after an
-    // orientation change, so the toolbar jams under the notch in the new
-    // orientation. Re-stamp viewport-fit off→on to force a recompute; delayed
-    // passes land it after the rotation settles.
-    const _refreshSafeArea = () =>
+    // iOS (especially Chrome) leaves env(safe-area-inset-top) STALE after an
+    // orientation change, jamming the toolbar under the notch/URL bar in the
+    // new orientation. So we don't trust env() to update — we drive a
+    // --safe-top var from the visual viewport (the real visible area), which
+    // fires its own resize once the bar/rotation settles. Read inside rAF (iOS
+    // reports stale dims for a beat after rotating); env() (via a hidden probe)
+    // is a floor so notched Safari still works.
+    const _saProbe = document.createElement('div');
+    _saProbe.style.cssText = 'position:fixed;top:0;left:0;visibility:hidden;'
+        + 'pointer-events:none;padding-top:env(safe-area-inset-top)';
+    document.body.appendChild(_saProbe);
+    const _updateSafeTop = () =>
     {
-        if (!_vp) return;
-        let content = _vp.getAttribute('content') || '';
-        if (!/viewport-fit\s*=\s*cover/.test(content)) content += ', viewport-fit=cover';
-        _vp.setAttribute('content', content.replace(/,?\s*viewport-fit\s*=\s*cover/g, ''));
-        requestAnimationFrame(() => _vp.setAttribute('content', content));
+        const vv = window.visualViewport;
+        const envTop = parseFloat(getComputedStyle(_saProbe).paddingTop) || 0;
+        const top = Math.max(vv ? vv.offsetTop : 0, envTop);
+        document.documentElement.style.setProperty('--safe-top', top + 'px');
     };
-    window.addEventListener('orientationchange',
-        () => [120, 450].forEach(d => setTimeout(_refreshSafeArea, d)));
+    if (window.visualViewport)
+    {
+        visualViewport.addEventListener('resize', () => requestAnimationFrame(_updateSafeTop));
+        visualViewport.addEventListener('scroll', () => requestAnimationFrame(_updateSafeTop));
+    }
+    window.addEventListener('orientationchange', () => setTimeout(_updateSafeTop, 300));
+    _updateSafeTop();
 
     injectStyles();
 

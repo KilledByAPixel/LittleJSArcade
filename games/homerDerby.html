@@ -2,10 +2,10 @@
 <title>LittleJS Homer Derby</title>
 <meta charset=utf-8>
 </head><body style="background:#000">
-<script src="../dist/littlejs.js?1780118641848"></script>
-<script src="../dist/box2d.wasm.js?1780118641848"></script>
-<script src="../templates/gameFx.js?1780118641848"></script>
-<script src="../templates/menus.js?1780118641848"></script>
+<script src="../dist/littlejs.js?1780119289024"></script>
+<script src="../dist/box2d.wasm.js?1780119289024"></script>
+<script src="../templates/gameFx.js?1780119289024"></script>
+<script src="../templates/menus.js?1780119289024"></script>
 <script>
 'use strict';
 
@@ -417,8 +417,9 @@ async function gameInit()
 {
     await box2dInit();
 
-    cameraScale = 17;
-    cameraPos = vec2(0, 18);
+    setCanvasFixedSize(vec2(1280, 720));
+    cameraScale = 18;
+    cameraPos = vec2(0, 17);
     gravity = vec2(0, 0); // top-down
     canvasClearColor = hsl(.25, .35, .22); // foul territory / dark green
 
