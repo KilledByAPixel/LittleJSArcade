@@ -79,6 +79,7 @@ const sScore   = new SoundGenerator({frequency: 620, pitchJump: 900,  pitchJumpT
 const sClank   = new SoundGenerator({frequency: 180, slide: -3,   release: .09, volume: .45, randomness: .2, noise: .3});
 const sBuzzer  = new Sound([,0,400,.05,1,,,,,,,,.1,,,,,,,.05]);
 const sFire    = new SoundGenerator({frequency: 300, pitchJump: 1600, pitchJumpTime: .15, release: .4, volume: .6});
+const sBounce  = new SoundGenerator({frequency: 90, slide: -1.2, release: .14, volume: .5, randomness: .2, noise: .12, shapeCurve: 1.5});
 
 //------------------------------------------------------------------------------
 // state
@@ -183,12 +184,22 @@ class Ball
         // floor — bounce against the per-ball floorY, then sink it for next time
         if (this.pos.y - BALL_RADIUS < this.floorY)
         {
+            const impact = -this.vel.y;     // downward speed at contact (>0 when falling)
             this.pos.y = this.floorY + BALL_RADIUS;
             this.vel.y = -this.vel.y * .55;
             this.vel.x *= .82;
             this.spin = -this.vel.x * .35;
             if (abs(this.vel.y) < 1) this.vel.y = 0;
             this.floorY -= 1;
+
+            // bounce thump — volume scaled by how hard it hit, lower pitch for
+            // harder landings. Skip the tiny settling taps.
+            if (impact > 1.5)
+            {
+                const p = percent(impact, 0, 25);
+                const f = lerp(.5, 1, p);
+                sBounce.play(this.pos, p, f);
+            }
         }
 
         // side walls
