@@ -514,6 +514,7 @@ function installDefaultToolbar(opts)
         direction:        'horizontal',
         mute:             true,
         fullscreen:       true,
+        panelButton:      true,   // grid library button — touch + in-launcher only
         pauseMenuId:      'pause',
         titleMenuId:      'title',
         titleDismissable: false,
@@ -534,7 +535,7 @@ function installDefaultToolbar(opts)
         items.push({
             type: 'button',
             id:   'mute',
-            label: muted ? '🔇' : '🔊',
+            label: buildSvgIcon(muted ? 'volume-off' : 'volume-on'),
             title: muted ? 'Unmute' : 'Mute',
             onClick: toggleMenuMuted,
         });
@@ -545,7 +546,7 @@ function installDefaultToolbar(opts)
         items.push({
             type: 'button',
             id:   'fs',
-            label: '⛶',
+            label: buildSvgIcon('fullscreen'),
             title: 'Toggle fullscreen',
             onClick: toggleFullscreen,
             hideOnTouch: true,
@@ -554,10 +555,30 @@ function installDefaultToolbar(opts)
 
     items.push(...opts.extraItemsAfter);
 
+    // Library button (2×2 grid icon) — reopens the arcade's library drawer on
+    // mobile, where the launcher hides its own drawer toggle in-game. Only
+    // meaningful when
+    // (a) we're on a touch device and (b) we're embedded in the arcade iframe,
+    // so it's gated on both here and only revealed once the launcher answers
+    // the handshake below (see _arcadePanelHandshake). Standalone games and
+    // games iframed on some other site never see it.
+    const _wantPanelButton = opts.panelButton && isTouchDevice
+        && window.self !== window.top;
+    if (_wantPanelButton)
+    {
+        items.push({
+            type:  'button',
+            id:    'panel',
+            label: buildSvgIcon('grid'),   // filled 2×2 squares, sized like its neighbors
+            title: 'Library',
+            onClick: _arcadeOpenPanel,
+        });
+    }
+
     items.push({
         type: 'button',
         id:   'menu',
-        label: '☰',
+        label: buildSvgIcon('menu'),
         title: 'Menu',
         onClick: () =>
         {
@@ -586,6 +607,19 @@ function installDefaultToolbar(opts)
         items,
     });
     toolbar.show();
+
+    // The Library button starts hidden and only appears once the launcher
+    // answers our handshake — guarantees it never shows unless a real arcade
+    // is listening (and ready to act on the open-panel message).
+    if (_wantPanelButton)
+    {
+        const panelItem = toolbar.getItem('panel');
+        if (panelItem)
+        {
+            panelItem.setVisible(false);
+            _arcadePanelHandshake(() => panelItem.setVisible(true));
+        }
+    }
 
     // Keep handle to opts so refreshDefaultToolbar can re-evaluate later
     // when the game's underlying state (driving grayedWhen) changes.
@@ -627,6 +661,36 @@ function refreshDefaultToolbar(id)
         const item = reg.toolbar.getItem('menu');
         if (item) item.setDisabled(_isHamburgerGrayed(reg.opts));
     }
+}
+
+// Arcade-launcher handshake for the Library button. The game posts a
+// 'hello' to its parent frame and reveals the button only when the launcher
+// replies 'here'. Game-initiated (rather than launcher-initiated) so there's
+// no load-timing race: whenever a toolbar inits it asks, and the launcher
+// answers immediately. The confirmation is cached so a second toolbar (or a
+// re-init) reveals its button right away.
+let _arcadePanelConfirmed = false;
+// Ask the launcher to open its library drawer. No-op (silently caught) when
+// there's no parent or it isn't the arcade — callers gate on the handshake.
+function _arcadeOpenPanel()
+{
+    try { window.parent.postMessage({ type: 'littlejsArcadeOpenPanel' }, '*'); }
+    catch (e) {}
+}
+function _arcadePanelHandshake(onConfirm)
+{
+    if (_arcadePanelConfirmed) { onConfirm(); return; }
+    window.addEventListener('message', e =>
+    {
+        const d = e.data;
+        if (d && d.type === 'littlejsArcadeHere')
+        {
+            _arcadePanelConfirmed = true;
+            onConfirm();
+        }
+    });
+    try { window.parent.postMessage({ type: 'littlejsArcadeHello' }, '*'); }
+    catch (e) {}
 }
 
 // ============================================================================
@@ -1429,7 +1493,8 @@ function _writeGlobalSaveData()
     writeSaveData('littlejs.global', _readGlobalSaveData());
 }
 
-// Shared mute state — single source of truth for the toolbar's 🔊/🔇
+// Shared mute state — single source of truth for the toolbar's volume-on /
+// volume-off SVG icon
 // button and any options-menu volume slider. Refactored out of
 // installDefaultToolbar so a volume change can keep the mute icon in
 // sync (and vice versa). Persists in the 'littlejs.global' save blob;
@@ -1478,7 +1543,7 @@ function _refreshMuteUI()
     {
         const item = tb.getItem('mute');
         if (!item) continue;
-        item.setLabel(_menuMuted ? '🔇' : '🔊');
+        item.setLabel(buildSvgIcon(_menuMuted ? 'volume-off' : 'volume-on'));
         item.setTitle?.(_menuMuted ? 'Unmute' : 'Mute');
     }
 }
@@ -1590,6 +1655,21 @@ function ensureOrientationOverlay()
         child.className = cls;
         el.appendChild(child);
     }
+
+    // Top-left Library button — an escape hatch back to the arcade for a player
+    // who launched an orientation-locked game on a device they can't/won't
+    // rotate. The overlay covers the toolbar (so its Library button is hidden),
+    // hence this dedicated copy. Only shown inside the launcher: starts hidden
+    // and is revealed by the same handshake, and reuses the open-panel message.
+    const panelBtn = document.createElement('button');
+    panelBtn.className = 'ljs-orient-panel-btn';
+    panelBtn.title = 'Library';
+    panelBtn.appendChild(buildGridIcon());
+    panelBtn.style.display = 'none';
+    panelBtn.addEventListener('click', () => { _arcadeOpenPanel(); panelBtn.blur(); });
+    el.appendChild(panelBtn);
+    _arcadePanelHandshake(() => { panelBtn.style.display = ''; });
+
     menuSystemRoot.appendChild(el);
     orientationOverlay = el;
     return el;
@@ -1863,10 +1943,13 @@ button.ljs-grid-cell { cursor: pointer; }
     display: flex; gap: var(--toolbar-gap);
     background: var(--toolbar-bg);
 }
-.ljs-menu-toolbar.anchor-top-left     { top: var(--toolbar-margin); left: var(--toolbar-margin); }
-.ljs-menu-toolbar.anchor-top-right    { top: var(--toolbar-margin); right: var(--toolbar-margin); }
-.ljs-menu-toolbar.anchor-bottom-left  { bottom: var(--toolbar-margin); left: var(--toolbar-margin); }
-.ljs-menu-toolbar.anchor-bottom-right { bottom: var(--toolbar-margin); right: var(--toolbar-margin); }
+/* Each offset clears the larger of the configured margin and the device
+   safe-area inset for that edge, so toolbars dodge the status bar / notch on
+   mobile (viewport-fit=cover is set at init). Insets are 0 on desktop. */
+.ljs-menu-toolbar.anchor-top-left     { top: max(var(--toolbar-margin), env(safe-area-inset-top)); left: max(var(--toolbar-margin), env(safe-area-inset-left)); }
+.ljs-menu-toolbar.anchor-top-right    { top: max(var(--toolbar-margin), env(safe-area-inset-top)); right: max(var(--toolbar-margin), env(safe-area-inset-right)); }
+.ljs-menu-toolbar.anchor-bottom-left  { bottom: max(var(--toolbar-margin), env(safe-area-inset-bottom)); left: max(var(--toolbar-margin), env(safe-area-inset-left)); }
+.ljs-menu-toolbar.anchor-bottom-right { bottom: max(var(--toolbar-margin), env(safe-area-inset-bottom)); right: max(var(--toolbar-margin), env(safe-area-inset-right)); }
 .ljs-menu-toolbar.dir-vertical { flex-direction: column; }
 .ljs-menu-toolbar button {
     /* font-size stays at 1em so the em-based width/height resolve against
@@ -1880,6 +1963,19 @@ button.ljs-grid-cell { cursor: pointer; }
     display: inline-flex; align-items: center; justify-content: center;
 }
 .ljs-toolbar-icon { font-family: inherit; font-size: var(--toolbar-glyph-size); line-height: 1; }
+/* Inline SVG toolbar icons (volume / fullscreen / menu / library) all draw
+   with stroke:currentColor at 1em, so they theme and scale together. display
+   block removes the inline-SVG baseline gap so they center in the button. */
+.ljs-toolbar-icon svg { display: block; width: 1em; height: 1em; }
+/* Filled 2×2 library icon (four solid squares) — same look as the launcher's
+   drawer toggle. Proportions mirror index.html's #hamburger .grid (3px gap /
+   2px radius on a 20px box → 0.15em / 0.1em at 1em). */
+.ljs-grid-icon {
+    display: grid;
+    grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr;
+    gap: 0.15em; width: 1em; height: 1em;
+}
+.ljs-grid-icon span { background: currentColor; border-radius: 0.1em; }
 .ljs-menu-toolbar button:focus-visible { outline: none; }
 @media (hover: hover) and (pointer: fine) {
     .ljs-menu-toolbar button:hover { background: rgba(255,255,255,0.15); }
@@ -1939,6 +2035,26 @@ button.ljs-grid-cell { cursor: pointer; }
 }
 .ljs-orient-title { font-size: var(--menu-title-size); font-weight: bold; color: var(--menu-accent); }
 .ljs-orient-text  { font-size: var(--menu-item-size); max-width: 18em; opacity: 0.9; }
+/* Library escape-hatch button, pinned top-left of the rotate overlay. Offset
+   by the safe-area so the status bar / notch doesn't clip it on mobile. */
+.ljs-orient-panel-btn {
+    position: absolute;
+    top:  max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    width: 40px; height: 40px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 20px;                /* grid icon is 1em → 20px, like the launcher */
+    color: var(--menu-fg);
+    /* Match index.html's #hamburger: faint neutral chip, no accent outline. */
+    background: rgba(20, 26, 38, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    cursor: pointer; line-height: 1;
+    outline: none;                               /* never draw a focus ring */
+    -webkit-tap-highlight-color: transparent;    /* kill the mobile tap flash */
+}
+.ljs-orient-panel-btn:hover { background: rgba(20, 26, 38, 0.92); }
+.ljs-orient-panel-btn:focus-visible { outline: none; }
 /* Wiggle the icon between portrait-ish and landscape-ish to suggest rotating. */
 @keyframes ljs-orient-rotate {
     0%, 100% { transform: rotate(-12deg); }
@@ -1985,6 +2101,15 @@ function initMenuSystem()
             menuSounds.activate = () => _defaultActivate.play();
         }
     }
+
+    // Expose the device safe-area insets to env() so the toolbar and the
+    // orientation overlay can dodge the status bar / notch on mobile. Game
+    // templates ship a viewport meta without viewport-fit=cover; append it
+    // here so every game benefits without editing dozens of HTML files.
+    // No-op on desktop / non-notched devices (the insets resolve to 0).
+    const _vp = document.querySelector('meta[name="viewport"]');
+    if (_vp && !/viewport-fit/.test(_vp.content))
+        _vp.content += ', viewport-fit=cover';
 
     injectStyles();
 
@@ -2805,7 +2930,7 @@ function buildSlider(item)
 
     const handle = {
         type: 'slider',
-        setLabel(t)    { labelEl.textContent = t; },
+        setLabel(t)    { if (t instanceof Node) labelEl.replaceChildren(t); else labelEl.textContent = t; },
         // Defensive clamp + NaN guard. The browser also clamps `<input
         // type="range">`, but explicit clamp here keeps persistedWrite
         // honest and avoids surprising behavior if min/max change later.
@@ -2857,7 +2982,7 @@ function buildCheckbox(item)
 
     const handle = {
         type: 'checkbox',
-        setLabel(t)    { labelEl.textContent = t; },
+        setLabel(t)    { if (t instanceof Node) labelEl.replaceChildren(t); else labelEl.textContent = t; },
         setValue(v)    { value = !!v; render(); persistedWrite(item.persist, value); },
         getValue()     { return value; },
         setDisabled(d) { wrap.disabled = !!d; wrap.classList.toggle('disabled', !!d); },
@@ -2904,7 +3029,7 @@ function buildInput(item)
 
     const handle = {
         type: 'input',
-        setLabel(t)    { labelEl.textContent = t; },
+        setLabel(t)    { if (t instanceof Node) labelEl.replaceChildren(t); else labelEl.textContent = t; },
         setValue(v)    { input.value = v == null ? '' : String(v); persistedWrite(item.persist, input.value); },
         getValue()     { return input.value; },
         setDisabled(d) { input.disabled = !!d; wrap.classList.toggle('disabled', !!d); },
@@ -2952,7 +3077,7 @@ function buildColor(item)
 
     const handle = {
         type: 'color',
-        setLabel(t)    { labelEl.textContent = t; },
+        setLabel(t)    { if (t instanceof Node) labelEl.replaceChildren(t); else labelEl.textContent = t; },
         setValue(v)    { input.value = v; persistedWrite(item.persist, input.value); },
         getValue()     { return input.value; },
         setDisabled(d) { input.disabled = !!d; wrap.classList.toggle('disabled', !!d); },
@@ -2979,8 +3104,62 @@ function buildToolbarLabelSpan(text)
 {
     const span = document.createElement('span');
     span.className = 'ljs-toolbar-icon';
-    span.textContent = text || '';
+    // A label may be a DOM node (e.g. the 2×2 grid icon) instead of a glyph.
+    if (text instanceof Node) span.appendChild(text);
+    else span.textContent = text || '';
     return span;
+}
+
+// Unified line-icon set for toolbar buttons. Each entry is the inner SVG of a
+// 0 0 24 24 viewBox drawn with fill:none + stroke:currentColor (set on the
+// wrapping <svg> below), so all icons share one stroke language and inherit
+// the button's color/size. buildSvgIcon(name) returns a fresh <svg> node usable
+// directly as a toolbar item `label` (buildToolbarLabelSpan accepts a Node).
+const _toolbarIconPaths = {
+    // speaker + sound waves
+    'volume-on':  '<path d="M11 5 6 9H2v6h4l5 4z"/>'
+                + '<path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
+    // speaker + X (muted)
+    'volume-off': '<path d="M11 5 6 9H2v6h4l5 4z"/>'
+                + '<path d="M22 9l-6 6M16 9l6 6"/>',
+    // four corner brackets (expand)
+    'fullscreen': '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3'
+                + 'M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+    // three bars (hamburger)
+    'menu':       '<path d="M3 6h18M3 12h18M3 18h18"/>',
+    // 2×2 filled squares (library). Filled via per-rect fill/stroke overrides
+    // (the parent <svg> is fill:none/stroke:currentColor for the line icons).
+    // Inset to 4..20 so the solid fill reads the same visual size as the line
+    // icons' ~3..21 strokes — same viewBox + 1em sizing guarantees parity.
+    'grid':       '<rect x="4"  y="4"  width="7" height="7" rx="1.5" fill="currentColor" stroke="none"/>'
+                + '<rect x="13" y="4"  width="7" height="7" rx="1.5" fill="currentColor" stroke="none"/>'
+                + '<rect x="4"  y="13" width="7" height="7" rx="1.5" fill="currentColor" stroke="none"/>'
+                + '<rect x="13" y="13" width="7" height="7" rx="1.5" fill="currentColor" stroke="none"/>',
+};
+function buildSvgIcon(name)
+{
+    // Parse via an HTML span: the parser switches into the SVG namespace for
+    // the <svg> tag, so the result is a real SVG element (no createElementNS
+    // bookkeeping). Returns the <svg> node to drop into a toolbar label span.
+    const holder = document.createElement('span');
+    holder.innerHTML =
+        '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" '
+      + 'stroke="currentColor" stroke-width="2" stroke-linecap="round" '
+      + 'stroke-linejoin="round" aria-hidden="true">'
+      + (_toolbarIconPaths[name] || '') + '</svg>';
+    return holder.firstElementChild;
+}
+
+// Filled 2×2 "library" icon — four solid rounded squares, matching the
+// launcher's #hamburger drawer toggle (index.html). Used for the Library
+// buttons (toolbar + orientation overlay) where we want the filled look
+// rather than the line-art SVG set. currentColor + em so it themes/scales.
+function buildGridIcon()
+{
+    const grid = document.createElement('span');
+    grid.className = 'ljs-grid-icon';
+    for (let i = 0; i < 4; i++) grid.appendChild(document.createElement('span'));
+    return grid;
 }
 
 function buildToolbarButton(item)
@@ -3000,7 +3179,7 @@ function buildToolbarButton(item)
     });
     const handle = {
         type: 'button',
-        setLabel(t)    { labelEl.textContent = t; },
+        setLabel(t)    { if (t instanceof Node) labelEl.replaceChildren(t); else labelEl.textContent = t; },
         setTitle(t)    { el.title = t || ''; },
         setValue()     {},
         getValue()     { return undefined; },
@@ -3031,7 +3210,7 @@ function buildToolbarToggle(item)
     });
     const handle = {
         type: 'toggle',
-        setLabel(t)    { labelEl.textContent = t; },
+        setLabel(t)    { if (t instanceof Node) labelEl.replaceChildren(t); else labelEl.textContent = t; },
         setTitle(t)    { el.title = t || ''; },
         setValue(v)    { value = !!v; render(); },
         getValue()     { return value; },

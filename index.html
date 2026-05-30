@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 
 <!-- meta tags for social media -->
 <meta name='twitter:title'       content='LittleJS Games Browser'>
@@ -610,8 +610,11 @@
     /* ===================== Theme toggle (top-right of the launcher) ===================== */
     #theme-toggle {
         position: fixed;
-        top: 12px;
-        right: 22px;
+        /* Offset by the device safe-area (status bar / notch) so the button
+           isn't tucked under it on mobile; max() keeps the desktop spacing
+           where the insets are 0. Needs viewport-fit=cover (see <meta>). */
+        top: max(12px, env(safe-area-inset-top));
+        right: max(22px, env(safe-area-inset-right));
         z-index: 100;
         width: 40px;
         height: 40px;
@@ -635,8 +638,10 @@
     #hamburger {
         display: none;             /* shown only via mobile media query */
         position: fixed;
-        top: 10px;
-        left: 10px;
+        /* Same safe-area handling as #theme-toggle so the status bar / notch
+           doesn't clip the drawer toggle on mobile. */
+        top: max(10px, env(safe-area-inset-top));
+        left: max(10px, env(safe-area-inset-left));
         z-index: 100;
         width: 40px;
         height: 40px;
@@ -1560,6 +1565,25 @@ backdropEl.addEventListener('click', () => setDrawer(false));
 listEl.addEventListener('click', e => { if (e.target.closest('.card')) setDrawer(false); });
 sidebarLogoWrap.addEventListener('click', () => setDrawer(false));
 refreshFade(); // start the initial fade timer
+
+// ===================== In-game Library button (iframe handshake) =====================
+// Games running inside this iframe show a Library button in their toolbar to
+// reopen the drawer on mobile (the launcher's own #hamburger is hidden in-game).
+// The game posts a 'hello' first; we answer 'here' so the button only appears
+// when a real launcher is listening. A click then posts 'openPanel'.
+window.addEventListener('message', e => {
+    const d = e.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.type === 'littlejsArcadeHello') {
+        // Echo back to the sender. file:// iframes report origin 'null', which
+        // postMessage rejects as a target — fall back to '*' there.
+        const target = (e.origin && e.origin !== 'null') ? e.origin : '*';
+        try { e.source && e.source.postMessage({ type: 'littlejsArcadeHere' }, target); }
+        catch (err) {}
+    } else if (d.type === 'littlejsArcadeOpenPanel') {
+        setDrawer(true);
+    }
+});
 
 document.addEventListener('keydown', e => {
     if (document.activeElement === searchEl && e.key !== 'Escape') return;
