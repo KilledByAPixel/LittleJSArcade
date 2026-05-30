@@ -23,13 +23,6 @@
     debugWatermark = false;
     showEngineVersion = false;
 
-    // Touch gamepad: analog stick + 1 face button (fire). Player needs free 2D
-    // movement (not just 4-dir), so analog is the right call.
-    touchGamepadEnable = true;
-    touchGamepadAnalog = true;
-    touchGamepadButtonCount = 2;
-    touchGamepadAlpha = .35;
-
 // SFX
     const sShoot = new SoundGenerator({volume:.35, frequency:900, release:.05, shapeCurve:1.8, slide:-2});
     const sHit   = new SoundGenerator({volume:.45, frequency:280, release:.08, shapeCurve:.9, noise:.12});
