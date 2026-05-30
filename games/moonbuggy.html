@@ -662,19 +662,20 @@ function drawStarLayer(par, cell, prob, sizeMax, seed, view)
     }
 }
 
-// Crescent moon (smooth): a bright disc carved by an equal-size sky-colored disc
-// offset to the left. The difference of two equal circles is a true crescent
-// (lune); the dark side shows the sky behind it.
+// Crescent moon: the engine's drawCrescent renders a true lune in one call.
+// percent is the moon phase (0=new, .25=quarter, .5=full); angle PI/2 swings
+// the lit edge to the right so the craters land on the bright sliver.
 function drawMoon(mx, my)
 {
-    const mr = 4.8;                      // diameter
+    const md = 4.4;                      // radius
     const lit    = hsl(.62,.12,.84);
-    const sky    = hsl(.66,.55,.06);     // matches the background sky
     const crater = hsl(.62,.10,.74);
 
-    drawCircle(vec2(mx, my), mr, lit);              // bright moon
-    drawCircle(vec2(mx-2.1, my+0.3), mr, sky);      // carve the crescent
-    drawCircle(vec2(mx+1.4, my+0.5), 0.6,  crater); // craters on the lit sliver
+    //drawCrescent(vec2(mx, my), mr, 0.15, lit, PI/2, true); // crescent
+
+    drawCircle(vec2(mx, my), md, hsl(.6,.5,.05)); // dark disc
+    drawCrescent(vec2(mx, my), md, 0.15, lit, 1.9); // bright crescent
+    drawCircle(vec2(mx+1.4, my+0.5), 0.6,  crater);  // craters on the lit sliver
     drawCircle(vec2(mx+1.5, my-1.0), 0.45, crater);
 }
 
