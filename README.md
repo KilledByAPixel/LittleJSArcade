@@ -20,6 +20,7 @@ LittleJS and everything in this repository is **MIT licensed!** See [LICENSE](LI
 ## 📚 Resources
 
 - [LittleJS Engine](https://github.com/KilledByAPixel/LittleJS) — the main LittleJS repository
+- [LittleJS AI Tools](https://github.com/KilledByAPixel/LittleJS-AI) - Templates and skills to improve LittleJS + AI workflows.
 - [Games Folder](games/) — example games made with LittleJS AI
 - [Templates Folder](templates/) — starting templates and reusable components
 - [LittleJS GPT AI](https://chatgpt.com/g/g-67c7c080b5bc81919736bc8815836be6-littlejs-game-maker) — use ChatGPT to make games without writing any code
@@ -50,18 +51,11 @@ Playable demos you can fork as starting points for your own games.
 
 Did you make a game you think should be included? Send a pull request!
 
-- 🧩 [Tetrix](https://killedbyapixel.github.io/LittleJSArcade/games/tetrix.html)
 - 🤖 [Robo Rescue](https://killedbyapixel.github.io/LittleJSArcade/games/roboRescue.html)
 - 🐸 [Froggit](https://killedbyapixel.github.io/LittleJSArcade/games/froggit.html)
 - 🧛 [Emoji Survivors](https://killedbyapixel.github.io/LittleJSArcade/games/emojiSurvivors.html)
 - 🏙️ [Missile Defense](https://killedbyapixel.github.io/LittleJSArcade/games/missileDefense.html)
-- ⛳ [Mini Golf](https://killedbyapixel.github.io/LittleJSArcade/games/miniGolf.html)
 - 🎱 [Pool](https://killedbyapixel.github.io/LittleJSArcade/games/pool.html)
 - 🃏 [Freecell](https://killedbyapixel.github.io/LittleJSArcade/games/freecell.html)
 - 👾 [Space Intruders](https://killedbyapixel.github.io/LittleJSArcade/games/spaceIntruders.html)
-- 👻 [Puc-Man](https://killedbyapixel.github.io/LittleJSArcade/games/pucMan.html)
-- 🌑 [Asterblast](https://killedbyapixel.github.io/LittleJSArcade/games/asterblast.html)
 - 🔴 [Checkers](https://killedbyapixel.github.io/LittleJSArcade/games/checkers.html)
-- 🐛 [Centibug](https://killedbyapixel.github.io/LittleJSArcade/games/centibug.html)
-- 🪐 [Orbitswarm](https://killedbyapixel.github.io/LittleJSArcade/games/orbitswarm.html)
-- 💊 [Dr. Pill](https://killedbyapixel.github.io/LittleJSArcade/games/drPill.html)
