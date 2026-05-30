@@ -24,8 +24,11 @@
         background: #ff3b6b; color: #fff; font-weight: 800; font-size: 20px;
         display: flex; align-items: center; justify-content: center; }
     /* EXPERIMENT toggles for the topbar's top offset. */
-    body.pad-env   #topbar { top: max(12px, env(safe-area-inset-top)); }
-    body.pad-fixed #topbar { top: 60px; }
+    body.pad-env #topbar { top: max(12px, env(safe-area-inset-top)); }
+    body.pad-cap #topbar { top: max(12px, var(--cap, 12px)); }
+    body.pad-44  #topbar { top: 44px; }
+    body.pad-50  #topbar { top: 50px; }
+    body.pad-60  #topbar { top: 60px; }
 
     /* The app-shell content. position:absolute + inset:0 = fills the locked body. */
     #panel { position: absolute; inset: 0; display: flex; flex-direction: column;
@@ -86,13 +89,27 @@
         + ' env(safe-area-inset-bottom) env(safe-area-inset-left)';
     document.body.appendChild(probe);
 
+    // Capture the largest env top-inset ever seen IN PORTRAIT. env is correct on
+    // first load and goes stale after rotation, so this remembers the good value;
+    // the 'captured' pad mode reuses it (per-device, no hardcoding).
+    let capturedTop = 0;
+    function captureInset() {
+        const envTop = parseFloat(getComputedStyle(probe).paddingTop) || 0;
+        if (window.innerHeight >= window.innerWidth && envTop > capturedTop) {
+            capturedTop = envTop;
+            document.documentElement.style.setProperty('--cap', capturedTop + 'px');
+        }
+    }
+
     function render() {
+        captureInset();
         const c = getComputedStyle(probe);
         const vv = window.visualViewport || {};
         const bar = document.getElementById('topbar').getBoundingClientRect();
         const lines = [
             'env inset  T/R/B/L: ' + c.paddingTop + ' / ' + c.paddingRight
                 + ' / ' + c.paddingBottom + ' / ' + c.paddingLeft,
+            'captured portrait env-top: ' + capturedTop + 'px',
             'window.innerHeight:  ' + window.innerHeight,
             'window.outerHeight:  ' + window.outerHeight,
             'screen.height:       ' + screen.height,
@@ -114,14 +131,14 @@
         document.getElementById('t-docscroll').classList.toggle('on', on);
     });
 
-    let padMode = 0; // 0 = 12px, 1 = env, 2 = fixed 60px
+    const padModes   = ['12px', 'env (live)', 'captured', 'fixed 44px', 'fixed 50px', 'fixed 60px'];
+    const padClasses = [null,   'pad-env',    'pad-cap',  'pad-44',     'pad-50',     'pad-60'];
+    let padMode = 0;
     wire('t-pad', () => {
-        padMode = (padMode + 1) % 3;
-        body.classList.toggle('pad-env',   padMode === 1);
-        body.classList.toggle('pad-fixed', padMode === 2);
-        const lbl = ['12px', 'max(12px, env-top)', 'fixed 60px'][padMode];
+        padMode = (padMode + 1) % padModes.length;
+        padClasses.forEach((cls, i) => { if (cls) body.classList.toggle(cls, i === padMode); });
         const b = document.getElementById('t-pad');
-        b.textContent = 'top offset: ' + lbl;
+        b.textContent = 'top offset: ' + padModes[padMode];
         b.classList.toggle('on', padMode !== 0);
     });
 
