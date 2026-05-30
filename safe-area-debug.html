@@ -2,137 +2,100 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<!-- Matches index.html exactly (no viewport-fit=cover). -->
+<!-- Matches index.html (no viewport-fit=cover). -->
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Safe-area sandbox</title>
 <style>
     * { box-sizing: border-box; margin: 0; }
-    /* === Mirrors index.html's app-shell: locked to the viewport, no page scroll. === */
-    html, body { height: 100%; height: 100dvh; overflow: hidden;
-        background: #0c1018; color: #e8edf5;
-        font: 15px/1.45 -apple-system, system-ui, sans-serif; }
+    /* SCROLLABLE document (deliberately NOT overflow:hidden) — so iOS gets the
+       document-scroll gesture it needs to collapse its URL bar. The experiment:
+       does a normal scrollable page dodge the top cut-off that the locked
+       overflow:hidden app-shell suffers? */
+    html { background: #0c1018; }
+    body { min-height: 100dvh; background: #0c1018; color: #e8edf5;
+        font: 15px/1.45 -apple-system, system-ui, sans-serif; padding: 64px 14px 16px; }
 
-    /* EXPERIMENT: when .doc-scroll is on, let the DOCUMENT scroll (this is the
-       gesture iOS watches to collapse its URL bar). A tall spacer makes room. */
-    body.doc-scroll { overflow: auto; -webkit-overflow-scrolling: touch; }
-    #docSpacer { display: none; }
-    body.doc-scroll #docSpacer { display: block; height: 160vh; }
-
-    /* The watched element — same idea as the launcher's top-right button. */
+    /* The watched element — like the launcher's top-right button. */
     #topbar { position: fixed; top: 12px; right: 12px; z-index: 20;
         width: 46px; height: 46px; border-radius: 9px;
         background: #ff3b6b; color: #fff; font-weight: 800; font-size: 20px;
         display: flex; align-items: center; justify-content: center; }
-    /* EXPERIMENT toggles for the topbar's top offset. */
-    body.pad-env #topbar { top: max(12px, env(safe-area-inset-top)); }
-    body.pad-cap #topbar { top: max(12px, var(--cap, 12px)); }
-    body.pad-44  #topbar { top: 44px; }
-    body.pad-50  #topbar { top: 50px; }
-    body.pad-60  #topbar { top: 60px; }
+    body.pad-env  #topbar { top: max(12px, env(safe-area-inset-top)); }
+    body.pad-44   #topbar { top: 44px; }
+    body.pad-50   #topbar { top: 50px; }
+    body.pad-60   #topbar { top: 60px; }
+    /* Orientation-gated: offset ONLY in portrait (Chrome hides its URL bar in
+       landscape, so landscape stays at the 12px default). */
+    @media (orientation: portrait) { body.pad-port #topbar { top: 48px; } }
 
-    /* The app-shell content. position:absolute + inset:0 = fills the locked body. */
-    #panel { position: absolute; inset: 0; display: flex; flex-direction: column;
-        padding: 64px 14px 12px; gap: 10px; }
-    .controls { display: flex; flex-wrap: wrap; gap: 7px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0; }
     button { font: inherit; padding: 9px 11px; border-radius: 8px;
         border: 1px solid #33405a; background: #1c2332; color: #e8edf5; }
     button.on { background: #21c46a; border-color: #21c46a; color: #04110a; font-weight: 700; }
     pre { white-space: pre-wrap; word-break: break-word; font-size: 12.5px;
         background: #11161f; border: 1px solid #222c3c; border-radius: 8px; padding: 9px; }
-    /* Inner-scrolling list — mirrors index's #list. Scrolling THIS does NOT
-       collapse the iOS URL bar (only document scroll does). */
-    #list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
-        border: 1px dashed #2c3a52; border-radius: 8px; }
-    .row { padding: 13px 12px; border-bottom: 1px solid #1b2433; }
-    .hint { opacity: .75; font-size: 13px; }
+    .hint { opacity: .75; font-size: 13px; margin: 8px 0; }
+    .row { padding: 15px 12px; border-bottom: 1px solid #1b2433; }
 </style>
 </head>
 <body>
 <div id="topbar">▦</div>
 
-<div id="panel">
-    <div><b>Safe-area sandbox</b> — mirrors index.html. Rotate to landscape and
-        back to portrait to trigger the cut-off, then try the toggles.</div>
+<div><b>Safe-area sandbox</b> — this page is scrollable. Rotate to landscape and
+    back to portrait to trigger the cut-off, then <b>scroll the whole page down</b>
+    and watch the ▦ box top-right and Chrome's URL bar.</div>
 
-    <div class="controls">
-        <button id="t-docscroll">document scroll: OFF</button>
-        <button id="t-pad">top offset: 12px</button>
-        <button id="t-unit">height: 100dvh</button>
-        <button id="t-cover">viewport-fit: auto</button>
-    </div>
-
-    <pre id="dump">measuring…</pre>
-    <div class="hint">Watch the pink ▦ box top-right. If the URL bar covers it,
-        that's the bug. Try: turn ON “document scroll”, then drag the page down a
-        little — does the bar collapse and free the box?</div>
-
-    <div id="list">
-        <!-- filler so the inner list scrolls (this scroll should NOT fix it) -->
-    </div>
+<div class="controls">
+    <button id="t-pad">top offset: 12px</button>
+    <button id="t-cover">viewport-fit: auto</button>
 </div>
-<div id="docSpacer"></div>
+
+<pre id="dump">measuring…</pre>
+<div class="hint">Does scrolling down collapse the URL bar and free the ▦ box?
+    (If yes, making the arcade scrollable is the fix.)</div>
+
+<div id="list"></div>
 
 <script>
-    // ---- fill the inner list so it scrolls internally ----
+    // ---- tall content so the DOCUMENT scrolls ----
     const list = document.getElementById('list');
-    for (let i = 1; i <= 30; i++) {
+    for (let i = 1; i <= 40; i++) {
         const r = document.createElement('div');
         r.className = 'row';
-        r.textContent = 'inner-list row ' + i + ' (scrolling this should NOT collapse the URL bar)';
+        r.textContent = 'scrollable content row ' + i;
         list.appendChild(r);
     }
 
-    // ---- env() inset probe (persistent) ----
+    // ---- env() inset probe (0 unless viewport-fit=cover is on) ----
     const probe = document.createElement('div');
     probe.style.cssText = 'position:fixed;top:0;left:0;visibility:hidden;'
         + 'pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right)'
         + ' env(safe-area-inset-bottom) env(safe-area-inset-left)';
     document.body.appendChild(probe);
 
-    // Capture the largest env top-inset ever seen IN PORTRAIT. env is correct on
-    // first load and goes stale after rotation, so this remembers the good value;
-    // the 'captured' pad mode reuses it (per-device, no hardcoding).
-    let capturedTop = 0;
-    function captureInset() {
-        const envTop = parseFloat(getComputedStyle(probe).paddingTop) || 0;
-        if (window.innerHeight >= window.innerWidth && envTop > capturedTop) {
-            capturedTop = envTop;
-            document.documentElement.style.setProperty('--cap', capturedTop + 'px');
-        }
-    }
-
     function render() {
-        captureInset();
         const c = getComputedStyle(probe);
         const vv = window.visualViewport || {};
         const bar = document.getElementById('topbar').getBoundingClientRect();
-        const lines = [
+        document.getElementById('dump').textContent = [
             'env inset  T/R/B/L: ' + c.paddingTop + ' / ' + c.paddingRight
                 + ' / ' + c.paddingBottom + ' / ' + c.paddingLeft,
-            'captured portrait env-top: ' + capturedTop + 'px',
             'window.innerHeight:  ' + window.innerHeight,
             'window.outerHeight:  ' + window.outerHeight,
-            'screen.height:       ' + screen.height,
             'visualViewport.height:    ' + Math.round(vv.height || 0),
             'visualViewport.offsetTop: ' + Math.round(vv.offsetTop || 0),
+            'scrollY:             ' + Math.round(window.scrollY),
             'topbar rect.top:     ' + Math.round(bar.top),
             'orientation: ' + (window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape'),
-        ];
-        document.getElementById('dump').textContent = lines.join('\n');
+        ].join('\n');
     }
 
     // ---- toggles ----
     const body = document.body;
     function wire(id, fn) { document.getElementById(id).addEventListener('click', () => { fn(); render(); }); }
 
-    wire('t-docscroll', () => {
-        const on = body.classList.toggle('doc-scroll');
-        document.getElementById('t-docscroll').textContent = 'document scroll: ' + (on ? 'ON' : 'OFF');
-        document.getElementById('t-docscroll').classList.toggle('on', on);
-    });
-
-    const padModes   = ['12px', 'env (live)', 'captured', 'fixed 44px', 'fixed 50px', 'fixed 60px'];
-    const padClasses = [null,   'pad-env',    'pad-cap',  'pad-44',     'pad-50',     'pad-60'];
+    const padModes   = ['12px', 'env (live)', 'portrait 48 / land 12', 'fixed 50px', 'fixed 60px'];
+    const padClasses = [null,   'pad-env',    'pad-port',               'pad-50',     'pad-60'];
     let padMode = 0;
     wire('t-pad', () => {
         padMode = (padMode + 1) % padModes.length;
@@ -142,23 +105,11 @@
         b.classList.toggle('on', padMode !== 0);
     });
 
-    let unitMode = 0; // dvh / svh / vh
-    wire('t-unit', () => {
-        unitMode = (unitMode + 1) % 3;
-        const unit = ['100dvh', '100svh', '100vh'][unitMode];
-        document.documentElement.style.height = unit;
-        body.style.height = unit;
-        const b = document.getElementById('t-unit');
-        b.textContent = 'height: ' + unit;
-        b.classList.toggle('on', unitMode !== 0);
-    });
-
     wire('t-cover', () => {
         const vp = document.querySelector('meta[name="viewport"]');
         let cnt = vp.getAttribute('content');
         const on = !/viewport-fit=cover/.test(cnt);
-        cnt = on ? cnt + ', viewport-fit=cover'
-                 : cnt.replace(/,?\s*viewport-fit=cover/, '');
+        cnt = on ? cnt + ', viewport-fit=cover' : cnt.replace(/,?\s*viewport-fit=cover/, '');
         vp.setAttribute('content', cnt);
         const b = document.getElementById('t-cover');
         b.textContent = 'viewport-fit: ' + (on ? 'cover' : 'auto');
@@ -173,7 +124,7 @@
         visualViewport.addEventListener('resize', render);
         visualViewport.addEventListener('scroll', render);
     }
-    setInterval(render, 500);
+    setInterval(render, 400);
 </script>
 </body>
 </html>
