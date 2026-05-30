@@ -41,8 +41,9 @@ let sfxShoot, sfxPeg, sfxOrange, sfxPower, sfxBucket, sfxLose, sfxWin;
 ///////////////////////////////////////////////////////////////////////////////
 function gameInit()
 {
+    setCanvasFixedSize(vec2(700, 1080));
     saveDataInit('peggle');
-    cameraScale = 26;
+    cameraScale = 35;
     cameraPos = vec2(0, 0);
     gravity = vec2(0, 0); // ball gravity is applied manually
 
