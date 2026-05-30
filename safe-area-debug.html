@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Safe-area debug</title>
+<style>
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; height: 100dvh; background: #0c1018; color: #e8edf5;
+        font: 16px/1.5 -apple-system, system-ui, sans-serif; }
+    /* Bright bands pinned to each edge, sized to that edge's safe-area inset.
+       If the browser reports a non-zero inset, you SEE a colored strip there.
+       If a strip is missing on an edge you expect (e.g. the notch/top), the
+       browser is reporting that inset as 0. */
+    .band { position: fixed; background: #ff3b6b; opacity: .85; z-index: 5; }
+    #b-top    { top: 0; left: 0; right: 0;  height: env(safe-area-inset-top); }
+    #b-bottom { bottom: 0; left: 0; right: 0; height: env(safe-area-inset-bottom); background:#21c46a; }
+    #b-left   { top: 0; bottom: 0; left: 0;  width: env(safe-area-inset-left); background:#3b82f6; }
+    #b-right  { top: 0; bottom: 0; right: 0; width: env(safe-area-inset-right); background:#f5a623; }
+    /* A fixed dot 12px from the top — mirrors where the toolbar buttons sit.
+       If Chrome's address bar / notch covers it, that's the bug, live. */
+    #marker { position: fixed; top: 12px; left: 12px; width: 40px; height: 40px;
+        background: #fff; color:#000; border-radius: 8px; z-index: 6;
+        display:flex; align-items:center; justify-content:center; font-weight:700; }
+    /* Same, but offset by the safe-area inset — where the FIXED version lands. */
+    #marker2 { position: fixed; top: max(12px, env(safe-area-inset-top));
+        left: max(60px, env(safe-area-inset-left)); width: 40px; height: 40px;
+        background: #ffe600; color:#000; border-radius: 8px; z-index: 6;
+        display:flex; align-items:center; justify-content:center; font-weight:700; }
+    #out { position: relative; z-index: 7; padding: 90px 18px 40px; }
+    #out b { color: #7fd1ff; }
+    pre { white-space: pre-wrap; word-break: break-word; font-size: 15px; }
+</style>
+</head>
+<body>
+<div class="band" id="b-top"></div>
+<div class="band" id="b-bottom"></div>
+<div class="band" id="b-left"></div>
+<div class="band" id="b-right"></div>
+<div id="marker">12</div>
+<div id="marker2">SA</div>
+
+<div id="out">
+    <p style="margin-bottom:10px"><b>Safe-area debug</b> — read me the numbers (or screenshot).</p>
+    <pre id="dump">measuring…</pre>
+    <p style="margin-top:14px;opacity:.8">White box = a button at <b>top:12px</b> (no inset).<br>
+    Yellow box = at <b>max(12px, safe-area-top)</b> (the fix).<br>
+    Red/green/blue/orange strips = the four reported insets.<br>
+    If the white box is under the notch/address bar but there's <b>no red strip</b>,
+    Chrome is reporting the top inset as 0.</p>
+</div>
+
+<script>
+function insets() {
+    // Read each inset by applying it as padding on a probe and measuring.
+    const p = document.createElement('div');
+    p.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;'
+        + 'padding:env(safe-area-inset-top) env(safe-area-inset-right) '
+        + 'env(safe-area-inset-bottom) env(safe-area-inset-left)';
+    document.body.appendChild(p);
+    const c = getComputedStyle(p);
+    const r = { top: c.paddingTop, right: c.paddingRight,
+                bottom: c.paddingBottom, left: c.paddingLeft };
+    p.remove();
+    return r;
+}
+function render() {
+    const i = insets();
+    const vv = window.visualViewport || {};
+    const lines = [
+        'safe-area-inset-top:    ' + i.top,
+        'safe-area-inset-right:  ' + i.right,
+        'safe-area-inset-bottom: ' + i.bottom,
+        'safe-area-inset-left:   ' + i.left,
+        '',
+        'window.innerHeight:     ' + window.innerHeight,
+        'window.outerHeight:     ' + window.outerHeight,
+        'screen.height:          ' + screen.height,
+        'visualViewport.height:  ' + Math.round(vv.height || 0),
+        'visualViewport.offsetTop:' + Math.round(vv.offsetTop || 0),
+        'devicePixelRatio:       ' + window.devicePixelRatio,
+        '',
+        'UA: ' + navigator.userAgent,
+    ];
+    document.getElementById('dump').textContent = lines.join('\n');
+}
+render();
+addEventListener('resize', render);
+addEventListener('scroll', render);
+addEventListener('orientationchange', () => setTimeout(render, 200));
+if (window.visualViewport) {
+    visualViewport.addEventListener('resize', render);
+    visualViewport.addEventListener('scroll', render);
+}
+</script>
+</body>
+</html>
