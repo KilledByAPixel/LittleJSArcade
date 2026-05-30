@@ -1943,15 +1943,10 @@ button.ljs-grid-cell { cursor: pointer; }
     display: flex; gap: var(--toolbar-gap);
     background: var(--toolbar-bg);
 }
-/* Each offset clears the larger of the configured margin and the device
-   safe inset for that edge, so toolbars dodge the status bar / notch / URL bar
-   on mobile. The top uses the JS-driven --safe-top var (visualViewport-based,
-   rotation-proof — env() goes stale on iOS); other edges use env() directly.
-   All insets are 0 on desktop. */
-.ljs-menu-toolbar.anchor-top-left     { top: max(var(--toolbar-margin), var(--safe-top, env(safe-area-inset-top))); left: max(var(--toolbar-margin), env(safe-area-inset-left)); }
-.ljs-menu-toolbar.anchor-top-right    { top: max(var(--toolbar-margin), var(--safe-top, env(safe-area-inset-top))); right: max(var(--toolbar-margin), env(safe-area-inset-right)); }
-.ljs-menu-toolbar.anchor-bottom-left  { bottom: max(var(--toolbar-margin), env(safe-area-inset-bottom)); left: max(var(--toolbar-margin), env(safe-area-inset-left)); }
-.ljs-menu-toolbar.anchor-bottom-right { bottom: max(var(--toolbar-margin), env(safe-area-inset-bottom)); right: max(var(--toolbar-margin), env(safe-area-inset-right)); }
+.ljs-menu-toolbar.anchor-top-left     { top: var(--toolbar-margin); left: var(--toolbar-margin); }
+.ljs-menu-toolbar.anchor-top-right    { top: var(--toolbar-margin); right: var(--toolbar-margin); }
+.ljs-menu-toolbar.anchor-bottom-left  { bottom: var(--toolbar-margin); left: var(--toolbar-margin); }
+.ljs-menu-toolbar.anchor-bottom-right { bottom: var(--toolbar-margin); right: var(--toolbar-margin); }
 .ljs-menu-toolbar.dir-vertical { flex-direction: column; }
 .ljs-menu-toolbar button {
     /* font-size stays at 1em so the em-based width/height resolve against
@@ -2037,12 +2032,11 @@ button.ljs-grid-cell { cursor: pointer; }
 }
 .ljs-orient-title { font-size: var(--menu-title-size); font-weight: bold; color: var(--menu-accent); }
 .ljs-orient-text  { font-size: var(--menu-item-size); max-width: 18em; opacity: 0.9; }
-/* Library escape-hatch button, pinned top-left of the rotate overlay. Offset
-   by the safe-area so the status bar / notch doesn't clip it on mobile. */
+/* Library escape-hatch button, pinned top-left of the rotate overlay. */
 .ljs-orient-panel-btn {
     position: absolute;
-    top:  max(10px, var(--safe-top, env(safe-area-inset-top)));
-    left: max(10px, env(safe-area-inset-left));
+    top: 10px;
+    left: 10px;
     width: 40px; height: 40px; padding: 0;
     display: inline-flex; align-items: center; justify-content: center;
     font-size: 20px;                /* grid icon is 1em → 20px, like the launcher */
@@ -2103,44 +2097,6 @@ function initMenuSystem()
             menuSounds.activate = () => _defaultActivate.play();
         }
     }
-
-    // Expose the device safe-area insets to env() so the toolbar and the
-    // orientation overlay can dodge the status bar / notch on mobile. Game
-    // templates ship a viewport meta without viewport-fit=cover; append it
-    // here so every game benefits without editing dozens of HTML files.
-    // No-op on desktop / non-notched devices (the insets resolve to 0).
-    const _vp = document.querySelector('meta[name="viewport"]');
-    if (_vp && !/viewport-fit/.test(_vp.content))
-        _vp.content += ', viewport-fit=cover';
-
-    // iOS (especially Chrome) leaves env(safe-area-inset-top) STALE after an
-    // orientation round-trip — correct on first load, then stuck at the
-    // landscape (~0) value once you rotate to landscape and back, so the
-    // toolbar jams under the notch/URL bar. visualViewport.offsetTop is 0
-    // throughout (it doesn't see the URL bar), so there's no live signal.
-    // Fix: capture the largest top inset ever seen IN PORTRAIT (while env is
-    // still correct) and reuse it when env goes stale; landscape genuinely has
-    // ~0 top inset. Written to a --safe-top var the toolbar CSS consumes.
-    const _saProbe = document.createElement('div');
-    _saProbe.style.cssText = 'position:fixed;top:0;left:0;visibility:hidden;'
-        + 'pointer-events:none;padding-top:env(safe-area-inset-top)';
-    document.body.appendChild(_saProbe);
-    let _maxPortraitTop = 0;
-    const _updateSafeTop = () =>
-    {
-        const envTop = parseFloat(getComputedStyle(_saProbe).paddingTop) || 0;
-        const portrait = window.innerHeight >= window.innerWidth;
-        if (portrait) _maxPortraitTop = Math.max(_maxPortraitTop, envTop);
-        const top = portrait ? Math.max(envTop, _maxPortraitTop) : envTop;
-        document.documentElement.style.setProperty('--safe-top', top + 'px');
-    };
-    if (window.visualViewport)
-    {
-        visualViewport.addEventListener('resize', () => requestAnimationFrame(_updateSafeTop));
-        visualViewport.addEventListener('scroll', () => requestAnimationFrame(_updateSafeTop));
-    }
-    window.addEventListener('orientationchange', () => setTimeout(_updateSafeTop, 300));
-    _updateSafeTop();
 
     injectStyles();
 
