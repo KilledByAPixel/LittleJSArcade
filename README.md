@@ -2,7 +2,7 @@
 
 *50+ classic arcade games rebuilt in pure HTML5 — each one a single self-contained file, AI-assisted.*
 
-# 🎮 [▶ Play in the LittleJS Arcade](https://killedbyapixel.github.io/LittleJS-AI/games/)
+# 🎮 [▶ Play in the LittleJS Arcade](https://killedbyapixel.github.io/LittleJSArcade)
 
 [LittleJS](https://github.com/KilledByAPixel/LittleJS) is a fast, lightweight, and fully open source HTML5 game engine designed for simplicity and performance.
 
@@ -50,18 +50,18 @@ Playable demos you can fork as starting points for your own games.
 
 Did you make a game you think should be included? Send a pull request!
 
-- 🧩 [Tetrix](https://killedbyapixel.github.io/LittleJS-AI/games/tetrix.html)
-- 🤖 [Robo Rescue](https://killedbyapixel.github.io/LittleJS-AI/games/roboRescue.html)
-- 🐸 [Froggit](https://killedbyapixel.github.io/LittleJS-AI/games/froggit.html)
-- 🧛 [Emoji Survivors](https://killedbyapixel.github.io/LittleJS-AI/games/emojiSurvivors.html)
-- 🏙️ [Missile Defense](https://killedbyapixel.github.io/LittleJS-AI/games/missileDefense.html)
-- ⛳ [Mini Golf](https://killedbyapixel.github.io/LittleJS-AI/games/miniGolf.html)
-- 🎱 [Pool](https://killedbyapixel.github.io/LittleJS-AI/games/pool.html)
-- 🃏 [Freecell](https://killedbyapixel.github.io/LittleJS-AI/games/freecell.html)
-- 👾 [Space Intruders](https://killedbyapixel.github.io/LittleJS-AI/games/spaceIntruders.html)
-- 👻 [Puc-Man](https://killedbyapixel.github.io/LittleJS-AI/games/pucMan.html)
-- 🌑 [Asterblast](https://killedbyapixel.github.io/LittleJS-AI/games/asterblast.html)
-- 🔴 [Checkers](https://killedbyapixel.github.io/LittleJS-AI/games/checkers.html)
-- 🐛 [Centibug](https://killedbyapixel.github.io/LittleJS-AI/games/centibug.html)
-- 🪐 [Orbitswarm](https://killedbyapixel.github.io/LittleJS-AI/games/orbitswarm.html)
-- 💊 [Dr. Pill](https://killedbyapixel.github.io/LittleJS-AI/games/drPill.html)
+- 🧩 [Tetrix](https://killedbyapixel.github.io/LittleJSArcade/games/tetrix.html)
+- 🤖 [Robo Rescue](https://killedbyapixel.github.io/LittleJSArcade/games/roboRescue.html)
+- 🐸 [Froggit](https://killedbyapixel.github.io/LittleJSArcade/games/froggit.html)
+- 🧛 [Emoji Survivors](https://killedbyapixel.github.io/LittleJSArcade/games/emojiSurvivors.html)
+- 🏙️ [Missile Defense](https://killedbyapixel.github.io/LittleJSArcade/games/missileDefense.html)
+- ⛳ [Mini Golf](https://killedbyapixel.github.io/LittleJSArcade/games/miniGolf.html)
+- 🎱 [Pool](https://killedbyapixel.github.io/LittleJSArcade/games/pool.html)
+- 🃏 [Freecell](https://killedbyapixel.github.io/LittleJSArcade/games/freecell.html)
+- 👾 [Space Intruders](https://killedbyapixel.github.io/LittleJSArcade/games/spaceIntruders.html)
+- 👻 [Puc-Man](https://killedbyapixel.github.io/LittleJSArcade/games/pucMan.html)
+- 🌑 [Asterblast](https://killedbyapixel.github.io/LittleJSArcade/games/asterblast.html)
+- 🔴 [Checkers](https://killedbyapixel.github.io/LittleJSArcade/games/checkers.html)
+- 🐛 [Centibug](https://killedbyapixel.github.io/LittleJSArcade/games/centibug.html)
+- 🪐 [Orbitswarm](https://killedbyapixel.github.io/LittleJSArcade/games/orbitswarm.html)
+- 💊 [Dr. Pill](https://killedbyapixel.github.io/LittleJSArcade/games/drPill.html)
