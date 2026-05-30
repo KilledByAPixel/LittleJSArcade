@@ -2,96 +2,161 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Safe-area debug</title>
+<!-- Matches index.html exactly (no viewport-fit=cover). -->
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Safe-area sandbox</title>
 <style>
     * { box-sizing: border-box; margin: 0; }
-    html, body { height: 100%; height: 100dvh; background: #0c1018; color: #e8edf5;
-        font: 16px/1.5 -apple-system, system-ui, sans-serif; }
-    /* Bright bands pinned to each edge, sized to that edge's safe-area inset.
-       If the browser reports a non-zero inset, you SEE a colored strip there.
-       If a strip is missing on an edge you expect (e.g. the notch/top), the
-       browser is reporting that inset as 0. */
-    .band { position: fixed; background: #ff3b6b; opacity: .85; z-index: 5; }
-    #b-top    { top: 0; left: 0; right: 0;  height: env(safe-area-inset-top); }
-    #b-bottom { bottom: 0; left: 0; right: 0; height: env(safe-area-inset-bottom); background:#21c46a; }
-    #b-left   { top: 0; bottom: 0; left: 0;  width: env(safe-area-inset-left); background:#3b82f6; }
-    #b-right  { top: 0; bottom: 0; right: 0; width: env(safe-area-inset-right); background:#f5a623; }
-    /* A fixed dot 12px from the top — mirrors where the toolbar buttons sit.
-       If Chrome's address bar / notch covers it, that's the bug, live. */
-    #marker { position: fixed; top: 12px; left: 12px; width: 40px; height: 40px;
-        background: #fff; color:#000; border-radius: 8px; z-index: 6;
-        display:flex; align-items:center; justify-content:center; font-weight:700; }
-    /* Same, but offset by the safe-area inset — where the FIXED version lands. */
-    #marker2 { position: fixed; top: max(12px, env(safe-area-inset-top));
-        left: max(60px, env(safe-area-inset-left)); width: 40px; height: 40px;
-        background: #ffe600; color:#000; border-radius: 8px; z-index: 6;
-        display:flex; align-items:center; justify-content:center; font-weight:700; }
-    #out { position: relative; z-index: 7; padding: 90px 18px 40px; }
-    #out b { color: #7fd1ff; }
-    pre { white-space: pre-wrap; word-break: break-word; font-size: 15px; }
+    /* === Mirrors index.html's app-shell: locked to the viewport, no page scroll. === */
+    html, body { height: 100%; height: 100dvh; overflow: hidden;
+        background: #0c1018; color: #e8edf5;
+        font: 15px/1.45 -apple-system, system-ui, sans-serif; }
+
+    /* EXPERIMENT: when .doc-scroll is on, let the DOCUMENT scroll (this is the
+       gesture iOS watches to collapse its URL bar). A tall spacer makes room. */
+    body.doc-scroll { overflow: auto; -webkit-overflow-scrolling: touch; }
+    #docSpacer { display: none; }
+    body.doc-scroll #docSpacer { display: block; height: 160vh; }
+
+    /* The watched element — same idea as the launcher's top-right button. */
+    #topbar { position: fixed; top: 12px; right: 12px; z-index: 20;
+        width: 46px; height: 46px; border-radius: 9px;
+        background: #ff3b6b; color: #fff; font-weight: 800; font-size: 20px;
+        display: flex; align-items: center; justify-content: center; }
+    /* EXPERIMENT toggles for the topbar's top offset. */
+    body.pad-env   #topbar { top: max(12px, env(safe-area-inset-top)); }
+    body.pad-fixed #topbar { top: 60px; }
+
+    /* The app-shell content. position:absolute + inset:0 = fills the locked body. */
+    #panel { position: absolute; inset: 0; display: flex; flex-direction: column;
+        padding: 64px 14px 12px; gap: 10px; }
+    .controls { display: flex; flex-wrap: wrap; gap: 7px; }
+    button { font: inherit; padding: 9px 11px; border-radius: 8px;
+        border: 1px solid #33405a; background: #1c2332; color: #e8edf5; }
+    button.on { background: #21c46a; border-color: #21c46a; color: #04110a; font-weight: 700; }
+    pre { white-space: pre-wrap; word-break: break-word; font-size: 12.5px;
+        background: #11161f; border: 1px solid #222c3c; border-radius: 8px; padding: 9px; }
+    /* Inner-scrolling list — mirrors index's #list. Scrolling THIS does NOT
+       collapse the iOS URL bar (only document scroll does). */
+    #list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+        border: 1px dashed #2c3a52; border-radius: 8px; }
+    .row { padding: 13px 12px; border-bottom: 1px solid #1b2433; }
+    .hint { opacity: .75; font-size: 13px; }
 </style>
 </head>
 <body>
-<div class="band" id="b-top"></div>
-<div class="band" id="b-bottom"></div>
-<div class="band" id="b-left"></div>
-<div class="band" id="b-right"></div>
-<div id="marker">12</div>
-<div id="marker2">SA</div>
+<div id="topbar">▦</div>
 
-<div id="out">
-    <p style="margin-bottom:10px"><b>Safe-area debug</b> — read me the numbers (or screenshot).</p>
+<div id="panel">
+    <div><b>Safe-area sandbox</b> — mirrors index.html. Rotate to landscape and
+        back to portrait to trigger the cut-off, then try the toggles.</div>
+
+    <div class="controls">
+        <button id="t-docscroll">document scroll: OFF</button>
+        <button id="t-pad">top offset: 12px</button>
+        <button id="t-unit">height: 100dvh</button>
+        <button id="t-cover">viewport-fit: auto</button>
+    </div>
+
     <pre id="dump">measuring…</pre>
-    <p style="margin-top:14px;opacity:.8">White box = a button at <b>top:12px</b> (no inset).<br>
-    Yellow box = at <b>max(12px, safe-area-top)</b> (the fix).<br>
-    Red/green/blue/orange strips = the four reported insets.<br>
-    If the white box is under the notch/address bar but there's <b>no red strip</b>,
-    Chrome is reporting the top inset as 0.</p>
+    <div class="hint">Watch the pink ▦ box top-right. If the URL bar covers it,
+        that's the bug. Try: turn ON “document scroll”, then drag the page down a
+        little — does the bar collapse and free the box?</div>
+
+    <div id="list">
+        <!-- filler so the inner list scrolls (this scroll should NOT fix it) -->
+    </div>
 </div>
+<div id="docSpacer"></div>
 
 <script>
-function insets() {
-    // Read each inset by applying it as padding on a probe and measuring.
-    const p = document.createElement('div');
-    p.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;'
-        + 'padding:env(safe-area-inset-top) env(safe-area-inset-right) '
-        + 'env(safe-area-inset-bottom) env(safe-area-inset-left)';
-    document.body.appendChild(p);
-    const c = getComputedStyle(p);
-    const r = { top: c.paddingTop, right: c.paddingRight,
-                bottom: c.paddingBottom, left: c.paddingLeft };
-    p.remove();
-    return r;
-}
-function render() {
-    const i = insets();
-    const vv = window.visualViewport || {};
-    const lines = [
-        'safe-area-inset-top:    ' + i.top,
-        'safe-area-inset-right:  ' + i.right,
-        'safe-area-inset-bottom: ' + i.bottom,
-        'safe-area-inset-left:   ' + i.left,
-        '',
-        'window.innerHeight:     ' + window.innerHeight,
-        'window.outerHeight:     ' + window.outerHeight,
-        'screen.height:          ' + screen.height,
-        'visualViewport.height:  ' + Math.round(vv.height || 0),
-        'visualViewport.offsetTop:' + Math.round(vv.offsetTop || 0),
-        'devicePixelRatio:       ' + window.devicePixelRatio,
-        '',
-        'UA: ' + navigator.userAgent,
-    ];
-    document.getElementById('dump').textContent = lines.join('\n');
-}
-render();
-addEventListener('resize', render);
-addEventListener('scroll', render);
-addEventListener('orientationchange', () => setTimeout(render, 200));
-if (window.visualViewport) {
-    visualViewport.addEventListener('resize', render);
-    visualViewport.addEventListener('scroll', render);
-}
+    // ---- fill the inner list so it scrolls internally ----
+    const list = document.getElementById('list');
+    for (let i = 1; i <= 30; i++) {
+        const r = document.createElement('div');
+        r.className = 'row';
+        r.textContent = 'inner-list row ' + i + ' (scrolling this should NOT collapse the URL bar)';
+        list.appendChild(r);
+    }
+
+    // ---- env() inset probe (persistent) ----
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;top:0;left:0;visibility:hidden;'
+        + 'pointer-events:none;padding:env(safe-area-inset-top) env(safe-area-inset-right)'
+        + ' env(safe-area-inset-bottom) env(safe-area-inset-left)';
+    document.body.appendChild(probe);
+
+    function render() {
+        const c = getComputedStyle(probe);
+        const vv = window.visualViewport || {};
+        const bar = document.getElementById('topbar').getBoundingClientRect();
+        const lines = [
+            'env inset  T/R/B/L: ' + c.paddingTop + ' / ' + c.paddingRight
+                + ' / ' + c.paddingBottom + ' / ' + c.paddingLeft,
+            'window.innerHeight:  ' + window.innerHeight,
+            'window.outerHeight:  ' + window.outerHeight,
+            'screen.height:       ' + screen.height,
+            'visualViewport.height:    ' + Math.round(vv.height || 0),
+            'visualViewport.offsetTop: ' + Math.round(vv.offsetTop || 0),
+            'topbar rect.top:     ' + Math.round(bar.top),
+            'orientation: ' + (window.innerHeight >= window.innerWidth ? 'portrait' : 'landscape'),
+        ];
+        document.getElementById('dump').textContent = lines.join('\n');
+    }
+
+    // ---- toggles ----
+    const body = document.body;
+    function wire(id, fn) { document.getElementById(id).addEventListener('click', () => { fn(); render(); }); }
+
+    wire('t-docscroll', () => {
+        const on = body.classList.toggle('doc-scroll');
+        document.getElementById('t-docscroll').textContent = 'document scroll: ' + (on ? 'ON' : 'OFF');
+        document.getElementById('t-docscroll').classList.toggle('on', on);
+    });
+
+    let padMode = 0; // 0 = 12px, 1 = env, 2 = fixed 60px
+    wire('t-pad', () => {
+        padMode = (padMode + 1) % 3;
+        body.classList.toggle('pad-env',   padMode === 1);
+        body.classList.toggle('pad-fixed', padMode === 2);
+        const lbl = ['12px', 'max(12px, env-top)', 'fixed 60px'][padMode];
+        const b = document.getElementById('t-pad');
+        b.textContent = 'top offset: ' + lbl;
+        b.classList.toggle('on', padMode !== 0);
+    });
+
+    let unitMode = 0; // dvh / svh / vh
+    wire('t-unit', () => {
+        unitMode = (unitMode + 1) % 3;
+        const unit = ['100dvh', '100svh', '100vh'][unitMode];
+        document.documentElement.style.height = unit;
+        body.style.height = unit;
+        const b = document.getElementById('t-unit');
+        b.textContent = 'height: ' + unit;
+        b.classList.toggle('on', unitMode !== 0);
+    });
+
+    wire('t-cover', () => {
+        const vp = document.querySelector('meta[name="viewport"]');
+        let cnt = vp.getAttribute('content');
+        const on = !/viewport-fit=cover/.test(cnt);
+        cnt = on ? cnt + ', viewport-fit=cover'
+                 : cnt.replace(/,?\s*viewport-fit=cover/, '');
+        vp.setAttribute('content', cnt);
+        const b = document.getElementById('t-cover');
+        b.textContent = 'viewport-fit: ' + (on ? 'cover' : 'auto');
+        b.classList.toggle('on', on);
+    });
+
+    render();
+    addEventListener('resize', render);
+    addEventListener('scroll', render, true);
+    addEventListener('orientationchange', () => setTimeout(render, 300));
+    if (window.visualViewport) {
+        visualViewport.addEventListener('resize', render);
+        visualViewport.addEventListener('scroll', render);
+    }
+    setInterval(render, 500);
 </script>
 </body>
 </html>
