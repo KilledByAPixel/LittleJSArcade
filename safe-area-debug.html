@@ -27,6 +27,9 @@
     /* Orientation-gated: offset ONLY in portrait (Chrome hides its URL bar in
        landscape, so landscape stays at the 12px default). */
     @media (orientation: portrait) { body.pad-port #topbar { top: 48px; } }
+    /* Promote the button to its own compositor layer. Often stops iOS from
+       detaching position:fixed elements during the URL-bar collapse scroll. */
+    body.gpu #topbar { transform: translateZ(0); -webkit-transform: translateZ(0); }
 
     .controls { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0; }
     button { font: inherit; padding: 9px 11px; border-radius: 8px;
@@ -47,6 +50,7 @@
 
 <div class="controls">
     <button id="t-pad">top offset: 12px</button>
+    <button id="t-gpu">GPU layer: OFF</button>
     <button id="t-cover">viewport-fit: auto</button>
 </div>
 
@@ -103,6 +107,13 @@
         const b = document.getElementById('t-pad');
         b.textContent = 'top offset: ' + padModes[padMode];
         b.classList.toggle('on', padMode !== 0);
+    });
+
+    wire('t-gpu', () => {
+        const on = body.classList.toggle('gpu');
+        const b = document.getElementById('t-gpu');
+        b.textContent = 'GPU layer: ' + (on ? 'ON' : 'OFF');
+        b.classList.toggle('on', on);
     });
 
     wire('t-cover', () => {
