@@ -725,16 +725,6 @@ async function gameInit()
     // One callback drives `paused` for every menu, including dialogs.
     setMenuVisibilityCallback(v => paused = v);
 
-    // ----- global UI sounds (LittleJS Sound class wraps zzfx params and
-    //       routes through the engine's audio system, so master volume,
-    //       muting, and user-gesture gating all just work). -----
-    const sound_select   = new Sound([.5,,910,,,.02,2,.07,-5,-33,,,,,,,,.25]);
-    const sound_activate = new Sound([.7,,30,.01,,.02,1,3.4,94,,,,,,,,,.67]);
-    setMenuSounds({
-        select:   () => sound_select.play(),
-        activate: () => sound_activate.play(),
-    });
-
     // No title screen — Slot Demon boots straight into play (see setPlaying at
     // the end of gameInit). The only menu is OPTIONS, opened from the toolbar ☰,
     // which links out to MEDALS and ABOUT.

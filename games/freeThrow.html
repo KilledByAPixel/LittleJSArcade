@@ -424,13 +424,6 @@ async function gameInit()
     // Title has its own attract-mode behind the menu — leave it animating.
     installAutoPause(() => gamePhase === 'playing');
 
-    const sound_select   = new Sound([.4,,720,,,.02,2,.07,-5,-33,,,,,,,,.25]);
-    const sound_activate = new Sound([.6,,90,.01,,.05,1,2.5,40,,,,,,,,,.5]);
-    setMenuSounds({
-        select:   () => sound_select.play(),
-        activate: () => sound_activate.play(),
-    });
-
     // ----- title menu -----
     createTitleMenu({
         id: 'title',

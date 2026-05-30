@@ -608,13 +608,6 @@ async function gameInit() {
     sfxClear    = new SoundGenerator({ frequency: 440, release: 0.25, volume: 0.7, slide: 4, shapeCurve: 0.5 });
     sfxBucketUp = new SoundGenerator({ frequency: 660, release: 0.2, volume: 0.7, slide: 3, shapeCurve: 0.7 });
 
-    const ui_select   = new Sound([.4,,820,,,.02,2,.07,-5,-33,,,,,,,,.25]);
-    const ui_activate = new Sound([.5,,180,.01,,.04,1,2.5,40,,,,,,,,,.6]);
-    setMenuSounds({
-        select: () => ui_select.play(),
-        activate: () => ui_activate.play(),
-    });
-
     // ---- stable backdrop seeds ----
     // Three parallax layers; near layer drifts fastest. Wrap-around width
     // chosen larger than any reasonable visible width so stars are always
