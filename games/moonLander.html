@@ -474,6 +474,7 @@ function buildMenus()
 function gameInit()
 {
     saveDataInit('lunarLander');
+    setCanvasFixedSize(vec2(720, 720));
 
     // on-screen touch pad (left stick rotates, face button thrusts)
     touchGamepadEnable = true;
