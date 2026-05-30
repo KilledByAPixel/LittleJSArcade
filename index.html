@@ -1585,6 +1585,23 @@ window.addEventListener('message', e => {
     }
 });
 
+// ===================== Safe-area refresh on rotation =====================
+// iOS (especially Chrome) leaves env(safe-area-inset-*) stale after an
+// orientation change — portrait keeps landscape's insets, so the top buttons
+// jam under the notch/address bar again. Toggling viewport-fit off→on forces
+// the engine to recompute. A couple of delayed passes land it after the
+// rotation animation settles.
+function refreshSafeAreaInsets() {
+    const vp = document.querySelector('meta[name="viewport"]');
+    if (!vp) return;
+    let content = vp.getAttribute('content') || '';
+    if (!/viewport-fit\s*=\s*cover/.test(content)) content += ', viewport-fit=cover';
+    vp.setAttribute('content', content.replace(/,?\s*viewport-fit\s*=\s*cover/g, ''));
+    requestAnimationFrame(() => vp.setAttribute('content', content));
+}
+window.addEventListener('orientationchange',
+    () => [120, 450].forEach(d => setTimeout(refreshSafeAreaInsets, d)));
+
 document.addEventListener('keydown', e => {
     if (document.activeElement === searchEl && e.key !== 'Escape') return;
     const cards = Array.from(listEl.querySelectorAll('.card'));

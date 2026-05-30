@@ -2111,6 +2111,21 @@ function initMenuSystem()
     if (_vp && !/viewport-fit/.test(_vp.content))
         _vp.content += ', viewport-fit=cover';
 
+    // iOS (especially Chrome) leaves env(safe-area-inset-*) stale after an
+    // orientation change, so the toolbar jams under the notch in the new
+    // orientation. Re-stamp viewport-fit off→on to force a recompute; delayed
+    // passes land it after the rotation settles.
+    const _refreshSafeArea = () =>
+    {
+        if (!_vp) return;
+        let content = _vp.getAttribute('content') || '';
+        if (!/viewport-fit\s*=\s*cover/.test(content)) content += ', viewport-fit=cover';
+        _vp.setAttribute('content', content.replace(/,?\s*viewport-fit\s*=\s*cover/g, ''));
+        requestAnimationFrame(() => _vp.setAttribute('content', content));
+    };
+    window.addEventListener('orientationchange',
+        () => [120, 450].forEach(d => setTimeout(_refreshSafeArea, d)));
+
     injectStyles();
 
     menuSystemRoot = document.createElement('div');
