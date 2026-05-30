@@ -53,8 +53,9 @@
 //     pitchJump      ±      Hz step added to pitch at pitchJumpTime. Big jump up
 //                     = coin/powerup "bling"; negative = downward chirp.
 //     pitchJumpTime  0..    seconds until the pitchJump fires (pair the two).
-//     noise          0..2   random hiss. A touch (.05-.2) grits up hits; HIGH
-//                     (1-2) + bitCrush = explosions/wind. 0 = clean tone.
+//     noise          0..50  random hiss. MOST sounds want 0; a tiny ~.1 adds
+//                     subtle grit. EXPLOSIONS need it HIGH: 5 is a good start,
+//                     up to ~15-50 (diminishing returns past that). Pair w/ bitCrush.
 //     shapeCurve     0..2   waveform sharpness (0=square-ish,1=normal,2=pointy).
 //     repeatTime     0..    seconds; periodically resets pitch/slide to make
 //                     arpeggios, stutters, machine-gun loops.
@@ -105,9 +106,10 @@
 //                     short — fast attack, no sustain, no delay.
 //     Big explosion : {attack:.05, sustain:.2, release:.3, shape:4, bitCrush:1, delay:.2, sustainVolume:.5}
 //     Huge blast    : bump sustain/release to ~.4/.6 and delay to ~.4.
-//     Noise-param alt (no shape:4): {frequency:90, sustain:.2, release:.4, noise:1.5, bitCrush:.5, sustainVolume:.5, delay:.05}
+//     Noise-param alt (no shape:4): {frequency:90, sustain:.2, release:.4, noise:5, bitCrush:.5, sustainVolume:.5, delay:.05}
 //   (bitCrush is a core param; shape:4 is the sanctioned advanced exception here.
-//    delay enlarges the blast. noise can exceed 1 for explosions — 1..2 is fine.)
+//    delay enlarges the blast. The noise PARAM must run HIGH for explosions —
+//    5 minimum, up to ~15-50; most other sounds want 0 or a tiny ~.1.)
 // ============================================================================
 
 // AI can use this class to make sound effects
@@ -125,7 +127,7 @@ class SoundGenerator extends Sound
             slide         = 0,    // [core] Pitch glide (kHz/s, + rises / - falls)
             pitchJump     = 0,    // [core] Pitch step applied at pitchJumpTime (Hz, ±)
             pitchJumpTime = 0,    // [core] When the pitch jump fires (seconds)
-            noise         = 0,    // [core] Random hiss; high (1..2) + bitCrush = explosions (percent, 0..2)
+            noise         = 0,    // [core] Random hiss; 0 or ~.1 for most, 5..50 for explosions (+ bitCrush)
             shapeCurve    = 1,    // [core] Wave sharpness (0=square,1=normal,2=pointy); duty cycle for square
             repeatTime    = 0,    // [core] Periodically resets pitch/slide for arps/stutters (seconds)
             bitCrush      = 0,    // [core] Lo-fi crunch; light .1-.3 for retro, key to explosions w/ noise (samples*100, 0..1)
