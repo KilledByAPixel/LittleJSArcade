@@ -443,13 +443,6 @@ class Player extends EngineObject
         drawCircle(win, .66, rgb(.62,.66,.74));
         drawCircle(win, .5,  rgb(.28,.55,1));
         drawCircle(win.add(vec2(-.1,.1).rotate(this.angle)), .18, rgb(.85,.92,1,.85));
-
-        // bright thruster core at the nozzle while firing (plume itself is particles)
-        if (!gameState && this.thrusting)
-        {
-            const flick = .7 + .3*oscillate(30, 1, time);
-            drawCircle(w(vec2(0,-1.1)), .55*flick, rgb(1,.85,.4,.5));
-        }
     }
 }
 
@@ -523,7 +516,7 @@ function gameUpdate()
         startGame();
 
     // continue: next level after landing, new run after crashing
-    if (gameState && (keyWasPressed('Space') || keyWasPressed('Enter')))
+    if (gameState && (mouseWasPressed(0) || keyWasPressed('Space') || keyWasPressed('Enter')))
     {
         if (gameState === 1) startLevel(level + 1);
         else                 startGame();
