@@ -25,27 +25,28 @@ showEngineVersion = false;
 paused = false;
 
 gravity = vec2(0, 0); // overridden in gameInit after box2dInit
-cameraPos = vec2(0, 0);
-cameraScale = 32;
+cameraPos = vec2(0, 2.5); // bias the board downward so the score HUD has headroom
+cameraScale = 30;
 canvasMaxSize = vec2(2048, 2048);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Board layout (world units, y is up)
 const BOARD_WIDTH    = 22;
-const BOARD_HEIGHT   = 30;
+const BOARD_HEIGHT   = 23;
 const PEG_ROWS       = 10;
 const PEG_COLS_TOP   = 4;          // pegs in top row
 const PEG_RADIUS     = 0.32;
 const PEG_SPACING    = 1.9;        // distance between peg centers
 const SLOT_COUNT     = 9;
-const BALL_LIMIT     = 100;        // balls per run
+const START_BALLS    = 10;         // balls you begin a run with
+const BALL_PER_BONUS = 100;        // earn +1 ball for every this many points
 const BALL_RADIUS    = 0.55;
-const DROP_LINE_Y    = BOARD_HEIGHT/2 - 1.5;
+const DROP_LINE_Y    = BOARD_HEIGHT/2 - 2.5;
 const FLOOR_Y        = -BOARD_HEIGHT/2;
-const SLOT_TOP_Y     = FLOOR_Y + 4;
+const SLOT_TOP_Y     = FLOOR_Y + 3;
 const SLOT_VALUES    = [5, 10, 20, 50, 100, 50, 20, 10, 5]; // center = high
 const SLOT_COLORS    = SLOT_VALUES.map(v =>
-    hsl(percent(v, 5, 100) * .12 + .55, .9, .55));
+    hsl(percent(v, 5, 100) * .7 + .6, .9, .55));
 const BALL_COLORS    = [
     hsl(.02, .9, .6), hsl(.10, .9, .6), hsl(.30, .9, .55),
     hsl(.55, .9, .6), hsl(.78, .9, .65), hsl(.92, .9, .6),
@@ -55,6 +56,7 @@ const BALL_COLORS    = [
 // Game state
 let score          = 0;
 let dropCount      = 0;
+let bonusBalls     = 0;           // extra balls earned from score milestones
 let runOver        = false;
 let aimX           = 0;
 let dropCooldown   = new Timer();
@@ -221,11 +223,18 @@ function buildBoard()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Balls still available to drop: starting stock + earned bonuses - used.
+function ballsRemaining()
+{
+    return START_BALLS + bonusBalls - dropCount;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // Drop a ball at the current aim position.
 function dropBall()
 {
     if (dropCooldown.active()) return;
-    if (dropCount >= BALL_LIMIT) return; // out of balls
+    if (ballsRemaining() <= 0) return; // out of balls
     dropCooldown.set(.12);
 
     const x = clamp(aimX, -BOARD_WIDTH/2 + 1, BOARD_WIDTH/2 - 1);
@@ -298,8 +307,25 @@ function checkScoring()
         }
     }
 
+    // award a fresh ball for every BALL_PER_BONUS points reached
+    const earned = Math.floor(score / BALL_PER_BONUS);
+    while (bonusBalls < earned)
+    {
+        bonusBalls++;
+        sndBig.play(vec2(0, DROP_LINE_Y), .6, 1.4);
+        scorePops.push({
+            pos:     vec2(0, DROP_LINE_Y - 2),
+            value:   '+1 BALL',
+            life:    1.4,
+            maxLife: 1.4,
+            vel:     vec2(0, .03),
+            color:   hsl(.13, .9, .7),
+            size:    1.8,
+        });
+    }
+
     // run ends once every ball is used and the board has cleared
-    if (dropCount >= BALL_LIMIT && balls.length === 0 && !runOver && isPlaying())
+    if (ballsRemaining() <= 0 && balls.length === 0 && !runOver && isPlaying())
     {
         runOver = true;
         showGameOverDialog({ score, onContinue: endRunToTitle });
@@ -407,6 +433,7 @@ function resetGame()
     scorePops = [];
     score = 0;
     dropCount = 0;
+    bonusBalls = 0;
     runOver = false;
 }
 
@@ -463,7 +490,8 @@ async function gameInit()
         items: [
             {type:'text', text:
                 'Move the aimer with the MOUSE or LEFT/RIGHT (A/D) keys.\n\n' +
-                'CLICK or press SPACE to drop a ball — you get 100 per run.\n\n' +
+                'CLICK or press SPACE to drop a ball — you start with 10, ' +
+                'and earn a new ball every 100 points.\n\n' +
                 'Center slot scores 100, edges score 5. Stack up the score.\n\n' +
                 'ESC or START to pause.'},
             {type:'separator'},
@@ -532,10 +560,8 @@ function gameUpdatePost() {}
 function gameRender()
 {
     // Background gradient panel behind the board.
-    drawRectGradient(vec2(0, 0), vec2(BOARD_WIDTH, BOARD_HEIGHT),
+    drawRectGradient(vec2(0, 0), vec2(BOARD_WIDTH*2, BOARD_HEIGHT*2),
         hsl(.62, .5, .15), hsl(.7, .6, .05));
-
-    if (!isPlaying()) return;
 
     // Slot floor — colored bands matching SLOT_COLORS, with flashing pulse.
     const slotWidth = BOARD_WIDTH / SLOT_COUNT;
@@ -545,14 +571,17 @@ function gameRender()
         const flash = 1 - t;
         const c = s.color.copy();
         c.a = .65 + flash * .35;
-        drawRect(vec2(s.x, SLOT_TOP_Y - 2.5), vec2(s.width, 2.5), c);
+        drawRect(vec2(s.x, SLOT_TOP_Y - 2), vec2(s.width, 2.5), c);
         // value text inside the slot
+        const maxWidth = 60;
         drawText(String(s.value),
-            vec2(s.x, SLOT_TOP_Y - 1.7),
+            vec2(s.x, SLOT_TOP_Y - 2),
             1.1 + flash * .4,
-            hsl(0, 0, 1), .15, hsl(0, 0, 0));
+            hsl(0, 0, 1), .15, hsl(0, 0, 0), undefined, undefined, undefined, maxWidth);
     });
 
+    if (!isPlaying()) return;
+    
     // Aim guide — dotted line + ball preview at top of the board.
     const aimClamped = clamp(aimX, -BOARD_WIDTH/2 + 1, BOARD_WIDTH/2 - 1);
     const a = .35 + .2 * Math.sin(time * 4);
@@ -584,13 +613,13 @@ function gameRenderPost()
     {
         // Score HUD
         drawTextScreen('SCORE  ' + score,
-            vec2(mainCanvasSize.x/2, 50), 50,
+            vec2(mainCanvasSize.x/2, 70), 50,
             hsl(.13, 1, .7), 5, hsl(0, 0, 0));
         drawTextScreen('BEST  ' + getBestScore(),
-            vec2(mainCanvasSize.x/2, 95), 24,
+            vec2(mainCanvasSize.x/2, 115), 24,
             hsl(0, 0, .85), 3, hsl(0, 0, 0));
-        drawTextScreen('BALLS  ' + (BALL_LIMIT - dropCount),
-            vec2(mainCanvasSize.x/2, 125), 20,
+        drawTextScreen('BALLS  ' + ballsRemaining(),
+            vec2(mainCanvasSize.x/2, 150), 20,
             hsl(0, 0, .7), 2, hsl(0, 0, 0));
     }
     else if (!isMenuVisible())
