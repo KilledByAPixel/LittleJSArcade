@@ -18,7 +18,7 @@ The **LittleJS Arcade** is a growing collection of arcade games — shooters, pu
 - 🧩 Every game is **open source** — fork it and make it your own
 
 ## 🕹️ Featured Games
-A few favorites to start with — play all 50+ in the [arcade](https://killedbyapixel.github.io/LittleJSArcade).
+A few favorites to start with — play all 50+ in the arcade...
 
 - 🏙️ [Missile Defense](https://killedbyapixel.github.io/LittleJSArcade/games/missileDefense.html)
 - 🤖 [Robo Rescue](https://killedbyapixel.github.io/LittleJSArcade/games/roboRescue.html)
