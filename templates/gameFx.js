@@ -5,7 +5,12 @@
 //
 // AI: use this class to make every game sound effect. Pass a {} of named
 // parameters (any you omit fall back to the sensible ZzFX default below) and
-// call .play(volume?, pitch?, randomnessScale?, pan?, loop?) to fire it.
+// call it to fire the sound. The play signature is inherited from LittleJS Sound:
+//   .play(pos?, volume?, pitch?, randomnessScale?, loop?)
+//   - pos is an OPTIONAL world-space Vector2 (gives positional panning/falloff);
+//     pass it for in-world sfx, e.g. sound.play(this.pos).
+//   - for a non-positional UI/global sound, omit pos: sound.play() or, to scale
+//     volume, sound.play(undefined, .5)  // NOTE: volume is the 2nd arg, not 1st.
 // Construct sounds ONCE (module scope or in gameInit) and reuse the instance —
 // ZzFX caches the samples, so re-constructing every frame is wasteful.
 //
