@@ -2114,21 +2114,24 @@ function initMenuSystem()
         _vp.content += ', viewport-fit=cover';
 
     // iOS (especially Chrome) leaves env(safe-area-inset-top) STALE after an
-    // orientation change, jamming the toolbar under the notch/URL bar in the
-    // new orientation. So we don't trust env() to update — we drive a
-    // --safe-top var from the visual viewport (the real visible area), which
-    // fires its own resize once the bar/rotation settles. Read inside rAF (iOS
-    // reports stale dims for a beat after rotating); env() (via a hidden probe)
-    // is a floor so notched Safari still works.
+    // orientation round-trip — correct on first load, then stuck at the
+    // landscape (~0) value once you rotate to landscape and back, so the
+    // toolbar jams under the notch/URL bar. visualViewport.offsetTop is 0
+    // throughout (it doesn't see the URL bar), so there's no live signal.
+    // Fix: capture the largest top inset ever seen IN PORTRAIT (while env is
+    // still correct) and reuse it when env goes stale; landscape genuinely has
+    // ~0 top inset. Written to a --safe-top var the toolbar CSS consumes.
     const _saProbe = document.createElement('div');
     _saProbe.style.cssText = 'position:fixed;top:0;left:0;visibility:hidden;'
         + 'pointer-events:none;padding-top:env(safe-area-inset-top)';
     document.body.appendChild(_saProbe);
+    let _maxPortraitTop = 0;
     const _updateSafeTop = () =>
     {
-        const vv = window.visualViewport;
         const envTop = parseFloat(getComputedStyle(_saProbe).paddingTop) || 0;
-        const top = Math.max(vv ? vv.offsetTop : 0, envTop);
+        const portrait = window.innerHeight >= window.innerWidth;
+        if (portrait) _maxPortraitTop = Math.max(_maxPortraitTop, envTop);
+        const top = portrait ? Math.max(envTop, _maxPortraitTop) : envTop;
         document.documentElement.style.setProperty('--safe-top', top + 'px');
     };
     if (window.visualViewport)

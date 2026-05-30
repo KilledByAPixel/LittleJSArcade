@@ -1587,23 +1587,26 @@ window.addEventListener('message', e => {
     }
 });
 
-// ===================== Safe-area top inset (visualViewport-driven) =====================
+// ===================== Safe-area top inset (capture-and-reuse) =====================
 // iOS (especially Chrome) leaves env(safe-area-inset-top) STALE after an
-// orientation change — rotate to landscape and back and portrait keeps the
-// landscape (~0) value, so the top bar loses its padding and Chrome's URL bar
-// eats it. So we don't trust env() to update; we drive a --safe-top variable
-// from the visual viewport (the real visible area), which fires its own resize
-// once the bar/rotation settles. Read inside rAF because iOS reports stale
-// dimensions for a beat right after rotating. env() is kept as a floor (via a
-// hidden probe) so notched Safari, where env is correct, still works.
+// orientation round-trip — it reads the correct ~47px on first load, but after
+// rotating to landscape and back it stays at the landscape value (~0), so the
+// top UI loses its padding and Chrome's URL bar eats it. visualViewport.offset
+// Top is 0 throughout (it doesn't see the URL bar), so there's no live signal
+// to read. The fix: remember the largest top inset we've ever seen IN PORTRAIT
+// (captured while env is still correct), and reuse it when env later goes
+// stale. Landscape genuinely has ~0 top inset (notch moves to the side), so we
+// only reuse the captured value in portrait. We write it to a --safe-top var.
 const _saProbe = document.createElement('div');
 _saProbe.style.cssText = 'position:fixed;top:0;left:0;visibility:hidden;'
     + 'pointer-events:none;padding-top:env(safe-area-inset-top)';
 document.body.appendChild(_saProbe);
+let _maxPortraitTop = 0;
 function updateSafeTop() {
-    const vv = window.visualViewport;
     const envTop = parseFloat(getComputedStyle(_saProbe).paddingTop) || 0;
-    const top = Math.max(vv ? vv.offsetTop : 0, envTop);
+    const portrait = window.innerHeight >= window.innerWidth;
+    if (portrait) _maxPortraitTop = Math.max(_maxPortraitTop, envTop);
+    const top = portrait ? Math.max(envTop, _maxPortraitTop) : envTop;
     document.documentElement.style.setProperty('--safe-top', top + 'px');
 }
 if (window.visualViewport) {

@@ -2,9 +2,9 @@
  <title>LittleJS Pillars</title>
  <meta charset=utf-8>
  </head><body style="background:#000">
- <script src="../dist/littlejs.js?1780119289024"></script>
- <script src="../templates/menus.js?1780119289024"></script>
- <script src="../templates/gameFx.js?1780119289024"></script>
+ <script src="../dist/littlejs.js?1780119946909"></script>
+ <script src="../templates/menus.js?1780119946909"></script>
+ <script src="../templates/gameFx.js?1780119946909"></script>
  <script>
  'use strict';
 
@@ -654,6 +654,11 @@ function spawnClearParticles(cellX, cellY, colorIndex)
      setShowSplashScreen(false);
      setCameraScale(80);
 
+    // Enable touch gamepad for mobile devices (8-way dpad + 2 face buttons)
+    setTouchGamepadEnable(true);
+    setTouchGamepadAnalog(false);
+    setTouchGamepadButtonCount(2);
+    
      // Center the board now so the title-screen backdrop is positioned
      // correctly — gameUpdate (which also centers the camera for screen-shake)
      // doesn't run while a menu has paused the game.
