@@ -102,6 +102,8 @@ let hoopOffsetX  = 0;
 // time during 'playing', then keeps advancing during 'buzzer' so the hoop
 // doesn't freeze mid-sweep while a buzzer-beater is in the air.
 let hoopElapsed  = 0;
+let popups       = [];           // floating score text: [{pos, vel, t, life, text, color, size}]
+const swishTimer = new Timer();  // drives the big "SWISH!" banner under the clock
 
 //------------------------------------------------------------------------------
 // hoop / scoring geometry
@@ -292,8 +294,36 @@ function onBallScored(ball)
         showMenuToast({icon:'🔥', title:'ON FIRE', text:'+1 per shot until you miss', duration: 2, position:'top-left'});
     }
 
-    if (swish) sSwish.play();
-    else sScore.play();
+    // floating "+N" that rises from where the ball dropped through the rim
+    const h = getHoopCenter();
+    spawnScorePopup(vec2(ball.pos.x, h.y - .9), points, swish);
+
+    if (swish)
+    {
+        sSwish.play();
+        swishTimer.set(1.1);             // light up the big SWISH banner
+        addScreenShake(.35, .4);
+    }
+    else
+    {
+        sScore.play();
+        addScreenShake(.15, .25);
+    }
+}
+
+// Floating score text that drifts up and fades. Swishes get a bigger, golden,
+// "SWISH +N" popup; regular makes get a plain "+N".
+function spawnScorePopup(pos, points, swish)
+{
+    popups.push({
+        pos:   pos.copy(),
+        vel:   vec2(rand(-.6, .6), 3.2),
+        t:     0,
+        life:  swish ? 1.1 : .85,
+        text:  swish ? `SWISH +${points}` : `+${points}`,
+        color: swish ? hsl(.13, .95, .6) : hsl(0, 0, 1),
+        size:  swish ? 1.5 : 1.1,
+    });
 }
 
 function registerMissIfNoMakeWithin(ball)
@@ -330,6 +360,8 @@ function startGame()
     mouseTrail = [];
     rackAnim = null;
     hoopOffsetX = 0;
+    popups.length = 0;
+    swishTimer.unset();
 }
 
 function endGame()
@@ -476,6 +508,15 @@ function gameUpdate()
     for (const b of balls) if (b.dead) registerMissIfNoMakeWithin(b);
     balls = balls.filter(b => !b.dead);
 
+    // tick floating score popups (rise + slow down)
+    for (const p of popups)
+    {
+        p.t += timeDelta;
+        p.pos = p.pos.add(p.vel.scale(timeDelta));
+        p.vel = p.vel.scale(.92);
+    }
+    popups = popups.filter(p => p.t < p.life);
+
     if (gamePhase === 'buzzer')
     {
         // Time's up — wait for any in-flight ball to finish its arc, then end.
@@ -563,10 +604,26 @@ function gameUpdatePost() {}
 
 function drawCourt()
 {
-    // wood floor
-    drawRect(vec2(0, FLOOR_Y - 1.5), vec2(LEVEL_RIGHT*2 + 4, 3), COLOR_FLOOR);
+    const left  = LEVEL_LEFT - 2;
+    const right = LEVEL_RIGHT + 2;
+
+    // wood floor — tall enough to reach the bottom of the screen
+    drawRect(vec2(0, FLOOR_Y - 5), vec2(right - left, 10), COLOR_FLOOR);
+
+    // horizontal floorboard grooves. Spacing widens toward the bottom so the
+    // planks read as receding boards making up the court as it goes down.
+    let y = FLOOR_Y, gap = .4;
+    while (y > FLOOR_Y - 9)
+    {
+        drawLine(vec2(left, y), vec2(right, y), .035, hsl(.08, .5, .2, .85));
+        // thin highlight just under each groove for a beveled-plank look
+        drawLine(vec2(left, y - .06), vec2(right, y - .06), .02, hsl(.08, .55, .4, .4));
+        y  -= gap;
+        gap *= 1.16;   // each plank a little taller than the one above it
+    }
+
     // top edge of the floor (subtle highlight where it meets the back wall)
-    drawLine(vec2(LEVEL_LEFT - 2, FLOOR_Y), vec2(LEVEL_RIGHT + 2, FLOOR_Y), .08, hsl(.08, .55, .42));
+    drawLine(vec2(left, FLOOR_Y), vec2(right, FLOOR_Y), .08, hsl(.08, .55, .42));
     // free-throw stripe under spawn
     drawLine(vec2(SPAWN_POS.x - 1.5, FLOOR_Y + .04), vec2(SPAWN_POS.x + 1.5, FLOOR_Y + .04), .14, COLOR_LINE);
 }
@@ -701,6 +758,17 @@ function gameRender()
     }
 
     for (const b of balls) b.render();
+
+    // floating score popups (rise up and fade out)
+    for (const p of popups)
+    {
+        const u    = p.t / p.life;
+        const fade = 1 - u * u;                          // fade slowly, then quick
+        const pop  = clamp(p.t / .12, 0, 1);             // quick scale-in
+        const size = p.size * (.4 + .6 * pop);
+        const col  = p.color.copy(); col.a = fade;
+        drawText(p.text, p.pos, size, col, size * .12, hsl(0, 0, 0, fade));
+    }
 }
 
 //------------------------------------------------------------------------------
@@ -726,6 +794,18 @@ function gameRenderPost()
             const label = onFire ? `🔥 ${streak}` : `× ${streak}`;
             const col = onFire ? hsl(.05, 1, .65) : hsl(0,0,.95);
             drawTextScreen(label, vec2(80, 56), 32, col, 3, hsl(0,0,0));
+        }
+
+        // big SWISH! banner, just under the clock
+        if (swishTimer.isSet() && swishTimer.active())
+        {
+            const p     = swishTimer.getPercent();       // 0 -> 1 over the timer's life
+            const pop    = clamp(p / .12, 0, 1);          // punchy scale-in
+            const settle = 1.5 - .5 * smoothStep(clamp(p / .3, 0, 1));
+            const size   = 64 * pop * settle;
+            const fade   = p > .8 ? 1 - (p - .8) / .2 : 1;
+            const col    = hsl(.13, .95, .62, fade);
+            drawTextScreen('SWISH!', vec2(c.x/2, 160), size, col, 5, hsl(0, 0, 0, fade));
         }
     }
 }
