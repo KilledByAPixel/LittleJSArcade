@@ -53,13 +53,14 @@
 //     pitchJump      ±      Hz step added to pitch at pitchJumpTime. Big jump up
 //                     = coin/powerup "bling"; negative = downward chirp.
 //     pitchJumpTime  0..    seconds until the pitchJump fires (pair the two).
-//     noise          0..1   random hiss. A touch (.05-.2) grits up hits &
-//                     explosions; 0 = clean tone. (High values get harsh fast.)
+//     noise          0..2   random hiss. A touch (.05-.2) grits up hits; HIGH
+//                     (1-2) + bitCrush = explosions/wind. 0 = clean tone.
 //     shapeCurve     0..2   waveform sharpness (0=square-ish,1=normal,2=pointy).
 //     repeatTime     0..    seconds; periodically resets pitch/slide to make
 //                     arpeggios, stutters, machine-gun loops.
 //     bitCrush       0..1   lo-fi downsample for a crunchy 8-bit edge. Subtle
-//                     .1-.3. (Easy to overdo — keep it light.)
+//                     .1-.3 for retro UI. THE key ingredient for explosions/
+//                     impacts — pair with noise or shape:4 (see recipes below).
 //     delay          0..    seconds; overlays a delayed copy for reverb/thicken.
 //                     Small (.01-.05) fattens an impact.
 //
@@ -69,6 +70,7 @@
 //     shape          0..5   waveform: 0 sine,1 triangle,2 saw,3 tan,4 noise,
 //                     5 square. The safest advanced param — pick ONE deliberately
 //                     (e.g. 5 for a chiptune game); don't combine with the others.
+//                     shape:4 (noise wave) + bitCrush is the go-to for explosions.
 //     sustain        0..3 s  hold time at sustainVolume. Only for notes meant to
 //                     ring on (music, drones); most SFX want sustain 0.
 //     decay          0..3 s  fall from full volume to sustainVolume after attack.
@@ -89,11 +91,23 @@
 //   Laser shoot : {frequency:820, release:.08, slide:-1.6, shapeCurve:.6, noise:.02}
 //   Jump        : {frequency:300, release:.12, slide:.3}
 //   Hit/thud    : {frequency:220, release:.18, slide:-.4, noise:.1}
-//   Explosion   : {frequency:90, release:.4, slide:-.7, noise:.3, delay:.02}
 //   Powerup     : {frequency:400, release:.3, slide:.4, repeatTime:.08, pitchJump:300}
 //   Blip/UI     : {frequency:520, release:.05, volume:.4}
 //   (Advanced, only when asked) Chiptune blip: add shape:5 to the Blip above.
 //   (Advanced, only when asked) Engine hum: {frequency:80, sustain:.3, release:.1, repeatTime:.05, tremolo:.6}
+//
+// ── EXPLOSIONS & IMPACTS (the one place to deliberately use shape:4) ────────
+//   The secret to a good explosion is bitCrush + NOISE. The noise comes from
+//   EITHER shape:4 (the noise WAVEFORM — the go-to) OR the noise param; bitCrush
+//   adds the crunchy grit that sells it. A plain low sine + slide sounds weak
+//   and inaudible — don't do that. Scale the SIZE with the envelope + delay:
+//     Small hit/pop : {shape:4, bitCrush:.2, sustainVolume:.5}
+//                     short — fast attack, no sustain, no delay.
+//     Big explosion : {attack:.05, sustain:.2, release:.3, shape:4, bitCrush:1, delay:.2, sustainVolume:.5}
+//     Huge blast    : bump sustain/release to ~.4/.6 and delay to ~.4.
+//     Noise-param alt (no shape:4): {frequency:90, sustain:.2, release:.4, noise:1.5, bitCrush:.5, sustainVolume:.5, delay:.05}
+//   (bitCrush is a core param; shape:4 is the sanctioned advanced exception here.
+//    delay enlarges the blast. noise can exceed 1 for explosions — 1..2 is fine.)
 // ============================================================================
 
 // AI can use this class to make sound effects
@@ -111,10 +125,10 @@ class SoundGenerator extends Sound
             slide         = 0,    // [core] Pitch glide (kHz/s, + rises / - falls)
             pitchJump     = 0,    // [core] Pitch step applied at pitchJumpTime (Hz, ±)
             pitchJumpTime = 0,    // [core] When the pitch jump fires (seconds)
-            noise         = 0,    // [core] Random hiss mixed in (percent, 0..1)
+            noise         = 0,    // [core] Random hiss; high (1..2) + bitCrush = explosions (percent, 0..2)
             shapeCurve    = 1,    // [core] Wave sharpness (0=square,1=normal,2=pointy); duty cycle for square
             repeatTime    = 0,    // [core] Periodically resets pitch/slide for arps/stutters (seconds)
-            bitCrush      = 0,    // [core] Lo-fi downsample for retro crunch — keep light (samples*100, 0..1)
+            bitCrush      = 0,    // [core] Lo-fi crunch; light .1-.3 for retro, key to explosions w/ noise (samples*100, 0..1)
             delay         = 0,    // [core] Overlay a delayed copy for reverb/thicken (seconds)
             // ── ADVANCED — leave at default unless confident or the user asks (see header) ──
             shape         = 0,    // [adv] Waveform: 0 sine,1 triangle,2 saw,3 tan,4 noise,5 square
