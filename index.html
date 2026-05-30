@@ -105,6 +105,13 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
+        transition: margin-left .25s ease-out;
+    }
+    /* Desktop: the library toggle collapses the panel by sliding it off-screen
+          left; the stage reflows to fill the space. (On mobile the panel is a
+          fixed overlay driven by .open in the media query below instead.) */
+    @media (min-width: 721px) {
+        #sidebar.closed { margin-left: -300px; }
     }
     #sidebar-header { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); }
 
@@ -635,34 +642,31 @@
     /* Hide while a game is loaded — the iframe owns the view there. */
     body.in-game #theme-toggle { display: none; }
 
-    /* ===================== Mobile drawer chrome (hidden on desktop) ===================== */
+    /* ===================== Library toggle (top-right, beside theme toggle) ===================== */
     #hamburger {
-        display: none;             /* shown only via mobile media query */
+        display: flex;             /* always shown (mobile + desktop) */
         position: fixed;
-        /* Same safe-top handling as #theme-toggle (see there). */
-        top: max(10px, var(--safe-top, env(safe-area-inset-top)));
-        left: max(10px, env(safe-area-inset-left));
+        /* Same safe-top handling as #theme-toggle (see there). Sits in the
+           top-right, just left of #theme-toggle (40px wide + 8px gap). */
+        top: max(12px, var(--safe-top, env(safe-area-inset-top)));
+        right: calc(max(22px, env(safe-area-inset-right)) + 48px);
         z-index: 100;
         width: 40px;
         height: 40px;
-        background: rgba(20, 26, 38, .5);
-        border: 1px solid rgba(255, 255, 255, .15);
+        background: var(--panel-2);
+        border: 1px solid var(--border);
         border-radius: 8px;
+        color: var(--text);
         align-items: center;
         justify-content: center;
         cursor: pointer;
         padding: 0;
-        backdrop-filter: blur(6px);
-        -webkit-backdrop-filter: blur(6px);
-        transition: background .15s, border-color .15s, opacity .15s;
+        transition: background .15s, border-color .15s, transform .15s;
     }
-    #hamburger:hover,
-    #hamburger:active { background: rgba(20, 26, 38, .92); border-color: var(--accent); }
-    /* Auto-hide states: .faded after a few seconds of no interaction,
-          .hidden while the drawer is open (button would otherwise sit on top). */
-    #hamburger { transition: opacity .45s, transform .25s, background .15s, border-color .15s; }
-    #hamburger.faded { opacity: .25; }
-    #hamburger.hidden { opacity: 0; pointer-events: none; transform: translateX(-30px); }
+    #hamburger:hover { border-color: var(--accent); transform: scale(1.08); }
+    /* Looks identical whether the panel is open or closed — it just toggles it. */
+    /* Hide while a game is loaded — same as the theme toggle. */
+    body.in-game #hamburger { display: none; }
 
     /* 2×2 grid icon — clearly "library / apps", and doesn't collide with the
           hamburger pattern many games use for their own pause menus. */
@@ -767,11 +771,6 @@
             box-shadow: 4px 0 24px rgba(0, 0, 0, .5);
         }
         #sidebar.open { transform: translateX(0); }
-        #hamburger { display: flex; }
-        /* In-game on mobile: hide the drawer toggle. Browsing the library
-              while playing isn't useful here, and the button just covers game
-              UI. Browser back returns to the library. */
-        body.in-game #hamburger { display: none; }
         #backdrop  { display: block; }
 
         /* Stage takes the whole width once the sidebar is fixed-positioned. */
@@ -1537,36 +1536,29 @@ shareBtn.addEventListener('click', async () => {
     }
 });
 
-// ===================== Mobile drawer toggle =====================
+// ===================== Library panel toggle =====================
 const sidebarEl = document.getElementById('sidebar');
 const hamburgerBtn = document.getElementById('hamburger');
 const backdropEl = document.getElementById('backdrop');
+const isMobile = () => matchMedia('(max-width: 720px)').matches;
+
+// Panel starts open on desktop, closed on mobile. The class pair is
+// dual-purpose: .open drives the mobile overlay drawer, .closed collapses the
+// desktop panel — only one matters per breakpoint, so both are set together.
+let sidebarOpen = !isMobile();
 
 function setDrawer(open) {
+    sidebarOpen = open;
     sidebarEl.classList.toggle('open', open);
+    sidebarEl.classList.toggle('closed', !open);
     backdropEl.classList.toggle('show', open);
-    // Hide the toggle button while the drawer covers its position.
-    hamburgerBtn.classList.toggle('hidden', open);
-    refreshFade();
 }
-// Fade the hamburger to 25% after 3s of no interaction so it stops obscuring
-// game UI underneath. Any pointer interaction with it resets the timer.
-let fadeTimer;
-function refreshFade() {
-    clearTimeout(fadeTimer);
-    hamburgerBtn.classList.remove('faded');
-    if (sidebarEl.classList.contains('open')) return;
-    fadeTimer = setTimeout(() => hamburgerBtn.classList.add('faded'), 3000);
-}
-hamburgerBtn.addEventListener('pointerdown', refreshFade);
-hamburgerBtn.addEventListener('pointerenter', refreshFade);
-hamburgerBtn.addEventListener('click', () => setDrawer(!sidebarEl.classList.contains('open')));
+hamburgerBtn.addEventListener('click', () => setDrawer(!sidebarOpen));
 backdropEl.addEventListener('click', () => setDrawer(false));
-// Tapping anything that switches view (a sidebar game card, the home logo)
-// should also close the drawer so the user lands cleanly on their pick.
-listEl.addEventListener('click', e => { if (e.target.closest('.card')) setDrawer(false); });
-sidebarLogoWrap.addEventListener('click', () => setDrawer(false));
-refreshFade(); // start the initial fade timer
+// On mobile only, picking a game or hitting the home logo closes the drawer so
+// the user lands cleanly on their pick. On desktop the panel stays put.
+listEl.addEventListener('click', e => { if (e.target.closest('.card') && isMobile()) setDrawer(false); });
+sidebarLogoWrap.addEventListener('click', () => { if (isMobile()) setDrawer(false); });
 
 // ===================== In-game Library button (iframe handshake) =====================
 // Games running inside this iframe show a Library button in their toolbar to
