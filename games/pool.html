@@ -333,7 +333,7 @@ function paintBallTile(ctx, number)
         ctx.arc(cx, cy, r, 0, Math.PI*2);
         ctx.clip();
         ctx.fillStyle = color;
-        const bandH = r * .48;   // band half-height, matches the world-space value
+        const bandH = r * .6;   // band half-height, matches the world-space value
         ctx.fillRect(cx - r, cy - bandH, r*2, bandH*2);
         ctx.restore();
     }
@@ -341,12 +341,12 @@ function paintBallTile(ctx, number)
     // white number disc
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.arc(cx, cy, r * .34, 0, Math.PI*2);
+    ctx.arc(cx, cy, r * .5, 0, Math.PI*2);
     ctx.fill();
 
     // number digit
     ctx.fillStyle = '#000000';
-    ctx.font = `bold ${Math.round(r * .44)}px sans-serif`;
+    ctx.font = `bold ${Math.round(r * .7)}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('' + number, cx, cy);
