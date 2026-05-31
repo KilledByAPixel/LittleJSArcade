@@ -699,8 +699,10 @@ function gameUpdate()
                 aimAngle = clamp(aimAngle - adj * AIM_SWEEP * timeDelta, MIN_SHOT_ANGLE, MAX_SHOT_ANGLE);
         }
 
-        // shoot: mouse / touch tap or gamepad A
-        if (mouseWasPressed(0) || gamepadWasPressed(0))
+        // shoot: on touch, fire on release (lets you drag to aim first);
+        // mouse / gamepad still fire on press
+        const tapFired = isTouchDevice ? mouseWasReleased(0) : mouseWasPressed(0);
+        if (tapFired || gamepadWasPressed(0))
             shoot();
 
         integrateProjectile();
