@@ -248,7 +248,136 @@ async function chooseAIMove(observed)
     return best ? best.move : null;
 }
 
-// (live game, rendering, menus appended in later tasks)
+///////////////////////////////////////////////////////////////////////////////
+// LIVE GAME STATE — the single mutable source of truth during play.
+// We reuse the adapter (which is pure) for all legality questions by wrapping
+// the live globals into a state object via liveState().
+
+let chain = [];
+let leftEnd = null, rightEnd = null;
+let hands = [[], []];
+let currentPlayer = PLAYER_HUMAN;
+let passes = 0;
+let phase = 'title';        // 'title' | 'playerTurn' | 'aiThinking' | 'roundOver'
+let selectedTileId = null;  // human's currently-selected hand tile
+let roundResult = null;     // set by endRound: {winner, humanPips, aiPips}
+
+let aiTimer = 0;
+const AI_THINK_DELAY = 0.5; // seconds before the AI starts searching
+let aiSearching = false;
+let roundDialogShown = false;   // guards the one-shot game-over dialog (Task 7)
+
+// SFX handles (created in gameInit, Task 7).
+let sfxPlace, sfxPass, sfxWin, sfxLose;
+
+function liveState()
+{
+    return {
+        board: {chain, leftEnd, rightEnd, hands, passes},
+        currentPlayer,
+    };
+}
+
+function legalMovesFor(player)
+{
+    return dominoGame.getLegalMoves(liveState(), player);
+}
+
+// Deal a fresh round and auto-play the opening tile.
+function newGame()
+{
+    const deck = shuffled(makeFullSet());
+    hands = [deck.slice(0, HAND_SIZE), deck.slice(HAND_SIZE, HAND_SIZE * 2)];
+    chain = []; leftEnd = null; rightEnd = null; passes = 0;
+    selectedTileId = null; roundResult = null;
+    aiSearching = false; roundDialogShown = false;
+
+    // Opener: holder of the highest double, else holder of the highest tile.
+    const openInfo = decideOpener();          // {player, tile}
+    placeOpening(openInfo.player, openInfo.tile);
+    currentPlayer = 1 - openInfo.player;       // other player moves next
+    phase = (currentPlayer === PLAYER_HUMAN) ? 'playerTurn' : 'aiThinking';
+    aiTimer = 0;
+}
+
+function decideOpener()
+{
+    const d0 = highestDoubleInHand(hands[0]);
+    const d1 = highestDoubleInHand(hands[1]);
+    if (d0 || d1)
+    {
+        if (d0 && (!d1 || d0.a >= d1.a))
+            return {player: 0, tile: d0};
+        return {player: 1, tile: d1};
+    }
+    // Fallback: highest tile by pip total across both hands.
+    const h0 = highestTileInHand(hands[0]);
+    const h1 = highestTileInHand(hands[1]);
+    const better = (h0.a + h0.b) >= (h1.a + h1.b);
+    return better ? {player: 0, tile: h0} : {player: 1, tile: h1};
+}
+
+function placeOpening(player, tile)
+{
+    const idx = hands[player].findIndex(t => tileId(t) === tileId(tile));
+    const t = hands[player].splice(idx, 1)[0];
+    chain.push({a: t.a, b: t.b});
+    leftEnd = t.a; rightEnd = t.b;
+}
+
+// Apply a {tile,end} move to the LIVE globals for `player`. Mirrors
+// dominoGame.applyMove but mutates in place. Returns true on success.
+function placeTileLive(player, move)
+{
+    const hand = hands[player];
+    const idx = hand.findIndex(t => tileId(t) === move.tile);
+    if (idx < 0) return false;
+    const tile = hand[idx];
+    if (move.end === 'L')
+    {
+        const newEnd = matchEnd(tile, leftEnd);
+        if (newEnd === null) return false;
+        chain.unshift({a: newEnd, b: leftEnd});
+        leftEnd = newEnd;
+    }
+    else
+    {
+        const newEnd = matchEnd(tile, rightEnd);
+        if (newEnd === null) return false;
+        chain.push({a: rightEnd, b: newEnd});
+        rightEnd = newEnd;
+    }
+    hand.splice(idx, 1);
+    passes = 0;
+    return true;
+}
+
+// Switch to the next player's turn. Pass-handling lives in the Task 7 turn
+// handlers, NOT here — this only detects the mover emptying their hand and
+// flips the active player.
+function advanceTurn()
+{
+    if (hands[currentPlayer].length === 0) { endRound(); return; }
+    currentPlayer = 1 - currentPlayer;
+    selectedTileId = null;
+    phase = (currentPlayer === PLAYER_HUMAN) ? 'playerTurn' : 'aiThinking';
+    aiTimer = 0;
+}
+
+function endRound()
+{
+    const humanPips = pipSum(hands[PLAYER_HUMAN]);
+    const aiPips = pipSum(hands[PLAYER_AI]);
+    let winner;
+    if (hands[PLAYER_HUMAN].length === 0) winner = PLAYER_HUMAN;
+    else if (hands[PLAYER_AI].length === 0) winner = PLAYER_AI;
+    else if (humanPips < aiPips) winner = PLAYER_HUMAN;
+    else if (aiPips < humanPips) winner = PLAYER_AI;
+    else winner = null;        // draw
+    roundResult = {winner, humanPips, aiPips};
+    phase = 'roundOver';
+    // The game-over dialog is shown from gameUpdate (Task 7) so SFX/menus are wired.
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // TESTS — gated behind ?test. Appended to across tasks.
@@ -424,6 +553,13 @@ async function runAsyncDominoTests()
     };
     const stuckMove = await chooseAIMove(stuckObs);
     a(stuckMove === null, 'no legal tile -> chooseAIMove returns null (pass)');
+
+    // Flow smoke test: deal, verify opener placed and 13 tiles remain in play.
+    newGame();
+    a(chain.length === 1, 'newGame places exactly one opening tile');
+    a(hands[0].length + hands[1].length === 13, 'after opening, 13 tiles remain in hands');
+    a(leftEnd !== null && rightEnd !== null, 'newGame sets both open ends');
+    a(phase === 'playerTurn' || phase === 'aiThinking', 'newGame sets a turn phase');
 
     console.log(fails === 0 ? '=== ASYNC ALL PASS ===' : '=== ' + fails + ' ASYNC FAILED ===');
 }
