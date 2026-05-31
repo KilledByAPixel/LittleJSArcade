@@ -49,7 +49,6 @@ const sExtraLife  = new SoundGenerator({volume:.55, frequency:1320, release:.4, 
 // ============================================================
 const FIXED_RES = vec2(1920, 1080);
 const CAMERA_SCALE = 28;          // pixels per world unit
-const WRAP_MARGIN = 1.5;          // extra margin so objects wrap smoothly
 
 const SHIP_RADIUS = 0.275; // half size
 const SHIP_TURN_SPEED = 0.045;    // radians/frame
@@ -118,16 +117,16 @@ function angleToVec(a) { return vec2(Math.sin(a), Math.cos(a)); } // up is 0 in 
 
 function wrapPos(p)
 {
-    // wrap around the camera bounds (centered at cameraPos)
-    const left   = cameraPos.x - worldHalf.x - WRAP_MARGIN;
-    const right  = cameraPos.x + worldHalf.x + WRAP_MARGIN;
-    const bottom = cameraPos.y - worldHalf.y - WRAP_MARGIN;
-    const top    = cameraPos.y + worldHalf.y + WRAP_MARGIN;
-
-    if (p.x < left)  p.x = right;
-    if (p.x > right) p.x = left;
-    if (p.y < bottom)p.y = top;
-    if (p.y > top)   p.y = bottom;
+    // Seamless toroidal wrap on the VISIBLE view. The wrap period equals the
+    // camera size (2*worldHalf) — NOT size+margin — so an object's overhang
+    // past one edge is exactly where its drawWrapped ghost enters the opposite
+    // edge. Shift by one full period (don't snap to the far edge) so motion
+    // stays continuous across the seam.
+    const hx = worldHalf.x, hy = worldHalf.y;
+    if (p.x < cameraPos.x - hx)      p.x += 2*hx;
+    else if (p.x > cameraPos.x + hx) p.x -= 2*hx;
+    if (p.y < cameraPos.y - hy)      p.y += 2*hy;
+    else if (p.y > cameraPos.y + hy) p.y -= 2*hy;
 
     return p;
 }
@@ -166,27 +165,43 @@ function drawGlowLineList(points, width, col, wrap=false, pos=vec2(), angle=0)
     drawLineList(points, width, col, wrap, pos, angle);
 }
 
-// Call drawFn(ghostPos) at the object's real position AND at any wrapped
-// "ghost" copies that peek into view near a screen edge, so objects slide
-// seamlessly across the wrap seam instead of popping. `radius` is the
-// object's draw radius (used to decide which ghosts are on-screen). The wrap
-// period matches wrapPos exactly (view size + 2*WRAP_MARGIN), so a ghost sits
-// precisely where the object lands when it teleports — no visible jump.
-function drawWrapped(pos, radius, drawFn)
+// Call drawFn(center) at the object's real position AND at any wrapped "ghost"
+// copies that peek into view near a screen edge, so objects slide seamlessly
+// across the wrap seam instead of popping. `radius` is the object's draw radius
+// (used to decide which ghosts are on-screen). The wrap period matches wrapPos
+// exactly (the visible view size, 2*worldHalf), so a ghost sits precisely where
+// the object lands when it wraps — no visible jump. wrapX/wrapY pick which axes
+// ghost: objects that wrap both ways (ship, rocks) leave both true; objects that
+// traverse one axis and despawn (the UFO flies across) set that axis false so no
+// phantom copy appears on the opposite edge.
+function drawWrapped(pos, radius, drawFn, wrapX = true, wrapY = true)
 {
-    const spanX = 2 * (worldHalf.x + WRAP_MARGIN);
-    const spanY = 2 * (worldHalf.y + WRAP_MARGIN);
     const viewL = cameraPos.x - worldHalf.x, viewR = cameraPos.x + worldHalf.x;
     const viewB = cameraPos.y - worldHalf.y, viewT = cameraPos.y + worldHalf.y;
-    for (let ix = -1; ix <= 1; ix++)
-    for (let iy = -1; iy <= 1; iy++)
+
+    // Fast path: fully inside the view on every WRAPPING axis -> no ghost needed,
+    // draw once and skip the loop. (A non-wrapping axis never needs ghosts.)
+    const insideX = pos.x - radius > viewL && pos.x + radius < viewR;
+    const insideY = pos.y - radius > viewB && pos.y + radius < viewT;
+    if ((insideX || !wrapX) && (insideY || !wrapY))
+    {
+        drawFn(pos);
+        return;
+    }
+
+    // Near a seam: draw the real copy + any wrapped ghosts that peek into view.
+    const spanX = 2 * worldHalf.x;
+    const spanY = 2 * worldHalf.y;
+    const ixMax = wrapX ? 1 : 0, iyMax = wrapY ? 1 : 0;
+    for (let ix = -ixMax; ix <= ixMax; ix++)
+    for (let iy = -iyMax; iy <= iyMax; iy++)
     {
         const gx = pos.x + ix * spanX;
         const gy = pos.y + iy * spanY;
         // skip copies whose bounding circle can't touch the visible view
         if (gx + radius < viewL || gx - radius > viewR) continue;
         if (gy + radius < viewB || gy - radius > viewT) continue;
-        drawFn(vec2(gx, gy));
+        drawFn(ix || iy ? vec2(gx, gy) : pos);
     }
 }
 
@@ -444,15 +459,18 @@ class Ship extends EngineObject
         const dir = angleToVec(this.angle);
         const right = angleToVec(this.angle - Math.PI/2);
 
-        // triangle points
-        const nose = this.pos.add(dir.scale(SHIP_RADIUS*1.45));
-        const l = this.pos.subtract(dir.scale(SHIP_RADIUS*1.0)).add(right.scale(SHIP_RADIUS*0.95));
-        const r = this.pos.subtract(dir.scale(SHIP_RADIUS*1.0)).subtract(right.scale(SHIP_RADIUS*0.95));
+        drawWrapped(this.pos, SHIP_RADIUS*1.5, c =>
+        {
+            // triangle points
+            const nose = c.add(dir.scale(SHIP_RADIUS*1.45));
+            const l = c.subtract(dir.scale(SHIP_RADIUS*1.0)).add(right.scale(SHIP_RADIUS*0.95));
+            const r = c.subtract(dir.scale(SHIP_RADIUS*1.0)).subtract(right.scale(SHIP_RADIUS*0.95));
 
-        drawGlowLineList([nose, l, r], LINE_WIDTH, col, true);
+            drawGlowLineList([nose, l, r], LINE_WIDTH, col, true);
 
-        // tiny cockpit line
-        drawGlowLine(this.pos.add(dir.scale(SHIP_RADIUS*.35)), this.pos.subtract(dir.scale(SHIP_RADIUS*.25)), LINE_WIDTH_THIN, col);
+            // tiny cockpit line
+            drawGlowLine(c.add(dir.scale(SHIP_RADIUS*.35)), c.subtract(dir.scale(SHIP_RADIUS*.25)), LINE_WIDTH_THIN, col);
+        });
     }
 }
 
@@ -643,9 +661,10 @@ class Ufo extends EngineObject
 
         this.pos = this.pos.add(this.velocity);
 
-        // wrap vertically only; despawn when crossing exit side
-        if (this.pos.y < cameraPos.y - worldHalf.y - WRAP_MARGIN) this.pos.y = cameraPos.y + worldHalf.y + WRAP_MARGIN;
-        if (this.pos.y > cameraPos.y + worldHalf.y + WRAP_MARGIN) this.pos.y = cameraPos.y - worldHalf.y - WRAP_MARGIN;
+        // wrap vertically only (view-size period, matching drawWrapped so the
+        // ghost lines up); despawn when crossing exit side
+        if (this.pos.y < cameraPos.y - worldHalf.y)      this.pos.y += 2*worldHalf.y;
+        else if (this.pos.y > cameraPos.y + worldHalf.y) this.pos.y -= 2*worldHalf.y;
         if ((this.dirX > 0 && this.pos.x > this.exitX) ||
             (this.dirX < 0 && this.pos.x < this.exitX))
         {
@@ -724,17 +743,19 @@ class Ufo extends EngineObject
             vec2( r*.6,    -r*.22),
             vec2(-r*.6,    -r*.22),
         ];
-        drawGlowLineList(body, lw, col, true, this.pos);
-        // dome (open polyline)
         const dome = [
             vec2(-r*.32, r*.32),
             vec2(-r*.18, r*.5),
             vec2( r*.18, r*.5),
             vec2( r*.32, r*.32),
         ];
-        drawGlowLineList(dome, lw, col, false, this.pos);
-        // belt
-        drawGlowLine(this.pos.add(vec2(-r, r*.08)), this.pos.add(vec2(r, r*.08)), lw*.85, col);
+        // wrap vertically only — the saucer flies across horizontally and despawns
+        drawWrapped(this.pos, r*1.1, c =>
+        {
+            drawGlowLineList(body, lw, col, true, c);   // saucer body
+            drawGlowLineList(dome, lw, col, false, c);  // cockpit dome (open polyline)
+            drawGlowLine(c.add(vec2(-r, r*.08)), c.add(vec2(r, r*.08)), lw*.85, col); // belt
+        }, false, true);
     }
 }
 
