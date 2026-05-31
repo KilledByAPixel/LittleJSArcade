@@ -417,9 +417,8 @@ async function gameInit()
 {
     await box2dInit();
 
-    setCanvasFixedSize(vec2(1280, 720));
-    cameraScale = 18;
-    cameraPos = vec2(0, 17);
+    cameraScale = 8;
+    cameraPos = vec2(0, 19);
     gravity = vec2(0, 0); // top-down
     canvasClearColor = hsl(.25, .35, .22); // foul territory / dark green
 

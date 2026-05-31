@@ -12,6 +12,11 @@
 debugWatermark = false;
 showEngineVersion = false;
 
+// setup touch gamepad
+touchGamepadEnable = true;
+touchGamepadAnalog = false;
+touchGamepadButtonCount = 2;
+
 ///////////////////////////////////////////////////////////////////////////////////
 // Dr. Mario
 // - Grid based pill dropping
@@ -677,7 +682,7 @@ function gameUpdate()
         tryRotate(1);
     if (keyWasPressed('KeyZ') || gamepadWasPressed(2))
         tryRotate(-1);
-    if (keyWasPressed('Space') || gamepadWasPressed(3))
+    if (keyWasPressed('Space') || gamepadWasPressed(1))
         hardDrop();
 
     // horizontal DAS/ARR
@@ -713,7 +718,7 @@ function gameUpdate()
     }
 
     // gravity (with soft drop)
-    const soft = dir.y < 0 || stick.y > .3;
+    const soft = dir.y < 0 || stick.y < -.3;
     const cps = currentGravityCps() * (soft ? SOFT_DROP_MULT : 1);
     fallAcc += cps * timeDelta;
     while (fallAcc >= 1)

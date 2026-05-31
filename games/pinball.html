@@ -407,8 +407,20 @@ function gameUpdate()
     const padRightPressed = gamepadWasPressed(5) || gamepadWasPressed(15);
     const padLeftDown     = gamepadIsDown(4) || gamepadIsDown(14);
     const padRightDown    = gamepadIsDown(5) || gamepadIsDown(15);
-    const leftPressed = keyWasPressed('ArrowLeft') || keyWasPressed('KeyA') || keyWasPressed('KeyZ') || (mouseWasPressed(0) && !inLaunchLane) || padLeftPressed;
-    const rightPressed = keyWasPressed('ArrowRight') || keyWasPressed('KeyD') || keyWasPressed('Slash') || mouseWasPressed(2) || padRightPressed;
+
+    let leftPressed = false;
+    let rightPressed = false;
+
+    if (isTouchDevice)
+    {
+
+    }
+    else
+    {
+        leftPressed = keyWasPressed('ArrowLeft') || keyWasPressed('KeyA') || keyWasPressed('KeyZ') || (mouseWasPressed(0) && !inLaunchLane) || padLeftPressed;
+        rightPressed = keyWasPressed('ArrowRight') || keyWasPressed('KeyD') || keyWasPressed('Slash') || mouseWasPressed(2) || padRightPressed;
+    }
+    
     const dir = keyDirection();
     const leftActive  = dir.x < 0 || keyIsDown('KeyZ')  || (mouseIsDown(0) && !inLaunchLane) || padLeftDown;
     const rightActive = dir.x > 0 || keyIsDown('Slash') || mouseIsDown(2) || padRightDown;

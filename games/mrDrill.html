@@ -18,6 +18,12 @@ gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
 cameraScale = 38;
 
+
+// touch gamepad
+touchGamepadEnable = true;
+touchGamepadAnalog = false;
+touchGamepadButtonCount = 1;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Mr. Driller (LittleJS prototype, piece-based)
 // The shaft is filled with 2x2 colored pieces. Drilling any cell of a piece
@@ -528,11 +534,6 @@ async function gameInit()
 {
     saveDataInit('mrDriller');
     setCanvasFixedSize(vec2(720, 960));
-
-    // touch gamepad: digital 8-way d-pad for grid movement + 1 face button (A = drill down)
-    touchGamepadEnable = true;
-    touchGamepadAnalog = false;
-    touchGamepadButtonCount = 2;
 
     sfxDrill   = new SoundGenerator({volume:.28, frequency:300, release:.12, shapeCurve:1.2, pitchJump:180, pitchJumpTime:.04, noise:.2});
     sfxClear   = new SoundGenerator({volume:.40, frequency:480, release:.25, shapeCurve:1.1, pitchJump:320, pitchJumpTime:.05, delay:.03});

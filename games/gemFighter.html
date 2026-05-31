@@ -16,6 +16,11 @@ gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
 inputWASDEmulateDirection = false;
 
+// setup touch gamepad
+touchGamepadEnable = true;
+touchGamepadAnalog = false;
+touchGamepadButtonCount = 2;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Constants
 
@@ -1644,7 +1649,7 @@ class HumanController
     {
         if (this.hardDropping) return 0;
         let soft = anyDown(this.keymap.softDrop);
-        if (this.gamepad && (gamepadIsDown(13) || gamepadStick(0).y > .4)) soft = true;
+        if (this.gamepad && (gamepadIsDown(13) || gamepadStick(0).y < -.4)) soft = true;
         return soft ? 0.025 : board.fallInterval;
     }
 }

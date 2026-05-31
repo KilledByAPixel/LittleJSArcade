@@ -18,6 +18,11 @@ gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
 cameraScale = 42;
 
+// setup touch gamepad
+touchGamepadEnable = true;
+touchGamepadAnalog = false;
+touchGamepadButtonCount = 2;
+
 ///////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
@@ -1334,10 +1339,6 @@ function humanUpdate(p, dt)
 async function gameInit()
 {
     saveDataInit('tetris');
-    // Enable touch gamepad for mobile devices (8-way dpad + 2 face buttons)
-    setTouchGamepadEnable(true);
-    setTouchGamepadAnalog(false);
-    setTouchGamepadButtonCount(2);
 
     // sounds
     sMove   = new SoundGenerator({frequency:330, release:.01, volume:.35});
