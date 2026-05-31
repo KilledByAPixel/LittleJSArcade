@@ -3,6 +3,7 @@
 <meta charset=utf-8>
 </head><body>
 <script src="../dist/littlejs.js?1780261943905"></script>
+<script src="../templates/bloom.js?1780261943905"></script>
 <script src="../templates/gameFx.js?1780261943905"></script>
 <script src="../templates/menus.js?1780261943905"></script>
 <script>
@@ -620,6 +621,16 @@ function drawFinish()
         drawRect(vec2(endX + .55, 6.6 - i*.5), vec2(.5, .5), (i%2) ? hsl(0,0,1) : hsl(0,0,.1));
 }
 
+// Draw screen-space text with the engine image font, plus a dark drop-shadow for
+// contrast. glow=true renders into the WebGL scene so bloom makes the text glow;
+// glow=false renders crisp onto the 2D overlay (stays sharp, sits atop the HUD).
+function drawImageText(text, pos, size, color, glow=false, center=true)
+{
+    const off = max(2, size * .07);
+    engineImageFont.drawTextScreen(text, pos.add(vec2(off, off)), size, center, hsl(0,0,0,.75), glow);
+    engineImageFont.drawTextScreen(text, pos, size, center, color, glow);
+}
+
 function drawParticles()
 {
     for (const p of particles)
@@ -744,6 +755,8 @@ function buildMenus()
             {type:'separator'},
             {type:'checkbox', id:'shake', label:'SCREEN SHAKE', value:true, persist:'shake',
                 onChange: v => setScreenShakeEnabled(v)},
+            {type:'checkbox', id:'bloom', label:'BLOOM', value:true, persist:'bloom',
+                onChange: v => setBloomEnabled(v)},
             {type:'button',   label:'FULLSCREEN', onClick: toggleFullscreen},
             {type:'separator'},
             {type:'button',   label:'RESET PROGRESS', onClick: () => showConfirmDialog({
@@ -797,6 +810,9 @@ function gameInit()
     setShowSplashScreen(false);
     setCanvasFixedSize(vec2(1280, 720));
     cameraScale = 64;
+
+    // neon glow post-process: punchy on the bright rims/spikes/player, soft sky
+    bloomInit({downsample: 2, iterations: 6, threshold: .3, intensity: 2.2, vignette: .9});
 
     sJump = new Sound([,,126,,.05,,1,1.6,,22,,,,,,,,.78,.02,,160]); // Jump 8391
     sDie  = new Sound([1.39,,663,.02,.17,.42,1,.29,-6.4,1.1,,,.12,,,.2,,.53,.19,,-2303]); // Powerup 401
@@ -899,22 +915,22 @@ function gameRenderPost()
     // bright leading edge
     if (progress > 0 && progress < 1)
         drawRect(vec2(left + barW*progress, by), vec2(4, barH), hsl(.33,1,.8), 0, false, true);
-    drawTextScreen(`${pct}%`, vec2(cx, by + 1), 18, hsl(0,0,1,.95), 3, hsl(0,0,0,.7), 'center', undefined, 'bold');
+    // % on the bar + level readout left of it: crisp on the overlay (atop the HUD)
+    drawImageText(`${pct}%`, vec2(cx, by), 18, hsl(0,0,1,.95));
+    drawImageText(`LEVEL ${levelIndex+1}/${TOTAL_LEVELS}`, vec2(left - 78, by), 16, hsl(.9,.8,.7));
 
-    // level readout (left of the bar)
-    drawTextScreen(`LEVEL ${levelIndex+1}/${TOTAL_LEVELS}`, vec2(left - 70, by + 1), 22, hsl(.9,.8,.7), 3, hsl(0,0,0,.7), 'center', undefined, 'bold');
-
+    // big status banners glow with the scene bloom
     if (state === 'dead')
     {
-        drawTextScreen('CRASH!', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 - 60), 110, hsl(0, .9, .6), 10, hsl(0,0,0,.8));
-        drawTextScreen('Click to try again', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 + 30), 44, hsl(0,0,1,.9), 6, hsl(0,0,0,.8));
+        drawImageText('CRASH!', vec2(cx, mainCanvasSize.y/2 - 60), 90, hsl(0, .9, .6), true);
+        drawImageText('Click to try again', vec2(cx, mainCanvasSize.y/2 + 30), 32, hsl(0,0,1,.9), true);
     }
     else if (state === 'win')
     {
         const title  = campaignComplete ? 'CAMPAIGN COMPLETE!' : 'LEVEL CLEAR!';
         const prompt = campaignComplete ? 'Click to return to title' : 'Click for next level';
-        drawTextScreen(title, vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 - 60), campaignComplete ? 84 : 110, hsl(.33, .9, .55), 10, hsl(0,0,0,.8));
-        drawTextScreen(prompt, vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 + 30), 44, hsl(0,0,1,.9), 6, hsl(0,0,0,.8));
+        drawImageText(title, vec2(cx, mainCanvasSize.y/2 - 60), campaignComplete ? 56 : 80, hsl(.33, .9, .55), true);
+        drawImageText(prompt, vec2(cx, mainCanvasSize.y/2 + 30), 32, hsl(0,0,1,.9), true);
     }
 }
 
