@@ -343,7 +343,7 @@ class Ship extends EngineObject
         this.angle += SHIP_TURN_SPEED * rot;
 
         // thrust: keyboard up/W, stick forward (Y > 0 in LittleJS), A button (0)
-        const thrust = kbd.y > 0 || stick.y > .35 || gamepadIsDown(0);
+        const thrust = kbd.y > 0 ||  gamepadIsDown(0);
         if (thrust)
         {
             const dir = angleToVec(this.angle);
@@ -389,7 +389,7 @@ class Ship extends EngineObject
         // shooting: Space / Z / B-button (1)
         if (!shootTimer.isSet() || shootTimer.elapsed())
         {
-            if (keyWasPressed('Space') || keyWasPressed('KeyZ') || gamepadWasPressed(1))
+            if (keyWasPressed('Space') || keyWasPressed('KeyZ') || gamepadWasPressed(1) || gamepadWasPressed(2))
             {
                 if (bullets.length < BULLET_MAX)
                 {

@@ -271,7 +271,7 @@ function gameUpdate()
     if (bindPauseKey({when: () => isPlaying() && !gameOver})) return;
     if (!isPlaying()) return;
 
-    if (keyWasPressed('Enter'))
+    if (keyWasPressed('Enter') || gamepadWasPressed(0))
         resetGame();
 
     if (gameOver)
@@ -511,8 +511,6 @@ function gameRenderPost()
     {
         drawTextScreen(gameOverReason, vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 - 10), 64,
             hsl(0,1,.6), 6, hsl(0,0,0));
-        drawTextScreen('PRESS ENTER TO RESTART', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 + 46), 26,
-            hsl(0,0,1), 4, hsl(0,0,0));
     }
 }
 
