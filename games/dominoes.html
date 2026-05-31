@@ -1,0 +1,923 @@
+<!DOCTYPE html><head>
+<title>LittleJS Dominoes</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head><body style="background:#000">
+<script src="../dist/littlejs.js?1780166867565"></script>
+<script src="../templates/menus.js?1780166867565"></script>
+<script src="../templates/gameFx.js?1780166867565"></script>
+<script src="../templates/gameAI.js?1780166867565"></script>
+<script>
+'use strict';
+
+// engine settings, do not remove
+debugWatermark = false;
+showEngineVersion = false;
+paused = false;
+
+gravity = vec2(0, 0);
+cameraPos = vec2(0, 0);
+cameraScale = 32;
+canvasMaxSize = vec2(2048, 2048);
+
+///////////////////////////////////////////////////////////////////////////////
+// MODEL — tiles are canonical {a,b} with a <= b. Tile id is "a-b".
+
+const PIPS_MAX = 6;          // double-six set
+const HAND_SIZE = 7;
+const PLAYER_HUMAN = 0;
+const PLAYER_AI = 1;
+
+function makeFullSet()
+{
+    const set = [];
+    for (let a = 0; a <= PIPS_MAX; a++)
+        for (let b = a; b <= PIPS_MAX; b++)
+            set.push({a, b});
+    return set;
+}
+
+function tileId(t) { return t.a + '-' + t.b; }
+
+function pipSum(hand) { return hand.reduce((s, t) => s + t.a + t.b, 0); }
+
+// Highest double a hand holds, or null. Returns the tile object.
+function highestDoubleInHand(hand)
+{
+    let best = null;
+    for (const t of hand)
+        if (t.a === t.b && (!best || t.a > best.a))
+            best = t;
+    return best;
+}
+
+// Highest tile by pip total (tiebreak: higher single pip), for the
+// no-doubles-dealt fallback opener.
+function highestTileInHand(hand)
+{
+    let best = null;
+    for (const t of hand)
+        if (!best || (t.a + t.b) > (best.a + best.b) ||
+            ((t.a + t.b) === (best.a + best.b) && Math.max(t.a, t.b) > Math.max(best.a, best.b)))
+            best = t;
+    return best;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// ADAPTER — pure-functional dominoes for gameAI.js. The full (determinized)
+// world lives in state.board so the engine's TT hash covers the hands.
+
+// Does tile t have a pip equal to `end`? Returns the OTHER pip (the new open
+// end) if so, else null. For a double, the other pip equals end.
+function matchEnd(t, end)
+{
+    if (t.a === end) return t.b;
+    if (t.b === end) return t.a;
+    return null;
+}
+
+const dominoGame = {
+    getCurrentPlayer: (state) => state.currentPlayer,
+    getOpponent: (player) => 1 - player,
+
+    getLegalMoves(state, player)
+    {
+        const b = state.board;
+        const hand = b.hands[player];
+        const moves = [];
+        if (b.leftEnd === null)
+        {
+            // Opening: any tile may be placed.
+            for (const t of hand)
+                moves.push({tile: tileId(t), end: 'start'});
+            return moves;
+        }
+        for (const t of hand)
+        {
+            if (matchEnd(t, b.leftEnd) !== null)  moves.push({tile: tileId(t), end: 'L'});
+            if (matchEnd(t, b.rightEnd) !== null) moves.push({tile: tileId(t), end: 'R'});
+        }
+        return moves;
+    },
+
+    applyMove(state, move, player)
+    {
+        const b = state.board;
+        // Fresh copy of the world.
+        const chain = b.chain.map(t => ({a:t.a, b:t.b}));
+        const hands = [b.hands[0].map(t => ({a:t.a, b:t.b})),
+                       b.hands[1].map(t => ({a:t.a, b:t.b}))];
+        let leftEnd = b.leftEnd, rightEnd = b.rightEnd;
+
+        // Find & remove the played tile from the player's (copied) hand.
+        const hand = hands[player];
+        const idx = hand.findIndex(t => tileId(t) === move.tile);
+        const tile = hand.splice(idx, 1)[0];
+
+        if (move.end === 'start')
+        {
+            chain.push({a: tile.a, b: tile.b});
+            leftEnd = tile.a;
+            rightEnd = tile.b;
+        }
+        else if (move.end === 'L')
+        {
+            const newEnd = matchEnd(tile, leftEnd);
+            // Orient so matching pip touches the chain: {a:newEnd-facing, b:matching}
+            chain.unshift({a: newEnd, b: leftEnd});
+            leftEnd = newEnd;
+        }
+        else // 'R'
+        {
+            const newEnd = matchEnd(tile, rightEnd);
+            chain.push({a: rightEnd, b: newEnd});
+            rightEnd = newEnd;
+        }
+
+        return {
+            board: {chain, leftEnd, rightEnd, hands, passes: 0},
+            currentPlayer: 1 - player,
+        };
+    },
+
+    isTerminal(state)
+    {
+        const b = state.board;
+        if (b.hands[0].length === 0 || b.hands[1].length === 0) return true;
+        // Locked if neither player has any legal move.
+        const p0 = this.getLegalMoves(state, 0).length;
+        const p1 = this.getLegalMoves(state, 1).length;
+        return p0 === 0 && p1 === 0;
+    },
+
+    evaluate(state, player)
+    {
+        const b = state.board;
+        const opp = 1 - player;
+        const BIG = 10000;
+        const myPips = pipSum(b.hands[player]);
+        const oppPips = pipSum(b.hands[opp]);
+
+        if (b.hands[player].length === 0) return BIG;   // I emptied my hand
+        if (b.hands[opp].length === 0)    return -BIG;   // opponent emptied
+
+        // Locked board (neither side can move): lower pip count wins. Use the
+        // global lock — both players stuck — so this matches isTerminal. A leaf
+        // where only the side-to-move is temporarily stuck is NOT terminal and
+        // must fall through to the heuristic, not return a terminal-magnitude score.
+        const myMoves = this.getLegalMoves(state, player).length;
+        const oppMoves = this.getLegalMoves(state, opp).length;
+        if (myMoves === 0 && oppMoves === 0)
+            return Math.sign(oppPips - myPips) * BIG;   // 0 on a tie (draw)
+
+        // Non-terminal heuristic: fewer pips is better, plus a small mobility term.
+        return (oppPips - myPips) + myMoves * 0.5;
+    },
+};
+
+///////////////////////////////////////////////////////////////////////////////
+// PIMC — determinization. The AI only ever reads `observed` (public info):
+// its own hand, the chain/ends, and the opponent's tile COUNT. It never sees
+// the real opponent hand, so it cannot cheat.
+
+const PIMC_SAMPLES = 30;     // sampled worlds per decision
+const AI_DEPTH = 6;          // alpha-beta search depth per world
+
+function unseenTiles(aiHand, chain)
+{
+    const known = new Set([...aiHand, ...chain].map(tileId));
+    return makeFullSet().filter(t => !known.has(tileId(t)));
+}
+
+// Fisher-Yates using LittleJS randInt (no Math.random per project convention).
+function shuffled(arr)
+{
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--)
+    {
+        const j = randInt(0, i + 1);   // randInt is [min, max)
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+// Build one determinized world consistent with `observed`.
+function sampleWorld(observed)
+{
+    const pool = shuffled(unseenTiles(observed.aiHand, observed.chain));
+    const oppHand = pool.slice(0, observed.oppCount);
+    const hands = [];
+    hands[PLAYER_AI] = observed.aiHand.map(t => ({a:t.a, b:t.b}));
+    hands[PLAYER_HUMAN] = oppHand.map(t => ({a:t.a, b:t.b}));
+    return {
+        board: {
+            chain: observed.chain.map(t => ({a:t.a, b:t.b})),
+            leftEnd: observed.leftEnd, rightEnd: observed.rightEnd,
+            hands, passes: observed.passes,
+        },
+        currentPlayer: PLAYER_AI,
+    };
+}
+
+const moveKey = (m) => m.tile + '@' + m.end;
+
+// Returns the plurality move across PIMC_SAMPLES determinized searches,
+// or null if the AI has no legal move at all.
+async function chooseAIMove(observed)
+{
+    // Quick out: if no legal move exists in the real (partial) position, pass.
+    const realProbe = {
+        board: {chain: observed.chain, leftEnd: observed.leftEnd,
+            rightEnd: observed.rightEnd,
+            hands: [[], observed.aiHand], passes: observed.passes},
+        currentPlayer: PLAYER_AI,
+    };
+    if (dominoGame.getLegalMoves(realProbe, PLAYER_AI).length === 0) return null;
+
+    const votes = new Map();        // moveKey -> {move, count}
+    for (let i = 0; i < PIMC_SAMPLES; i++)
+    {
+        const world = sampleWorld(observed);
+        const move = await alphaBetaAI(dominoGame, world, AI_DEPTH);
+        if (!move) continue;
+        const k = moveKey(move);
+        const v = votes.get(k) || {move, count: 0};
+        v.count++;
+        votes.set(k, v);
+    }
+    // Plurality; ties broken by first inserted (Map preserves insertion order).
+    let best = null;
+    for (const v of votes.values())
+        if (!best || v.count > best.count) best = v;
+    return best ? best.move : null;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// LIVE GAME STATE — the single mutable source of truth during play.
+// We reuse the adapter (which is pure) for all legality questions by wrapping
+// the live globals into a state object via liveState().
+
+let chain = [];
+let leftEnd = null, rightEnd = null;
+let hands = [[], []];
+let currentPlayer = PLAYER_HUMAN;
+let passes = 0;
+let phase = 'title';        // 'title' | 'playerTurn' | 'aiThinking' | 'roundOver'
+let selectedTileId = null;  // human's currently-selected hand tile
+let roundResult = null;     // set by endRound: {winner, humanPips, aiPips}
+
+let aiTimer = 0;
+const AI_THINK_DELAY = 0.5; // seconds before the AI starts searching
+let aiSearching = false;
+let roundDialogShown = false;   // guards the one-shot game-over dialog (Task 7)
+
+// SFX handles (created in gameInit, Task 7).
+let sfxPlace, sfxPass, sfxWin, sfxLose;
+
+function liveState()
+{
+    return {
+        board: {chain, leftEnd, rightEnd, hands, passes},
+        currentPlayer,
+    };
+}
+
+function legalMovesFor(player)
+{
+    return dominoGame.getLegalMoves(liveState(), player);
+}
+
+// Deal a fresh round and auto-play the opening tile.
+function newGame()
+{
+    const deck = shuffled(makeFullSet());
+    hands = [deck.slice(0, HAND_SIZE), deck.slice(HAND_SIZE, HAND_SIZE * 2)];
+    chain = []; leftEnd = null; rightEnd = null; passes = 0;
+    selectedTileId = null; roundResult = null;
+    aiSearching = false; roundDialogShown = false;
+
+    // Opener: holder of the highest double, else holder of the highest tile.
+    const openInfo = decideOpener();          // {player, tile}
+    placeOpening(openInfo.player, openInfo.tile);
+    currentPlayer = 1 - openInfo.player;       // other player moves next
+    phase = (currentPlayer === PLAYER_HUMAN) ? 'playerTurn' : 'aiThinking';
+    aiTimer = 0;
+}
+
+function decideOpener()
+{
+    const d0 = highestDoubleInHand(hands[0]);
+    const d1 = highestDoubleInHand(hands[1]);
+    if (d0 || d1)
+    {
+        if (d0 && (!d1 || d0.a >= d1.a))
+            return {player: 0, tile: d0};
+        return {player: 1, tile: d1};
+    }
+    // Fallback: highest tile by pip total across both hands.
+    const h0 = highestTileInHand(hands[0]);
+    const h1 = highestTileInHand(hands[1]);
+    const better = (h0.a + h0.b) >= (h1.a + h1.b);
+    return better ? {player: 0, tile: h0} : {player: 1, tile: h1};
+}
+
+function placeOpening(player, tile)
+{
+    const idx = hands[player].findIndex(t => tileId(t) === tileId(tile));
+    const t = hands[player].splice(idx, 1)[0];
+    chain.push({a: t.a, b: t.b});
+    leftEnd = t.a; rightEnd = t.b;
+}
+
+// Apply a {tile,end} move to the LIVE globals for `player`. Mirrors
+// dominoGame.applyMove but mutates in place. Returns true on success.
+function placeTileLive(player, move)
+{
+    const hand = hands[player];
+    const idx = hand.findIndex(t => tileId(t) === move.tile);
+    if (idx < 0) return false;
+    const tile = hand[idx];
+    if (move.end === 'L')
+    {
+        const newEnd = matchEnd(tile, leftEnd);
+        if (newEnd === null) return false;
+        chain.unshift({a: newEnd, b: leftEnd});
+        leftEnd = newEnd;
+    }
+    else
+    {
+        const newEnd = matchEnd(tile, rightEnd);
+        if (newEnd === null) return false;
+        chain.push({a: rightEnd, b: newEnd});
+        rightEnd = newEnd;
+    }
+    hand.splice(idx, 1);
+    passes = 0;
+    return true;
+}
+
+// Switch to the next player's turn. Pass-handling lives in the Task 7 turn
+// handlers, NOT here — this only detects the mover emptying their hand and
+// flips the active player.
+function advanceTurn()
+{
+    if (hands[currentPlayer].length === 0) { endRound(); return; }
+    currentPlayer = 1 - currentPlayer;
+    selectedTileId = null;
+    phase = (currentPlayer === PLAYER_HUMAN) ? 'playerTurn' : 'aiThinking';
+    aiTimer = 0;
+}
+
+function endRound()
+{
+    const humanPips = pipSum(hands[PLAYER_HUMAN]);
+    const aiPips = pipSum(hands[PLAYER_AI]);
+    let winner;
+    if (hands[PLAYER_HUMAN].length === 0) winner = PLAYER_HUMAN;
+    else if (hands[PLAYER_AI].length === 0) winner = PLAYER_AI;
+    else if (humanPips < aiPips) winner = PLAYER_HUMAN;
+    else if (aiPips < humanPips) winner = PLAYER_AI;
+    else winner = null;        // draw
+    roundResult = {winner, humanPips, aiPips};
+    phase = 'roundOver';
+    // The game-over dialog is shown from gameUpdate (Task 7) so SFX/menus are wired.
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// RENDERING — procedural tiles (rounded-ish rects + pip circles), no atlas.
+
+const TILE_LONG = 2.0;       // long dimension of a domino (two squares)
+const TILE_SHORT = 1.0;      // short dimension
+const PIP_R = 0.12;          // pip radius (drawCircle takes DIAMETER = 2*r)
+
+// Standard pip layout positions within a unit square half, in [-.5,.5] range,
+// keyed by pip count 0-6. Each entry is an array of vec2 offsets.
+function pipOffsets(n)
+{
+    const C = 0, L = -0.22, R = 0.22, U = 0.22, D = -0.22;
+    const map = {
+        0: [],
+        1: [[C,C]],
+        2: [[L,U],[R,D]],
+        3: [[L,U],[C,C],[R,D]],
+        4: [[L,U],[R,U],[L,D],[R,D]],
+        5: [[L,U],[R,U],[C,C],[L,D],[R,D]],
+        6: [[L,U],[R,U],[L,C],[R,C],[L,D],[R,D]],
+    };
+    return map[n].map(o => vec2(o[0], o[1]));
+}
+
+// Draw one domino. `horizontal` true => long axis is X, A-half on the left.
+function drawDominoTile(pos, valA, valB, horizontal, faceUp = true, highlight = 0)
+{
+    const size = horizontal ? vec2(TILE_LONG, TILE_SHORT) : vec2(TILE_SHORT, TILE_LONG);
+    // Body + border.
+    drawRect(pos, size.add(vec2(0.12, 0.12)), hsl(0, 0, 0.1));    // border
+    drawRect(pos, size, faceUp ? hsl(0, 0, 0.93) : hsl(.6, .3, .3));
+    if (highlight > 0)
+        drawRect(pos, size, hsl(.15, 1, .5, 0.35 * highlight));
+    if (!faceUp) return;
+
+    // Divider line between the two halves.
+    if (horizontal)
+        drawRect(pos, vec2(0.06, TILE_SHORT * 0.9), hsl(0, 0, 0.1));
+    else
+        drawRect(pos, vec2(TILE_SHORT * 0.9, 0.06), hsl(0, 0, 0.1));
+
+    // Half centers: A then B along the long axis.
+    const halfA = horizontal ? pos.add(vec2(-TILE_LONG/4, 0)) : pos.add(vec2(0, TILE_LONG/4));
+    const halfB = horizontal ? pos.add(vec2( TILE_LONG/4, 0)) : pos.add(vec2(0, -TILE_LONG/4));
+    drawPips(halfA, valA);
+    drawPips(halfB, valB);
+}
+
+function drawPips(center, n)
+{
+    for (const off of pipOffsets(n))
+        drawCircle(center.add(off.scale(TILE_SHORT)), PIP_R * 2, hsl(0, 0, 0.1));
+}
+
+// Module-level layout state used by both rendering and (Task 7) input hit-testing.
+let handTilePositions = [];          // [{id, pos}] for the human hand
+let leftZonePos = null, rightZonePos = null;   // assigned each frame in drawEndZones
+// END_ZONE_SIZE is a lazy getter so vec2() is not called at module scope
+// (the test harness evaluates this block without engine globals available).
+function getEndZoneSize() { return vec2(TILE_LONG, TILE_SHORT); }
+
+const CHAIN_Y = 0.5;        // vertical center of the laid-out chain
+const CHAIN_GAP = 0.1;      // uniform gap between adjacent tiles
+
+// Compute the chain's horizontal layout once so the renderer and the end
+// zones agree. A double is drawn vertically, so its footprint is TILE_SHORT
+// wide; a normal tile is horizontal, so it's TILE_LONG wide. Laying tiles out
+// by their actual footprint (not a fixed slot) keeps the spacing uniform.
+function chainLayout()
+{
+    const widths = chain.map(t => (t.a === t.b) ? TILE_SHORT : TILE_LONG);
+    const totalW = widths.reduce((s, w) => s + w, 0) + (chain.length - 1) * CHAIN_GAP;
+    const positions = [];
+    let cursor = -totalW / 2;       // left edge of the whole chain
+    for (let i = 0; i < chain.length; i++)
+    {
+        positions.push(vec2(cursor + widths[i] / 2, CHAIN_Y));
+        cursor += widths[i] + CHAIN_GAP;
+    }
+    return {totalW, positions, leftEdge: -totalW / 2, rightEdge: totalW / 2};
+}
+
+function drawChain()
+{
+    if (!chain.length) return;
+    const {totalW, positions} = chainLayout();
+    for (let i = 0; i < chain.length; i++)
+    {
+        const t = chain[i];
+        const isDouble = t.a === t.b;
+        drawDominoTile(positions[i], t.a, t.b, !isDouble, true);
+    }
+    // Auto-fit: keep the whole chain + hands on screen.
+    const desired = Math.min(
+        mainCanvasSize.x / (totalW + 4),
+        mainCanvasSize.y / 16);
+    cameraScale = clamp(desired, 12, 48);
+}
+
+// L / R drop targets. Only shown once the player has selected a tile. Each
+// end is drawn as a steady green target if the selected tile can legally go
+// there, or a dimmed, X'd-out box if it can't — so it's always clear where
+// the current tile may be placed (no flashing, no auto-redirect).
+function drawEndZones()
+{
+    if (phase !== 'playerTurn' || !chain.length || !selectedTileId) return;
+    const {leftEdge, rightEdge} = chainLayout();
+    leftZonePos  = vec2(leftEdge  - TILE_LONG*0.7, CHAIN_Y);
+    rightZonePos = vec2(rightEdge + TILE_LONG*0.7, CHAIN_Y);
+
+    // Which ends can the selected tile actually go on?
+    const ends = new Set(legalMovesFor(PLAYER_HUMAN)
+        .filter(m => m.tile === selectedTileId).map(m => m.end));
+    drawDropTarget(leftZonePos,  'L', ends.has('L'));
+    drawDropTarget(rightZonePos, 'R', ends.has('R'));
+}
+
+function drawDropTarget(pos, label, valid)
+{
+    const size = getEndZoneSize();
+    if (valid)
+    {
+        drawRect(pos, size.add(vec2(.16, .16)), hsl(.33, .8, .7));  // bright border
+        drawRect(pos, size, hsl(.33, .7, .4));                      // steady green
+        drawText(label, pos, 0.9, hsl(0, 0, 1));
+    }
+    else
+    {
+        drawRect(pos, size, hsl(0, 0, .25, .6));                    // dimmed, disabled
+        // X it out so it's clear the selected tile can't go here.
+        const c = hsl(0, .6, .55, .9);
+        const dx = size.x/2*.6, dy = size.y/2*.6;
+        drawLine(pos.add(vec2(-dx, -dy)), pos.add(vec2(dx,  dy)), .12, c);
+        drawLine(pos.add(vec2(-dx,  dy)), pos.add(vec2(dx, -dy)), .12, c);
+    }
+}
+
+// Human hand: a row pinned near the camera bottom, in world space.
+function drawHumanHand()
+{
+    handTilePositions = [];
+    const hand = hands[PLAYER_HUMAN];
+    const camSize = getCameraSize();
+    const y = cameraPos.y - camSize.y/2 + TILE_LONG/2 + 0.5;
+    const spacing = TILE_SHORT + 0.25;
+    const startX = cameraPos.x - (hand.length - 1) * spacing / 2;
+    const legalIds = new Set(legalMovesFor(PLAYER_HUMAN).map(m => m.tile));
+    for (let i = 0; i < hand.length; i++)
+    {
+        const t = hand[i];
+        const pos = vec2(startX + i * spacing, y);
+        const id = tileId(t);
+        const isLegal = legalIds.has(id);
+        const hl = (id === selectedTileId) ? 1 : 0;
+        drawDominoTile(pos, t.a, t.b, false, true, hl);
+        if (!isLegal && phase === 'playerTurn')
+            drawRect(pos, vec2(TILE_SHORT, TILE_LONG), hsl(0,0,0,0.45));  // dim illegal
+        handTilePositions.push({id, pos});
+    }
+}
+
+// AI hand: face-down row at the camera top, count shown.
+function drawAIHand()
+{
+    const count = hands[PLAYER_AI].length;
+    const camSize = getCameraSize();
+    const y = cameraPos.y + camSize.y/2 - TILE_LONG/2 - 0.5;
+    const spacing = TILE_SHORT + 0.25;
+    const startX = cameraPos.x - (count - 1) * spacing / 2;
+    for (let i = 0; i < count; i++)
+        drawDominoTile(vec2(startX + i * spacing, y), 0, 0, false, false);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TESTS — gated behind ?test. Appended to across tasks.
+
+let testFails = 0;
+function check(cond, msg)
+{
+    if (!cond) { testFails++; console.error('FAIL: ' + msg); }
+    else console.log('pass: ' + msg);
+}
+
+function runDominoTests()
+{
+    testFails = 0;
+    console.log('--- domino tests ---');
+
+    // Model
+    const set = makeFullSet();
+    check(set.length === 28, 'full set has 28 tiles');
+    check(set.every(t => t.a <= t.b), 'all tiles canonical a<=b');
+    check(tileId({a:3, b:5}) === '3-5', 'tileId formats a-b');
+    check(pipSum([{a:3,b:5},{a:0,b:0},{a:6,b:6}]) === 20, 'pipSum adds all pips');
+    check(tileId(highestDoubleInHand([{a:2,b:2},{a:5,b:5},{a:0,b:1}])) === '5-5',
+        'highestDoubleInHand picks 5-5');
+    check(highestDoubleInHand([{a:0,b:1},{a:2,b:3}]) === null,
+        'highestDoubleInHand returns null when no doubles');
+    check(tileId(highestTileInHand([{a:6,b:5},{a:6,b:6},{a:0,b:1}])) === '6-6',
+        'highestTileInHand picks highest pip total');
+
+    // --- adapter: getLegalMoves ---
+    const opening = {
+        board: {chain:[], leftEnd:null, rightEnd:null,
+                hands:[[{a:1,b:2},{a:3,b:4}], []], passes:0},
+        currentPlayer: 0,
+    };
+    const openMoves = dominoGame.getLegalMoves(opening, 0);
+    check(openMoves.length === 2 && openMoves.every(m => m.end === 'start'),
+        'opening: every hand tile is a start move');
+
+    const mid = {
+        board: {chain:[{a:2,b:5}], leftEnd:2, rightEnd:5,
+                hands:[[{a:2,b:6},{a:5,b:5},{a:0,b:1}], []], passes:0},
+        currentPlayer: 0,
+    };
+    const midMoves = dominoGame.getLegalMoves(mid, 0);
+    // 2-6 matches left end 2 -> L; 5-5 matches right end 5 -> R; 0-1 matches neither
+    check(midMoves.length === 2, 'mid: two playable tiles');
+    check(midMoves.some(m => m.tile === '2-6' && m.end === 'L'), 'mid: 2-6 plays Left');
+    check(midMoves.some(m => m.tile === '5-5' && m.end === 'R'), 'mid: 5-5 plays Right');
+
+    const both = {
+        board: {chain:[{a:3,b:3}], leftEnd:3, rightEnd:3,
+                hands:[[{a:3,b:6}], []], passes:0},
+        currentPlayer: 0,
+    };
+    const bothMoves = dominoGame.getLegalMoves(both, 0);
+    check(bothMoves.length === 2 && bothMoves.some(m => m.end === 'L') && bothMoves.some(m => m.end === 'R'),
+        'tile matching both ends yields L and R moves');
+
+    const stuck = {
+        board: {chain:[{a:3,b:3}], leftEnd:3, rightEnd:3,
+                hands:[[{a:0,b:1},{a:2,b:4}], []], passes:0},
+        currentPlayer: 0,
+    };
+    check(dominoGame.getLegalMoves(stuck, 0).length === 0, 'no matching tile -> no moves');
+
+    // --- adapter: applyMove purity + correctness ---
+    const before = {
+        board: {chain:[{a:2,b:5}], leftEnd:2, rightEnd:5,
+                hands:[[{a:2,b:6},{a:0,b:1}], [{a:1,b:1}]], passes:1},
+        currentPlayer: 0,
+    };
+    const beforeHandRef = before.board.hands[0];
+    const after = dominoGame.applyMove(before, {tile:'2-6', end:'L'}, 0);
+    check(after !== before && after.board !== before.board, 'applyMove returns fresh state');
+    check(before.board.hands[0] === beforeHandRef && before.board.hands[0].length === 2,
+        'applyMove does not mutate original hand');
+    check(after.board.hands[0].length === 1 && !after.board.hands[0].some(t => tileId(t) === '2-6'),
+        'applyMove removes played tile from hand');
+    // 2-6 placed on left end 2: matching pip 2 touches chain, 6 becomes new left end
+    check(after.board.leftEnd === 6 && after.board.rightEnd === 5,
+        'applyMove flips tile so 6 is the new left end');
+    check(after.board.passes === 0, 'applyMove resets pass counter');
+    check(after.currentPlayer === 1, 'applyMove advances current player');
+
+    // opening move sets both ends
+    const openedAfter = dominoGame.applyMove(opening, {tile:'3-4', end:'start'}, 0);
+    check(openedAfter.board.leftEnd === 3 && openedAfter.board.rightEnd === 4,
+        'opening move sets left and right ends from the tile');
+
+    // --- adapter: isTerminal ---
+    const empty = {board:{chain:[{a:1,b:1}], leftEnd:1, rightEnd:1,
+        hands:[[], [{a:2,b:3}]], passes:0}, currentPlayer:1};
+    check(dominoGame.isTerminal(empty), 'empty hand is terminal');
+
+    const locked = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:0,b:1}], [{a:2,b:3}]], passes:0}, currentPlayer:0};
+    check(dominoGame.isTerminal(locked), 'locked board (no moves either side) is terminal');
+
+    const live = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:6,b:1}], [{a:2,b:3}]], passes:0}, currentPlayer:0};
+    check(!dominoGame.isTerminal(live), 'board with a legal move is not terminal');
+
+    // --- adapter: evaluate ---
+    check(dominoGame.evaluate(empty, 0) > 5000, 'win for player 0 scores big positive');
+    check(dominoGame.evaluate(empty, 1) < -5000, 'opponent emptied -> big negative for player 1');
+    // non-terminal: fewer pips in my hand than opponent -> positive
+    const lead = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:0,b:1}], [{a:5,b:6},{a:4,b:4}]], passes:0}, currentPlayer:0};
+    check(dominoGame.evaluate(lead, 0) > 0, 'fewer pips than opponent evaluates positive');
+    check(dominoGame.evaluate(lead, 1) < 0, 'more pips than opponent evaluates negative');
+    // locked board: lower pip count wins
+    const lockedWinForP0 = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:0,b:1}], [{a:2,b:4}]], passes:0}, currentPlayer:0};
+    check(dominoGame.evaluate(lockedWinForP0, 0) > 5000, 'locked + lower pips = big positive');
+    // Regression: side-to-move temporarily stuck but opponent can still move ->
+    // NOT terminal, must return the heuristic (not a terminal-magnitude score).
+    const myStuckOppLive = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:0,b:1}], [{a:6,b:2}]], passes:0}, currentPlayer:0};
+    check(Math.abs(dominoGame.evaluate(myStuckOppLive, 0)) < 5000,
+        'only side-to-move stuck (opp can move) is not scored as terminal');
+
+    // --- PIMC: unseenTiles ---
+    const aiHand = [{a:6,b:6},{a:0,b:0}];
+    const chainTiles = [{a:1,b:1},{a:1,b:2}];
+    const unseen = unseenTiles(aiHand, chainTiles);
+    check(unseen.length === 28 - 4, 'unseen excludes ai hand and chain tiles');
+    check(!unseen.some(t => tileId(t) === '6-6' || tileId(t) === '1-2'),
+        'unseen contains no ai-hand or chain tiles');
+
+    // --- PIMC: sampleWorld ---
+    const obs = {aiHand:aiHand, chain:chainTiles.map(t=>({a:t.a,b:t.b})),
+        leftEnd:1, rightEnd:2, oppCount:5, passes:0};
+    const world = sampleWorld(obs);
+    check(world.board.hands[PLAYER_AI].length === 2, 'sampled world: AI hand size preserved');
+    check(world.board.hands[PLAYER_HUMAN].length === 5, 'sampled world: opp hand = oppCount');
+    check(world.currentPlayer === PLAYER_AI, 'sampled world: it is AI to move');
+    const oppIds = world.board.hands[PLAYER_HUMAN].map(tileId);
+    check(oppIds.every(id => unseen.some(u => tileId(u) === id)),
+        'sampled opp hand drawn only from unseen tiles');
+
+    console.log(testFails === 0 ? '=== ALL PASS ===' : '=== ' + testFails + ' FAILED ===');
+}
+
+async function runAsyncDominoTests()
+{
+    console.log('--- async PIMC tests ---');
+    let fails = 0;
+    const a = (cond, msg) => { if (!cond) { fails++; console.error('FAIL: ' + msg); }
+        else console.log('pass: ' + msg); };
+
+    // Win-in-one: AI has a single tile that plays on the open end and empties
+    // its hand. Opponent count is 1. Every determinization must return it.
+    const winObs = {
+        aiHand: [{a:3, b:5}],
+        chain: [{a:1, b:3}], leftEnd: 1, rightEnd: 3,
+        oppCount: 1, passes: 0,
+    };
+    const winMove = await chooseAIMove(winObs);
+    a(winMove && winMove.tile === '3-5' && winMove.end === 'R',
+        'win-in-one: AI plays 3-5 on the right end');
+
+    // Fairness: observed carries NO real opponent hand, only oppCount.
+    // chooseAIMove must still return a legal move (proves it never reads a
+    // hidden hand).
+    a(!('oppHand' in winObs), 'observed has no opponent hand field (fairness by construction)');
+
+    // No-move: AI hand cannot play -> null (pass).
+    const stuckObs = {
+        aiHand: [{a:0, b:1}],
+        chain: [{a:6, b:6}], leftEnd: 6, rightEnd: 6,
+        oppCount: 3, passes: 0,
+    };
+    const stuckMove = await chooseAIMove(stuckObs);
+    a(stuckMove === null, 'no legal tile -> chooseAIMove returns null (pass)');
+
+    // Flow smoke test: deal, verify opener placed and 13 tiles remain in play.
+    newGame();
+    a(chain.length === 1, 'newGame places exactly one opening tile');
+    a(hands[0].length + hands[1].length === 13, 'after opening, 13 tiles remain in hands');
+    a(leftEnd !== null && rightEnd !== null, 'newGame sets both open ends');
+    a(phase === 'playerTurn' || phase === 'aiThinking', 'newGame sets a turn phase');
+
+    console.log(fails === 0 ? '=== ASYNC ALL PASS ===' : '=== ' + fails + ' ASYNC FAILED ===');
+}
+
+async function gameInit()
+{
+    if (location.search.includes('test')) { runDominoTests(); runAsyncDominoTests(); return; }
+
+    saveDataInit('Dominoes');
+    canvasClearColor = new Color().setHex('#1b3326');
+    setSoundVolume(.8);
+    setMenuVisibilityCallback(v => paused = v);
+
+    sfxPlace = new SoundGenerator({frequency: 200, release: 0.08, volume: 0.4});
+    sfxPass  = new SoundGenerator({frequency: 120, release: 0.12, slide: -0.3, volume: 0.4});
+    sfxWin   = new SoundGenerator({frequency: 660, release: 0.3, pitchJump: 220, pitchJumpTime: 0.1, volume: 0.6});
+    sfxLose  = new SoundGenerator({frequency: 220, release: 0.35, slide: -0.5, volume: 0.5});
+
+    createTitleMenu({
+        title: 'DOMINOES',
+        subtitle: 'Block · vs AI',
+        onPlay: () => { newGame(); setPlaying(true); },
+        canReveal: () => !isPlaying(),
+        revealOnClick: false,
+        items: [
+            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
+            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+        ],
+    });
+
+    // Default volume options only — dominoes has no screen shake.
+    createOptionsMenu();
+
+    createMenu({
+        id: 'about', title: 'ABOUT', onHide: popMenu,
+        items: [
+            {type:'text', text:'Block Dominoes. Match a pip on one of your tiles ' +
+                'to an open end of the line. Empty your hand to win; if the board ' +
+                'locks, the lower pip count wins. The AI plays fairly using Monte ' +
+                'Carlo determinization — it never sees your tiles.'},
+            {type:'separator'},
+            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+        ],
+    });
+
+    createMenu({
+        id: 'pause', title: 'PAUSED', initialItemId: 'resume',
+        items: [
+            {type:'button', id:'resume', label:'RESUME', onClick: () => hideMenu('pause')},
+            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
+            {type:'button', label:'QUIT TO TITLE', onClick: () =>
+                showConfirmDialog({message:'Quit to title?', onYes: () =>
+                    { phase = 'title'; quitToTitle(); }})},
+        ],
+    });
+
+    installDefaultToolbar();
+
+    newGame();                 // build a backdrop world for the title screen
+    phase = 'title';
+    setPlaying(false);
+    showMenu('title');
+}
+
+function gameUpdate()
+{
+    if (bindPauseKey({when: () => isPlaying() && phase !== 'roundOver'})) return;
+    if (!isPlaying()) return;
+
+    if (phase === 'playerTurn') updatePlayerInput();
+    else if (phase === 'aiThinking') updateAI();
+    else if (phase === 'roundOver') updateRoundOver();
+}
+
+function updatePlayerInput()
+{
+    // Auto-pass if the human has no legal move.
+    if (legalMovesFor(PLAYER_HUMAN).length === 0)
+    {
+        sfxPass && sfxPass.play();
+        passes++;
+        if (passes >= 2) { endRound(); return; }
+        currentPlayer = PLAYER_AI; phase = 'aiThinking'; aiTimer = 0;
+        return;
+    }
+
+    if (!mouseWasPressed(0)) return;
+
+    // 1) Click a hand tile to select (only if it has a legal placement).
+    const legalIds = new Set(legalMovesFor(PLAYER_HUMAN).map(m => m.tile));
+    for (const ht of handTilePositions)
+    {
+        if (isOverlapping(mousePos, vec2(0.1), ht.pos, vec2(TILE_SHORT, TILE_LONG)))
+        {
+            if (legalIds.has(ht.id)) selectedTileId = ht.id;
+            return;
+        }
+    }
+
+    // 2) With a tile selected, click an end zone to place. Clicking an end the
+    // tile can't go on (the X'd-out target) does nothing — no auto-redirect.
+    if (!selectedTileId) return;
+    const moves = legalMovesFor(PLAYER_HUMAN).filter(m => m.tile === selectedTileId);
+    const clickedL = isOverlapping(mousePos, vec2(0.1), leftZonePos, getEndZoneSize());
+    const clickedR = isOverlapping(mousePos, vec2(0.1), rightZonePos, getEndZoneSize());
+    let chosen = null;
+    if (clickedL) chosen = moves.find(m => m.end === 'L');
+    else if (clickedR) chosen = moves.find(m => m.end === 'R');
+    if (chosen)
+    {
+        placeTileLive(PLAYER_HUMAN, chosen);
+        sfxPlace && sfxPlace.play();
+        selectedTileId = null;
+        advanceTurn();
+    }
+}
+
+function updateAI()
+{
+    if (aiSearching) return;
+    aiTimer += timeDelta;
+    if (aiTimer < AI_THINK_DELAY) return;
+    aiSearching = true;
+    const observed = {
+        aiHand: hands[PLAYER_AI].map(t => ({a:t.a, b:t.b})),
+        chain: chain.map(t => ({a:t.a, b:t.b})),
+        leftEnd, rightEnd,
+        oppCount: hands[PLAYER_HUMAN].length,
+        passes,
+    };
+    chooseAIMove(observed).then(move => {
+        aiSearching = false;
+        if (!move)
+        {
+            sfxPass && sfxPass.play();
+            passes++;
+            if (passes >= 2) { endRound(); return; }
+            currentPlayer = PLAYER_HUMAN; phase = 'playerTurn';
+            return;
+        }
+        placeTileLive(PLAYER_AI, move);
+        sfxPlace && sfxPlace.play();
+        advanceTurn();
+    });
+}
+
+function updateRoundOver()
+{
+    if (roundDialogShown) return;
+    roundDialogShown = true;
+    const won = roundResult.winner === PLAYER_HUMAN;
+    const draw = roundResult.winner === null;
+    const snd = won ? sfxWin : sfxLose;
+    snd && snd.play();
+    showGameOverDialog({
+        won,
+        customMessage: draw ? 'DRAW' : undefined,
+        submitBest: false,
+        extraLines: [
+            'Your pips: ' + roundResult.humanPips,
+            'AI pips: ' + roundResult.aiPips,
+        ],
+        onContinue: () => { roundDialogShown = false; phase = 'title'; quitToTitle(); },
+    });
+}
+
+function gameUpdatePost() {}
+function gameRender()
+{
+    // Background felt.
+    drawRect(cameraPos, getCameraSize(), hsl(.35, .5, .2));
+
+    drawChain();
+    drawEndZones();
+    drawHumanHand();
+    drawAIHand();
+}
+function gameRenderPost() {}
+
+
+///////////////////////////////////////////////////////////////////////////////
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+</script>
+</body></html>
