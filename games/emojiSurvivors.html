@@ -32,10 +32,10 @@ cameraPos = vec2(0, 0);
 cameraScale = 40;
 canvasMaxSize = vec2(2048, 2048);
 
-// Touch input — we use a Frogger-style "tap a screen quadrant to move
-// that direction" scheme instead of the built-in analog touch gamepad.
-// Disabled here; see touchDirection() below.
-touchGamepadEnable = false;
+// Touch gamepad input
+touchGamepadEnable = true;
+touchGamepadFloating = true;
+touchGamepadButtonCount = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
 // EMOJI SURVIVORS
@@ -3120,6 +3120,7 @@ let aiSmoothedDir = vec2(1, 0);
 // far the press is from center; 30px center deadzone for stability.
 function touchDirection()
 {
+    if (isTouchDevice) return vec2();
     if (!mouseIsDown(0)) return vec2();
     const cs = mainCanvasSize;
     const dx = mousePosScreen.x - cs.x / 2;
