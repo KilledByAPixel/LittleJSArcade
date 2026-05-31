@@ -134,36 +134,24 @@ function circlesHit(posA, rA, posB, rB)
 }
 
 // ============================================================
-// Pre-bloom: every visible primitive is drawn as a core + halos
-// so the post-process shader has soft glow to amplify. Single
-// place to tune the layered-draw look.
+// Glow draw helpers. Each primitive is drawn once; the post-process
+// bloom shader (see gameInit) supplies the soft halo/haze. These thin
+// wrappers exist so callers stay declarative and the look stays tunable
+// from one place.
 // ============================================================
-// Keep halo widths modest relative to the smallest shape (~0.4 world
-// units for the small UFO body / ship triangle) so wide halos don't
-// overlap and fill the interior. The post-process bloom does the
-// long-range spread; pre-bloom just provides soft edges to amplify.
-const GLOW_LAYERS = [
-    { width: 1.0, alpha: 1.00 }, // core
-    { width: 1.8, alpha: 0.32 }, // inner halo
-    { width: 3.0, alpha: 0.12 }, // outer haze
-];
-
 function drawGlowLine(a, b, width, col)
 {
-    for (const g of GLOW_LAYERS)
-        drawLine(a, b, width * g.width, rgb(col.r, col.g, col.b, col.a * g.alpha));
+    drawLine(a, b, width, col);
 }
 
 function drawGlowCircle(pos, diameter, col)
 {
-    for (const g of GLOW_LAYERS)
-        drawCircle(pos, diameter * g.width, rgb(col.r, col.g, col.b, col.a * g.alpha));
+    drawCircle(pos, diameter, col);
 }
 
 function drawGlowLineList(points, width, col, wrap=false, pos=vec2(), angle=0)
 {
-    for (const g of GLOW_LAYERS)
-        drawLineList(points, width * g.width, rgb(col.r, col.g, col.b, col.a * g.alpha), wrap, pos, angle);
+    drawLineList(points, width, col, wrap, pos, angle);
 }
 
 // Call drawFn(ghostPos) at the object's real position AND at any wrapped
@@ -832,8 +820,7 @@ function gameInit()
         c = texture(iChannel0, p);
 
         // stacked bloom: tight halo + wide haze
-        c += bloomPass(p, .001) * .9;
-        c += bloomPass(p, .002) * .2;
+        c += bloomPass(p, .002) * .5;
 
         // black vignette around edges
         const float vignette = 2.;
