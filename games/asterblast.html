@@ -878,7 +878,16 @@ function buildMenus()
         ],
     });
 
-    createOptionsMenu();
+    createOptionsMenu({
+        extraItems: [
+            // Toggle the bloom post-process (templates/bloom.js). Persisted under
+            // 'postfx'; onChange fires once at init with the stored value, so the
+            // saved choice is applied on load.
+            {type:'checkbox', label:'POST PROCESSING', value:true,
+                persist:'postfx',
+                onChange: v => { if (typeof setBloomEnabled === 'function') setBloomEnabled(v); }},
+        ],
+    });
 
     createMenu({
         id: 'about',
