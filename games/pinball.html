@@ -84,6 +84,10 @@ let gameOver = false;
 let launchCharge = 0;
 let hasLaunchedEver = false;
 let sfxBumper, sfxFlipper, sfxDrain, sfxLaunch, sfxWall, sfxSling;
+// touch flipper state: which screen halves are currently held (multitouch, so both can be true)
+let touchLeftHeld = false, touchRightHeld = false, touchAnyHeld = false;
+// rising-edge tracking so flipper sfx fires once when a flipper activates
+let leftFlipperWasActive = false, rightFlipperWasActive = false;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Ball
@@ -350,9 +354,33 @@ async function gameInit()
 
     buildWorld();
     resetGame();
+    initTouchControls();
 
     buildMenus();
     showMenu('title');
+}
+
+// Track multitouch by screen half so the left and right flippers can be held at once.
+// LittleJS's built-in touch->mouse passthrough only follows a single touch, so we read
+// the raw touch list ourselves. Each event recomputes which halves are currently held.
+function initTouchControls()
+{
+    if (!isTouchDevice) return;
+    const update = (e) =>
+    {
+        let left = false, right = false;
+        const rect = mainCanvas.getBoundingClientRect();
+        const midX = (rect.left + rect.right) / 2;
+        for (const t of e.touches)
+            (t.clientX < midX ? left = true : right = true);
+        touchLeftHeld  = left;
+        touchRightHeld = right;
+        touchAnyHeld   = e.touches.length > 0;
+    };
+    document.addEventListener('touchstart',  update, { passive: true });
+    document.addEventListener('touchmove',   update, { passive: true });
+    document.addEventListener('touchend',    update, { passive: true });
+    document.addEventListener('touchcancel', update, { passive: true });
 }
 
 function startGame()
@@ -397,43 +425,52 @@ function gameUpdate()
         return;
     }
 
-    // Mouse over the launch lane charges the plunger instead of firing the left flipper.
-    const inLaunchLane = mousePos.x > LANE_INNER_X - WALL_T/2
-                      && mousePos.x < LANE_OUTER_X + WALL_T/2
-                      && mousePos.y > 0
-                      && mousePos.y < WALL_TOP_Y;
-    // gamepad: LB(4)/Dpad-Left(14) = left flipper, RB(5)/Dpad-Right(15) = right flipper
-    const padLeftPressed  = gamepadWasPressed(4) || gamepadWasPressed(14);
-    const padRightPressed = gamepadWasPressed(5) || gamepadWasPressed(15);
-    const padLeftDown     = gamepadIsDown(4) || gamepadIsDown(14);
-    const padRightDown    = gamepadIsDown(5) || gamepadIsDown(15);
+    // The launch lane doubles as a sensor: while canLaunch() is true the ball is
+    // sitting in the lane, so ANY press charges the plunger and no flipper fires.
+    const launching = canLaunch();
 
-    let leftPressed = false;
-    let rightPressed = false;
+    // gamepad: LB(4)/Dpad-Left(14) = left flipper, RB(5)/Dpad-Right(15) = right flipper
+    const padLeftDown  = gamepadIsDown(4) || gamepadIsDown(14);
+    const padRightDown = gamepadIsDown(5) || gamepadIsDown(15);
+
+    let leftActive = false, rightActive = false, anyPress = false;
 
     if (isTouchDevice)
     {
-
+        // left half of the screen = left flipper, right half = right flipper
+        anyPress = touchAnyHeld;
+        if (!launching)
+        {
+            leftActive  = touchLeftHeld  || padLeftDown;
+            rightActive = touchRightHeld || padRightDown;
+        }
     }
     else
     {
-        leftPressed = keyWasPressed('ArrowLeft') || keyWasPressed('KeyA') || keyWasPressed('KeyZ') || (mouseWasPressed(0) && !inLaunchLane) || padLeftPressed;
-        rightPressed = keyWasPressed('ArrowRight') || keyWasPressed('KeyD') || keyWasPressed('Slash') || mouseWasPressed(2) || padRightPressed;
+        const dir = keyDirection();
+        anyPress = mouseIsDown(0) || mouseIsDown(2);
+        if (!launching)
+        {
+            leftActive  = dir.x < 0 || keyIsDown('KeyZ')  || mouseIsDown(0) || padLeftDown;
+            rightActive = dir.x > 0 || keyIsDown('Slash') || mouseIsDown(2) || padRightDown;
+        }
     }
-    
-    const dir = keyDirection();
-    const leftActive  = dir.x < 0 || keyIsDown('KeyZ')  || (mouseIsDown(0) && !inLaunchLane) || padLeftDown;
-    const rightActive = dir.x > 0 || keyIsDown('Slash') || mouseIsDown(2) || padRightDown;
-    if (leftPressed) sfxFlipper && sfxFlipper.play(leftFlipper.pos, 0.5);
-    if (rightPressed) sfxFlipper && sfxFlipper.play(rightFlipper.pos, 0.5);
+    // Space / gamepad A always count as a launch press, on any device
+    anyPress = anyPress || keyIsDown('Space') || gamepadIsDown(0);
+
+    // play the flip sfx once on the rising edge of each flipper activating
+    if (leftActive  && !leftFlipperWasActive)  sfxFlipper && sfxFlipper.play(leftFlipper.pos, 0.5);
+    if (rightActive && !rightFlipperWasActive) sfxFlipper && sfxFlipper.play(rightFlipper.pos, 0.5);
+    leftFlipperWasActive  = leftActive;
+    rightFlipperWasActive = rightActive;
+
     leftFlipper.setMotor(leftActive);
     rightFlipper.setMotor(rightActive);
 
-    if (canLaunch())
+    if (launching)
     {
-        // gamepad: hold A(0) to charge & release the plunger
-        const charging = keyIsDown('Space') || (mouseIsDown(0) && inLaunchLane) || gamepadIsDown(0);
-        if (charging)
+        // hold any press to charge the plunger, release to launch with that power
+        if (anyPress)
             launchCharge = Math.min(LAUNCH_MAX, launchCharge + 1.2);
         else if (launchCharge > 0)
         {
@@ -462,11 +499,12 @@ function gameRender()
     // Dome interior fill
     drawCircle(DOME_CENTER, DOME_RADIUS * 2, hsl(0.62, 0.6, 0.18));
 
-    // Lane tint (narrow strip on the right, outside playfield)
+    // Lane tint (narrow strip on the right, outside playfield).
+    // This strip is the launch sensor: brighten it while the ball is armed to fire.
     const laneH = WALL_TOP_Y - LANE_FLOOR_Y;
     drawRect(vec2(LANE_CENTER_X, (WALL_TOP_Y + LANE_FLOOR_Y)/2),
              vec2(LANE_OUTER_X - LANE_INNER_X, laneH),
-             hsl(0.7, 0.3, 0.12));
+             canLaunch() ? hsl(0.33, 0.5, 0.22) : hsl(0.7, 0.3, 0.12));
 
     // Launcher gauge inside the lane
     if (canLaunch())
@@ -493,7 +531,9 @@ function gameRenderPost()
     }
     else if (canLaunch())
     {
-        const msg = hasLaunchedEver ? 'Hold SPACE or click lane to relaunch' : 'Hold SPACE or click the lane to launch';
+        const verb = hasLaunchedEver ? 'relaunch' : 'launch';
+        const msg = isTouchDevice ? 'Hold anywhere to charge, release to ' + verb
+                                  : 'Hold to charge, release to ' + verb;
         drawTextScreen(msg, vec2(mainCanvasSize.x/2, mainCanvasSize.y - 60), 22, WHITE, 3, BLACK);
     }
 }

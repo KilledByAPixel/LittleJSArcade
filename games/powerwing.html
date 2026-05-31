@@ -17,6 +17,11 @@ gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
 cameraScale = 32;
 
+// touch gamepad
+touchGamepadEnable = true;
+touchGamepadAnalog = false;
+touchGamepadButtonCount = 4;
+
 ///////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
@@ -1182,7 +1187,6 @@ function buildMenus()
     if (typeof createMenu !== 'function') return;
 
     installAutoPause();
-    setOrientationLock('landscape');
 
     createTitleMenu({
         title: 'POWERWING',

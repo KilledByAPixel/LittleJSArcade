@@ -29,6 +29,11 @@ cameraScale = 16;
 canvasFixedSize = vec2(1280, 720);
 canvasClearColor = new Color(0, 0, 0.03);
 
+// touch gamepad
+touchGamepadEnable = true;
+touchGamepadAnalog = false;
+touchGamepadButtonCount = 4;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Defender constants
 const WORLD_W = 220;     // wrap-around horizontal world size (world units)
@@ -1167,7 +1172,6 @@ async function gameInit()
     // Only pause when a menu surfaces during gameplay. Title-screen menus
     // leave paused=false so the attract-mode world keeps animating behind.
     installAutoPause();
-    setOrientationLock('landscape');
 
     // Title menu — shown immediately, no click-to-reveal
     createTitleMenu({
@@ -1176,7 +1180,7 @@ async function gameInit()
         playLabel: 'PLAY',
         onPlay: startGame,
         items: [
-            {type:'button', label:'CONTROLS', onClick: () => pushMenu('controls')},
+            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('controls')},
             {type:'button', label:'OPTIONS',  onClick: () => pushMenu('options')},
             {type:'button', label:'ABOUT',    onClick: () => pushMenu('about')},
         ],
@@ -1185,15 +1189,10 @@ async function gameInit()
 
     createMenu({
         id: 'controls',
-        title: 'CONTROLS',
+        title: 'HOW TO PLAY',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'ARROWS / WASD / STICK : fly + thrust (Left/Right also reverse facing)\n' +
-                'Z / SPACE / A / R-STICK : fire\n' +
-                'X / LB                : smart bomb (wipes screen)\n' +
-                'C / Y                 : hyperspace (teleport — risky!)\n' +
-                'ESC / START           : pause\n\n' +
                 'Catch falling humans before they hit the ground.\n' +
                 'Scrape the ground to set them down safely.\n' +
                 'If a lander reaches the top with a human, it becomes a MUTANT.\n' +
@@ -1210,10 +1209,7 @@ async function gameInit()
         title: 'ABOUT',
         onHide: popMenu,
         items: [
-            {type:'text', text:'A LittleJS prototype inspired by Williams\' 1981 arcade ' +
-                'classic PROTECTOR. Scoring matches the original: Lander/Mutant/Swarmer ' +
-                '150, Baiter 200, Bomber 250, Pod 1000, plus 500 for rescuing a human. ' +
-                'Extra ship and smart bomb every 10,000 points.'},
+            {type:'text', text:'A LittleJS prototype inspired by Defender.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],
