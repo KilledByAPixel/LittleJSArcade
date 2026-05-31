@@ -161,9 +161,13 @@ const dominoGame = {
         if (b.hands[player].length === 0) return BIG;   // I emptied my hand
         if (b.hands[opp].length === 0)    return -BIG;   // opponent emptied
 
-        // If this player has no moves, score by pip count (lower wins).
+        // Locked board (neither side can move): lower pip count wins. Use the
+        // global lock — both players stuck — so this matches isTerminal. A leaf
+        // where only the side-to-move is temporarily stuck is NOT terminal and
+        // must fall through to the heuristic, not return a terminal-magnitude score.
         const myMoves = this.getLegalMoves(state, player).length;
-        if (myMoves === 0)
+        const oppMoves = this.getLegalMoves(state, opp).length;
+        if (myMoves === 0 && oppMoves === 0)
             return Math.sign(oppPips - myPips) * BIG;   // 0 on a tie (draw)
 
         // Non-terminal heuristic: fewer pips is better, plus a small mobility term.
@@ -722,14 +726,8 @@ async function gameInit()
         ],
     });
 
-    createOptionsMenu({
-        persistKey: 'volume',
-        extraItems: [
-            {type:'separator'},
-            {type:'checkbox', id:'shake', label:'SCREEN SHAKE', value:true,
-                persist:'shake', onChange: v => setScreenShakeEnabled(v)},
-        ],
-    });
+    // Default volume options only — dominoes has no screen shake.
+    createOptionsMenu();
 
     createMenu({
         id: 'about', title: 'ABOUT', onHide: popMenu,
@@ -811,7 +809,6 @@ function updatePlayerInput()
     {
         placeTileLive(PLAYER_HUMAN, chosen);
         sfxPlace && sfxPlace.play();
-        if (isScreenShakeEnabled && isScreenShakeEnabled()) addScreenShake(0.15, 0.15);
         selectedTileId = null;
         advanceTurn();
     }
@@ -842,7 +839,6 @@ function updateAI()
         }
         placeTileLive(PLAYER_AI, move);
         sfxPlace && sfxPlace.play();
-        if (isScreenShakeEnabled && isScreenShakeEnabled()) addScreenShake(0.15, 0.15);
         advanceTurn();
     });
 }
