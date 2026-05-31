@@ -372,36 +372,31 @@ const _defaultIconDrawers = (() =>
     function droplet(ctx, x, y, r)
     {
         // point at top, round bulb at the bottom
-        const by = y + .3 * r, br = .62 * r; // bulb center y, bulb radius
+        const by = y + .3 * r, br = .6 * r; // bulb center y, bulb radius
         ctx.beginPath();
         ctx.moveTo(x, y - r);
-        ctx.bezierCurveTo(x + .3 * r, y - .55 * r, x + br, y - .1 * r, x + br, by);
+        ctx.bezierCurveTo(x + .3 * r, y - .5 * r, x + br, y - .1 * r, x + br, by);
         ctx.arc(x, by, br, 0, PI); // rounded bottom: right -> bottom -> left
-        ctx.bezierCurveTo(x - br, y - .1 * r, x - .3 * r, y - .55 * r, x, y - r);
+        ctx.bezierCurveTo(x - br, y - .1 * r, x - .3 * r, y - .5 * r, x, y - r);
         ctx.closePath();
         ctx.fill();
     }
 
     function roundSquare(ctx, x, y, r)
     {
-        const s = r * .8;
-        roundRectPath(ctx, x - s, y - s, s * 2, s * 2, r * .38);
+        roundRectPath(ctx, x - r, y - r, r * 2, r * 2, r * .4);
         ctx.fill();
     }
 
     function triangle(ctx, x, y, r)
     {
-        ctx.beginPath();
-        ctx.moveTo(x, y - r);
-        ctx.lineTo(x + r * .9, y + r * .72);
-        ctx.lineTo(x - r * .9, y + r * .72);
-        ctx.closePath();
+        poly(ctx, x, y, r, 3, -PI / 2);
         ctx.fill();
     }
 
     function diamond(ctx, x, y, r)
     {
-        poly(ctx, x, y, r * 1.07, 4, -PI / 2);
+        poly(ctx, x, y, r, 4, -PI / 2);
         ctx.fill();
     }
 
@@ -427,55 +422,30 @@ const _defaultIconDrawers = (() =>
 
     function glow(ctx, x, y, r)
     {
-        const R = r * 1.14;
-        const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+        const g = ctx.createRadialGradient(x, y, 0, x, y, r);
         g.addColorStop(0, 'rgba(255,255,255,1)');
-        g.addColorStop(.38, 'rgba(255,255,255,0.55)');
         g.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(x, y, R, 0, TAU);
+        ctx.arc(x, y, r, 0, TAU);
         ctx.fill();
     }
 
     function burst(ctx, x, y, r)
     {
-        // jagged 10-point starburst for impacts / explosions
-        starPath(ctx, x, y, r, r * .42, 10);
+        starPath(ctx, x, y, r, r/2, 10);
         ctx.fill();
     }
 
     function spark(ctx, x, y, r)
     {
-        // faint round glow behind the sparkle
-        const gr = r * .48;
-        const g = ctx.createRadialGradient(x, y, 0, x, y, gr);
-        g.addColorStop(0, 'rgba(255,255,255,0.5)');
-        g.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(x, y, gr, 0, TAU);
-        ctx.fill();
-
-        // thin 4-point star on top
-        ctx.fillStyle = WHITE;
-        const o = r * 1.07, i = r * .2;
-        ctx.beginPath();
-        ctx.moveTo(x, y - o);
-        ctx.lineTo(x + i, y - i);
-        ctx.lineTo(x + o, y);
-        ctx.lineTo(x + i, y + i);
-        ctx.lineTo(x, y + o);
-        ctx.lineTo(x - i, y + i);
-        ctx.lineTo(x - o, y);
-        ctx.lineTo(x - i, y - i);
-        ctx.closePath();
+        starPath(ctx, x, y, r, r/4, 4);
         ctx.fill();
     }
 
     function star(ctx, x, y, r)
     {
-        starPath(ctx, x, y, r * 1.03, r * .41, 5);
+        starPath(ctx, x, y, r, r*.4, 5);
         ctx.fill();
     }
 
@@ -489,7 +459,7 @@ const _defaultIconDrawers = (() =>
         const shoulder = .46; // height where the outer sides begin
         const tip      = .9; // how far the bottom point drops
 
-        // map a normalized (nx,ny) offset (in units of r) to a canvas point
+        // create the heart shape
         const p = (nx, ny) => [x + nx * r, y + ny * r];
         ctx.beginPath();
         ctx.moveTo(...p(0, -dip));
@@ -503,7 +473,7 @@ const _defaultIconDrawers = (() =>
 
     function plus(ctx, x, y, r)
     {
-        const a = r * .28, b = r; // arm half-width, arm extent
+        const a = r * .3, b = r; // arm half-width, arm extent
         ctx.beginPath();
         ctx.moveTo(x - a, y - b);
         ctx.lineTo(x + a, y - b);
