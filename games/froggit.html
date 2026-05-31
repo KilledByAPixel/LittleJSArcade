@@ -346,27 +346,38 @@
     }
   }
 
-  // Last cardinal direction from the analog/touch stick — used to edge-trigger
-  // hops so holding the stick doesn't auto-hop every frame.
-  let lastStickDir = vec2();
+  // Hold-to-hop cadence (like the original Frogger): the first hop fires
+  // instantly when a new direction is pressed, then the frog keeps re-hopping
+  // every HOP_REPEAT_SEC for as long as that direction stays held. Releasing or
+  // changing direction re-arms an instant hop. Tune to taste — ~.5 gives the
+  // slow, deliberate arcade pace; lower is snappier for dodging traffic.
+  const HOP_REPEAT_SEC = .22;
+  let lastMoveDir = vec2();
+  let hopRepeatTimer = new Timer();
 
   function handleInput() {
-    // Keyboard: one-shot hop per press (arcade-style)
-    const up    = keyWasPressed('ArrowUp')   || keyWasPressed('KeyW');
-    const down  = keyWasPressed('ArrowDown') || keyWasPressed('KeyS');
-    const left  = keyWasPressed('ArrowLeft') || keyWasPressed('KeyA');
-    const right = keyWasPressed('ArrowRight')|| keyWasPressed('KeyD');
+    // Keyboard (arrows/WASD), d-pad, analog stick, and touch all funnel through
+    // one hold-to-repeat path: keyDirection() reads arrows+WASD, and the engine
+    // merges the d-pad + touch d-pad into gamepadStick(0), so reading both and
+    // picking the dominant cardinal covers every directional input.
+    const kb = keyDirection();
+    const stick = gamepadStick(0);
+    let dir = vec2();
+    if (kb.x || kb.y)
+      dir = abs(kb.x) > abs(kb.y) ? vec2(sign(kb.x), 0) : vec2(0, sign(kb.y));
+    else if (stick.lengthSquared() > .5*.5)
+      dir = abs(stick.x) > abs(stick.y) ? vec2(sign(stick.x), 0) : vec2(0, sign(stick.y));
 
-    if (up)    return tryMove(0, 1);
-    if (down)  return tryMove(0,-1);
-    if (left)  return tryMove(-1,0);
-    if (right) return tryMove(1, 0);
-
-    // (D-pad is handled by the stick block below: the engine merges the d-pad
-    // into gamepadStick(0) via gamepadDirectionEmulateStick, so the edge-detect
-    // there covers it. Reading gamepadWasPressed on the d-pad here too would
-    // double-hop — once on the press frame, once on the next held frame when the
-    // emulated stick crosses into the direction.)
+    if (dir.x || dir.y) {
+      const changed = dir.x !== lastMoveDir.x || dir.y !== lastMoveDir.y;
+      if (changed || hopRepeatTimer.elapsed()) {
+        tryMove(dir.x, dir.y);
+        hopRepeatTimer.set(HOP_REPEAT_SEC);
+      }
+    } else {
+      hopRepeatTimer.unset();   // back to neutral — next press hops instantly
+    }
+    lastMoveDir = dir;
 
     // Mouse (non-touch): click hops one step in the direction of the cursor
     // RELATIVE TO THE FROG. mousePos and frog.pos are both world-space (y-up),
@@ -377,24 +388,6 @@
       if (abs(dx) > abs(dy)) return tryMove(sign(dx), 0);
       if (dy !== 0)          return tryMove(0, sign(dy));
     }
-
-    // Stick (analog only — touch gamepad is disabled): pick dominant cardinal,
-    // but only hop on the
-    // frame the stick crosses INTO that direction. Returning to neutral arms
-    // the next hop.
-    const stick = gamepadStick(0);
-    let dir = vec2();
-    if (stick.lengthSquared() > .5*.5) {
-      dir = abs(stick.x) > abs(stick.y)
-        ? vec2(sign(stick.x), 0)
-        : vec2(0, sign(stick.y));
-    }
-    if ((dir.x !== lastStickDir.x || dir.y !== lastStickDir.y) &&
-        (dir.x || dir.y))
-    {
-      tryMove(dir.x, dir.y);
-    }
-    lastStickDir = dir;
   }
 
   function updateObstacles(arr) {
