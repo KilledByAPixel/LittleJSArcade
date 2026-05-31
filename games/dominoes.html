@@ -6,6 +6,7 @@
 <script src="../dist/littlejs.js?1780166867565"></script>
 <script src="../templates/menus.js?1780166867565"></script>
 <script src="../templates/gameFx.js?1780166867565"></script>
+<script src="../templates/textureGenerator.js?1780166867565"></script>
 <script src="../templates/gameAI.js?1780166867565"></script>
 <script>
 'use strict';
@@ -19,6 +20,7 @@ gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
 cameraScale = 32;
 canvasMaxSize = vec2(2048, 2048);
+tilesPixelated = false;     // smooth the procedural atlas icons
 
 ///////////////////////////////////////////////////////////////////////////////
 // MODEL — tiles are canonical {a,b} with a <= b. Tile id is "a-b".
@@ -384,11 +386,22 @@ function endRound()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// RENDERING — procedural tiles (rounded-ish rects + pip circles), no atlas.
+// RENDERING — tiles + pips drawn from the default icon atlas (initDefaultAtlas):
+// the tile body is the white `roundSquare` sprite and each pip is the white
+// `circle` sprite, both tinted per-instance via drawTile's color arg.
 
 const TILE_LONG = 2.0;       // long dimension of a domino (two squares)
 const TILE_SHORT = 1.0;      // short dimension
-const PIP_R = 0.12;          // pip radius (drawCircle takes DIAMETER = 2*r)
+const PIP_R = 0.12;          // visible pip radius
+
+// name -> TileInfo map from initDefaultAtlas(), built in gameInit.
+let icons;
+
+// The default-atlas sprites are inset within their tiles (roundSquare fills
+// ~75% of the cell, circle ~87%), so scale up at draw time to make the visible
+// sprite match the intended world footprint.
+const ICON_SQUARE_FILL = 1.34;
+const ICON_CIRCLE_FILL = 1.15;
 
 // Standard pip layout positions within a unit square half, in [-.5,.5] range,
 // keyed by pip count 0-6. Each entry is an array of vec2 offsets.
@@ -411,11 +424,12 @@ function pipOffsets(n)
 function drawDominoTile(pos, valA, valB, horizontal, faceUp = true, highlight = 0)
 {
     const size = horizontal ? vec2(TILE_LONG, TILE_SHORT) : vec2(TILE_SHORT, TILE_LONG);
-    // Body + border.
-    drawRect(pos, size.add(vec2(0.12, 0.12)), hsl(0, 0, 0.1));    // border
-    drawRect(pos, size, faceUp ? hsl(0, 0, 0.93) : hsl(.6, .3, .3));
+    const body = size.scale(ICON_SQUARE_FILL);
+    // Body + border, both as tinted roundSquare sprites.
+    drawTile(pos, body.add(vec2(0.18, 0.18)), icons.roundSquare, hsl(0, 0, 0.1));   // border
+    drawTile(pos, body, icons.roundSquare, faceUp ? hsl(0, 0, 0.93) : hsl(.6, .3, .35));
     if (highlight > 0)
-        drawRect(pos, size, hsl(.15, 1, .5, 0.35 * highlight));
+        drawTile(pos, body, icons.roundSquare, hsl(.15, 1, .5, 0.35 * highlight));
     if (!faceUp) return;
 
     // Divider line between the two halves.
@@ -433,8 +447,9 @@ function drawDominoTile(pos, valA, valB, horizontal, faceUp = true, highlight = 
 
 function drawPips(center, n)
 {
+    const d = PIP_R * 2 * ICON_CIRCLE_FILL;
     for (const off of pipOffsets(n))
-        drawCircle(center.add(off.scale(TILE_SHORT)), PIP_R * 2, hsl(0, 0, 0.1));
+        drawTile(center.add(off.scale(TILE_SHORT)), vec2(d), icons.circle, hsl(0, 0, 0.1));
 }
 
 // Module-level layout state used by both rendering and (Task 7) input hit-testing.
@@ -749,6 +764,10 @@ async function gameInit()
     canvasClearColor = new Color().setHex('#1b3326');
     setSoundVolume(.8);
     setMenuVisibilityCallback(v => paused = v);
+
+    // Bake the default icon atlas; rendering tints roundSquare (tile bodies)
+    // and circle (pips) per-instance.
+    icons = initDefaultAtlas();
 
     sfxPlace = new SoundGenerator({frequency: 200, release: 0.08, volume: 0.4});
     sfxPass  = new SoundGenerator({frequency: 120, release: 0.12, slide: -0.3, volume: 0.4});
