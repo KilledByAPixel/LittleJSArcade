@@ -444,18 +444,36 @@ let leftZonePos = null, rightZonePos = null;   // assigned each frame in drawEnd
 // (the test harness evaluates this block without engine globals available).
 function getEndZoneSize() { return vec2(TILE_LONG, TILE_SHORT); }
 
+const CHAIN_Y = 0.5;        // vertical center of the laid-out chain
+const CHAIN_GAP = 0.1;      // uniform gap between adjacent tiles
+
+// Compute the chain's horizontal layout once so the renderer and the end
+// zones agree. A double is drawn vertically, so its footprint is TILE_SHORT
+// wide; a normal tile is horizontal, so it's TILE_LONG wide. Laying tiles out
+// by their actual footprint (not a fixed slot) keeps the spacing uniform.
+function chainLayout()
+{
+    const widths = chain.map(t => (t.a === t.b) ? TILE_SHORT : TILE_LONG);
+    const totalW = widths.reduce((s, w) => s + w, 0) + (chain.length - 1) * CHAIN_GAP;
+    const positions = [];
+    let cursor = -totalW / 2;       // left edge of the whole chain
+    for (let i = 0; i < chain.length; i++)
+    {
+        positions.push(vec2(cursor + widths[i] / 2, CHAIN_Y));
+        cursor += widths[i] + CHAIN_GAP;
+    }
+    return {totalW, positions, leftEdge: -totalW / 2, rightEdge: totalW / 2};
+}
+
 function drawChain()
 {
     if (!chain.length) return;
-    const n = chain.length;
-    const totalW = n * TILE_LONG + (n - 1) * 0.1;
-    const startX = -totalW / 2 + TILE_LONG / 2;
-    for (let i = 0; i < n; i++)
+    const {totalW, positions} = chainLayout();
+    for (let i = 0; i < chain.length; i++)
     {
         const t = chain[i];
-        const pos = vec2(startX + i * (TILE_LONG + 0.1), 0.5);
         const isDouble = t.a === t.b;
-        drawDominoTile(pos, t.a, t.b, !isDouble, true);
+        drawDominoTile(positions[i], t.a, t.b, !isDouble, true);
     }
     // Auto-fit: keep the whole chain + hands on screen.
     const desired = Math.min(
@@ -471,10 +489,9 @@ function drawChain()
 function drawEndZones()
 {
     if (phase !== 'playerTurn' || !chain.length || !selectedTileId) return;
-    const n = chain.length;
-    const totalW = n * TILE_LONG + (n - 1) * 0.1;
-    leftZonePos  = vec2(-totalW/2 - TILE_LONG*0.7, 0.5);
-    rightZonePos = vec2( totalW/2 + TILE_LONG*0.7, 0.5);
+    const {leftEdge, rightEdge} = chainLayout();
+    leftZonePos  = vec2(leftEdge  - TILE_LONG*0.7, CHAIN_Y);
+    rightZonePos = vec2(rightEdge + TILE_LONG*0.7, CHAIN_Y);
 
     // Which ends can the selected tile actually go on?
     const ends = new Set(legalMovesFor(PLAYER_HUMAN)
