@@ -10,8 +10,8 @@
 <meta name='description'         content='A collection of retro arcade games with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.'>
 <meta name='twitter:description' content='A collection of retro arcade games with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.'>
 <meta property='og:description'  content='A collection of retro arcade games with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.'>
-<meta name='twitter:image'       content='https://killedbyapixel.github.io/LittleJSArcade/games/social_image.png'>
-<meta property='og:image'        content='https://killedbyapixel.github.io/LittleJSArcade/games/social_image.png'>
+<meta name='twitter:image'       content='https://killedbyapixel.github.io/LittleJSArcade/images/social_image.png'>
+<meta property='og:image'        content='https://killedbyapixel.github.io/LittleJSArcade/images/social_image.png'>
 <meta name='keywords'            content='LittleJS, arcade games, browser games, HTML5 games, JavaScript games, free games, retro games, open source games'>
 <meta name='twitter:creator'     content='@KilledByAPixel'>
 <meta name='twitter:card'        content='summary_large_image'>
@@ -19,10 +19,14 @@
 <meta property='og:type'         content='website'>
 
 <title>LittleJS Games</title>
-<link rel="icon" href="games/logo.png">
-<link rel="apple-touch-icon" href="games/logo.png">
-<link rel="manifest" href="games/manifest.json">
+<link rel="icon" href="images/logo.png">
+<link rel="apple-touch-icon" href="images/logo.png">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0b0e14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="LittleJS">
 <script>
     // Apply the saved light/dark theme before first paint so there's no flash
     // of the wrong theme on reload. The toggle wiring lives in the main script.
@@ -833,7 +837,7 @@
 <aside id="sidebar">
     <div id="sidebar-header">
         <div id="sidebar-logo-wrap" title="Back to library">
-            <img id="sidebar-logo" src="games/logo.png" alt="LittleJS">
+            <img id="sidebar-logo" src="images/logo.png" alt="LittleJS">
             <div id="sidebar-logo-title">LittleJS Mini Arcade</div>
         </div>
         <input id="search" type="text" placeholder="Search..." autocomplete="off" spellcheck="false">
@@ -1206,7 +1210,7 @@ function buildWelcome() {
     const hero = document.createElement('div');
     hero.id = 'welcome-hero';
     hero.innerHTML =
-        '<img id="welcome-logo" src="games/logo.png" alt="LittleJS">' +
+        '<img id="welcome-logo" src="images/logo.png" alt="LittleJS">' +
         '<div id="welcome-tagline">' + GAMES.length + ' Games · Powered by LittleJS</div>';
     welcomeEl.appendChild(hero);
 

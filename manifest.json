@@ -1,0 +1,17 @@
+{
+  "name": "LittleJS Arcade",
+  "short_name": "LittleJS",
+  "description": "A collection of classic arcade games built with the LittleJS engine. Play instantly in your browser.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0e14",
+  "theme_color": "#0b0e14",
+  "icons": [
+    { "src": "images/logo-192.png",      "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "images/logo.png",          "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "images/logo-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
