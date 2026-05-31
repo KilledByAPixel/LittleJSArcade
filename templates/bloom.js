@@ -35,9 +35,12 @@
 //                       peak — you generally need intensity > 1 to see it.
 //   vignette       1    edge-darkening strength multiplier (0 disables, 1 = the
 //                       classic CRT vignette).
-//   includeOverlay true fold the 2D overlay canvas (drawTextScreen HUD, etc.)
-//                       into the bloom so it glows too. false = bloom only the
-//                       WebGL scene and leave the HUD crisp on top.
+//   includeOverlay false (default, like PostProcessPlugin's includeMainCanvas).
+//                       false uploads the WebGL scene directly to the bloom and
+//                       leaves the 2D overlay (drawTextScreen HUD, etc.) crisp
+//                       on top — the cheap path. true folds the overlay into the
+//                       bloom so it glows too, but costs two full-res CPU canvas
+//                       blits per frame (drawImage of glCanvas + the HUD).
 //
 // ── API ───────────────────────────────────────────────────────────────────────
 //   bloomInit(options?)      enable + configure (merges over current params)
@@ -57,7 +60,7 @@ const _bloom =
     threshold:      0.2,
     intensity:      4,
     vignette:       1,
-    includeOverlay: true,
+    includeOverlay: false,  // false = upload WebGL scene directly (cheap, HUD crisp on top)
     // gl resources
     brightProg: undefined,
     blurProg:   undefined,
@@ -227,24 +230,31 @@ function _bloomRender()
     };
 
     // 1) Flush the engine batch so the WebGL scene is on glCanvas, capture it.
-    //    With includeOverlay, fold the 2D HUD canvas in and clear it so the HUD
-    //    isn't also drawn crisp on top; otherwise leave the HUD overlay alone.
     glFlush();
-    workCanvas.width = fullW;
-    workCanvas.height = fullH;
-    glCopyToContext(workContext);                // WebGL scene
-    if (_bloom.includeOverlay)
-    {
-        workContext.drawImage(mainCanvas, 0, 0); // HUD / overlay text on top
-        mainCanvas.width |= 0;                    // clear overlay
-    }
-
     gl.bindVertexArray(_bloom.vao);
     gl.disable(gl.BLEND);
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, _bloom.sceneTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, workCanvas);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    if (_bloom.includeOverlay)
+    {
+        // Fold the 2D HUD overlay into the bloom so it glows too. Costs two
+        // full-res CPU blits (glCanvas -> work canvas, then HUD on top). Clear
+        // the overlay afterward so the HUD isn't ALSO drawn crisp on top of the
+        // bloomed copy this frame (the engine re-clears + redraws it next frame).
+        workCanvas.width = fullW;
+        workCanvas.height = fullH;
+        glCopyToContext(workContext);                // WebGL scene
+        workContext.drawImage(mainCanvas, 0, 0);     // HUD / overlay text on top
+        mainCanvas.width |= 0;                        // clear overlay
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, workCanvas);
+    }
+    else
+    {
+        // Cheap path: upload the WebGL scene texture directly (no CPU copy). The
+        // 2D overlay (HUD) is left untouched and rides crisp on top of the bloom.
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, glCanvas);
+    }
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 
     _bloomEnsureTargets(fullW, fullH);
