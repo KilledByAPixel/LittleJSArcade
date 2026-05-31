@@ -171,7 +171,84 @@ const dominoGame = {
     },
 };
 
-// (pimc, live game, rendering, menus appended in later tasks)
+///////////////////////////////////////////////////////////////////////////////
+// PIMC — determinization. The AI only ever reads `observed` (public info):
+// its own hand, the chain/ends, and the opponent's tile COUNT. It never sees
+// the real opponent hand, so it cannot cheat.
+
+const PIMC_SAMPLES = 30;     // sampled worlds per decision
+const AI_DEPTH = 6;          // alpha-beta search depth per world
+
+function unseenTiles(aiHand, chain)
+{
+    const known = new Set([...aiHand, ...chain].map(tileId));
+    return makeFullSet().filter(t => !known.has(tileId(t)));
+}
+
+// Fisher-Yates using LittleJS randInt (no Math.random per project convention).
+function shuffled(arr)
+{
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--)
+    {
+        const j = randInt(0, i + 1);   // randInt is [min, max)
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+// Build one determinized world consistent with `observed`.
+function sampleWorld(observed)
+{
+    const pool = shuffled(unseenTiles(observed.aiHand, observed.chain));
+    const oppHand = pool.slice(0, observed.oppCount);
+    const hands = [];
+    hands[PLAYER_AI] = observed.aiHand.map(t => ({a:t.a, b:t.b}));
+    hands[PLAYER_HUMAN] = oppHand.map(t => ({a:t.a, b:t.b}));
+    return {
+        board: {
+            chain: observed.chain.map(t => ({a:t.a, b:t.b})),
+            leftEnd: observed.leftEnd, rightEnd: observed.rightEnd,
+            hands, passes: observed.passes,
+        },
+        currentPlayer: PLAYER_AI,
+    };
+}
+
+const moveKey = (m) => m.tile + '@' + m.end;
+
+// Returns the plurality move across PIMC_SAMPLES determinized searches,
+// or null if the AI has no legal move at all.
+async function chooseAIMove(observed)
+{
+    // Quick out: if no legal move exists in the real (partial) position, pass.
+    const realProbe = {
+        board: {chain: observed.chain, leftEnd: observed.leftEnd,
+            rightEnd: observed.rightEnd,
+            hands: [[], observed.aiHand], passes: observed.passes},
+        currentPlayer: PLAYER_AI,
+    };
+    if (dominoGame.getLegalMoves(realProbe, PLAYER_AI).length === 0) return null;
+
+    const votes = new Map();        // key -> {move, count, scoreSum}
+    for (let i = 0; i < PIMC_SAMPLES; i++)
+    {
+        const world = sampleWorld(observed);
+        const move = await alphaBetaAI(dominoGame, world, AI_DEPTH);
+        if (!move) continue;
+        const k = moveKey(move);
+        const v = votes.get(k) || {move, count: 0, scoreSum: 0};
+        v.count++;
+        votes.set(k, v);
+    }
+    // Plurality; ties broken by first inserted (Map preserves insertion order).
+    let best = null;
+    for (const v of votes.values())
+        if (!best || v.count > best.count) best = v;
+    return best ? best.move : null;
+}
+
+// (live game, rendering, menus appended in later tasks)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TESTS — gated behind ?test. Appended to across tasks.
@@ -294,12 +371,66 @@ function runDominoTests()
     check(Math.abs(dominoGame.evaluate(myStuckOppLive, 0)) < 5000,
         'only side-to-move stuck (opp can move) is not scored as terminal');
 
+    // --- PIMC: unseenTiles ---
+    const aiHand = [{a:6,b:6},{a:0,b:0}];
+    const chainTiles = [{a:1,b:1},{a:1,b:2}];
+    const unseen = unseenTiles(aiHand, chainTiles);
+    check(unseen.length === 28 - 4, 'unseen excludes ai hand and chain tiles');
+    check(!unseen.some(t => tileId(t) === '6-6' || tileId(t) === '1-2'),
+        'unseen contains no ai-hand or chain tiles');
+
+    // --- PIMC: sampleWorld ---
+    const obs = {aiHand:aiHand, chain:chainTiles.map(t=>({a:t.a,b:t.b})),
+        leftEnd:1, rightEnd:2, oppCount:5, passes:0};
+    const world = sampleWorld(obs);
+    check(world.board.hands[PLAYER_AI].length === 2, 'sampled world: AI hand size preserved');
+    check(world.board.hands[PLAYER_HUMAN].length === 5, 'sampled world: opp hand = oppCount');
+    check(world.currentPlayer === PLAYER_AI, 'sampled world: it is AI to move');
+    const oppIds = world.board.hands[PLAYER_HUMAN].map(tileId);
+    check(oppIds.every(id => unseen.some(u => tileId(u) === id)),
+        'sampled opp hand drawn only from unseen tiles');
+
     console.log(testFails === 0 ? '=== ALL PASS ===' : '=== ' + testFails + ' FAILED ===');
+}
+
+async function runAsyncDominoTests()
+{
+    console.log('--- async PIMC tests ---');
+    let fails = 0;
+    const a = (cond, msg) => { if (!cond) { fails++; console.error('FAIL: ' + msg); }
+        else console.log('pass: ' + msg); };
+
+    // Win-in-one: AI has a single tile that plays on the open end and empties
+    // its hand. Opponent count is 1. Every determinization must return it.
+    const winObs = {
+        aiHand: [{a:3, b:5}],
+        chain: [{a:1, b:3}], leftEnd: 1, rightEnd: 3,
+        oppCount: 1, passes: 0,
+    };
+    const winMove = await chooseAIMove(winObs);
+    a(winMove && winMove.tile === '3-5' && winMove.end === 'R',
+        'win-in-one: AI plays 3-5 on the right end');
+
+    // Fairness: observed carries NO real opponent hand, only oppCount.
+    // chooseAIMove must still return a legal move (proves it never reads a
+    // hidden hand).
+    a(!('oppHand' in winObs), 'observed has no opponent hand field (fairness by construction)');
+
+    // No-move: AI hand cannot play -> null (pass).
+    const stuckObs = {
+        aiHand: [{a:0, b:1}],
+        chain: [{a:6, b:6}], leftEnd: 6, rightEnd: 6,
+        oppCount: 3, passes: 0,
+    };
+    const stuckMove = await chooseAIMove(stuckObs);
+    a(stuckMove === null, 'no legal tile -> chooseAIMove returns null (pass)');
+
+    console.log(fails === 0 ? '=== ASYNC ALL PASS ===' : '=== ' + fails + ' ASYNC FAILED ===');
 }
 
 async function gameInit()
 {
-    if (location.search.includes('test')) { runDominoTests(); return; }
+    if (location.search.includes('test')) { runDominoTests(); runAsyncDominoTests(); return; }
     // (full menu/game setup added in Task 7)
 }
 function gameUpdate() {}
