@@ -285,8 +285,14 @@ function runDominoTests()
     check(dominoGame.evaluate(lead, 1) < 0, 'more pips than opponent evaluates negative');
     // locked board: lower pip count wins
     const lockedWinForP0 = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
-        hands:[[{a:0,b:1}], [{a:5,b:6}]], passes:0}, currentPlayer:0};
+        hands:[[{a:0,b:1}], [{a:2,b:4}]], passes:0}, currentPlayer:0};
     check(dominoGame.evaluate(lockedWinForP0, 0) > 5000, 'locked + lower pips = big positive');
+    // Regression: side-to-move temporarily stuck but opponent can still move ->
+    // NOT terminal, must return the heuristic (not a terminal-magnitude score).
+    const myStuckOppLive = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:0,b:1}], [{a:6,b:2}]], passes:0}, currentPlayer:0};
+    check(Math.abs(dominoGame.evaluate(myStuckOppLive, 0)) < 5000,
+        'only side-to-move stuck (opp can move) is not scored as terminal');
 
     console.log(testFails === 0 ? '=== ALL PASS ===' : '=== ' + testFails + ' FAILED ===');
 }
