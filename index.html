@@ -220,8 +220,13 @@
     #list::-webkit-scrollbar { width: 10px; }
     #list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
     /* Suppress hover during scroll — otherwise each card under the cursor
-          briefly expands as the list slides by, causing visible flicker. */
-    #list.scrolling { pointer-events: none; }
+          briefly expands as the list slides by, causing visible flicker.
+          Gated to hover-capable (mouse) devices: on touch there's no hover to
+          suppress, and pointer-events:none would block the finger from grabbing
+          the list to stop its momentum scroll until the glide settled on its own. */
+    @media (hover: hover) {
+        #list.scrolling { pointer-events: none; }
+    }
 
     .card {
         padding: 8px 14px;
