@@ -201,18 +201,6 @@ class Ball
             }
         }
 
-        // side walls
-        if (this.pos.x - BALL_RADIUS < LEVEL_LEFT)
-        {
-            this.pos.x = LEVEL_LEFT + BALL_RADIUS;
-            this.vel.x = -this.vel.x * .6;
-        }
-        if (this.pos.x + BALL_RADIUS > LEVEL_RIGHT)
-        {
-            this.pos.x = LEVEL_RIGHT - BALL_RADIUS;
-            this.vel.x = -this.vel.x * .6;
-        }
-
         // backboard (front face = left side)
         const board = getBoardPos();
         if (isOverlapping(this.pos, vec2(BALL_RADIUS*2), board, BOARD_SIZE))
