@@ -1755,8 +1755,11 @@ function gameUpdatePost()
 
 function gameRender()
 {
-    // background
-    drawRect(cameraPos, getCameraSize(), rgb(.06,.06,.07));
+    // background — vertical gradient behind everything (slightly oversized so
+    // the screen-shake nudge never exposes an edge)
+    drawRectGradient(cameraPos, getCameraSize().scale(1.05),
+        hsl(.62, .55, .13),   // deep indigo at the top
+        hsl(.80, .55, .04));  // near-black violet at the bottom
 
     if (gameState === 'menu')
     {
