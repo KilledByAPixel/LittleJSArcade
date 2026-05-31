@@ -95,7 +95,12 @@ function setupLayout()
     const tableH  = topY - bottomY + TOP_MARGIN + 1;                    // +bottom padding
     cameraScale   = min(mainCanvasSize.x / tableW, mainCanvasSize.y / tableH);
     const viewH   = mainCanvasSize.y / cameraScale;
-    cameraPos     = vec2(0, topY + TOP_MARGIN - viewH/2);
+    // Spare vertical height only appears when the camera is fit to WIDTH
+    // (portrait); split it evenly above and below so the board centers
+    // vertically, leaving room up top for the toolbar. In landscape viewH ==
+    // tableH so spareY is 0 and this top-anchors exactly as before.
+    const spareY  = max(0, viewH - tableH);
+    cameraPos     = vec2(0, topY + TOP_MARGIN + spareY/2 - viewH/2);
 }
 
 function newGame()
