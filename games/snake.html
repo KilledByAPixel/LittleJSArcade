@@ -18,6 +18,12 @@ paused = false;
 canvasFixedSize = vec2(1920, 1080);
 cameraScale = 50;
 
+// touch controls
+touchGamepadEnable = true;
+touchGamepadAnalog = false;
+touchGamepadLeftStick = false;
+touchGamepadButtonCount = 1;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Snake (grid-based)
 
@@ -412,11 +418,6 @@ async function gameInit()
     saveDataInit('snake');
     canvasClearColor = BLACK;
     cameraPos = vec2(0,0);
-
-    // Enable touch gamepad for mobile devices (8-way dpad + 2 face buttons)
-    setTouchGamepadEnable(true);
-    setTouchGamepadAnalog(false);
-    setTouchGamepadButtonCount(0);
 
     // sounds (constructed after engine init so audio context can resume on gesture)
     sEat    = new SoundGenerator({volume:.7, frequency:520, release:.06, shapeCurve:1.2, pitchJump:120, pitchJumpTime:.02});

@@ -1167,6 +1167,7 @@ async function gameInit()
     // Only pause when a menu surfaces during gameplay. Title-screen menus
     // leave paused=false so the attract-mode world keeps animating behind.
     installAutoPause();
+    setOrientationLock('landscape');
 
     // Title menu — shown immediately, no click-to-reveal
     createTitleMenu({

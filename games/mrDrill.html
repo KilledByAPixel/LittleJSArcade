@@ -532,7 +532,7 @@ async function gameInit()
     // touch gamepad: digital 8-way d-pad for grid movement + 1 face button (A = drill down)
     touchGamepadEnable = true;
     touchGamepadAnalog = false;
-    touchGamepadButtonCount = 1;
+    touchGamepadButtonCount = 2;
 
     sfxDrill   = new SoundGenerator({volume:.28, frequency:300, release:.12, shapeCurve:1.2, pitchJump:180, pitchJumpTime:.04, noise:.2});
     sfxClear   = new SoundGenerator({volume:.40, frequency:480, release:.25, shapeCurve:1.1, pitchJump:320, pitchJumpTime:.05, delay:.03});

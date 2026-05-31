@@ -300,6 +300,7 @@ showEngineVersion = false; // Hide engine version console display
             if (typeof createMenu !== 'function') return;
 
             installAutoPause(() => isPlaying());
+            setOrientationLock('landscape');
 
             createTitleMenu({
                     title: 'PONG',

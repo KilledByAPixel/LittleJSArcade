@@ -16,6 +16,7 @@ paused = false;
 gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
 cameraScale = 32;
+canvasFixedSize = vec2(1440, 900);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Game Constants
@@ -530,7 +531,6 @@ function resetGame()
 async function gameInit()
 {
     saveDataInit('skiing');
-    setCanvasFixedSize(vec2(1440, 900));
     cameraPos = vec2(0, 0);
 
     // sounds
@@ -567,6 +567,7 @@ function buildMenus()
     if (typeof createMenu !== 'function') return;
 
     installAutoPause();
+    setOrientationLock('landscape');
 
     createTitleMenu({
         title: 'DOWNHILL SKI',

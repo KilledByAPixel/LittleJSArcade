@@ -1182,6 +1182,7 @@ function buildMenus()
     if (typeof createMenu !== 'function') return;
 
     installAutoPause();
+    setOrientationLock('landscape');
 
     createTitleMenu({
         title: 'POWERWING',

@@ -651,6 +651,7 @@ async function gameInit() {
     setSoundVolume(0.6);
 
     installAutoPause();
+    setOrientationLock('landscape');
 
     // ---- sounds ----
     sfxCatch    = new SoundGenerator({ frequency: 700, release: 0.05, volume: 0.5, shapeCurve: 0.6 });

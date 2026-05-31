@@ -230,6 +230,7 @@ function gameInit()
     // gamepad: on-screen touch pad — right stick aims the turret, face buttons jump/fire
     touchGamepadEnable = true;
     touchGamepadAnalog = true;     // analog right stick for aiming
+    touchGamepadLeftStick = false;    // left stick not needed for this game
     touchGamepadButtonCount = 2;   // A = jump, B = fire
 
     sJump  = new SoundGenerator({ volume:.55, frequency:300, attack:0, release:.14, shapeCurve:1.7, slide:1.4, noise:.02 });

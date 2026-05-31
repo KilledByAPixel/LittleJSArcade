@@ -691,14 +691,14 @@ function gameRenderPost()
     const now = nowTime();
     const t = (gameOver || gameWon) ? (endTime - startTime) : (now - startTime);
 
-    const top = 36;
+    const top = 46;
 
     drawTextScreen(`Mines: ${minesLeft}   Time: ${t|0}s`,
         vec2(mainCanvasSize.x/2, top), 28,
         hsl(0,0,1), 4, hsl(0,0,0));
 
     if (gameOver)
-        drawTextScreen('BOOM! Press R to try again.', vec2(mainCanvasSize.x/2, mainCanvasSize.y-60), 52,
+        drawTextScreen('BOOM! 💥', vec2(mainCanvasSize.x/2, mainCanvasSize.y-60), 52,
             hsl(0,.75,.65), 6, hsl(0,0,0));
 
     if (gameWon)

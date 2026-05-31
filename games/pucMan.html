@@ -12,11 +12,11 @@
 debugWatermark = false; // Hide debug watermark in corner
 showEngineVersion = false; // Hide engine version console display
 
-// Touch gamepad: 8-way digital stick is perfect for a 4-direction grid game.
+// touch controls
 touchGamepadEnable = true;
 touchGamepadAnalog = false;
-touchGamepadButtonCount = 0;
-touchGamepadAlpha = .35;
+touchGamepadLeftStick = false;
+touchGamepadButtonCount = 1;
 
 // -----------------------------------------------------------------------------
 // Pac-Man (tiny) — grid movement + simple ghosts
@@ -604,7 +604,7 @@ function updatePlayer()
 
     // gamepad / touch / d-pad: live read, cardinal-only (whichever axis is dominant).
     // Held-stick acts like holding an arcade joystick.
-    const stick = gamepadStick(0);
+    const stick = gamepadStick(isTouchDevice ? 1 : 0); // left stick, cardinal-only
     if (stick.lengthSquared() > .25*.25)
     {
         player.desiredDir = abs(stick.x) > abs(stick.y)

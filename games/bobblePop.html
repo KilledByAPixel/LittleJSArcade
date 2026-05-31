@@ -12,6 +12,7 @@
 debugWatermark = false; // Hide debug watermark in corner
 showEngineVersion = false; // Hide engine version console display
 paused = false;
+canvasMaxSize = vec2(2048);
 
 ///////////////////////////////////////////////////////////////////////////////
 // SNOOD (bubble shooter) prototype
@@ -719,7 +720,7 @@ function gameUpdatePost()
     // frame the whole field — tight around the play area, shooter, and preview
     const visibleTop = TOP_Y - .5;
     const visibleBot = SHOOT_Y - .7;
-    const worldW = FIELD_W + 1.2;
+    const worldW = FIELD_W;
     const worldH = visibleTop - visibleBot;
     cameraScale = min(mainCanvasSize.x/worldW, mainCanvasSize.y/worldH);
     cameraPos = vec2(0, (visibleTop + visibleBot)/2);

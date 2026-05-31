@@ -410,6 +410,7 @@ async function gameInit()
     setSoundVolume(.7);
     // Title has its own attract-mode behind the menu — leave it animating.
     installAutoPause(() => gamePhase === 'playing');
+    setOrientationLock('landscape');
 
     // ----- title menu -----
     createTitleMenu({
