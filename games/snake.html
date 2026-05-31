@@ -349,6 +349,8 @@ function buildMenus()
         subtitle: 'Eat the apples. Grab the gold. Avoid the walls.',
         onPlay: startNewRun,
         canReveal: () => !isPlaying(),
+        showBest: true,
+        formatBest: n => `BEST  ${n}`,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
             {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
