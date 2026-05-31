@@ -380,6 +380,138 @@ function endRound()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// RENDERING — procedural tiles (rounded-ish rects + pip circles), no atlas.
+
+const TILE_LONG = 2.0;       // long dimension of a domino (two squares)
+const TILE_SHORT = 1.0;      // short dimension
+const PIP_R = 0.12;          // pip radius (drawCircle takes DIAMETER = 2*r)
+
+// Standard pip layout positions within a unit square half, in [-.5,.5] range,
+// keyed by pip count 0-6. Each entry is an array of vec2 offsets.
+function pipOffsets(n)
+{
+    const C = 0, L = -0.22, R = 0.22, U = 0.22, D = -0.22;
+    const map = {
+        0: [],
+        1: [[C,C]],
+        2: [[L,U],[R,D]],
+        3: [[L,U],[C,C],[R,D]],
+        4: [[L,U],[R,U],[L,D],[R,D]],
+        5: [[L,U],[R,U],[C,C],[L,D],[R,D]],
+        6: [[L,U],[R,U],[L,C],[R,C],[L,D],[R,D]],
+    };
+    return map[n].map(o => vec2(o[0], o[1]));
+}
+
+// Draw one domino. `horizontal` true => long axis is X, A-half on the left.
+function drawDominoTile(pos, valA, valB, horizontal, faceUp = true, highlight = 0)
+{
+    const size = horizontal ? vec2(TILE_LONG, TILE_SHORT) : vec2(TILE_SHORT, TILE_LONG);
+    // Body + border.
+    drawRect(pos, size.add(vec2(0.12, 0.12)), hsl(0, 0, 0.1));    // border
+    drawRect(pos, size, faceUp ? hsl(0, 0, 0.93) : hsl(.6, .3, .3));
+    if (highlight > 0)
+        drawRect(pos, size, hsl(.15, 1, .5, 0.35 * highlight));
+    if (!faceUp) return;
+
+    // Divider line between the two halves.
+    if (horizontal)
+        drawRect(pos, vec2(0.06, TILE_SHORT * 0.9), hsl(0, 0, 0.1));
+    else
+        drawRect(pos, vec2(TILE_SHORT * 0.9, 0.06), hsl(0, 0, 0.1));
+
+    // Half centers: A then B along the long axis.
+    const halfA = horizontal ? pos.add(vec2(-TILE_LONG/4, 0)) : pos.add(vec2(0, TILE_LONG/4));
+    const halfB = horizontal ? pos.add(vec2( TILE_LONG/4, 0)) : pos.add(vec2(0, -TILE_LONG/4));
+    drawPips(halfA, valA);
+    drawPips(halfB, valB);
+}
+
+function drawPips(center, n)
+{
+    for (const off of pipOffsets(n))
+        drawCircle(center.add(off.scale(TILE_SHORT)), PIP_R * 2, hsl(0, 0, 0.1));
+}
+
+// Module-level layout state used by both rendering and (Task 7) input hit-testing.
+let handTilePositions = [];          // [{id, pos}] for the human hand
+let leftZonePos = null, rightZonePos = null;   // assigned each frame in drawEndZones
+// END_ZONE_SIZE is a lazy getter so vec2() is not called at module scope
+// (the test harness evaluates this block without engine globals available).
+function getEndZoneSize() { return vec2(TILE_LONG, TILE_SHORT); }
+
+function drawChain()
+{
+    if (!chain.length) return;
+    const n = chain.length;
+    const totalW = n * TILE_LONG + (n - 1) * 0.1;
+    const startX = -totalW / 2 + TILE_LONG / 2;
+    for (let i = 0; i < n; i++)
+    {
+        const t = chain[i];
+        const pos = vec2(startX + i * (TILE_LONG + 0.1), 0.5);
+        const isDouble = t.a === t.b;
+        drawDominoTile(pos, t.a, t.b, !isDouble, true);
+    }
+    // Auto-fit: keep the whole chain + hands on screen.
+    const desired = Math.min(
+        mainCanvasSize.x / (totalW + 4),
+        mainCanvasSize.y / 16);
+    cameraScale = clamp(desired, 12, 48);
+}
+
+// Clickable L / R end markers, only shown on the human's turn.
+function drawEndZones()
+{
+    if (phase !== 'playerTurn' || !chain.length) return;
+    const n = chain.length;
+    const totalW = n * TILE_LONG + (n - 1) * 0.1;
+    leftZonePos  = vec2(-totalW/2 - TILE_LONG*0.7, 0.5);
+    rightZonePos = vec2( totalW/2 + TILE_LONG*0.7, 0.5);
+    const pulse = 0.3 + 0.2 * Math.sin(time * 4);
+    drawRect(leftZonePos,  getEndZoneSize(), hsl(.15, 1, .5, pulse));
+    drawRect(rightZonePos, getEndZoneSize(), hsl(.15, 1, .5, pulse));
+    drawText('L', leftZonePos, 0.8, hsl(0,0,1));
+    drawText('R', rightZonePos, 0.8, hsl(0,0,1));
+}
+
+// Human hand: a row pinned near the camera bottom, in world space.
+function drawHumanHand()
+{
+    handTilePositions = [];
+    const hand = hands[PLAYER_HUMAN];
+    const camSize = getCameraSize();
+    const y = cameraPos.y - camSize.y/2 + TILE_LONG/2 + 0.5;
+    const spacing = TILE_SHORT + 0.25;
+    const startX = cameraPos.x - (hand.length - 1) * spacing / 2;
+    const legalIds = new Set(legalMovesFor(PLAYER_HUMAN).map(m => m.tile));
+    for (let i = 0; i < hand.length; i++)
+    {
+        const t = hand[i];
+        const pos = vec2(startX + i * spacing, y);
+        const id = tileId(t);
+        const isLegal = legalIds.has(id);
+        const hl = (id === selectedTileId) ? 1 : 0;
+        drawDominoTile(pos, t.a, t.b, false, true, hl);
+        if (!isLegal && phase === 'playerTurn')
+            drawRect(pos, vec2(TILE_SHORT, TILE_LONG), hsl(0,0,0,0.45));  // dim illegal
+        handTilePositions.push({id, pos});
+    }
+}
+
+// AI hand: face-down row at the camera top, count shown.
+function drawAIHand()
+{
+    const count = hands[PLAYER_AI].length;
+    const camSize = getCameraSize();
+    const y = cameraPos.y + camSize.y/2 - TILE_LONG/2 - 0.5;
+    const spacing = TILE_SHORT + 0.25;
+    const startX = cameraPos.x - (count - 1) * spacing / 2;
+    for (let i = 0; i < count; i++)
+        drawDominoTile(vec2(startX + i * spacing, y), 0, 0, false, false);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // TESTS — gated behind ?test. Appended to across tasks.
 
 let testFails = 0;
@@ -571,7 +703,16 @@ async function gameInit()
 }
 function gameUpdate() {}
 function gameUpdatePost() {}
-function gameRender() {}
+function gameRender()
+{
+    // Background felt.
+    drawRect(cameraPos, getCameraSize(), hsl(.35, .5, .2));
+
+    drawChain();
+    drawEndZones();
+    drawHumanHand();
+    drawAIHand();
+}
 function gameRenderPost() {}
 
 ///////////////////////////////////////////////////////////////////////////////
