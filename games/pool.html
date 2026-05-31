@@ -16,9 +16,8 @@ debugWatermark = false;
 showEngineVersion = false;
 paused = false;
 
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
-canvasMaxSize = vec2(2048, 2048);
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 45;
 tilesPixelated = false;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -662,9 +661,6 @@ async function gameInit()
 
     // canvas fit
     canvasClearColor = rgb(.05,.07,.05);
-    setCanvasFixedSize(vec2(1280, 720));
-    cameraPos = vec2();
-    cameraScale = 33;
 
     // sounds — short ZzFX clicks for cushion / ball contacts
     sfxHit     = new Sound([,.1, 2e3, , , .01, , , , , , , , 1]);
@@ -880,8 +876,6 @@ function gameUpdate()
 
 function gameUpdatePost()
 {
-    setCameraPos(vec2());
-
     // Rapid stop — once a ball is slow (below RAPID_STOP_THRESHOLD) but not yet
     // under STOP_SPEED, hammer its velocity each frame so turns don't drag on
     // while everything coasts. Above the threshold, normal damping handles it.

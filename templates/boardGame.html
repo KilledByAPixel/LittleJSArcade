@@ -17,10 +17,8 @@ showEngineVersion = false;
 paused = false;
 
 // engine settings, customize if necessary
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
-cameraScale = 42;
-canvasMaxSize = vec2(2048, 2048);
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 62;
 
 ///////////////////////////////////////////////////////////////////////////////
 // BOARD GAME TEMPLATE
@@ -133,7 +131,6 @@ function quitToTitle()
 
 async function gameInit()
 {
-    setCanvasFixedSize(vec2(720, 720));
     canvasClearColor = new Color().setHex('#0d0d14');
     setSoundVolume(.8);
 
@@ -286,7 +283,7 @@ function gameRenderPost()
     if (isPlaying())
     {
         drawTextScreen('R: Restart',
-            vec2(mainCanvasSize.x / 2, mainCanvasSize.y - 30), 22,
+            vec2(mainCanvasSize.x / 2, mainCanvasSize.y - 50), 42,
             rgb(0.7, 0.7, 0.7), 2, BLACK);
     }
 }

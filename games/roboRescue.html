@@ -11,6 +11,7 @@
 // engine settings
 debugWatermark = false;
 showEngineVersion = false;
+canvasFixedSize = vec2(1920, 1080);
 
 // on-screen touch gamepad (analog left stick + fire button) for mobile
 touchGamepadEnable = true;
@@ -2490,8 +2491,6 @@ function fitCameraToArena()
 function gameInit()
 {
     saveDataInit('robotron');
-    // Let the canvas grow with the window. canvasMaxSize caps the internal resolution.
-    canvasMaxSize = vec2(2048, 2048);
     cameraPos = vec2(0);
     fitCameraToArena();
     runSelfTests();
