@@ -30,7 +30,7 @@ tilesPixelated = false;
 gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
 cameraScale = 40;
-canvasMaxSize = vec2(2048, 2048);
+canvasMaxSize = vec2(2048);
 
 // Touch gamepad input
 touchGamepadEnable = true;
@@ -4355,8 +4355,22 @@ function gameUpdate()
     updateSpawner();
     for (const w of player.weapons) w.update();
 }
+// Adapt cameraScale so the visible world AREA stays roughly equal to what a
+// 1920×1080 HD screen shows at cameraScale 40 (48×27 = 1296 wu²), no matter
+// the canvas size or aspect ratio. Smaller / narrower canvases zoom out so the
+// player still sees a comparable slice of the arena. Area-matching (geometric
+// mean of the two axes) keeps the zoom level consistent across aspect ratios
+// instead of favoring width or height.
+const HD_REFERENCE_AREA = (1920 / 40) * (1080 / 40); // 48 × 27 = 1296 wu²
+function updateCameraScale()
+{
+    const cs = mainCanvasSize;
+    if (cs.x > 0 && cs.y > 0)
+        cameraScale = Math.sqrt(cs.x * cs.y / HD_REFERENCE_AREA);
+}
 function gameUpdatePost()
 {
+    updateCameraScale();
     cameraPos = player.pos;
 
     // Input checks live here (NOT in gameRenderPost) because the engine
