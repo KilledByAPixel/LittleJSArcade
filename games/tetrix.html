@@ -1341,11 +1341,11 @@ async function gameInit()
     saveDataInit('tetris');
 
     // sounds
-    sMove   = new SoundGenerator({frequency:330, release:.01, volume:.35});
+    sMove   = new SoundGenerator({frequency:330, release:.005, volume:.3});
     sRotate = new SoundGenerator({frequency:1520, release:.005, volume:.35});
     sDrop   = new SoundGenerator({frequency:220, release:.06, slide:-.4, volume:.45});
     sLock   = new SoundGenerator({frequency:380, release:.01, volume:.5});
-    sClear  = new SoundGenerator({frequency:740, release:.12, slide:.25, volume:.5});
+    sClear  = new Sound([.7,,707,,.04,.25,,1.8,,,373,.06,.09,.1,,,.07]); // Pickup 3175 - Copy 1
     sHold   = new SoundGenerator({frequency:400, release:.08, pitchJump:200, pitchJumpTime:.02, volume:.35});
     sOver   = new SoundGenerator({frequency:120, release:.35, noise:.2, volume:.55});
     sGarbage = new SoundGenerator({frequency:90,  release:.14, noise:.1, volume:.45, slide:.15});
