@@ -762,11 +762,8 @@ function buildMenus()
         onHide: popMenu,
         items: [
             {type:'label', text:'GEOMETRY JUMP'},
-            {type:'text',  text:'An auto-running cube - tap SPACE / CLICK / UP to jump over spikes, ' +
-                'walls and platforms and reach the goal portal.\n\n' +
-                'CLASSIC: a fixed 5-level campaign.\n' +
-                'REMIX: the same levels, randomized every run.\n' +
-                'DAILY: one shared seed per day.'},
+            {type:'text',  text:'Your cube auto-runs forward — tap to jump spikes, walls and ' +
+                'platforms and reach the goal portal. One touch and you restart, so nail the rhythm.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

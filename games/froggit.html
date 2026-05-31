@@ -543,7 +543,7 @@
       ],
       items: [
         {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-        {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+        {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
       ],
       onShow: () => {
         const m = getMenu('title');
@@ -556,15 +556,10 @@
     createOptionsMenu();
 
     createMenu({
-      id: 'about', title: 'HOW TO PLAY', onHide: popMenu,
+      id: 'about', title: 'ABOUT', onHide: popMenu,
       items: [
         {type:'text', text:
-          'Get five frogs home, one at a time.\n\n' +
-          'HOP with arrow keys, WASD, D-pad, or left stick. On touch, tap one ' +
-          'of the four screen edges — the direction you tap is the way you hop.\n\n' +
-          'Avoid the cars on the road; ride logs across the river — don\'t touch ' +
-          'the water. Fill all five home slots and the level repeats faster.\n\n' +
-          'Three lives. Esc pauses.'},
+          'Hop five frogs safely home, one at a time. Dodge the traffic, then ride logs across the river without ever touching the water. Fill all five slots and the next level runs faster.'},
         {type:'separator'},
         {type:'button', label:'BACK', onClick: () => hideMenu('about')},
       ],

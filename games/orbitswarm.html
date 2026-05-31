@@ -948,15 +948,13 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'HOW TO PLAY',
+        title: 'ABOUT',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Conquer the galaxy.\n\n' +
-                'DRAG from a planet you own to another to send ships.\n' +
-                'Wheel or 1-4 sets the send percentage (10/25/50/100).\n' +
-                'R restarts, Esc pauses.\n\n' +
-                'Higher difficulties give the AI faster reactions and better information.'},
+                'Conquer the galaxy by sending fleets from your planets to take over the rest. ' +
+                'Drag from a planet you own to another to launch ships — outgrow the AI and ' +
+                'sweep the board before it overwhelms you.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

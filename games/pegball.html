@@ -210,12 +210,9 @@ function buildMenus()
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Knock out every ORANGE peg to win. You have 10 balls. ' +
-                'Land in the moving yellow bucket for a FREE BALL. ' +
-                'Hit pegs without stopping to build a COMBO multiplier.\n\n' +
-                'Aim with the mouse, click or press SPACE to shoot. ' +
-                'Press ESC to pause.\n\n' +
-                'Made with LittleJS.'},
+                'Aim and drop your ball to knock out every orange peg before you run out of ' +
+                'shots. Chain hits without stopping to build a combo multiplier, and catch the ' +
+                'ball in the moving bucket for a free one.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

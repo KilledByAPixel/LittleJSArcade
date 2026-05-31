@@ -1045,23 +1045,17 @@
                     formatBest: n => 'BEST ' + n,
                     items: [
                             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-                            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+                            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
                     ],
             });
 
             createOptionsMenu();
 
             createMenu({
-                    id: 'about', title: 'HOW TO PLAY', onHide: popMenu,
+                    id: 'about', title: 'ABOUT', onHide: popMenu,
                     items: [
                             {type:'text', text:
-                                    'Shoot the centipede before it reaches you.\n\n' +
-                                    'MOVE with arrow keys, WASD, mouse, or left stick.\n' +
-                                    'FIRE with Space, click, or A button (hold to keep firing).\n\n' +
-                                    'Head segments are 100, body segments are 10. Shooting a middle ' +
-                                    'segment splits the chain and grows a mushroom field. Spiders ' +
-                                    'eat mushrooms and are worth bonus points. Stay in the bottom ' +
-                                    'zone — don\'t get touched. Esc pauses.'},
+                                    'Blast the centipede before it winds down to your zone. Shoot a middle segment and the chain splits while a mushroom field sprouts — clear the whole thing without getting touched. Spiders are worth bonus points.'},
                             {type:'separator'},
                             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
                     ],

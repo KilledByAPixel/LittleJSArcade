@@ -1180,26 +1180,10 @@ async function gameInit()
         playLabel: 'PLAY',
         onPlay: startGame,
         items: [
-            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('controls')},
             {type:'button', label:'OPTIONS',  onClick: () => pushMenu('options')},
             {type:'button', label:'ABOUT',    onClick: () => pushMenu('about')},
         ],
         revealOnClick: false,
-    });
-
-    createMenu({
-        id: 'controls',
-        title: 'HOW TO PLAY',
-        onHide: popMenu,
-        items: [
-            {type:'text', text:
-                'Catch falling humans before they hit the ground.\n' +
-                'Scrape the ground to set them down safely.\n' +
-                'If a lander reaches the top with a human, it becomes a MUTANT.\n' +
-                'Lose all 10 humans and the planet explodes — survive 3 mutant waves to restore it.'},
-            {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('controls')},
-        ],
     });
 
     createOptionsMenu();
@@ -1209,7 +1193,10 @@ async function gameInit()
         title: 'ABOUT',
         onHide: popMenu,
         items: [
-            {type:'text', text:'A LittleJS prototype inspired by Defender.'},
+            {type:'text', text:
+                'Defend your humans from the alien landers in this Defender-style shooter. ' +
+                'Blast the landers before they haul a human to the top and mutate — lose all ten and the planet explodes. ' +
+                'Catch falling humans and set them safely back down to survive.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],
@@ -1218,8 +1205,8 @@ async function gameInit()
     createPauseMenu({
         onQuit: quitToTitleWithCleanup,
         extraItems: [
-            {type:'button', label:'CONTROLS', onClick: () => pushMenu('controls')},
-            {type:'button', label:'OPTIONS',  onClick: () => pushMenu('options')},
+            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
         ],
     });
 

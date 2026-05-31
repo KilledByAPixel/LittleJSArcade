@@ -611,11 +611,9 @@ function gameInit()
         title: 'ABOUT',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Aim with the mouse and click to shoot.\n\n' +
-                'Match 3 or more bubbles of the same color to pop them. ' +
-                'Disconnected clusters fall away for bonus points.\n\n' +
-                'The bubble grid slowly descends over time. ' +
-                'Don\'t let bubbles cross the danger line!'},
+            {type:'text', text:'Aim and shoot bubbles to match three or more of a color and pop them — ' +
+                'disconnected clusters fall away for bonus points. ' +
+                'The grid creeps down over time; don\'t let it cross the danger line.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

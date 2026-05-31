@@ -848,7 +848,7 @@ function buildMenus()
         ],
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
         ],
         onShow: () => {
             const m = getMenu('title');
@@ -859,16 +859,12 @@ function buildMenus()
     createOptionsMenu();
 
     createMenu({
-        id: 'about', title: 'HOW TO PLAY', onHide: popMenu,
+        id: 'about', title: 'ABOUT', onHide: popMenu,
         items: [
             {type:'text', text:
-                'Defend Earth from the descending invaders.\n\n' +
-                'MOVE with ←/→ (A/D, D-pad, or stick).\n' +
-                'FIRE with Space, K, A button, or click.\n' +
-                'Mouse mode tracks the cursor; switching to keyboard or pad ' +
-                'toggles back to keyed control.\n\n' +
-                'Hide behind the barriers — they crumble. The fewer aliens ' +
-                'left, the faster they march. Esc pauses.'},
+                'Defend Earth from the descending invaders — shoot them all before ' +
+                'they reach the ground. Duck behind the barriers for cover, but they ' +
+                'crumble fast, and the fewer aliens left, the faster they march.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

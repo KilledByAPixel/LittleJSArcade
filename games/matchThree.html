@@ -229,10 +229,8 @@ async function gameInit()
         title: 'ABOUT',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Drag a gem onto a neighbor to swap. ' +
-                'Line up 3 or more of the same gem to clear them. ' +
-                'Chains and cascades multiply your score.\n\n' +
-                'R restarts. Esc pauses.'},
+            {type:'text', text:'Swap neighboring gems to line up three or more of a kind ' +
+                'and clear them. Set up chains and cascades to multiply your score.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

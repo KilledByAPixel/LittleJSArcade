@@ -2402,7 +2402,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -2412,21 +2412,14 @@ function buildMenus()
     // How to play
     createMenu({
         id: 'about',
-        title: 'HOW TO PLAY',
+        title: 'ABOUT',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'You are the last defender. Robotrons are killing or ' +
-                'reprogramming the last human family.\n\n' +
-                'MOVE with WASD or left stick.\n' +
-                'AIM and FIRE with mouse, right stick, or touch.\n' +
-                'Shots snap to 8 directions.\n\n' +
-                'TOUCH the family (Mommy, Daddy, Mikey) to rescue them ' +
-                '(bonus rises 1000 to 5000).\n\n' +
-                'AVOID electrodes — they kill.\n' +
-                'HULKS cannot be killed; bullets push them.\n' +
-                'BRAINS reprogram humans into PROGS.\n' +
-                'SPHEROIDS drop ENFORCERS. QUARKS drop TANKS.'},
+                'You are the last defender against waves of robots out to destroy ' +
+                'the last human family. Blast everything that moves and touch Mommy, ' +
+                'Daddy and Mikey to rescue them for escalating bonuses. Hulks can\'t ' +
+                'be killed, so dodge them and keep moving.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

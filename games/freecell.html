@@ -228,11 +228,9 @@ async function gameInit()
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Freecell — a single-deck solitaire. Build the four foundations ' +
-                'up from Ace to King by suit. Stack tableau columns down by ' +
-                'alternating color. Use the four free cells as temporary parking.\n\n' +
-                'Drag cards with the mouse. Double-click a top card to send it to a ' +
-                'foundation. Z = undo, Y = redo. Press Esc to pause.'},
+                'Single-deck solitaire. Build the four foundations up from Ace to ' +
+                'King by suit, stacking tableau columns down by alternating color. ' +
+                'The four free cells up top are temporary parking — use them wisely.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

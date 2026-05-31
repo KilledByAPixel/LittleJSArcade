@@ -938,10 +938,8 @@ async function gameInit()
         title: 'ABOUT',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Checkers — move diagonally and jump over opponent pieces to capture them. ' +
-                'Captures are mandatory. Reach the far row to become a King and move in any direction. ' +
-                'Capture all opponent pieces or leave them with no legal moves to win. ' +
-                'Includes a watchable AI-vs-AI mode.'},
+            {type:'text', text:'Move diagonally and jump opponent pieces to capture them — captures are mandatory. ' +
+                'Reach the far row to crown a King that moves both ways. Capture everything to win.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

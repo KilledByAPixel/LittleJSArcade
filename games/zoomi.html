@@ -515,7 +515,7 @@ async function gameInit()
         onPlay: () => { newGame(); setPlaying(true); },
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -523,16 +523,13 @@ async function gameInit()
 
     createMenu({
         id: 'about',
-        title: 'HOW TO PLAY',
+        title: 'ABOUT',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'You are the turret at the center of the screen.\n\n' +
-                'Balls travel along the spiral toward the hole at the center. ' +
-                'Aim with the mouse, click to shoot the loaded ball into the chain. ' +
-                'When 3 or more same-colored balls touch, they pop.\n\n' +
-                'Press SPACE or right-click to swap your loaded ball with the next one.\n\n' +
-                'Clear every ball to win. If the chain head reaches the hole, you lose.'},
+                'Fire balls from the center turret into the chain spiraling toward the hole — ' +
+                'match 3 or more of a color to pop them. Clear every ball to win before the ' +
+                'chain reaches the center.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

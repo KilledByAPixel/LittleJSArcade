@@ -437,13 +437,12 @@ async function gameInit()
     // ----- about -----
     createMenu({
         id: 'about',
-        title: 'HOW TO PLAY',
+        title: 'ABOUT',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Click the ball and DRAG it like a slingshot. Release to throw — '+
-                'the ball flies with the velocity you flicked. Drag too far and it auto-launches.\n\n'+
-                'Make = 2 pts. Swish (no rim, no board) = 3 pts. 3 in a row lights you up — +1 per shot until you miss.\n\n'+
-                'The hoop never stops moving — it just gets faster as the clock runs down.'},
+            {type:'text', text:'Drag the ball like a slingshot and release to flick it at the hoop. '+
+                'A clean swish is worth more than a banked make, and a hot streak adds bonus points '+
+                'until you miss. The hoop never stops moving — and it only gets faster.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

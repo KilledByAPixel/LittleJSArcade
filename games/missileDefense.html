@@ -1079,7 +1079,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -1087,15 +1087,11 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'HOW TO PLAY',
+        title: 'ABOUT',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Six cities, three missile bases, ten shots per base.\n\n' +
-                'CLICK or TAP anywhere in the sky to fire from the nearest base. ' +
-                'Lead the falling enemy missiles — your shots take time to arrive.\n\n' +
-                'Surviving cities carry over between waves. Lose them all and it\'s ' +
-                'over. Esc pauses; R restarts.'},
+                'Defend six cities from raining missiles by aiming your explosions where the incoming streaks will be — your shots take time to arrive, so lead them. Lose every city and it\'s over.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

@@ -3601,11 +3601,9 @@ async function gameInit()
         onHide: popMenu,
         items: [
             {type: 'text', text:
-                'WASD or arrows to move. Weapons fire automatically.\n\n' +
-                'Collect 💎 to level up and choose weapons + passives. Bosses ' +
-                'drop 🎁 chests — open one with a maxed weapon and its matching ' +
-                'passive to evolve it.\n\n' +
-                'Survive 15:00 and beat the ☠️ Reaper to win.'},
+                'Move to dodge the swarm while your weapons fire on their own. ' +
+                'Grab 💎 to level up and pick new weapons and passives, then ' +
+                'survive 15:00 and beat the ☠️ Reaper to win.'},
             {type: 'separator'},
             {type: 'button', label: 'BACK', onClick: () => hideMenu('about')},
         ],

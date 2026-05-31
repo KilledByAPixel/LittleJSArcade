@@ -657,9 +657,8 @@ async function gameInit()
         title: 'ABOUT',
         onHide: popMenu,
         items: [
-            {type:'text', text:'A LittleJS brickout.\n\nMove the paddle with the mouse or A/D. ' +
-                'Click or Space to launch, fire lasers, and release sticky balls.\n\n' +
-                'Powerups: 🏓 Wide · 🔱 Multi · 🧲 Sticky · 🔫 Laser · 🔥 Fire · 🐌 Slow · ❤️ 1UP.'},
+            {type:'text', text:'Bounce the ball off your paddle to smash every brick without letting it fall. ' +
+                'Catch falling powerups to widen up, multiball, go sticky, fire lasers, and more.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

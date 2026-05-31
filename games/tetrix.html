@@ -1406,7 +1406,7 @@ function buildMenus()
             {type:'button', label:'VS AI',       onClick: () => startGame('vs')},
             {type:'button', label:'AI VS AI',    onClick: () => startGame('aivs')},
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -1414,18 +1414,13 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'HOW TO PLAY',
+        title: 'ABOUT',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Stack tetrominoes — clear lines, survive.\n\n' +
-                'MOVE with ←/→ or A/D (or D-pad).\n' +
-                'ROTATE with ↑/X (CW) or Z (CCW), or B/Y buttons.\n' +
-                'SOFT DROP with ↓/S; HARD DROP with Space (or A button).\n' +
-                'HOLD with C or Shift (or X button).\n' +
-                'R restarts, Esc pauses.\n\n' +
-                'VS mode: clearing 2+ lines sends garbage to the AI. ' +
-                'Topping out is game over.'},
+                'Slide and rotate the falling tetrominoes to pack them tight and ' +
+                'clear full lines. In VS mode, clearing 2+ lines at once dumps garbage ' +
+                'on the AI — top out and it\'s game over.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

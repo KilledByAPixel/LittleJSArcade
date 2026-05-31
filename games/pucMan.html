@@ -143,7 +143,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -151,16 +151,13 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'HOW TO PLAY',
+        title: 'ABOUT',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Eat every pellet without getting caught by the ghosts.\n\n' +
-                'MOVE with arrow keys, D-pad, or left stick.\n' +
-                'POWER PELLETS (big dots) make ghosts blue — chase them for ' +
-                'bonus points. Each ghost eaten in one frenzy is worth more.\n\n' +
-                'Bonus fruit appears after eating enough pellets. Clear the maze ' +
-                'to win. R restarts, Esc pauses.'},
+                'Eat every pellet to clear the maze without getting caught by the ghosts. ' +
+                'Grab a big power pellet to turn the ghosts blue and chase them down for ' +
+                'escalating bonus points.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

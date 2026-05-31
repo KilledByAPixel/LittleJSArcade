@@ -108,10 +108,8 @@ function buildMenus()
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Swipe or use arrow keys / WASD to slide every tile in one direction. ' +
-                'When two tiles of the same number touch, they merge into one with double the value.\n\n' +
-                'Reach the 2048 tile to win — but keep going for a higher score.\n\n' +
-                'Press ESC to pause. Made with LittleJS.'},
+                'Slide all the tiles in one direction; matching numbers merge into one of double the value. ' +
+                'Reach the 2048 tile to win — then keep going for a higher score.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

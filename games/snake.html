@@ -370,10 +370,9 @@ function buildMenus()
         onHide: popMenu,
         items: [
             {type:'label', text:'A LittleJS prototype.'},
-            {type:'text',  text:'Move with the Arrow keys or WASD. Eat the red apples ' +
-                'to grow and score. Now and then a golden fruit appears — grab it before ' +
-                'it vanishes for a big bonus. Avoid the walls and yourself. ' +
-                'Press Esc or Start to pause.'},
+            {type:'text',  text:'Eat the red apples to grow and score, but don\'t crash into ' +
+                'the walls or your own tail. Now and then a golden fruit appears — grab it ' +
+                'before it vanishes for a big bonus.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

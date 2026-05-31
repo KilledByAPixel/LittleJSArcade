@@ -601,23 +601,18 @@ function spawnClearParticles(cellX, cellY, colorIndex)
          onPlay: playFromTitle,
          revealOnClick: false,
          items: [
-             {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+             {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
          ],
      });
 
      // ----- about / how-to-play -----
      createMenu({
          id: 'about',
-         title: 'HOW TO PLAY',
+         title: 'ABOUT',
          onHide: popMenu,
          items: [
              {type:'text', text:
-                 'Move the falling 3-jewel column with Left/Right (or the d-pad).\n' +
-                 'Press Up (or A) to cycle the jewel colors in the column.\n' +
-                 'Down soft-drops, Space (or B) hard-drops.\n\n' +
-                 'Match 3 or more of the same color in a line — ' +
-                 'horizontal, vertical, or diagonal — to clear them. ' +
-                 'Chains formed by falling jewels score huge bonuses!'},
+                 'Steer the falling jewel columns and cycle their colors to line up three or more of a kind — horizontal, vertical, or diagonal — to clear them. Chain reactions from cascading jewels rack up huge scores.'},
              {type:'separator'},
              {type:'button', label:'BACK', onClick: () => hideMenu('about')},
          ],

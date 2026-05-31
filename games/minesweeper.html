@@ -487,11 +487,9 @@ async function gameInit()
         title: 'ABOUT',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Classic Minesweeper.\n\n' +
-                'Left click reveals a cell. Right click (or Shift + left click) toggles a flag. ' +
-                'Clicking a revealed number chord-opens its neighbors once its flag count matches. ' +
-                'The very first click is always safe.\n\n' +
-                'Press R during play to restart at the current difficulty.'},
+            {type:'text', text:'Classic Minesweeper. Clear every safe cell without detonating a ' +
+                'mine — the numbers tell you how many mines hide nearby. Flag the ones you ' +
+                'suspect, and rest easy: the first click is always safe.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

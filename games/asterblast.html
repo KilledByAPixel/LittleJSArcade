@@ -876,7 +876,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -884,17 +884,11 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'HOW TO PLAY',
+        title: 'ABOUT',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Blast the asteroids and saucers — don\'t crash.\n\n' +
-                'ROTATE with ←/→ (or A/D, or left stick).\n' +
-                'THRUST with ↑ (W, or push stick up, or A button).\n' +
-                'FIRE with Space or Z (or B button).\n' +
-                'HYPERSPACE with Shift or X (or Y button) — random teleport, briefly invulnerable.\n\n' +
-                'Small asteroids score 100, medium 50, large 20.\n' +
-                'Small saucers 1000, large 200. Extra life every 10,000.'},
+                'Blast the asteroids and saucers without crashing into them. Clear the field to advance — but watch the saucers, they shoot back. Hyperspace jumps you out of trouble when you\'re cornered.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

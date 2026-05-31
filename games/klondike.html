@@ -261,13 +261,10 @@ async function gameInit()
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Klondike — the classic solitaire. Build the four foundations ' +
-                'up from Ace to King by suit. Stack tableau columns down by ' +
-                'alternating color; only a King may start an empty column.\n\n' +
-                'Click the stock (top-left) to deal cards to the waste; click the ' +
-                'empty stock to recycle. Drag cards or runs with the mouse. ' +
-                'Double-click a card to send it to a foundation. Z = undo, ' +
-                'Y = redo. Press Esc to pause.'},
+                'The classic solitaire. Build the four foundations up from Ace to ' +
+                'King by suit, stacking tableau columns down by alternating color — ' +
+                'only a King may start an empty column. Click the stock to deal more ' +
+                'cards when you get stuck.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

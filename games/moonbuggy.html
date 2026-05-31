@@ -280,10 +280,9 @@ function buildMenus()
     createMenu({
         id:'about', title:'ABOUT', onHide: popMenu,
         items: [
-            {type:'text', text:'LEFT mouse or SPACE to jump.\n\nHold RIGHT mouse to fire the ' +
-                'turret — move the mouse to aim it. Shoot the UFOs, dodge their bombs, and ' +
-                'jump the boulders.\n\nGain speed barreling down the hills; you bleed it ' +
-                'climbing back up. Watch the speedometer.'},
+            {type:'text', text:'Race your buggy across the lunar surface — jump the boulders, ' +
+                'gun down the UFOs, and dodge their bombs. Barrel down the hills to build speed, ' +
+                'but watch the speedometer: you bleed it climbing back up.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

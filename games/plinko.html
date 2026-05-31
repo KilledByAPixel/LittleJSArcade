@@ -471,7 +471,7 @@ async function gameInit()
         showBest: true,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -485,15 +485,11 @@ async function gameInit()
     // ---------- About ----------
     createMenu({
         id: 'about',
-        title: 'HOW TO PLAY',
+        title: 'ABOUT',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Move the aimer with the MOUSE or LEFT/RIGHT (A/D) keys.\n\n' +
-                'CLICK or press SPACE to drop a ball — you start with 10, ' +
-                'and earn a new ball every 100 points.\n\n' +
-                'Center slot scores 100, edges score 5. Stack up the score.\n\n' +
-                'ESC or START to pause.'},
+                'Aim and drop balls to bounce down through the pegs into the scoring slots — the center is worth the most. You start with 10 balls and earn another every 100 points, so stack up the highest score you can.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],
