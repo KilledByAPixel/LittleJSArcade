@@ -56,6 +56,26 @@ const bomberSpeed    = w => 4 + (w - 1) * 0.9;
 const bomberFlipProb = w => 0.005 + (w - 1) * 0.002;     // chance/frame of reversing
 const bucketHalfW    = w => max(1.2, 2.8 - (w - 1) * 0.15);
 
+// Bomb types — each has its own color + movement, introduced one per wave then
+// mixed randomly. body/rim/hi are [h,s,l] components fed to hsl() in drawBomb.
+//   normal — falls straight down (classic)
+//   fast   — red, drops much faster
+//   drift  — blue, slides sideways and bounces off the inner screen edges
+//   wavy   — purple, weaves in a sine wave around a fixed (clamped) column
+const BOMB_TYPES = {
+    normal: { body:[0,   0,  .08], rim:[0,   0,  .30], hi:[0,  0,  .30] },
+    fast:   { body:[.00, .70, .34], rim:[.02, 1,  .60], hi:[.04, .9, .72] },
+    drift:  { body:[.58, .70, .42], rim:[.55, 1,  .70], hi:[.55, .8, .82] },
+    wavy:   { body:[.77, .55, .42], rim:[.80, .9, .70], hi:[.80, .7, .85] },
+};
+// Roster grows by one type each wave; spawnBomb picks uniformly from it.
+function bombRoster(w) {
+    const r = ['normal'];
+    if (w >= 2) r.push('fast');
+    if (w >= 3) r.push('drift');
+    if (w >= 4) r.push('wavy');
+    return r;
+}
 // State
 let score, wave, lives, bucketsAwarded;
 let bucketX, bucketTargetX;
@@ -139,11 +159,29 @@ function spawnBomb() {
     // drawBomber so the bomb visibly comes OUT OF his hand.
     const handX = bomber.x + facing * 1.4;
     const handY = ROOF_Y + 1.7 - 0.5;     // bodyY - 0.5 (dropping arm dip)
-    bombs.push({
+    const roster = bombRoster(wave);
+    const type = roster[randInt(roster.length)];
+    const fall = bombFallSpeed(wave);
+
+    const b = {
         pos: vec2(handX, handY),
-        vel: vec2(0, -bombFallSpeed(wave)),
+        vel: vec2(0, -fall),
         fuse: rand(0, PI * 2),
-    });
+        type,
+    };
+    if (type === 'fast') {
+        b.vel.y = -fall * 1.7;                          // noticeably quicker drop
+    } else if (type === 'drift') {
+        b.vel.x = (rand() < 0.5 ? -1 : 1) * (2.5 + (wave - 3) * 0.4);  // sideways
+    } else if (type === 'wavy') {
+        b.waveAmp   = 3.0;                              // sway half-width (world units)
+        b.waveFreq  = 2.0 + (wave - 4) * 0.15;          // sway speed (rad/sec)
+        b.wavePhase = rand(0, PI * 2);
+        // Clamp the sway center so the full swing always stays inside the field.
+        const lim = FIELD_RIGHT - BOMB_R - 0.2 - b.waveAmp;
+        b.centerX = clamp(handX, -lim, lim);
+    }
+    bombs.push(b);
     bomber.dropTimer = 0.18;
     sfxFuse?.play(undefined, 0.35, 0.9 + wave * 0.04, 0.1);
     bombsSpawned++;
@@ -164,7 +202,7 @@ function catchBomb(b) {
         sfxBucketUp?.play(undefined, 0.6);
         showMenuToast({
             icon: '🪣', title: 'BUCKET BONUS!',
-            text: '+1 bucket', duration: 2200, position: 'top-right',
+            text: '+1 bucket', duration: 2200, position: 'bottom-right',
         });
     } else if (earned > bucketsAwarded) {
         bucketsAwarded = earned;
@@ -279,6 +317,18 @@ function updateBombs(dt) {
         b.pos.y += b.vel.y * dt;
         b.fuse += dt * 12;
 
+        // Horizontal motion by type. Drift slides + bounces off the inner walls;
+        // wavy weaves as a sine around its clamped center (so it can't exit).
+        if (b.type === 'wavy') {
+            b.wavePhase += dt * b.waveFreq;
+            b.pos.x = b.centerX + Math.sin(b.wavePhase) * b.waveAmp;
+        } else if (b.type === 'drift') {
+            b.pos.x += b.vel.x * dt;
+            const lim = FIELD_RIGHT - BOMB_R - 0.2;
+            if (b.pos.x < -lim) { b.pos.x = -lim; b.vel.x =  Math.abs(b.vel.x); }
+            if (b.pos.x >  lim) { b.pos.x =  lim; b.vel.x = -Math.abs(b.vel.x); }
+        }
+
         // Smoke trail — small gray wisps just above the bomb (where it
         // just was). As the bomb falls past, the wisps recede upward
         // naturally, drawing the trail. behind:true so they render under
@@ -290,7 +340,7 @@ function updateBombs(dt) {
                 life: 0.55, maxLife: 0.55,
                 h: 0, s: 0, l: 0.55 + rand(0, 0.15),
                 gravityScale: -0.05,                  // very slight rise
-                size: rand(0.12, 0.22),
+                size: rand(0.2, 0.36),
                 behind: true,
             });
         }
@@ -553,10 +603,11 @@ function drawBombPile(cx, cy, count) {
 }
 
 function drawBomb(b) {
+    const t = BOMB_TYPES[b.type] || BOMB_TYPES.normal;
     // Bomb body
-    drawCircle(b.pos, BOMB_R * 2, hsl(0, 0, .08), 0.05, hsl(0, 0, .3));
+    drawCircle(b.pos, BOMB_R * 2, hsl(...t.body), 0.05, hsl(...t.rim));
     // Highlight
-    drawCircle(b.pos.add(vec2(-BOMB_R * 0.3, BOMB_R * 0.3)), BOMB_R * 0.4, hsl(0, 0, .3));
+    drawCircle(b.pos.add(vec2(-BOMB_R * 0.3, BOMB_R * 0.3)), BOMB_R * 0.4, hsl(...t.hi));
     // Fuse stick
     drawLine(b.pos.add(vec2(0, BOMB_R)),
              b.pos.add(vec2(0.08, BOMB_R + 0.4)), 0.07, hsl(.08, .4, .4));
@@ -656,6 +707,8 @@ async function gameInit() {
                 'your bottom bucket and detonates the rest of the wave.\n\n' +
                 'Catch every bomb in a wave for a bonus. Every 1000 points, ' +
                 'you earn a bucket back (max 3).\n\n' +
+                'New bombs join each wave: red drop fast, blue slide and ' +
+                'bounce, purple weave side to side.\n\n' +
                 'MOVE: mouse, touch, or arrow keys.' },
             { type: 'separator' },
             { type: 'button', label: 'BACK', onClick: () => hideMenu('about') },
