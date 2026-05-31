@@ -25,9 +25,8 @@
   // hop in that direction. Handled directly in handleInput — no touch gamepad.
   touchGamepadEnable = true;
   touchGamepadAnalog = false;
-  touchGamepadButtonCount = 1;
   touchGamepadLeftStick = false;
-  touchGamepadSize = 150;
+  touchGamepadButtonCount = 1;
   // ------------------------------------------------------------
   // Frogger (primitives only)
 
@@ -467,8 +466,8 @@
   function gameInit() {
     saveDataInit('frogger');
     setOrientationLock('landscape');
-    setCanvasFixedSize(vec2(960, 540));
-    cameraScale = 28;
+    setCanvasFixedSize(vec2(1920, 1080));
+    cameraScale = 56;
     setCameraPos(vec2(LEVEL_W/2, LEVEL_H/2));
 
     buildAtlas();
@@ -1181,12 +1180,12 @@
     // HUD lives along the bottom corners, leaving the top open for added lanes.
     // Score (prominent) bottom-right; lives/level bottom-left. The crossing-timer
     // bar sits centered between them.
-    const hudY = mainCanvasSize.y - 24;
+    const hudY = mainCanvasSize.y - 54;
     drawTextScreen(`${score}`,
-      vec2(mainCanvasSize.x - 20, hudY), 36,
+      vec2(mainCanvasSize.x - 20, hudY-20), 190,
       hsl(50/360,.9,.7), 5, hsl(0,0,0), 'right');
     drawTextScreen(`LIVES  ${Math.max(0,lives)}      LEVEL  ${level}`,
-      vec2(20, hudY), 22,
+      vec2(20, hudY), 70,
       hsl(105/360,.55,.85), 4, hsl(0,0,0), 'left');
 
     // Crossing-timer bar at the bottom — drains as you cross; green → red, and
@@ -1205,7 +1204,7 @@
     // Brief on-canvas banner; the gameOver menu owns the rest.
     if (gameOver && gameOverHoldTimer > 0) {
       drawTextScreen('GAME OVER',
-        vec2(mainCanvasSize.x/2, mainCanvasSize.y/2), 90,
+        vec2(mainCanvasSize.x/2, mainCanvasSize.y/2), 130,
         hsl(0, .8, .55), 8, hsl(0,0,0));
     }
   }
