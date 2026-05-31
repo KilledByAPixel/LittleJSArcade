@@ -53,9 +53,9 @@ const _bloom =
     ready:   false,
     // params (see header)
     downsample:     2,
-    iterations:     6,
-    threshold:      0.25,
-    intensity:      3.5,
+    iterations:     3,
+    threshold:      0.2,
+    intensity:      4,
     vignette:       1,
     includeOverlay: true,
     // gl resources

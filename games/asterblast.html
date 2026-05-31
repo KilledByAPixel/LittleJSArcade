@@ -13,6 +13,7 @@
 <script src="../dist/littlejs.js?1780261943905"></script>
 <script src="../templates/gameFx.js?1780261943905"></script>
 <script src="../templates/bloom.js?1780261943905"></script>
+<script src="../templates/tweakables.js?1780261943905"></script>
 <script src="../templates/menus.js?1780261943905"></script>
 <script>
 'use strict';
@@ -475,7 +476,7 @@ class Bullet extends EngineObject
 
     render()
     {
-        drawGlowCircle(this.pos, .12, rgb(1,1,1));
+        drawGlowCircle(this.pos, .2, rgb(1,1,1));
     }
 }
 
@@ -756,7 +757,7 @@ class UfoBullet extends EngineObject
     render()
     {
         // distinct from player bullet: warm red-orange glow
-        drawGlowCircle(this.pos, .13, rgb(1, .35, .35));
+        drawGlowCircle(this.pos, .2, rgb(1, .35, .35));
     }
 }
 
@@ -796,6 +797,17 @@ function gameInit()
     // for this vector look; tweak via bloomInit({...}) or bloomSetParams({...}).
     bloomInit();
 
+    // Live bloom controls — press ~ to open the tweak panel. These paths point
+    // straight at the plugin's live params object, so changes apply instantly
+    // (and persist per-game under 'asteroids.tweaks').
+    tweakDivider('Bloom');
+    tweak('_bloom.intensity',      {min:0, max:10});
+    tweak('_bloom.threshold',      {min:0, max:1});
+    tweak('_bloom.iterations',     {min:0, max:16, step:1});
+    tweak('_bloom.downsample',     {min:1, max:8,  step:1});
+    tweak('_bloom.vignette',       {min:0, max:2});
+    tweak('_bloom.includeOverlay');
+
     // stars
     stars = [];
     const starCount = 210;
@@ -803,7 +815,7 @@ function gameInit()
     {
         // place in a slightly larger range so the edges don't feel empty
         const p = vec2(rand(35, -35), rand(20, -20));
-        const s = rand(.09, .03);
+        const s = rand(.05, .1);
         stars.push({p, s, tw: rand(3, 1)});
     }
 
@@ -812,6 +824,10 @@ function gameInit()
 
     buildMenus();
     spawnAttractField();
+
+    // menus.js maps the LittleJS debug overlay to backtick, which is also the
+    // tweak-panel toggle (~). Move debug to backslash so ~ opens only the panel.
+    setDebugKey('Backslash');
 }
 
 function buildMenus()
