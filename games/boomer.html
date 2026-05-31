@@ -30,7 +30,7 @@ paused = false;
 gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
 cameraScale = 38;
-canvasFixedSize = vec2(1920, 1080);
+canvasFixedSize = vec2(1300, 1080);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Kaboom! — classic Activision paddle-catcher style.
@@ -651,7 +651,6 @@ async function gameInit() {
     setSoundVolume(0.6);
 
     installAutoPause();
-    setOrientationLock('landscape');
 
     // ---- sounds ----
     sfxCatch    = new SoundGenerator({ frequency: 700, release: 0.05, volume: 0.5, shapeCurve: 0.6 });
