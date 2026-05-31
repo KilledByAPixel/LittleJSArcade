@@ -542,18 +542,26 @@ function drawBomber() {
     const limb = (pos, size, color) =>
         drawTile(pos, size.scale(1.15), ICON.roundSquare, color);
 
-    // Legs (striped red/white pants)
-    const legY = y + 0.55 + stepBob;
-    limb(vec2(x - 0.32, legY), vec2(0.45, 1.1), hsl(0, .8, .5));
-    limb(vec2(x + 0.32, legY), vec2(0.45, 1.1), hsl(0, .8, .5));
-    for (let i = 0; i < 4; i++) {
-        const sy = legY + 0.4 - i * 0.3;
-        drawRect(vec2(x - 0.32, sy), vec2(0.45, 0.08), hsl(0, 0, .95));
-        drawRect(vec2(x + 0.32, sy), vec2(0.45, 0.08), hsl(0, 0, .95));
+    // Legs (striped red/white pants) — each leg bobs on its own phase so one
+    // foot lifts while the other plants, giving a natural walking gait. Leg +
+    // stripes + foot share the same per-side offset so they stay attached.
+    const baseLegY = y + 0.55;
+    for (const side of [-1, 1]) {
+        const lx = x + side * 0.32;
+        // max(0, sin) (NOT abs) so each foot lifts on only its half of the
+        // cycle — abs(sin(x+PI)) == abs(sin(x)), which would keep them in sync.
+        // Opposite phase per side: one foot is up while the other is planted.
+        // 0 when not walking (walkPhase is 0 while idle).
+        const bob = Math.max(0, Math.sin(walkPhase + (side > 0 ? PI : 0))) * 0.22;
+        const lY = baseLegY + bob;
+        limb(vec2(lx, lY), vec2(0.45, 1.1), hsl(0, .8, .5));
+        for (let i = 0; i < 4; i++) {
+            const sy = lY + 0.4 - i * 0.3;
+            drawRect(vec2(lx, sy), vec2(0.45, 0.08), hsl(0, 0, .95));
+        }
+        // Foot (rounded)
+        limb(vec2(x + side * 0.4, lY - 0.6), vec2(0.7, 0.25), hsl(0, 0, .08));
     }
-    // Feet
-    limb(vec2(x - 0.4, legY - 0.6), vec2(0.7, 0.25), hsl(0, 0, .08));
-    limb(vec2(x + 0.4, legY - 0.6), vec2(0.7, 0.25), hsl(0, 0, .08));
 
     // Body (yellow shirt)
     const bodyY = y + 1.7 + stepBob * 0.3;
