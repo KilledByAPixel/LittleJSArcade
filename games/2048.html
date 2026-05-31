@@ -49,11 +49,76 @@ let swipeArmed = false;
 
 let stickLatched = false;     // gamepad: left stick must return to center before re-firing a slide
 
+let saveDirty = false;        // set when the board changes; flushed once per frame in gameUpdatePost
+
 let sMove, sMerge, sSpawn, sLose, sWin;
 
 function quitToTitleWithCleanup()
 {
+    clearSavedGame();
     quitToTitle(setupAttractBoard);
+}
+
+// In-progress game persistence ------------------------------------------------
+// The live round is stored under the save blob's `game` key (sibling to
+// bestScore). It exists only while a round is unfinished; game over / new game
+// / quit clear it so a reload returns to the title. saveDirty batches writes to
+// one per frame (see gameUpdatePost). The board is stored as a flat GRID*GRID
+// array of values (0 = empty), read straight off the logical `grid` so it's
+// valid even mid-slide — only the not-yet-spawned tile is omitted, which the
+// next settled save fills in.
+function saveGame()
+{
+    if (!isPlaying() || gameOver) return;
+    const board = [];
+    for (let y = 0; y < GRID; ++y)
+        for (let x = 0; x < GRID; ++x)
+            board.push(grid[y][x] ? grid[y][x].value : 0);
+    saveData({game: {board, score, won, continueAfterWin}});
+}
+
+function clearSavedGame()
+{
+    saveData({game: null});
+}
+
+// Restore a previously saved round. Returns true on success, false when there
+// is no save or it fails a basic shape check.
+function loadSavedGame()
+{
+    const g = getSaveData().game;
+    if (!g || !Array.isArray(g.board) || g.board.length !== GRID * GRID) return false;
+
+    score = g.score | 0;
+    gameOver = false;
+    won = !!g.won;
+    // Resume a won board already in continue mode so input isn't locked by the
+    // `won && !continueAfterWin` guard, and don't re-pop the win dialog.
+    continueAfterWin = won;
+    winDialogShown = won;
+    loseDialogShown = false;
+    animT = 0;
+    pendingSpawn = false;
+
+    tiles = [];
+    grid = [];
+    for (let y = 0; y < GRID; ++y)
+    {
+        grid[y] = [];
+        for (let x = 0; x < GRID; ++x) grid[y][x] = null;
+    }
+    for (let y = 0; y < GRID; ++y)
+        for (let x = 0; x < GRID; ++x)
+        {
+            const v = g.board[y * GRID + x];
+            if (v)
+            {
+                const t = makeTile(v, x, y);
+                grid[y][x] = t;
+                tiles.push(t);
+            }
+        }
+    return true;
 }
 
 function gameInit()
@@ -69,7 +134,18 @@ function gameInit()
 
     setupAttractBoard();
     buildMenus();
-    showMenu('title');
+
+    // persist the live round when the tab is hidden or closed so the latest
+    // board survives a reload (saveGame no-ops unless a round is in progress)
+    document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+    window.addEventListener('pagehide', saveGame);
+
+    // resume the most recently played round if one was saved; otherwise show the
+    // title over the attract backdrop built by setupAttractBoard above.
+    if (loadSavedGame())
+        setPlaying(true);
+    else
+        showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -126,7 +202,7 @@ function showWinDialog()
         message:  'Score: ' + score,
         yesLabel: 'KEEP GOING',
         noLabel:  'NEW GAME',
-        onYes: () => { continueAfterWin = true; },
+        onYes: () => { continueAfterWin = true; saveDirty = true; },
         onNo:  () => { newGame(); },
     });
 }
@@ -140,7 +216,7 @@ function showLoseDialog()
         yesLabel: 'NEW GAME',
         noLabel:  'QUIT',
         onYes: () => { newGame(); },
-        onNo:  () => { setupAttractBoard(); setPlaying(false); showMenu('title'); },
+        onNo:  () => { clearSavedGame(); setupAttractBoard(); setPlaying(false); showMenu('title'); },
     });
 }
 
@@ -182,6 +258,8 @@ function newGame()
     // Silent on the opening two tiles — startup audio is noise, not feedback.
     addRandomTile(true);
     addRandomTile(true);
+
+    saveDirty = true; // persist the fresh board immediately
 }
 
 // Decorative, non-interactive layout shown behind the title menu: a 2048 tile
@@ -215,7 +293,7 @@ function setupAttractBoard()
         [0, 2, 32],
         [0, 3, 2],
         [2, 3, 16],
-        [3, 3, 258],
+        [3, 3, 256],
     ];
     for (const [gx, gy, value] of layout)
     {
@@ -397,6 +475,7 @@ function updateAnimations()
                 addRandomTile();
                 if (!canMove()) { gameOver = true; sLose.play(); }
             }
+            saveDirty = true; // board settled — persist (or clear on game over)
         }
         else
         {
@@ -496,6 +575,17 @@ function gameUpdate()
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdatePost()
 {
+    // flush save state once per frame after the board settles: clear it on a
+    // finished round so a reload returns to the title, otherwise persist
+    if (saveDirty)
+    {
+        saveDirty = false;
+        if (gameOver)
+            clearSavedGame();
+        else
+            saveGame();
+    }
+
     cameraPos = vec2(0, 0);
     const s = boardWorldSize();
     const margin = .5;
