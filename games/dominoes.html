@@ -64,7 +64,84 @@ function highestTileInHand(hand)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// (adapter, pimc, live game, rendering, menus appended in later tasks)
+// ADAPTER — pure-functional dominoes for gameAI.js. The full (determinized)
+// world lives in state.board so the engine's TT hash covers the hands.
+
+// Does tile t have a pip equal to `end`? Returns the OTHER pip (the new open
+// end) if so, else null. For a double, the other pip equals end.
+function matchEnd(t, end)
+{
+    if (t.a === end) return t.b;
+    if (t.b === end) return t.a;
+    return null;
+}
+
+const dominoGame = {
+    getCurrentPlayer: (state) => state.currentPlayer,
+    getOpponent: (player) => 1 - player,
+
+    getLegalMoves(state, player)
+    {
+        const b = state.board;
+        const hand = b.hands[player];
+        const moves = [];
+        if (b.leftEnd === null)
+        {
+            // Opening: any tile may be placed.
+            for (const t of hand)
+                moves.push({tile: tileId(t), end: 'start'});
+            return moves;
+        }
+        for (const t of hand)
+        {
+            if (matchEnd(t, b.leftEnd) !== null)  moves.push({tile: tileId(t), end: 'L'});
+            if (matchEnd(t, b.rightEnd) !== null) moves.push({tile: tileId(t), end: 'R'});
+        }
+        return moves;
+    },
+
+    applyMove(state, move, player)
+    {
+        const b = state.board;
+        // Fresh copy of the world.
+        const chain = b.chain.map(t => ({a:t.a, b:t.b}));
+        const hands = [b.hands[0].map(t => ({a:t.a, b:t.b})),
+                       b.hands[1].map(t => ({a:t.a, b:t.b}))];
+        let leftEnd = b.leftEnd, rightEnd = b.rightEnd;
+
+        // Find & remove the played tile from the player's (copied) hand.
+        const hand = hands[player];
+        const idx = hand.findIndex(t => tileId(t) === move.tile);
+        const tile = hand.splice(idx, 1)[0];
+
+        if (move.end === 'start')
+        {
+            chain.push({a: tile.a, b: tile.b});
+            leftEnd = tile.a;
+            rightEnd = tile.b;
+        }
+        else if (move.end === 'L')
+        {
+            const newEnd = matchEnd(tile, leftEnd);
+            // Orient so matching pip touches the chain: {a:newEnd-facing, b:matching}
+            chain.unshift({a: newEnd, b: leftEnd});
+            leftEnd = newEnd;
+        }
+        else // 'R'
+        {
+            const newEnd = matchEnd(tile, rightEnd);
+            chain.push({a: rightEnd, b: newEnd});
+            rightEnd = newEnd;
+        }
+
+        return {
+            board: {chain, leftEnd, rightEnd, hands, passes: 0},
+            currentPlayer: 1 - player,
+        };
+    },
+};
+
+// (pimc, live game, rendering, menus appended in later tasks)
 
 ///////////////////////////////////////////////////////////////////////////////
 // TESTS — gated behind ?test. Appended to across tasks.
@@ -93,6 +170,67 @@ function runDominoTests()
         'highestDoubleInHand returns null when no doubles');
     check(tileId(highestTileInHand([{a:6,b:5},{a:6,b:6},{a:0,b:1}])) === '6-6',
         'highestTileInHand picks highest pip total');
+
+    // --- adapter: getLegalMoves ---
+    const opening = {
+        board: {chain:[], leftEnd:null, rightEnd:null,
+                hands:[[{a:1,b:2},{a:3,b:4}], []], passes:0},
+        currentPlayer: 0,
+    };
+    const openMoves = dominoGame.getLegalMoves(opening, 0);
+    check(openMoves.length === 2 && openMoves.every(m => m.end === 'start'),
+        'opening: every hand tile is a start move');
+
+    const mid = {
+        board: {chain:[{a:2,b:5}], leftEnd:2, rightEnd:5,
+                hands:[[{a:2,b:6},{a:5,b:5},{a:0,b:1}], []], passes:0},
+        currentPlayer: 0,
+    };
+    const midMoves = dominoGame.getLegalMoves(mid, 0);
+    // 2-6 matches left end 2 -> L; 5-5 matches right end 5 -> R; 0-1 matches neither
+    check(midMoves.length === 2, 'mid: two playable tiles');
+    check(midMoves.some(m => m.tile === '2-6' && m.end === 'L'), 'mid: 2-6 plays Left');
+    check(midMoves.some(m => m.tile === '5-5' && m.end === 'R'), 'mid: 5-5 plays Right');
+
+    const both = {
+        board: {chain:[{a:3,b:3}], leftEnd:3, rightEnd:3,
+                hands:[[{a:3,b:6}], []], passes:0},
+        currentPlayer: 0,
+    };
+    const bothMoves = dominoGame.getLegalMoves(both, 0);
+    check(bothMoves.length === 2 && bothMoves.some(m => m.end === 'L') && bothMoves.some(m => m.end === 'R'),
+        'tile matching both ends yields L and R moves');
+
+    const stuck = {
+        board: {chain:[{a:3,b:3}], leftEnd:3, rightEnd:3,
+                hands:[[{a:0,b:1},{a:2,b:4}], []], passes:0},
+        currentPlayer: 0,
+    };
+    check(dominoGame.getLegalMoves(stuck, 0).length === 0, 'no matching tile -> no moves');
+
+    // --- adapter: applyMove purity + correctness ---
+    const before = {
+        board: {chain:[{a:2,b:5}], leftEnd:2, rightEnd:5,
+                hands:[[{a:2,b:6},{a:0,b:1}], [{a:1,b:1}]], passes:1},
+        currentPlayer: 0,
+    };
+    const beforeHandRef = before.board.hands[0];
+    const after = dominoGame.applyMove(before, {tile:'2-6', end:'L'}, 0);
+    check(after !== before && after.board !== before.board, 'applyMove returns fresh state');
+    check(before.board.hands[0] === beforeHandRef && before.board.hands[0].length === 2,
+        'applyMove does not mutate original hand');
+    check(after.board.hands[0].length === 1 && !after.board.hands[0].some(t => tileId(t) === '2-6'),
+        'applyMove removes played tile from hand');
+    // 2-6 placed on left end 2: matching pip 2 touches chain, 6 becomes new left end
+    check(after.board.leftEnd === 6 && after.board.rightEnd === 5,
+        'applyMove flips tile so 6 is the new left end');
+    check(after.board.passes === 0, 'applyMove resets pass counter');
+    check(after.currentPlayer === 1, 'applyMove advances current player');
+
+    // opening move sets both ends
+    const openedAfter = dominoGame.applyMove(opening, {tile:'3-4', end:'start'}, 0);
+    check(openedAfter.board.leftEnd === 3 && openedAfter.board.rightEnd === 4,
+        'opening move sets left and right ends from the tile');
 
     console.log(testFails === 0 ? '=== ALL PASS ===' : '=== ' + testFails + ' FAILED ===');
 }
