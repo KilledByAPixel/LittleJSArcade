@@ -48,7 +48,7 @@ function gameRender()
     const atlasView = vec2(5);
     const fullAtlas = new TileInfo(vec2(), vec2(2048));
     const atlasPos = vec2(4, .5);
-    drawRect(atlasPos, atlasView.add(vec2(.3)), hsl(0, 0, .15));
+    drawRect(atlasPos, atlasView.add(vec2(.3)), hsl(0, 0, .5));
     drawTile(atlasPos, atlasView, fullAtlas, WHITE);
     drawText('ATLAS SHEET', vec2(4, -2.5), .42, WHITE);
 
