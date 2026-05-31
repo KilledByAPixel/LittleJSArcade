@@ -464,19 +464,43 @@ function drawChain()
     cameraScale = clamp(desired, 12, 48);
 }
 
-// Clickable L / R end markers, only shown on the human's turn.
+// L / R drop targets. Only shown once the player has selected a tile. Each
+// end is drawn as a steady green target if the selected tile can legally go
+// there, or a dimmed, X'd-out box if it can't — so it's always clear where
+// the current tile may be placed (no flashing, no auto-redirect).
 function drawEndZones()
 {
-    if (phase !== 'playerTurn' || !chain.length) return;
+    if (phase !== 'playerTurn' || !chain.length || !selectedTileId) return;
     const n = chain.length;
     const totalW = n * TILE_LONG + (n - 1) * 0.1;
     leftZonePos  = vec2(-totalW/2 - TILE_LONG*0.7, 0.5);
     rightZonePos = vec2( totalW/2 + TILE_LONG*0.7, 0.5);
-    const pulse = 0.3 + 0.2 * Math.sin(time * 4);
-    drawRect(leftZonePos,  getEndZoneSize(), hsl(.15, 1, .5, pulse));
-    drawRect(rightZonePos, getEndZoneSize(), hsl(.15, 1, .5, pulse));
-    drawText('L', leftZonePos, 0.8, hsl(0,0,1));
-    drawText('R', rightZonePos, 0.8, hsl(0,0,1));
+
+    // Which ends can the selected tile actually go on?
+    const ends = new Set(legalMovesFor(PLAYER_HUMAN)
+        .filter(m => m.tile === selectedTileId).map(m => m.end));
+    drawDropTarget(leftZonePos,  'L', ends.has('L'));
+    drawDropTarget(rightZonePos, 'R', ends.has('R'));
+}
+
+function drawDropTarget(pos, label, valid)
+{
+    const size = getEndZoneSize();
+    if (valid)
+    {
+        drawRect(pos, size.add(vec2(.16, .16)), hsl(.33, .8, .7));  // bright border
+        drawRect(pos, size, hsl(.33, .7, .4));                      // steady green
+        drawText(label, pos, 0.9, hsl(0, 0, 1));
+    }
+    else
+    {
+        drawRect(pos, size, hsl(0, 0, .25, .6));                    // dimmed, disabled
+        // X it out so it's clear the selected tile can't go here.
+        const c = hsl(0, .6, .55, .9);
+        const dx = size.x/2*.6, dy = size.y/2*.6;
+        drawLine(pos.add(vec2(-dx, -dy)), pos.add(vec2(dx,  dy)), .12, c);
+        drawLine(pos.add(vec2(-dx,  dy)), pos.add(vec2(dx, -dy)), .12, c);
+    }
 }
 
 // Human hand: a row pinned near the camera bottom, in world space.
@@ -795,7 +819,8 @@ function updatePlayerInput()
         }
     }
 
-    // 2) With a tile selected, click an end zone to place.
+    // 2) With a tile selected, click an end zone to place. Clicking an end the
+    // tile can't go on (the X'd-out target) does nothing — no auto-redirect.
     if (!selectedTileId) return;
     const moves = legalMovesFor(PLAYER_HUMAN).filter(m => m.tile === selectedTileId);
     const clickedL = isOverlapping(mousePos, vec2(0.1), leftZonePos, getEndZoneSize());
@@ -803,8 +828,6 @@ function updatePlayerInput()
     let chosen = null;
     if (clickedL) chosen = moves.find(m => m.end === 'L');
     else if (clickedR) chosen = moves.find(m => m.end === 'R');
-    // If the tile only fits one end, allow either zone to place it there.
-    if (!chosen && (clickedL || clickedR) && moves.length === 1) chosen = moves[0];
     if (chosen)
     {
         placeTileLive(PLAYER_HUMAN, chosen);
