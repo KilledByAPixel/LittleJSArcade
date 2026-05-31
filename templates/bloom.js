@@ -48,6 +48,8 @@
 //   getBloomParams()         returns a copy of the current params
 //   setBloomEnabled(b)       toggle the effect on/off (resources are kept)
 //   isBloomEnabled()         -> boolean
+//   bloomTweaks(label?)      add a Bloom section to the tweakables panel (~);
+//                            no-op if tweakables.js isn't loaded
 // ============================================================================
 
 const _bloom =
@@ -91,6 +93,23 @@ function getBloomParams()
 
 function setBloomEnabled(b) { _bloom.enabled = !!b; }
 function isBloomEnabled()   { return _bloom.enabled; }
+
+// Register the bloom params as a section in the tweakables panel (templates/
+// tweakables.js — press ~ to open). No-op if tweakables isn't loaded. Call once
+// in gameInit (after bloomInit). The tweaks point straight at the live _bloom
+// params object, so dragging a slider applies instantly and persists per-game
+// under '<GameName>.tweaks'.
+function bloomTweaks(label = 'Bloom')
+{
+    if (typeof tweak !== 'function') return; // tweakables.js not loaded
+    if (typeof tweakDivider === 'function') tweakDivider(label);
+    tweak('_bloom.intensity',  {min:0, max:10});
+    tweak('_bloom.threshold',  {min:0, max:1});
+    tweak('_bloom.iterations', {min:0, max:16, step:1});
+    tweak('_bloom.downsample', {min:1, max:8,  step:1});
+    tweak('_bloom.vignette',   {min:0, max:2});
+    tweak('_bloom.includeOverlay');
+}
 
 function _bloomBuild()
 {
