@@ -18,6 +18,11 @@ gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
 cameraScale = 42;
 
+// Persistent camera offset for the current layout. gameUpdate resets cameraPos
+// to this every frame (so the gameFx screen-shake plugin can nudge from a clean
+// base), and applyCanvasSize sets it per game-mode/orientation.
+let cameraBase = vec2(0, 0);
+
 ///////////////////////////////////////////////////////////////////////////////
 // CONSTANTS
 
@@ -36,6 +41,10 @@ const LOCK_DELAY = .25; // time before piece locks after touching ground
 const MOVE_DAS = .14;
 const MOVE_ARR = .045;
 const NEXT_COUNT = 4;
+
+// Single-player portrait: shift the whole layout left so the left-side
+// NEXT / HOLD / score panel fits on the narrow canvas. Nudge this to taste.
+const PORTRAIT_SHIFT_X = -3.0;
 
 // Line clear "chain" animation
 const CLEAR_STEP_TIME = .03;
@@ -1218,8 +1227,9 @@ function drawPlayer(p)
         drawPiece(p, p.cur.type, p.cur.rot, p.cur.pos, p.gameOver ? 0.7 : 1, false);
     }
 
-    // name
-    drawText(p.name, vec2(p.boardCenterX, p.boardPos.y + BOARD_SIZE.y + 1.4), 1.2, WHITE, .25, BLACK);
+    // name — only needed to distinguish boards in two-player modes
+    if (gameMode !== 'single')
+        drawText(p.name, vec2(p.boardCenterX, p.boardPos.y + BOARD_SIZE.y + 1.4), 1.2, WHITE, .25, BLACK);
 
     // UI
     const u = p.uiPos;
@@ -1378,13 +1388,14 @@ function applyCanvasSize()
     if (singlePortrait)
     {
         setCanvasFixedSize(vec2(720, 1080));
-        cameraPos = vec2(-2, -2);
+        cameraBase = vec2(PORTRAIT_SHIFT_X, 0);
     }
     else
     {
         setCanvasFixedSize(vec2(1440, 1080));
-        cameraPos = vec2(0, 0);
+        cameraBase = vec2(0, 0);
     }
+    cameraPos = cameraBase.copy();
 }
 
 function spawnMenuBackground()
@@ -1490,7 +1501,16 @@ function buildMenus()
         ],
     });
 
-    installDefaultToolbar();
+    installDefaultToolbar({
+        // Gray the hamburger on the (non-dismissable) title screen — the default
+        // behavior — and also once the round is over, when there's nothing to pause.
+        grayedWhen: () =>
+        {
+            const top = (typeof getTopMenu === 'function') ? getTopMenu() : null;
+            if (top && top.id === 'title') return true;
+            return isGameFinished();
+        },
+    });
 
     // Show the title menu immediately — no click-to-reveal step.
     showMenu('title');
@@ -1520,6 +1540,16 @@ function doRestart()
     pieceSeed = randInt(2147483647);
     resetPlayer(players[0]);
     if (gameMode === 'vs' || gameMode === 'aivs') resetPlayer(players[1]);
+    // Players are alive again — un-gray the hamburger.
+    if (typeof refreshDefaultToolbar === 'function') refreshDefaultToolbar();
+}
+
+// True once a player has been KO'd and the round is decided — at that point
+// pause / the hamburger are meaningless, so the toolbar grays out.
+function isGameFinished()
+{
+    if (gameState !== 'playing' || !players.length) return false;
+    return !!(players[0]?.gameOver || players[1]?.gameOver);
 }
 
 function updateMenuBackground(dt)
@@ -1644,9 +1674,10 @@ function startGame(mode)
 
 function gameUpdate()
 {
-    // Reset cameraPos to origin each frame so the gameFx screen-shake plugin
-    // (between gameUpdate and gameUpdatePost) can nudge cleanly without drift.
-    cameraPos = vec2(0, 0);
+    // Reset cameraPos to the layout's base offset each frame so the gameFx
+    // screen-shake plugin (between gameUpdate and gameUpdatePost) can nudge
+    // cleanly without drift, while the portrait layout shift is preserved.
+    cameraPos = cameraBase.copy();
 
     if (gameState === 'menu')
     {
@@ -1754,13 +1785,6 @@ function gameRender()
     }
 
     renderParticles();
-
-    // bottom help (skip on portrait/single-board layouts where space is tight)
-    if (!isTouchDevice && !isPortrait())
-    {
-        const helpText = 'Arrows/A-D move, Up/X rotate,\nZ CCW, Space drop, C/Shift hold, R restart, ESC pause';
-        drawText(helpText, vec2(0,-11.5), .6, hsl(0,0,.7), .12, BLACK);
-    }
 
     // The gameOver menu (DOM) now owns the win/lose banner.
 }
