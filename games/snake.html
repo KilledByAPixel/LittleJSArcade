@@ -585,12 +585,15 @@ function gameRender()
         const hcol = (!alive && flash) ? hsl(0,1,.62) : hsl(.34, .72, .60);
         drawCircle(hp, bodyW + headSwell, hcol);
 
+        const forward = vec2(dir.x, dir.y);
+        const side    = vec2(-dir.y, dir.x);     // perpendicular to forward
+        const eyeFwd  = .15;                      // toward leading edge of head
+        const eyeSep  = .20;                      // separation between eyes
+        const eyeA = hp.add(forward.scale(eyeFwd)).add(side.scale( eyeSep));
+        const eyeB = hp.add(forward.scale(eyeFwd)).add(side.scale(-eyeSep));
+
         if (alive)
         {
-            const forward   = vec2(dir.x, dir.y);
-            const side      = vec2(-dir.y, dir.x);   // perpendicular to forward
-            const eyeFwd    = .15;                    // toward leading edge of head
-            const eyeSep    = .20;                    // separation between eyes
             const eyeD      = .30;                    // eye diameter (white sclera)
             const pupilD    = .15;                    // pupil diameter
             const pupilLean = forward.scale(.05);     // pupils peek slightly forward
@@ -602,12 +605,20 @@ function gameRender()
                 drawLine(base, base.add(forward.scale(.30)), .07, hsl(.98,.85,.6));
             }
 
-            const eyeA = hp.add(forward.scale(eyeFwd)).add(side.scale( eyeSep));
-            const eyeB = hp.add(forward.scale(eyeFwd)).add(side.scale(-eyeSep));
             drawCircle(eyeA, eyeD, hsl(0,0,1));
             drawCircle(eyeB, eyeD, hsl(0,0,1));
             drawCircle(eyeA.add(pupilLean), pupilD, hsl(0,0,.05));
             drawCircle(eyeB.add(pupilLean), pupilD, hsl(0,0,.05));
+        }
+        else
+        {
+            // dead: X's where the eyes were — classic "expired" look
+            const r = .15, w = .07, xcol = hsl(0,0,.05);
+            for (const c of [eyeA, eyeB])
+            {
+                drawLine(c.add(vec2(-r,-r)), c.add(vec2( r, r)), w, xcol);
+                drawLine(c.add(vec2(-r, r)), c.add(vec2( r,-r)), w, xcol);
+            }
         }
     }
 
