@@ -139,6 +139,36 @@ const dominoGame = {
             currentPlayer: 1 - player,
         };
     },
+
+    isTerminal(state)
+    {
+        const b = state.board;
+        if (b.hands[0].length === 0 || b.hands[1].length === 0) return true;
+        // Locked if neither player has any legal move.
+        const p0 = this.getLegalMoves(state, 0).length;
+        const p1 = this.getLegalMoves(state, 1).length;
+        return p0 === 0 && p1 === 0;
+    },
+
+    evaluate(state, player)
+    {
+        const b = state.board;
+        const opp = 1 - player;
+        const BIG = 10000;
+        const myPips = pipSum(b.hands[player]);
+        const oppPips = pipSum(b.hands[opp]);
+
+        if (b.hands[player].length === 0) return BIG;   // I emptied my hand
+        if (b.hands[opp].length === 0)    return -BIG;   // opponent emptied
+
+        // If this player has no moves, score by pip count (lower wins).
+        const myMoves = this.getLegalMoves(state, player).length;
+        if (myMoves === 0)
+            return Math.sign(oppPips - myPips) * BIG;   // 0 on a tie (draw)
+
+        // Non-terminal heuristic: fewer pips is better, plus a small mobility term.
+        return (oppPips - myPips) + myMoves * 0.5;
+    },
 };
 
 // (pimc, live game, rendering, menus appended in later tasks)
@@ -232,11 +262,46 @@ function runDominoTests()
     check(openedAfter.board.leftEnd === 3 && openedAfter.board.rightEnd === 4,
         'opening move sets left and right ends from the tile');
 
+    // --- adapter: isTerminal ---
+    const empty = {board:{chain:[{a:1,b:1}], leftEnd:1, rightEnd:1,
+        hands:[[], [{a:2,b:3}]], passes:0}, currentPlayer:1};
+    check(dominoGame.isTerminal(empty), 'empty hand is terminal');
+
+    const locked = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:0,b:1}], [{a:2,b:3}]], passes:0}, currentPlayer:0};
+    check(dominoGame.isTerminal(locked), 'locked board (no moves either side) is terminal');
+
+    const live = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:6,b:1}], [{a:2,b:3}]], passes:0}, currentPlayer:0};
+    check(!dominoGame.isTerminal(live), 'board with a legal move is not terminal');
+
+    // --- adapter: evaluate ---
+    check(dominoGame.evaluate(empty, 0) > 5000, 'win for player 0 scores big positive');
+    check(dominoGame.evaluate(empty, 1) < -5000, 'opponent emptied -> big negative for player 1');
+    // non-terminal: fewer pips in my hand than opponent -> positive
+    const lead = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:0,b:1}], [{a:5,b:6},{a:4,b:4}]], passes:0}, currentPlayer:0};
+    check(dominoGame.evaluate(lead, 0) > 0, 'fewer pips than opponent evaluates positive');
+    check(dominoGame.evaluate(lead, 1) < 0, 'more pips than opponent evaluates negative');
+    // locked board: lower pip count wins
+    const lockedWinForP0 = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
+        hands:[[{a:0,b:1}], [{a:5,b:6}]], passes:0}, currentPlayer:0};
+    check(dominoGame.evaluate(lockedWinForP0, 0) > 5000, 'locked + lower pips = big positive');
+
     console.log(testFails === 0 ? '=== ALL PASS ===' : '=== ' + testFails + ' FAILED ===');
 }
 
+async function gameInit()
+{
+    if (location.search.includes('test')) { runDominoTests(); return; }
+    // (full menu/game setup added in Task 7)
+}
+function gameUpdate() {}
+function gameUpdatePost() {}
+function gameRender() {}
+function gameRenderPost() {}
+
 ///////////////////////////////////////////////////////////////////////////////
-// TEMP test runner — replaced by engineInit + ?test gate in Task 3.
-if (location.search.includes('test')) runDominoTests();
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
 </script>
 </body></html>
