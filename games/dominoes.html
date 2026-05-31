@@ -699,9 +699,174 @@ async function runAsyncDominoTests()
 async function gameInit()
 {
     if (location.search.includes('test')) { runDominoTests(); runAsyncDominoTests(); return; }
-    // (full menu/game setup added in Task 7)
+
+    saveDataInit('Dominoes');
+    canvasClearColor = new Color().setHex('#1b3326');
+    setSoundVolume(.8);
+    setMenuVisibilityCallback(v => paused = v);
+
+    sfxPlace = new SoundGenerator({frequency: 200, release: 0.08, volume: 0.4});
+    sfxPass  = new SoundGenerator({frequency: 120, release: 0.12, slide: -0.3, volume: 0.4});
+    sfxWin   = new SoundGenerator({frequency: 660, release: 0.3, pitchJump: 220, pitchJumpTime: 0.1, volume: 0.6});
+    sfxLose  = new SoundGenerator({frequency: 220, release: 0.35, slide: -0.5, volume: 0.5});
+
+    createTitleMenu({
+        title: 'DOMINOES',
+        subtitle: 'Block · vs AI',
+        onPlay: () => { newGame(); setPlaying(true); },
+        canReveal: () => !isPlaying(),
+        revealOnClick: false,
+        items: [
+            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
+            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createOptionsMenu({
+        persistKey: 'volume',
+        extraItems: [
+            {type:'separator'},
+            {type:'checkbox', id:'shake', label:'SCREEN SHAKE', value:true,
+                persist:'shake', onChange: v => setScreenShakeEnabled(v)},
+        ],
+    });
+
+    createMenu({
+        id: 'about', title: 'ABOUT', onHide: popMenu,
+        items: [
+            {type:'text', text:'Block Dominoes. Match a pip on one of your tiles ' +
+                'to an open end of the line. Empty your hand to win; if the board ' +
+                'locks, the lower pip count wins. The AI plays fairly using Monte ' +
+                'Carlo determinization — it never sees your tiles.'},
+            {type:'separator'},
+            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+        ],
+    });
+
+    createMenu({
+        id: 'pause', title: 'PAUSED', initialItemId: 'resume',
+        items: [
+            {type:'button', id:'resume', label:'RESUME', onClick: () => hideMenu('pause')},
+            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
+            {type:'button', label:'QUIT TO TITLE', onClick: () =>
+                showConfirmDialog({message:'Quit to title?', onYes: () =>
+                    { phase = 'title'; quitToTitle(); }})},
+        ],
+    });
+
+    installDefaultToolbar();
+
+    newGame();                 // build a backdrop world for the title screen
+    phase = 'title';
+    setPlaying(false);
+    showMenu('title');
 }
-function gameUpdate() {}
+
+function gameUpdate()
+{
+    if (bindPauseKey({when: () => isPlaying() && phase !== 'roundOver'})) return;
+    if (!isPlaying()) return;
+
+    if (phase === 'playerTurn') updatePlayerInput();
+    else if (phase === 'aiThinking') updateAI();
+    else if (phase === 'roundOver') updateRoundOver();
+}
+
+function updatePlayerInput()
+{
+    // Auto-pass if the human has no legal move.
+    if (legalMovesFor(PLAYER_HUMAN).length === 0)
+    {
+        sfxPass && sfxPass.play();
+        passes++;
+        if (passes >= 2) { endRound(); return; }
+        currentPlayer = PLAYER_AI; phase = 'aiThinking'; aiTimer = 0;
+        return;
+    }
+
+    if (!mouseWasPressed(0)) return;
+
+    // 1) Click a hand tile to select (only if it has a legal placement).
+    const legalIds = new Set(legalMovesFor(PLAYER_HUMAN).map(m => m.tile));
+    for (const ht of handTilePositions)
+    {
+        if (isOverlapping(mousePos, vec2(0.1), ht.pos, vec2(TILE_SHORT, TILE_LONG)))
+        {
+            if (legalIds.has(ht.id)) selectedTileId = ht.id;
+            return;
+        }
+    }
+
+    // 2) With a tile selected, click an end zone to place.
+    if (!selectedTileId) return;
+    const moves = legalMovesFor(PLAYER_HUMAN).filter(m => m.tile === selectedTileId);
+    const clickedL = isOverlapping(mousePos, vec2(0.1), leftZonePos, getEndZoneSize());
+    const clickedR = isOverlapping(mousePos, vec2(0.1), rightZonePos, getEndZoneSize());
+    let chosen = null;
+    if (clickedL) chosen = moves.find(m => m.end === 'L');
+    else if (clickedR) chosen = moves.find(m => m.end === 'R');
+    // If the tile only fits one end, allow either zone to place it there.
+    if (!chosen && (clickedL || clickedR) && moves.length === 1) chosen = moves[0];
+    if (chosen)
+    {
+        placeTileLive(PLAYER_HUMAN, chosen);
+        sfxPlace && sfxPlace.play();
+        if (isScreenShakeEnabled && isScreenShakeEnabled()) addScreenShake(0.15, 0.15);
+        selectedTileId = null;
+        advanceTurn();
+    }
+}
+
+function updateAI()
+{
+    if (aiSearching) return;
+    aiTimer += timeDelta;
+    if (aiTimer < AI_THINK_DELAY) return;
+    aiSearching = true;
+    const observed = {
+        aiHand: hands[PLAYER_AI].map(t => ({a:t.a, b:t.b})),
+        chain: chain.map(t => ({a:t.a, b:t.b})),
+        leftEnd, rightEnd,
+        oppCount: hands[PLAYER_HUMAN].length,
+        passes,
+    };
+    chooseAIMove(observed).then(move => {
+        aiSearching = false;
+        if (!move)
+        {
+            sfxPass && sfxPass.play();
+            passes++;
+            if (passes >= 2) { endRound(); return; }
+            currentPlayer = PLAYER_HUMAN; phase = 'playerTurn';
+            return;
+        }
+        placeTileLive(PLAYER_AI, move);
+        sfxPlace && sfxPlace.play();
+        if (isScreenShakeEnabled && isScreenShakeEnabled()) addScreenShake(0.15, 0.15);
+        advanceTurn();
+    });
+}
+
+function updateRoundOver()
+{
+    if (roundDialogShown) return;
+    roundDialogShown = true;
+    const won = roundResult.winner === PLAYER_HUMAN;
+    const draw = roundResult.winner === null;
+    const snd = won ? sfxWin : sfxLose;
+    snd && snd.play();
+    showGameOverDialog({
+        won,
+        customMessage: draw ? 'DRAW' : undefined,
+        submitBest: false,
+        extraLines: [
+            'Your pips: ' + roundResult.humanPips,
+            'AI pips: ' + roundResult.aiPips,
+        ],
+        onContinue: () => { roundDialogShown = false; phase = 'title'; quitToTitle(); },
+    });
+}
+
 function gameUpdatePost() {}
 function gameRender()
 {
@@ -714,6 +879,7 @@ function gameRender()
     drawAIHand();
 }
 function gameRenderPost() {}
+
 
 ///////////////////////////////////////////////////////////////////////////////
 engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
