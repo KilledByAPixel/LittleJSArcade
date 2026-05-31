@@ -1,0 +1,104 @@
+<!DOCTYPE html><head>
+<title>LittleJS Dominoes</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head><body style="background:#000">
+<script src="../dist/littlejs.js?1780166867565"></script>
+<script src="../templates/menus.js?1780166867565"></script>
+<script src="../templates/gameFx.js?1780166867565"></script>
+<script src="../templates/gameAI.js?1780166867565"></script>
+<script>
+'use strict';
+
+// engine settings, do not remove
+debugWatermark = false;
+showEngineVersion = false;
+paused = false;
+
+gravity = vec2(0, 0);
+cameraPos = vec2(0, 0);
+cameraScale = 32;
+canvasMaxSize = vec2(2048, 2048);
+
+///////////////////////////////////////////////////////////////////////////////
+// MODEL — tiles are canonical {a,b} with a <= b. Tile id is "a-b".
+
+const PIPS_MAX = 6;          // double-six set
+const HAND_SIZE = 7;
+const PLAYER_HUMAN = 0;
+const PLAYER_AI = 1;
+
+function makeFullSet()
+{
+    const set = [];
+    for (let a = 0; a <= PIPS_MAX; a++)
+        for (let b = a; b <= PIPS_MAX; b++)
+            set.push({a, b});
+    return set;
+}
+
+function tileId(t) { return t.a + '-' + t.b; }
+
+function pipSum(hand) { return hand.reduce((s, t) => s + t.a + t.b, 0); }
+
+// Highest double a hand holds, or null. Returns the tile object.
+function highestDoubleInHand(hand)
+{
+    let best = null;
+    for (const t of hand)
+        if (t.a === t.b && (!best || t.a > best.a))
+            best = t;
+    return best;
+}
+
+// Highest tile by pip total (tiebreak: higher single pip), for the
+// no-doubles-dealt fallback opener.
+function highestTileInHand(hand)
+{
+    let best = null;
+    for (const t of hand)
+        if (!best || (t.a + t.b) > (best.a + best.b) ||
+            ((t.a + t.b) === (best.a + best.b) && Math.max(t.a, t.b) > Math.max(best.a, best.b)))
+            best = t;
+    return best;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// (adapter, pimc, live game, rendering, menus appended in later tasks)
+
+///////////////////////////////////////////////////////////////////////////////
+// TESTS — gated behind ?test. Appended to across tasks.
+
+let testFails = 0;
+function check(cond, msg)
+{
+    if (!cond) { testFails++; console.error('FAIL: ' + msg); }
+    else console.log('pass: ' + msg);
+}
+
+function runDominoTests()
+{
+    testFails = 0;
+    console.log('--- domino tests ---');
+
+    // Model
+    const set = makeFullSet();
+    check(set.length === 28, 'full set has 28 tiles');
+    check(set.every(t => t.a <= t.b), 'all tiles canonical a<=b');
+    check(tileId({a:3, b:5}) === '3-5', 'tileId formats a-b');
+    check(pipSum([{a:3,b:5},{a:0,b:0},{a:6,b:6}]) === 20, 'pipSum adds all pips');
+    check(tileId(highestDoubleInHand([{a:2,b:2},{a:5,b:5},{a:0,b:1}])) === '5-5',
+        'highestDoubleInHand picks 5-5');
+    check(highestDoubleInHand([{a:0,b:1},{a:2,b:3}]) === null,
+        'highestDoubleInHand returns null when no doubles');
+    check(tileId(highestTileInHand([{a:6,b:5},{a:6,b:6},{a:0,b:1}])) === '6-6',
+        'highestTileInHand picks highest pip total');
+
+    console.log(testFails === 0 ? '=== ALL PASS ===' : '=== ' + testFails + ' FAILED ===');
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// TEMP test runner — replaced by engineInit + ?test gate in Task 3.
+if (location.search.includes('test')) runDominoTests();
+</script>
+</body></html>
