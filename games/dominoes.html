@@ -392,7 +392,7 @@ function endRound()
 
 const TILE_LONG = 2.0;       // long dimension of a domino (two squares)
 const TILE_SHORT = 1.0;      // short dimension
-const PIP_R = 0.12;          // visible pip radius
+const PIP_R = 0.09;          // visible pip radius
 
 // name -> TileInfo map from initDefaultAtlas(), built in gameInit.
 let icons;
@@ -407,7 +407,7 @@ const ICON_CIRCLE_FILL = 1.15;
 // keyed by pip count 0-6. Each entry is an array of vec2 offsets.
 function pipOffsets(n)
 {
-    const C = 0, L = -0.22, R = 0.22, U = 0.22, D = -0.22;
+    const C = 0, R = 0.22, U = 0.24, L = -R, D = -U;
     const map = {
         0: [],
         1: [[C,C]],
