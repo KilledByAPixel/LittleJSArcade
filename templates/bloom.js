@@ -56,8 +56,8 @@ const _bloom =
     ready:   false,
     // params (see header)
     downsample:     2,
-    iterations:     3,
-    threshold:      0.2,
+    iterations:     4,
+    threshold:      0.15,
     intensity:      4,
     vignette:       1,
     includeOverlay: false,  // false = upload WebGL scene directly (cheap, HUD crisp on top)
