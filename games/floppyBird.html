@@ -4,6 +4,7 @@
 </head><body style="background:#000">
 <script src="../dist/littlejs.js?1780249710731"></script>
 <script src="../templates/gameFx.js?1780249710731"></script>
+<script src="../templates/textureGenerator.js?1780249710731"></script>
 <script src="../templates/menus.js?1780249710731"></script>
 <script>
 'use strict';
@@ -12,6 +13,7 @@
 debugWatermark = false; // Hide debug watermark in corner
 showEngineVersion = false; // Hide engine version console display
 paused = false; // Start unpaused
+tilesPixelated = false; // smooth sampling for the round atlas icons
 
 // engine settings, customize if necessary
 gravity = vec2(0, 0); // we handle gravity manually for tight control
@@ -91,6 +93,14 @@ const birdOutline  = hsl(.09,.70,.10);
 const birdHighlight= hsl(.14,.55,.95,.30);
 const birdWing     = hsl(.1,.8,.45);
 const birdWingDk   = hsl(.1,.85,.25,.22);
+
+// default-atlas icons (baked in gameInit). Every sprite below is a tinted
+// instance of one of these 16 white icons instead of a raw primitive.
+let atlasIcons;
+// the baked icons leave 1.15x headroom inside each tile (so the soft glow
+// fits); multiply sizes by this to make an icon fill the footprint a raw
+// primitive of the same dimension used to cover.
+const ICON_FILL = 1.15;
 
 // game state
 const STATE_READY = 0;
@@ -173,7 +183,7 @@ function killBird()
         .1,                 // emitTime (short one-shot burst)
         180,                // emitRate (~18 particles over the burst)
         PI,                 // emitConeAngle (full circle)
-        undefined,          // tileInfo (untextured)
+        atlasIcons.spark,   // tileInfo (atlas spark = feather sparkle)
         hsl(.12,.95,.70),   // colorStartA
         hsl(.04,.90,.55),   // colorStartB
         hsl(.12,.95,.70,0), // colorEndA (fade to clear)
@@ -285,8 +295,8 @@ function initScenery()
     // parallax grass tufts (two layers)
     grassLayers = [
         // sit right on the ground surface so it lines up with the dirt lip
-        buildGrassLayer({ wrap: 70, parallax: 1.0, y: groundY + .10, colorA: grassFarA,  colorB: grassFarB,  count: 95,  minH: .22, maxH: .55 }),
-        buildGrassLayer({ wrap: 55, parallax: 1.0, y: groundY + .16, colorA: grassNearA, colorB: grassNearB, count: 110, minH: .26, maxH: .72 }),
+        buildGrassLayer({ wrap: 70, parallax: 1.0, y: groundY + .10, colorA: grassFarA,  colorB: grassFarB,  count: 95,  minH: .22, maxH: 1.55 }),
+        buildGrassLayer({ wrap: 55, parallax: 1.0, y: groundY + .16, colorA: grassNearA, colorB: grassNearB, count: 110, minH: .26, maxH: 1.72 }),
     ];
 }
 
@@ -365,8 +375,6 @@ function drawMountainField(F)
         // skip copies that fall entirely outside the view
         if (shift + F.wrap/2 < vMin || shift - F.wrap/2 > vMax) continue;
 
-        const layerOffset = vec2(shift, 0);
-
         // fill the base so there are no gaps between separate mountains
         const baseH = F.bottomY - floorY;
         if (baseH > 0)
@@ -378,8 +386,12 @@ function drawMountainField(F)
             const wx = m.cx + shift;
             if (wx + m.w/2 < vMin || wx - m.w/2 > vMax) continue;
 
-            // each mountain is ONE separate drawPoly
-            drawPoly(m.pts, F.colorA, 0, undefined, layerOffset);
+            // each mountain is one upward triangle icon; base sits at bottomY,
+            // apex at the precomputed peak. Widen a touch so neighbours overlap
+            // and the base fill behind hides any seams.
+            const triH = m.peak.y - F.bottomY;
+            drawTile(vec2(wx, F.bottomY ), vec2(m.w*1.25, triH*ICON_FILL),
+                atlasIcons.triangle, F.colorA);
         }
     }
 }
@@ -412,11 +424,11 @@ function drawCloud(pos, r)
 {
     // soft blue-grey shadow, offset down, sits behind the white body
     for (const [o, s] of cloudPuffs)
-        drawCircle(pos.add(o.scale(r)).add(vec2(0, -.22*r)), s*r*2, cloudShade);
+        drawTile(pos.add(o.scale(r)).add(vec2(0, -.22*r)), vec2(s*r*2*ICON_FILL), atlasIcons.circle, cloudShade);
 
     // fluffy white body
     for (const [o, s] of cloudPuffs)
-        drawCircle(pos.add(o.scale(r)), s*r*2, cloudMain);
+        drawTile(pos.add(o.scale(r)), vec2(s*r*2*ICON_FILL), atlasIcons.circle, cloudMain);
 }
 
 function buildGrassLayer(o)
@@ -441,16 +453,11 @@ function drawGrass()
             {
                 const x = t.x + off + k*L.wrap;
                 if (x < vMin || x > vMax) continue; // cull offscreen tufts
-                const base = vec2(x, L.y);
-
-                // sway a little
-                const sway = Math.sin(time*1.6 + t.ph + x*.25) * (L.parallax>.4 ? .18 : .10);
-                const tip = base.add(vec2(sway, t.h));
-
-                // 3 blades
-                drawLine(base, tip, t.w, t.c);
-                drawLine(base.add(vec2(.10,0)), tip.add(vec2(.12,0)), t.w*.9, t.c);
-                drawLine(base.add(vec2(-.10,0)), tip.add(vec2(-.12,0)), t.w*.9, t.c);
+                // a single upward triangle blade, swayed by a small tilt angle
+                const sway = Math.sin(time*1.6 + t.ph + x*.25) * .18;
+                const bladeW = t.w*2.6 + .12;
+                drawTile(vec2(x, L.y), vec2(bladeW, t.h*ICON_FILL),
+                    atlasIcons.triangle, t.c, sway);
             }
         }
     }
@@ -461,9 +468,10 @@ function drawScenery()
     // sun position (world space)
     const sunPos = vec2(11.5, 6.8);
 
-    // solid sun (no translucent glow/rays)
-    drawCircle(sunPos, 2.85, sunRim);
-    drawCircle(sunPos, 2.55, sunCore);
+    // soft glow halo + two stacked circle icons for a shaded sun
+    drawTile(sunPos, vec2(9), atlasIcons.glow, hsl(.12,.85,.62,.5));
+    drawTile(sunPos, vec2(2.85*ICON_FILL), atlasIcons.circle, sunRim);
+    drawTile(sunPos, vec2(2.55*ICON_FILL), atlasIcons.circle, sunCore);
 
     // clouds (behind mountains, cull offscreen copies)
     {
@@ -542,6 +550,9 @@ async function gameInit()
     // fixed resolution for consistent feel
     setCanvasFixedSize(vec2(900, 540));
     cameraScale = 32;
+
+    // bake the 16 built-in white icons into the atlas; we tint them per-instance
+    atlasIcons = initDefaultAtlas();
 
     runSelfTests();
 
@@ -769,18 +780,18 @@ function gameRender()
         const forward = rotateVec(vec2(1,0), tilt);
         const up = rotateVec(vec2(0,1), tilt);
 
-        // simple shaded body (outline + highlight)
-        drawCircle(birdPos, (birdRadius*2)+.10, birdOutline);
-        drawCircle(birdPos, birdRadius*2, birdBase);
+        // simple shaded body (outline + fill) — stacked circle icons
+        drawTile(birdPos, vec2(((birdRadius*2)+.10)*ICON_FILL), atlasIcons.circle, birdOutline);
+        drawTile(birdPos, vec2(birdRadius*2*ICON_FILL), atlasIcons.circle, birdBase);
 
-        // highlight (small glossy spot up/front)
+        // highlight (soft glossy spot up/front) — glow icon
         {
             const hiR = birdRadius*.46;
             const hiOffset = scaleVec(forward, .16).add(scaleVec(up, .18));
-            drawCircle(birdPos.add(hiOffset), hiR*2, birdHighlight);
+            drawTile(birdPos.add(hiOffset), vec2(hiR*2*1.6), atlasIcons.glow, birdHighlight);
         }
 
-        // eye (in local space)
+        // eye (in local space) — white circle + black pupil circle
         {
             const eyeWhiteR = .22;
             const pupilR = .10;
@@ -791,29 +802,29 @@ function gameRender()
             const eyePos = birdPos.add(scaleVec(forward, eyeLocal.x)).add(scaleVec(up, eyeLocal.y));
             const pupilPos = birdPos.add(scaleVec(forward, pupilLocal.x)).add(scaleVec(up, pupilLocal.y));
 
-            drawCircle(eyePos, eyeWhiteR*2, hsl(.0,.0,1));
-            drawCircle(pupilPos, pupilR*2, hsl(.0,.0,0));
+            drawTile(eyePos, vec2(eyeWhiteR*2*ICON_FILL), atlasIcons.circle, hsl(.0,.0,1));
+            drawTile(pupilPos, vec2(pupilR*2*ICON_FILL), atlasIcons.circle, hsl(.0,.0,0));
         }
 
-        // wing (rotated with body tilt)
+        // wing (droplet swept back behind the body, flapping)
         const wingLocal = vec2(-.1, -0.05 + Math.sin(time*18)*.06);
         const wingPos = birdPos.add(rotateVec(wingLocal, tilt));
-        drawRect(wingPos.add(scaleVec(up, -.05)), vec2(.55,.3), birdWingDk, tilt);
-        drawRect(wingPos, vec2(.55,.3), birdWing, tilt);
+        const wingAngle = tilt - PI/2; // point the droplet tip backward (-x local)
+        drawTile(wingPos, vec2(.5,.7), atlasIcons.droplet, birdWing, wingAngle);
 
-        // beak (true local-space attachment to the head)
-        const beakSize = vec2(.48, .20);
-        const beakOverlap = .08;
+        // beak (triangle pointing forward, attached to the head)
+        const beakSize = vec2(.5, .60);
+        const beakOverlap = .1;
 
         const beakBase = birdPos
             .add(scaleVec(forward, birdRadius*.98))
             .add(scaleVec(up, -.04));
 
         const beakCenter = beakBase.add(scaleVec(forward, beakSize.x/2 - beakOverlap));
-        drawRect(beakCenter, beakSize, hsl(.12,.9,.55), tilt);
-
-        const mouthCenter = beakCenter.add(scaleVec(up, -beakSize.y*.15));
-        drawRect(mouthCenter, vec2(beakSize.x*.85, .035), hsl(.08,.8,.35), tilt);
+        // triangle icon points up by default; +PI/2 turns it forward (+x), then tilt.
+        // size is pre-rotation so x<->y swap: width along beak length comes from .y.
+        drawTile(beakCenter, vec2(beakSize.y, beakSize.x*ICON_FILL), atlasIcons.triangle,
+            hsl(.12,.9,.55), tilt + PI/2);
     }
 }
 
