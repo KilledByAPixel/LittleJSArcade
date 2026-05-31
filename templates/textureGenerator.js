@@ -384,7 +384,7 @@ const _defaultIconDrawers = (() =>
 
     function roundSquare(ctx, x, y, r)
     {
-        const s = r * .86;
+        const s = r * .8;
         roundRectPath(ctx, x - s, y - s, s * 2, s * 2, r * .38);
         ctx.fill();
     }
@@ -419,10 +419,10 @@ const _defaultIconDrawers = (() =>
 
     function ring(ctx, x, y, r)
     {
-        ctx.lineWidth = r * .31;
         ctx.beginPath();
-        ctx.arc(x, y, r * .83, 0, TAU);
-        ctx.stroke();
+        ctx.arc(x, y, r, 0, TAU);
+        ctx.arc(x, y, r/2, TAU, 0, true);
+        ctx.fill();
     }
 
     function glow(ctx, x, y, r)
