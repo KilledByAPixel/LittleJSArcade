@@ -1503,6 +1503,24 @@ function loadFromHash() {
     else showWelcome(false);
 }
 
+// ===================== Debug: step through every game =====================
+// Console helpers for quick QA — type nextGame() to load the next game in the
+// list (starts at the first when on the welcome screen), call again to advance
+// to the next, and so on through all of them; wraps back to the start after the
+// last. prevGame() steps backward. Each call replaces the current game's iframe,
+// so there's nothing to close manually.
+function stepGame(dir) {
+    const i = GAMES.findIndex(g => g.file === currentFile);
+    const n = i < 0 ? (dir > 0 ? 0 : GAMES.length - 1)
+                    : (i + dir + GAMES.length) % GAMES.length;
+    const g = GAMES[n];
+    selectGame(g.file);
+    console.log('[debug] ' + (n + 1) + '/' + GAMES.length + '  ' + g.name + '  (' + g.file + ')');
+    return g.name;
+}
+window.nextGame = () => stepGame(1);
+window.prevGame = () => stepGame(-1);
+
 // ===================== Wire-up =====================
 
 sidebarLogoWrap.addEventListener('click', showWelcome);
