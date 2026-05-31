@@ -834,7 +834,7 @@ async function gameInit()
     // (volume/shake) are restored separately by the menu persist: items.
     loadGame();
 
-    // ----- live-balancing tweakables (press ~ to toggle the panel) -----
+    // ----- live-balancing tweakables (press \ to toggle the panel) -----
     // Expose BALANCE on window so tweak() dotted paths resolve to the SAME
     // object the game reads each frame. (getByPath in tweakables.js resolves
     // via indirect eval, which would already see the top-level `const BALANCE`,
