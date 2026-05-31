@@ -23,8 +23,10 @@
 
   // Touch: tap one of the four screen triangles (divided by the diagonals) to
   // hop in that direction. Handled directly in handleInput — no touch gamepad.
-  touchGamepadEnable = false;
-
+  touchGamepadEnable = true;
+  touchGamepadAnalog = false;
+  touchGamepadButtonCount = 0;
+  touchGamepadFloating = true;
   // ------------------------------------------------------------
   // Frogger (primitives only)
 
@@ -365,15 +367,6 @@
     // there covers it. Reading gamepadWasPressed on the d-pad here too would
     // double-hop — once on the press frame, once on the next held frame when the
     // emulated stick crosses into the direction.)
-
-    // Touch: tap one of the four screen triangles (split by the diagonals).
-    // Top triangle hops up, bottom hops down, left/right hop sideways.
-    if (isTouchDevice && mouseWasPressed(0) && !isMenuVisible()) {
-      const dx = mousePosScreen.x - mainCanvasSize.x * .5;
-      const dy = mousePosScreen.y - mainCanvasSize.y * .5;
-      if (abs(dx) > abs(dy)) return tryMove(sign(dx), 0);
-      if (dy !== 0)          return tryMove(0, sign(-dy)); // screen-y is down-positive; world-y is up
-    }
 
     // Mouse (non-touch): click hops one step in the direction of the cursor
     // RELATIVE TO THE FROG. mousePos and frog.pos are both world-space (y-up),
