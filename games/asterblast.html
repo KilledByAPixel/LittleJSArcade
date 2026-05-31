@@ -12,6 +12,7 @@
 <body>
 <script src="../dist/littlejs.js?1780261943905"></script>
 <script src="../templates/gameFx.js?1780261943905"></script>
+<script src="../templates/textureGenerator.js?1780261943905"></script>
 <script src="../templates/bloom.js?1780261943905"></script>
 <script src="../templates/tweakables.js?1780261943905"></script>
 <script src="../templates/menus.js?1780261943905"></script>
@@ -99,6 +100,14 @@ let ufoSpawnTimer = new Timer();
 // simple star field
 let stars = [];
 
+// default-atlas icons (name -> TileInfo); circles are drawn from the atlas
+// circle tile instead of drawCircle (one batched textured quad vs a tessellated
+// polygon per call). See gameInit's initDefaultAtlas().
+let atlasIcons;
+// the atlas circle fills 1/1.15 of its tile (glow headroom), so a drawTile of
+// size = diameter*1.15 matches drawCircle(pos, diameter) exactly.
+const CIRCLE_FIT = 1.15;
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -148,7 +157,8 @@ function drawGlowLine(a, b, width, col)
 
 function drawGlowCircle(pos, diameter, col)
 {
-    drawCircle(pos, diameter, col);
+    // atlas circle tile (batched textured quad) instead of a tessellated drawCircle
+    drawTile(pos, vec2(diameter * CIRCLE_FIT), atlasIcons.circle, col);
 }
 
 function drawGlowLineList(points, width, col, wrap=false, pos=vec2(), angle=0)
@@ -793,11 +803,14 @@ function gameInit()
     setEnablePhysicsSolver(false);
     setGravity(vec2());
 
+    // Bake the default icon atlas so circles draw from the circle tile.
+    atlasIcons = initDefaultAtlas();
+
     // Multi-pass bloom post-process (templates/bloom.js). Defaults are tuned
     // for this vector look; tweak via bloomInit({...}) or bloomSetParams({...}).
     bloomInit();
 
-    // Live bloom controls — press ~ to open the tweak panel. These paths point
+    // Live bloom controls — press \ to open the tweak panel. These paths point
     // straight at the plugin's live params object, so changes apply instantly
     // (and persist per-game under 'asteroids.tweaks').
     tweakDivider('Bloom');
@@ -824,10 +837,6 @@ function gameInit()
 
     buildMenus();
     spawnAttractField();
-
-    // menus.js maps the LittleJS debug overlay to backtick, which is also the
-    // tweak-panel toggle (~). Move debug to backslash so ~ opens only the panel.
-    setDebugKey('Backslash');
 }
 
 function buildMenus()
@@ -1104,7 +1113,7 @@ function gameRender()
     for (const s of stars)
     {
         const twinkle = .55 + .45*Math.sin((time*s.tw) + s.p.x*1.7);
-        drawCircle(s.p, s.s*twinkle, rgb(1,1,1, .65*twinkle));
+        drawTile(s.p, vec2(s.s*twinkle*CIRCLE_FIT), atlasIcons.circle, rgb(1,1,1, .65*twinkle));
     }
 
     // faint border
