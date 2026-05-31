@@ -4362,11 +4362,16 @@ function gameUpdate()
 // mean of the two axes) keeps the zoom level consistent across aspect ratios
 // instead of favoring width or height.
 const HD_REFERENCE_AREA = (1920 / 40) * (1080 / 40); // 48 × 27 = 1296 wu²
+// Clamp so extreme canvas sizes don't zoom too far out (tiny sprites, too much
+// arena on phones) or too far in (huge sprites, too little arena on big monitors).
+const CAMERA_SCALE_MIN = 24; // zoomed out from the HD baseline of 40
+const CAMERA_SCALE_MAX = 56; // zoomed in from the HD baseline of 40
 function updateCameraScale()
 {
     const cs = mainCanvasSize;
     if (cs.x > 0 && cs.y > 0)
-        cameraScale = Math.sqrt(cs.x * cs.y / HD_REFERENCE_AREA);
+        cameraScale = clamp(Math.sqrt(cs.x * cs.y / HD_REFERENCE_AREA),
+            CAMERA_SCALE_MIN, CAMERA_SCALE_MAX);
 }
 function gameUpdatePost()
 {
