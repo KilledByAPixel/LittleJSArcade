@@ -5,6 +5,7 @@
 <script src="../dist/littlejs.js?1780261943905"></script>
 <script src="../templates/bloom.js?1780261943905"></script>
 <script src="../templates/gameFx.js?1780261943905"></script>
+<script src="../templates/tweakables.js?1780261943905"></script>
 <script src="../templates/menus.js?1780261943905"></script>
 <script>
 'use strict';
@@ -500,14 +501,8 @@ function drawSpike(s)
     const b = vec2(s.x + s.w,     s.y);
     const c = vec2(s.x + s.w/2,   s.y + s.h);
 
-    // glow halo
-    const ga = vec2(s.x - .2,         s.y);
-    const gb = vec2(s.x + s.w + .2,   s.y);
-    const gc = vec2(s.x + s.w/2,      s.y + s.h + .3);
-    drawPoly([ga,gb,gc], hsl(pal.haz, .9, .6, .24));
-
-    // body with crisp bright outline
-    drawPoly([a,b,c], hsl(pal.haz, .9, .62), .08, hsl(pal.haz + .02, 1, .82));
+    // body with crisp bright outline (bloom supplies the glow)
+    drawPoly([a,b,c], hsl(pal.haz, .9, .62), .08, hsl(pal.haz + .02, 1, .5));
     // highlight edge
     drawLine(c, a.lerp(b,.5), .06, hsl(0,0,1,.4));
 }
@@ -517,10 +512,7 @@ function drawBlock(b)
     const isCeil = b.style === 1;
     const hue = isCeil ? pal.haz : pal.block;
 
-    // soft outer glow so the block lifts off the dark background
-    drawRect(b.pos, b.size.add(vec2(.5)), hsl(hue, .85, .55, .18));
-
-    // bright neon rim (slightly larger than the body)
+    // bright neon rim (slightly larger than the body; bloom supplies the glow)
     drawRect(b.pos, b.size.add(vec2(.16)), hsl(hue, .95, .72));
 
     // bright body + darker inner panel for depth
@@ -568,8 +560,7 @@ function drawFloor()
     for (let gx = Math.floor(left); gx <= Math.ceil(right); ++gx)
         drawLine(vec2(gx, 0), vec2(gx, -4), .04, hsl(pal.block, .5, .35, .12));
 
-    // glowing top edge: tinted glow then a crisp white lip
-    drawRect(vec2(centerX, 0), vec2(w, .2), hsl(pal.block, .9, .6, .35));
+    // crisp white lip at the play line (bloom supplies the glow)
     drawLine(vec2(left, 0), vec2(right, 0), .08, hsl(0,0,1,.35));
 }
 
@@ -585,11 +576,7 @@ function drawPlayer()
     const sq = player.land;
     const size = vec2(PLAYER_SIZE.x * (1 + .45*sq), PLAYER_SIZE.y * (1 - .45*sq));
 
-    // soft neon glow
-    drawRect(player.pos, size.scale(1.7), hsl(.90, .85, .6, .12), player.angle);
-    drawRect(player.pos, size.scale(1.35), hsl(.90, .85, .6, .16), player.angle);
-
-    // cube body
+    // cube body (bloom supplies the glow)
     drawRect(player.pos, size, hsl(.90, .80, .60), player.angle);
     drawRect(player.pos, size.scale(.78), hsl(.90, .72, .38), player.angle);
 
@@ -611,9 +598,7 @@ function drawFinish()
 {
     const pulse = .5 + .5*Math.sin(time*4);
 
-    // glowing goal portal at the end of the level (drawn behind the floor so its base tucks under the ground)
-    for (let i=4; i>=1; --i)
-        drawRect(vec2(endX, 3.5), vec2(.45*i, 8), hsl(.33, .9, .55, .1 + .04*pulse));
+    // goal portal at the end of the level (drawn behind the floor so its base tucks under the ground)
     drawRect(vec2(endX, 3.5), vec2(.4, 8), hsl(.33, 1, .65, .82 + .12*pulse));
 
     // checker flag band near the top of the pole
@@ -812,7 +797,10 @@ function gameInit()
     cameraScale = 64;
 
     // neon glow post-process: punchy on the bright rims/spikes/player, soft sky
-    bloomInit({downsample: 2, iterations: 6, threshold: .3, intensity: 2.2, vignette: .9});
+    bloomInit({downsample: 2, iterations: 4, threshold: .3, intensity: 3, vignette: .9});
+
+    // dev tweakables (press \ to toggle): live Bloom controls (templates/bloom.js)
+    bloomTweaks();
 
     sJump = new Sound([,,126,,.05,,1,1.6,,22,,,,,,,,.78,.02,,160]); // Jump 8391
     sDie  = new Sound([1.39,,663,.02,.17,.42,1,.29,-6.4,1.1,,,.12,,,.2,,.53,.19,,-2303]); // Powerup 401
