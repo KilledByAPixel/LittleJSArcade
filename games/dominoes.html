@@ -234,14 +234,14 @@ async function chooseAIMove(observed)
     };
     if (dominoGame.getLegalMoves(realProbe, PLAYER_AI).length === 0) return null;
 
-    const votes = new Map();        // key -> {move, count, scoreSum}
+    const votes = new Map();        // moveKey -> {move, count}
     for (let i = 0; i < PIMC_SAMPLES; i++)
     {
         const world = sampleWorld(observed);
         const move = await alphaBetaAI(dominoGame, world, AI_DEPTH);
         if (!move) continue;
         const k = moveKey(move);
-        const v = votes.get(k) || {move, count: 0, scoreSum: 0};
+        const v = votes.get(k) || {move, count: 0};
         v.count++;
         votes.set(k, v);
     }
