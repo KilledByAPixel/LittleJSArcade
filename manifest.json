@@ -1,7 +1,7 @@
 {
-  "name": "LittleJS Games",
+  "name": "LittleJS Arcade",
   "short_name": "LittleJS",
-  "description": "A collection of retro arcade games rebuilt with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.",
+  "description": "A collection of classic arcade games built with the LittleJS engine. Play instantly in your browser.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
