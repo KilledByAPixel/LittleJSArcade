@@ -413,7 +413,7 @@ const _defaultIconDrawers = (() =>
     {
         ctx.beginPath();
         ctx.arc(x, y, r, 0, 9);
-        ctx.arc(x, y, r/2, 9, 0, true);
+        ctx.arc(x, y, r*.7, 9, 0, true);
         ctx.fill();
     }
 
