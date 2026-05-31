@@ -347,18 +347,15 @@
     }
   }
 
-  // Hold-to-hop cadence (like the original Frogger): the first hop fires
-  // instantly when a new direction is pressed, then the frog keeps re-hopping
-  // every HOP_REPEAT_SEC for as long as that direction stays held. Releasing or
-  // changing direction re-arms an instant hop. Tune to taste — ~.5 gives the
-  // slow, deliberate arcade pace; lower is snappier for dodging traffic.
-  const HOP_REPEAT_SEC = .22;
+  // One hop per press (arcade-style): a hop fires only on the frame the
+  // direction crosses into a NEW cardinal. Holding the key/stick does NOT
+  // auto-repeat — you must release and push again for each hop. Returning to
+  // neutral (or changing direction) re-arms the next hop.
   let lastMoveDir = vec2();
-  let hopRepeatTimer = new Timer();
 
   function handleInput() {
     // Keyboard (arrows/WASD), d-pad, analog stick, and touch all funnel through
-    // one hold-to-repeat path: keyDirection() reads arrows+WASD, and the engine
+    // one edge-triggered path: keyDirection() reads arrows+WASD, and the engine
     // merges the d-pad + touch d-pad into gamepadStick(0), so reading both and
     // picking the dominant cardinal covers every directional input.
     const kb = keyDirection();
@@ -372,12 +369,7 @@
 
     if (dir.x || dir.y) {
       const changed = dir.x !== lastMoveDir.x || dir.y !== lastMoveDir.y;
-      if (changed || hopRepeatTimer.elapsed()) {
-        tryMove(dir.x, dir.y);
-        hopRepeatTimer.set(HOP_REPEAT_SEC);
-      }
-    } else {
-      hopRepeatTimer.unset();   // back to neutral — next press hops instantly
+      if (changed) tryMove(dir.x, dir.y);
     }
     lastMoveDir = dir;
 
