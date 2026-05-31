@@ -21,6 +21,7 @@
 <script src="../dist/littlejs.js?1780261943905"></script>
 <script src="../templates/menus.js?1780261943905"></script>
 <script src="../templates/gameFx.js?1780261943905"></script>
+<script src="../templates/textureGenerator.js?1780261943905"></script>
 <script>
 'use strict';
 
@@ -97,12 +98,18 @@ let waveBannerText, waveBannerTimer;
 // Sounds
 let sfxCatch, sfxMiss, sfxFuse, sfxClear, sfxBucketUp;
 
+// Default-atlas icons (name -> TileInfo), baked in gameInit. Tinted per-instance
+// via drawTile's color arg. Names: circle, glow, ring, roundSquare, triangle,
+// diamond, pentagon, hexagon, heart, droplet, plus, arrow, spark, star, burst, bolt.
+let ICON;
+
 ///////////////////////////////////////////////////////////////////////////////
 // HELPERS
 
 // color = [h, s, l] — stored as components so we can re-emit each frame with
 // fading alpha (hsl(...) returns a Color object that doesn't keep its inputs).
-function spawnParticles(pos, count, speed, color, life=1, gravityScale=1) {
+function spawnParticles(pos, count, speed, color, life=1, gravityScale=1, opts={}) {
+    const { icon=null, additive=false, sizeMin=0.15, sizeMax=0.4, spin=4 } = opts;
     for (let i = 0; i < count; i++) {
         const a = rand(0, PI * 2);
         const s = speed * rand(0.4, 1.2);
@@ -110,7 +117,10 @@ function spawnParticles(pos, count, speed, color, life=1, gravityScale=1) {
             pos: pos.copy(),
             vel: vec2(Math.cos(a) * s, Math.sin(a) * s),
             life, maxLife: life, h: color[0], s: color[1], l: color[2], gravityScale,
-            size: rand(0.15, 0.4),
+            size: rand(sizeMin, sizeMax),
+            icon, additive,
+            angle: rand(0, PI * 2),
+            spin: rand(-spin, spin),
         });
     }
 }
@@ -192,7 +202,11 @@ function catchBomb(b) {
     const points = wave;
     score += points;
     sfxCatch?.play(undefined, 0.45, 1 + min(0.6, bombsCaught * 0.006), 0.15);
-    spawnParticles(b.pos, 5, 2.5, [.13, 1, .7], 0.4, 0.2);
+    // Green star pop on a clean catch + a couple of bright spark flecks.
+    spawnParticles(b.pos, 4, 2.5, [.33, 1, .65], 0.4, 0.2,
+        { icon: ICON.star, additive: true, sizeMin: 0.4, sizeMax: 0.7, spin: 6 });
+    spawnParticles(b.pos, 4, 3.5, [.15, 1, .8], 0.35, 0.2,
+        { icon: ICON.spark, additive: true, sizeMin: 0.2, sizeMax: 0.35, spin: 10 });
 
     // Classic Kaboom: get a bucket back every 1000 points.
     const earned = Math.floor(score / 1000);
@@ -216,17 +230,25 @@ function missBomb(missedBomb) {
     sfxMiss?.play(undefined, 0.95);
     missFreezeTimer = 0.9;
 
-    // Big ground explosion at the miss point.
+    // Big ground explosion at the miss point — fireball bursts, bright sparks,
+    // and a soft glow flash to sell the impact.
     const groundPos = vec2(missedBomb.pos.x, FLOOR_Y + 0.2);
-    spawnParticles(groundPos, 40, 9, [.04, 1, .55], 1.0, 0.3);
-    spawnParticles(groundPos, 25, 5, [.11, 1, .7], 1.2, 0.2);
-    spawnParticles(groundPos, 18, 3, [0, 0, .9], 0.7, 0.1);
+    spawnParticles(groundPos, 30, 9, [.04, 1, .55], 1.0, 0.3,
+        { icon: ICON.burst, additive: true, sizeMin: 0.5, sizeMax: 1.1, spin: 5 });
+    spawnParticles(groundPos, 22, 5, [.11, 1, .7], 1.2, 0.2,
+        { icon: ICON.spark, additive: true, sizeMin: 0.25, sizeMax: 0.5, spin: 12 });
+    spawnParticles(groundPos, 10, 2, [.06, .8, .8], 0.5, 0,
+        { icon: ICON.glow, additive: true, sizeMin: 1.2, sizeMax: 2.4, spin: 0 });
+    spawnParticles(groundPos, 14, 3, [0, 0, .25], 1.4, -0.05,
+        { icon: ICON.glow, additive: false, sizeMin: 0.8, sizeMax: 1.5, spin: 0 });
 
     // Detonate every other in-flight bomb harmlessly (classic mechanic).
     for (const b of bombs) {
         if (b !== missedBomb) {
-            spawnParticles(b.pos, 10, 4, [.05, 1, .55], 0.6, 0.3);
-            spawnParticles(b.pos, 6, 2, [.13, 1, .7], 0.5, 0.2);
+            spawnParticles(b.pos, 8, 4, [.05, 1, .55], 0.6, 0.3,
+                { icon: ICON.burst, additive: true, sizeMin: 0.3, sizeMax: 0.6, spin: 6 });
+            spawnParticles(b.pos, 6, 2, [.13, 1, .7], 0.5, 0.2,
+                { icon: ICON.spark, additive: true, sizeMin: 0.2, sizeMax: 0.35, spin: 10 });
         }
     }
     bombs = [];
@@ -340,7 +362,9 @@ function updateBombs(dt) {
                 life: 0.55, maxLife: 0.55,
                 h: 0, s: 0, l: 0.55 + rand(0, 0.15),
                 gravityScale: -0.05,                  // very slight rise
-                size: rand(0.2, 0.36),
+                size: rand(0.45, 0.75),               // soft glow has a smaller visible core
+                icon: ICON.glow, additive: false,
+                angle: 0, spin: 0,
                 behind: true,
             });
         }
@@ -352,7 +376,9 @@ function updateBombs(dt) {
                 life: 0.3, maxLife: 0.3,
                 h: 0.11, s: 1, l: 0.7,
                 gravityScale: 0.3,
-                size: rand(0.06, 0.1),
+                size: rand(0.18, 0.3),
+                icon: ICON.spark, additive: true,
+                angle: rand(0, PI * 2), spin: rand(-8, 8),
                 behind: true,
             });
         }
@@ -383,6 +409,7 @@ function updateParticles(dt) {
         p.vel.y -= 18 * dt * p.gravityScale;
         p.vel.x *= 0.96;
         p.vel.y *= 0.99;
+        if (p.spin) p.angle += p.spin * dt;
         p.life -= dt;
         if (p.life <= 0) particles.splice(i, 1);
     }
@@ -403,8 +430,10 @@ function drawSkyAndStars() {
         const x = ((s.x0 - drift) % W + W * 1.5) % W - W/2;
         const tw = 0.5 + 0.5 * Math.sin(timeReal * 2 + s.phase);
         const b = layerBright[s.layer];
-        drawRect(vec2(x, s.y), vec2(s.size, s.size),
-                 hsl(0, 0, b * (0.6 + 0.4 * tw), 0.5 + 0.5 * tw));
+        const col = hsl(0, 0, b * (0.6 + 0.4 * tw), 0.5 + 0.5 * tw);
+        const ang = s.spin ? timeReal * s.spin : 0;
+        // Star sprites pop on the dark sky and twinkle.
+        drawRect(vec2(x, s.y), vec2(.1*s.size * (3.6 + tw * 0.8)), col, ang);
     }
 }
 
@@ -468,11 +497,11 @@ function drawPineTree(x, y, size) {
         const fy = y + trunkH * 0.4 + size * (0.4 + i * 0.55);
         const fw = size * (1.3 - i * 0.3);
         const fh = size * 0.95;
-        drawPoly([
-            vec2(x - fw/2, fy),
-            vec2(x + fw/2, fy),
-            vec2(x, fy + fh),
-        ], foliageColor);
+        // Upward triangle from the atlas. Its centroid sits at the tile
+        // centre, matching this triangle's centroid (fy + fh/3); the size
+        // factors compensate for the icon's padding inside the tile.
+        drawTile(vec2(x, fy + fh/3), vec2(fw * 1.33, fh * 1.5),
+                 ICON.triangle, foliageColor);
     }
 }
 
@@ -480,9 +509,9 @@ function drawBush(x, y, size) {
     // Overlapping circles — rounded shrub silhouette.
     const c1 = hsl(.32, .45, .15);
     const c2 = hsl(.32, .55, .18);
-    drawCircle(vec2(x - size*0.4, y + size*0.5),  size*1.2, c1);
-    drawCircle(vec2(x + size*0.4, y + size*0.5),  size*1.2, c1);
-    drawCircle(vec2(x,             y + size*0.9), size*1.3, c2);
+    drawTile(vec2(x - size*0.4, y + size*0.5), vec2(size*1.2), ICON.circle, c1);
+    drawTile(vec2(x + size*0.4, y + size*0.5), vec2(size*1.2), ICON.circle, c1);
+    drawTile(vec2(x,            y + size*0.9), vec2(size*1.3), ICON.circle, c2);
 }
 
 function drawTrees() {
@@ -507,26 +536,32 @@ function drawBomber() {
     const walkPhase = (onTitle ? timeReal : time) * 6 * (moving || onTitle ? 1 : 0);
     const stepBob = Math.abs(Math.sin(walkPhase)) * 0.08;
 
+    // Rounded body part — the atlas roundSquare gives the bomber soft, organic
+    // edges. Scaled up 1.15x to offset the icon's in-tile padding so each part
+    // keeps the same footprint a drawRect would have had.
+    const limb = (pos, size, color) =>
+        drawTile(pos, size.scale(1.15), ICON.roundSquare, color);
+
     // Legs (striped red/white pants)
     const legY = y + 0.55 + stepBob;
-    drawRect(vec2(x - 0.32, legY), vec2(0.45, 1.1), hsl(0, .8, .5));
-    drawRect(vec2(x + 0.32, legY), vec2(0.45, 1.1), hsl(0, .8, .5));
+    limb(vec2(x - 0.32, legY), vec2(0.45, 1.1), hsl(0, .8, .5));
+    limb(vec2(x + 0.32, legY), vec2(0.45, 1.1), hsl(0, .8, .5));
     for (let i = 0; i < 4; i++) {
         const sy = legY + 0.4 - i * 0.3;
         drawRect(vec2(x - 0.32, sy), vec2(0.45, 0.08), hsl(0, 0, .95));
         drawRect(vec2(x + 0.32, sy), vec2(0.45, 0.08), hsl(0, 0, .95));
     }
     // Feet
-    drawRect(vec2(x - 0.4, legY - 0.6), vec2(0.7, 0.25), hsl(0, 0, .08));
-    drawRect(vec2(x + 0.4, legY - 0.6), vec2(0.7, 0.25), hsl(0, 0, .08));
+    limb(vec2(x - 0.4, legY - 0.6), vec2(0.7, 0.25), hsl(0, 0, .08));
+    limb(vec2(x + 0.4, legY - 0.6), vec2(0.7, 0.25), hsl(0, 0, .08));
 
     // Body (yellow shirt)
     const bodyY = y + 1.7 + stepBob * 0.3;
-    drawRect(vec2(x, bodyY), vec2(1.5, 1.2), hsl(.14, .85, .55));
-    drawRect(vec2(x, bodyY + 0.55), vec2(1.7, 0.2), hsl(.14, .9, .65));     // shoulder line
+    limb(vec2(x, bodyY), vec2(1.5, 1.2), hsl(.14, .85, .55));
+    limb(vec2(x, bodyY + 0.55), vec2(1.7, 0.2), hsl(.14, .9, .65));     // shoulder line
     // Belt
-    drawRect(vec2(x, bodyY - 0.6), vec2(1.55, 0.18), hsl(.05, .3, .4));
-    drawRect(vec2(x, bodyY - 0.6), vec2(0.3, 0.18), hsl(.13, .0, .9));      // buckle
+    limb(vec2(x, bodyY - 0.6), vec2(1.55, 0.18), hsl(.05, .3, .4));
+    limb(vec2(x, bodyY - 0.6), vec2(0.3, 0.18), hsl(.13, .0, .9));      // buckle
 
     // Throwing arm — extends forward, dips down + reaches further when
     // dropping. Hand position MUST match spawnBomb's handX/handY so the
@@ -536,7 +571,7 @@ function drawBomber() {
     const throwDip      = bomber.dropTimer > 0 ? -0.5 : -0.1;
     const throwHand     = vec2(x + facing * throwReach, bodyY + throwDip);
     drawLine(throwShoulder, throwHand, 0.22, hsl(.08, .5, .8));
-    drawCircle(throwHand, 0.36, hsl(.08, .5, .8));
+    drawTile(throwHand, vec2(0.36), ICON.circle, hsl(.08, .5, .8));
 
     // Holding arm — bent at elbow, cradles the pile against his chest on
     // the side OPPOSITE to facing.
@@ -545,7 +580,7 @@ function drawBomber() {
     const holdHand     = vec2(x - facing * 0.2, bodyY - 0.3);
     drawLine(holdShoulder, holdElbow, 0.22, hsl(.08, .5, .8));
     drawLine(holdElbow,    holdHand,  0.22, hsl(.08, .5, .8));
-    drawCircle(holdHand, 0.36, hsl(.08, .5, .8));
+    drawTile(holdHand, vec2(0.36), ICON.circle, hsl(.08, .5, .8));
 
     // Pile of remaining bombs in his off-hand — shrinks as he drops them.
     // On title (attract), show a full pile so he looks menacing.
@@ -556,25 +591,27 @@ function drawBomber() {
 
     // Head (yellow with mustache + wicked grin)
     const headY = y + 3.0 + stepBob * 0.4;
-    drawCircle(vec2(x, headY), 1.3, hsl(.11, .75, .68), 0.06, hsl(0, 0, .05));
+    // Dark outline circle behind the face (atlas circles have no stroke arg).
+    drawTile(vec2(x, headY), vec2(1.3 + 0.12), ICON.circle, hsl(0, 0, .05));
+    drawTile(vec2(x, headY), vec2(1.3), ICON.circle, hsl(.11, .75, .68));
     // Hat
-    drawRect(vec2(x, headY + 0.5), vec2(1.5, 0.3), hsl(0, .3, .25));
-    drawRect(vec2(x, headY + 0.7), vec2(0.8, 0.3), hsl(0, .3, .25));
+    limb(vec2(x, headY + 0.5), vec2(1.5, 0.3), hsl(0, .3, .25));
+    limb(vec2(x, headY + 0.7), vec2(0.8, 0.3), hsl(0, .3, .25));
     // Eyes
-    drawCircle(vec2(x - 0.35, headY + 0.05), 0.38, hsl(0, 0, 1));
-    drawCircle(vec2(x + 0.35, headY + 0.05), 0.38, hsl(0, 0, 1));
-    drawCircle(vec2(x - 0.35 + facing * 0.05, headY + 0.05), 0.15, hsl(0, 0, .05));
-    drawCircle(vec2(x + 0.35 + facing * 0.05, headY + 0.05), 0.15, hsl(0, 0, .05));
+    drawTile(vec2(x - 0.35, headY + 0.05), vec2(0.38), ICON.circle, hsl(0, 0, 1));
+    drawTile(vec2(x + 0.35, headY + 0.05), vec2(0.38), ICON.circle, hsl(0, 0, 1));
+    drawTile(vec2(x - 0.35 + facing * 0.05, headY + 0.05), vec2(0.15), ICON.circle, hsl(0, 0, .05));
+    drawTile(vec2(x + 0.35 + facing * 0.05, headY + 0.05), vec2(0.15), ICON.circle, hsl(0, 0, .05));
     // Eyebrows — angry slant
     drawLine(vec2(x - 0.55, headY + 0.3),
              vec2(x - 0.15, headY + 0.15), 0.1, hsl(0, 0, .05));
     drawLine(vec2(x + 0.55, headY + 0.3),
              vec2(x + 0.15, headY + 0.15), 0.1, hsl(0, 0, .05));
     // Big bulbous nose — pinker than the yellow skin tone
-    drawCircle(vec2(x, headY - 0.05), 0.5, hsl(.02, .6, .62));
-    drawCircle(vec2(x - 0.1, headY + 0.05), 0.2, hsl(.02, .55, .8));
+    drawTile(vec2(x, headY - 0.05), vec2(0.5), ICON.circle, hsl(.02, .6, .62));
+    drawTile(vec2(x - 0.1, headY + 0.05), vec2(0.2), ICON.circle, hsl(.02, .55, .8));
     // Mustache
-    drawRect(vec2(x, headY - 0.3), vec2(0.9, 0.2), hsl(0, 0, .05));
+    limb(vec2(x, headY - 0.3), vec2(0.9, 0.2), hsl(0, 0, .05));
 }
 
 // Layouts for the held bomb pile. Each entry positions bombs so the pile
@@ -595,8 +632,9 @@ function drawBombPile(cx, cy, count) {
     const r = 0.22;
     for (const p of positions) {
         const px = cx + p[0], py = cy + p[1];
-        drawCircle(vec2(px, py), r * 2, hsl(0, 0, .08), 0.04, hsl(0, 0, .3));
-        drawCircle(vec2(px - r * 0.25, py + r * 0.25), r * 0.4, hsl(0, 0, .35));
+        drawTile(vec2(px, py), vec2(r * 2.3), ICON.circle, hsl(0, 0, .3));    // rim
+        drawTile(vec2(px, py), vec2(r * 2), ICON.circle, hsl(0, 0, .08));     // body
+        drawTile(vec2(px - r * 0.25, py + r * 0.25), vec2(r * 0.8), ICON.circle, hsl(0, 0, .45));
         drawLine(vec2(px, py + r),
                  vec2(px + 0.05, py + r + 0.12), 0.05, hsl(.08, .4, .4));
     }
@@ -604,17 +642,27 @@ function drawBombPile(cx, cy, count) {
 
 function drawBomb(b) {
     const t = BOMB_TYPES[b.type] || BOMB_TYPES.normal;
-    // Bomb body
-    drawCircle(b.pos, BOMB_R * 2, hsl(...t.body), 0.05, hsl(...t.rim));
+    // Colored bombs get a soft glow halo so the type reads at a glance.
+    if (b.type !== 'normal')
+        drawTile(b.pos, vec2(BOMB_R * 5), ICON.glow,
+                 hsl(t.rim[0], t.rim[1], t.rim[2], .4), 0, false,
+                 hsl(t.rim[0], t.rim[1], t.rim[2], 0));
+    // Rim ring — a slightly larger circle behind the body reads as an outline.
+    drawTile(b.pos, vec2(BOMB_R * 2.3), ICON.circle, hsl(...t.rim));
+    // Body
+    drawTile(b.pos, vec2(BOMB_R * 2), ICON.circle, hsl(...t.body));
     // Highlight
-    drawCircle(b.pos.add(vec2(-BOMB_R * 0.3, BOMB_R * 0.3)), BOMB_R * 0.4, hsl(...t.hi));
+    drawTile(b.pos.add(vec2(-BOMB_R * 0.3, BOMB_R * 0.3)), vec2(BOMB_R * 0.8),
+             ICON.circle, hsl(...t.hi));
     // Fuse stick
     drawLine(b.pos.add(vec2(0, BOMB_R)),
              b.pos.add(vec2(0.08, BOMB_R + 0.4)), 0.07, hsl(.08, .4, .4));
-    // Spark
-    const sparkSize = 0.18 + 0.08 * Math.sin(b.fuse);
-    drawCircle(b.pos.add(vec2(0.08, BOMB_R + 0.42)), sparkSize, hsl(.12, 1, .75));
-    drawCircle(b.pos.add(vec2(0.08, BOMB_R + 0.42)), sparkSize * 0.5, hsl(0, 0, 1));
+    // Spark — a spinning additive spark with a white-hot core.
+    const sparkPos = b.pos.add(vec2(0.08, BOMB_R + 0.42));
+    const sparkSize = 0.5 + 0.2 * Math.sin(b.fuse);
+    drawTile(sparkPos, vec2(sparkSize), ICON.spark,
+             hsl(.12, 1, .75), b.fuse * 3, false, hsl(.12, 1, .75, 0));
+    drawTile(sparkPos, vec2(sparkSize * 0.4), ICON.circle, WHITE);
 }
 
 function drawBuckets() {
@@ -625,6 +673,13 @@ function drawBuckets() {
     for (let i = 0; i < lives; i++) {
         const cy = bucketCenterY(i);
         const isTop = i === lives - 1;     // highest bucket catches
+        // Soft glow on the active (catching) bucket so players read which one
+        // grabs bombs — gently pulses.
+        if (isTop) {
+            const pulse = 0.22 + 0.1 * Math.sin(time * 4);
+            drawTile(vec2(bucketX, cy + h/2 + 0.1), vec2(halfW * 2 + 1.8, 1.8),
+                     ICON.glow, hsl(.55, .9, .72, pulse), 0, false, hsl(.55, .9, .72, 0));
+        }
         // Trapezoidal body (rect + triangular sides via lines)
         drawRect(vec2(bucketX, cy), vec2(halfW * 2 * 0.85, h), hsl(.55, .55, .55));
         drawRect(vec2(bucketX, cy - 0.1), vec2(halfW * 2 * 0.75, h - 0.2), hsl(.55, .5, .42));
@@ -638,7 +693,18 @@ function drawParticles(behindLayer=false) {
     for (const p of particles) {
         if (!!p.behind !== behindLayer) continue;
         const a = clamp(p.life / p.maxLife, 0, 1);
-        drawRect(p.pos, vec2(p.size, p.size), hsl(p.h, p.s, p.l, a));
+        const col = hsl(p.h, p.s, p.l, a);
+        if (p.icon) {
+            // Additive sparks: base color carries the fade alpha (the sprite
+            // shape), additive color adds brightness with ZERO alpha — a
+            // non-zero additive alpha would fill the whole tile with a square.
+            if (p.additive)
+                drawTile(p.pos, vec2(p.size), p.icon, col, p.angle, false, hsl(p.h, p.s, p.l, 0));
+            else
+                drawTile(p.pos, vec2(p.size), p.icon, col, p.angle);
+        } else {
+            drawRect(p.pos, vec2(p.size, p.size), col);
+        }
     }
 }
 
@@ -649,6 +715,11 @@ async function gameInit() {
     saveDataInit('kaboom');
     canvasClearColor = new Color().setHex('#06061a');
     setSoundVolume(0.6);
+
+    // Bake the 16 built-in white icons into the atlas (tiles 0-15). Everything
+    // round/sparkly in this game — bombs, fuse sparks, stars, particles — is now
+    // a tinted default-atlas sprite instead of a raw primitive.
+    ICON = initDefaultAtlas();
 
     installAutoPause();
 
@@ -667,12 +738,16 @@ async function gameInit() {
     const STAR_BAND_W = 70;       // wrap-around extent for drift
     for (let i = 0; i < 150; i++) {
         const layer = i % 3;
+        // Most stars are round dots; a sprinkling are 5-point stars / 4-point
+        // sparkles that slowly rotate for a twinkly night sky.
+        const roll = rand();
         starField.push({
             x0: rand(-STAR_BAND_W/2, STAR_BAND_W/2),
             y: rand(-11, 13),       // fill sky all the way down to the ground line
             size: 0.06 + layer * 0.06 + rand(0, 0.05),
             phase: rand(0, PI * 2),
             layer,
+            spin: rand(-0.5, 0.5),
         });
     }
 
