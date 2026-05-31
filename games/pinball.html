@@ -17,6 +17,14 @@ setDebugKey('Backquote');
 gravity = vec2(0, -30);
 cameraScale = 24;
 
+// on-screen touch gamepad (analog stick + face buttons) for mobile
+touchGamepadEnable = true;
+touchGamepadAnalog = false;
+touchGamepadButtonCount = 1;
+touchGamepadLeftStick = false;
+touchGamepadLeftButtonCount = 1;
+touchGamepadAlpha = .35;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Layout
 
@@ -84,8 +92,6 @@ let gameOver = false;
 let launchCharge = 0;
 let hasLaunchedEver = false;
 let sfxBumper, sfxFlipper, sfxDrain, sfxLaunch, sfxWall, sfxSling;
-// touch flipper state: which screen halves are currently held (multitouch, so both can be true)
-let touchLeftHeld = false, touchRightHeld = false, touchAnyHeld = false;
 // rising-edge tracking so flipper sfx fires once when a flipper activates
 let leftFlipperWasActive = false, rightFlipperWasActive = false;
 
@@ -354,33 +360,9 @@ async function gameInit()
 
     buildWorld();
     resetGame();
-    initTouchControls();
 
     buildMenus();
     showMenu('title');
-}
-
-// Track multitouch by screen half so the left and right flippers can be held at once.
-// LittleJS's built-in touch->mouse passthrough only follows a single touch, so we read
-// the raw touch list ourselves. Each event recomputes which halves are currently held.
-function initTouchControls()
-{
-    if (!isTouchDevice) return;
-    const update = (e) =>
-    {
-        let left = false, right = false;
-        const rect = mainCanvas.getBoundingClientRect();
-        const midX = (rect.left + rect.right) / 2;
-        for (const t of e.touches)
-            (t.clientX < midX ? left = true : right = true);
-        touchLeftHeld  = left;
-        touchRightHeld = right;
-        touchAnyHeld   = e.touches.length > 0;
-    };
-    document.addEventListener('touchstart',  update, { passive: true });
-    document.addEventListener('touchmove',   update, { passive: true });
-    document.addEventListener('touchend',    update, { passive: true });
-    document.addEventListener('touchcancel', update, { passive: true });
 }
 
 function startGame()
@@ -429,34 +411,31 @@ function gameUpdate()
     // sitting in the lane, so ANY press charges the plunger and no flipper fires.
     const launching = canLaunch();
 
-    // gamepad: LB(4)/Dpad-Left(14) = left flipper, RB(5)/Dpad-Right(15) = right flipper
+    // Flippers run off two buttons, which the engine fills from BOTH the on-screen
+    // touch gamepad and a physical controller (merged into the same gamepadIsDown API):
+    //   button 4 = left  flipper (touch left button / LB / Dpad-Left)
+    //   button 0 = right flipper (touch right button / A / RB / Dpad-Right)
     const padLeftDown  = gamepadIsDown(4) || gamepadIsDown(14);
-    const padRightDown = gamepadIsDown(5) || gamepadIsDown(15);
+    const padRightDown = gamepadIsDown(0) || gamepadIsDown(5) || gamepadIsDown(15);
 
-    let leftActive = false, rightActive = false, anyPress = false;
-
-    if (isTouchDevice)
+    let leftActive = false, rightActive = false;
+    if (!launching)
     {
-        // left half of the screen = left flipper, right half = right flipper
-        anyPress = touchAnyHeld;
-        if (!launching)
+        leftActive  = padLeftDown;
+        rightActive = padRightDown;
+        if (!isTouchDevice)
         {
-            leftActive  = touchLeftHeld  || padLeftDown;
-            rightActive = touchRightHeld || padRightDown;
+            // keyboard + mouse flippers (desktop only)
+            const dir = keyDirection();
+            leftActive  = leftActive  || dir.x < 0 || keyIsDown('KeyZ')  || mouseIsDown(0);
+            rightActive = rightActive || dir.x > 0 || keyIsDown('Slash') || mouseIsDown(2);
         }
     }
-    else
-    {
-        const dir = keyDirection();
-        anyPress = mouseIsDown(0) || mouseIsDown(2);
-        if (!launching)
-        {
-            leftActive  = dir.x < 0 || keyIsDown('KeyZ')  || mouseIsDown(0) || padLeftDown;
-            rightActive = dir.x > 0 || keyIsDown('Slash') || mouseIsDown(2) || padRightDown;
-        }
-    }
-    // Space / gamepad A always count as a launch press, on any device
-    anyPress = anyPress || keyIsDown('Space') || gamepadIsDown(0);
+
+    // While armed in the lane, EITHER flipper button (or Space / mouse) charges the plunger.
+    let anyPress = padLeftDown || padRightDown || keyIsDown('Space');
+    if (!isTouchDevice)
+        anyPress = anyPress || mouseIsDown(0) || mouseIsDown(2);
 
     // play the flip sfx once on the rising edge of each flipper activating
     if (leftActive  && !leftFlipperWasActive)  sfxFlipper && sfxFlipper.play(leftFlipper.pos, 0.5);
@@ -532,7 +511,7 @@ function gameRenderPost()
     else if (canLaunch())
     {
         const verb = hasLaunchedEver ? 'relaunch' : 'launch';
-        const msg = isTouchDevice ? 'Hold anywhere to charge, release to ' + verb
+        const msg = isTouchDevice ? 'Hold a flipper button to charge, release to ' + verb
                                   : 'Hold to charge, release to ' + verb;
         drawTextScreen(msg, vec2(mainCanvasSize.x/2, mainCanvasSize.y - 60), 22, WHITE, 3, BLACK);
     }
