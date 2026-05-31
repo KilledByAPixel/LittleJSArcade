@@ -28,7 +28,7 @@
 debugWatermark = false;
 showEngineVersion = false;
 paused = false;
-gravity = vec2(0, 0);
+gravity = vec2(0, -0.01);   // gentle pull so ParticleEmitter particles arc (only particles are engine objects; applied per-frame to velocity)
 cameraPos = vec2(0, 0);
 cameraScale = 38;
 canvasFixedSize = vec2(1300, 1080);
@@ -81,8 +81,7 @@ function bombRoster(w) {
 let score, wave, lives, bucketsAwarded;
 let bucketX, bucketTargetX;
 let bomber;          // {x, vx, dropTimer, laughTimer}
-let bombs;           // [{pos, vel, fuse}]
-let particles;       // [{pos, vel, life, maxLife, color, size}]
+let bombs;           // [{pos, vel, fuse, type, smokeEmitter, fuseEmitter}]
 let starField;       // stable star positions for the night sky
 let treeField;       // foreground trees/bushes on the sides of the building
 let windowSeeds;     // stable blink seeds for windows
@@ -93,6 +92,7 @@ let waveStartDelay;  // seconds before first bomb of wave
 let waveClearTimer;  // seconds remaining until next wave starts (0 = not waiting)
 let missFreezeTimer; // brief pause after a miss
 let missShakeTimer = 0; // remaining seconds of post-miss shake (gates game-over dialog)
+let gameOverDelay = 0;  // counts down after a fatal miss so the explosion plays before the modal
 let waveBannerText, waveBannerTimer;
 
 // Sounds
@@ -106,23 +106,44 @@ let ICON;
 ///////////////////////////////////////////////////////////////////////////////
 // HELPERS
 
-// color = [h, s, l] — stored as components so we can re-emit each frame with
-// fading alpha (hsl(...) returns a Color object that doesn't keep its inputs).
-function spawnParticles(pos, count, speed, color, life=1, gravityScale=1, opts={}) {
-    const { icon=null, additive=false, sizeMin=0.15, sizeMax=0.4, spin=4 } = opts;
-    for (let i = 0; i < count; i++) {
-        const a = rand(0, PI * 2);
-        const s = speed * rand(0.4, 1.2);
-        particles.push({
-            pos: pos.copy(),
-            vel: vec2(Math.cos(a) * s, Math.sin(a) * s),
-            life, maxLife: life, h: color[0], s: color[1], l: color[2], gravityScale,
-            size: rand(sizeMin, sizeMax),
-            icon, additive,
-            angle: rand(0, PI * 2),
-            spin: rand(-spin, spin),
-        });
-    }
+// Particles are built on the engine's ParticleEmitter. particleBurst() fires a
+// one-shot puff: a short emitTime means the emitter auto-destroys once finished.
+// NOTE: emitter `speed` is world units PER FRAME (the engine does NOT multiply by
+// timeDelta) — 0.1-0.5 is a normal range, ~1 is explosive.
+function particleBurst(pos, tile, count, colorA, colorB, opts={}) {
+    const o = {
+        size: 0.5, sizeEnd: 0, speed: 0.3, particleTime: 0.6, gravityScale: 0.2,
+        emitSize: 0.3, additive: true, angleSpeed: 0.4, damping: 0.92,
+        fadeRate: 0.2, randomness: 0.4, ...opts,
+    };
+    const fade = c => new Color(c.r, c.g, c.b, 0);   // same color, alpha 0 (fade out)
+    const emitTime = 0.1;                            // one-shot window
+    return new ParticleEmitter(
+        pos, 0, o.emitSize, emitTime, count / emitTime, PI, tile,
+        colorA, colorB, fade(colorA), fade(colorB),
+        o.particleTime, o.size, o.sizeEnd, o.speed, o.angleSpeed,
+        o.damping, 1, o.gravityScale, PI, o.fadeRate, o.randomness,
+        0, o.additive, false);
+}
+
+// Each bomb owns a smoke-trail + fuse-spark emitter that follow it (created in
+// spawnBomb). Destroy them whenever the bomb leaves play so they stop emitting.
+function destroyBombFx(b) {
+    b.smokeEmitter && b.smokeEmitter.destroy();
+    b.fuseEmitter  && b.fuseEmitter.destroy();
+    b.smokeEmitter = b.fuseEmitter = undefined;
+}
+
+function clearBombs() {
+    if (bombs) for (const b of bombs) destroyBombFx(b);
+    bombs = [];
+}
+
+// Destroy every live ParticleEmitter (bomb trails + in-flight bursts) so a reset
+// or quit leaves a clean backdrop instead of frozen particles.
+function clearParticles() {
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy();
 }
 
 // Stack is anchored at BUCKET_BOTTOM_Y so when a bucket is lost the catching
@@ -140,8 +161,8 @@ function startGame() {
     bucketsAwarded = 0;
     bucketX = 0;
     bucketTargetX = 0;
-    bombs = [];
-    particles = [];
+    clearParticles();
+    clearBombs();
     bomber = { x: -BOMBER_RANGE * 0.5, vx: bomberSpeed(1), dropTimer: 0, laughTimer: 0 };
     setPlaying(true);
     gameOverShown = false;
@@ -191,6 +212,21 @@ function spawnBomb() {
         const lim = FIELD_RIGHT - BOMB_R - 0.2 - b.waveAmp;
         b.centerX = clamp(handX, -lim, lim);
     }
+    // Smoke trail (soft gray, drifts up) + additive fuse spark, both following
+    // the bomb. emitTime 0 = emit forever until destroyed.
+    b.smokeEmitter = new ParticleEmitter(
+        b.pos, 0, 0.15, 0, 30, PI, ICON.glow,
+        hsl(0, 0, .6, .4), hsl(0, 0, .72, .4),
+        hsl(0, 0, .5, 0), hsl(0, 0, .6, 0),
+        0.55, 0.4, 0.85, 0.015, 0.1, 0.96, 1, -0.05, PI, 0.3, 0.5,
+        0, false, false, 0);
+    b.fuseEmitter = new ParticleEmitter(
+        b.pos, 0, 0.05, 0, 18, PI, ICON.spark,
+        hsl(.12, 1, .78), hsl(.08, 1, .8),
+        hsl(.12, 1, .7, 0), hsl(.08, 1, .8, 0),
+        0.3, 0.28, 0, 0.06, 0.8, 0.95, 1, 0.15, PI, 0.2, 0.4,
+        0, true, false);
+
     bombs.push(b);
     bomber.dropTimer = 0.18;
     sfxFuse?.play(undefined, 0.35, 0.9 + wave * 0.04, 0.1);
@@ -203,10 +239,10 @@ function catchBomb(b) {
     score += points;
     sfxCatch?.play(undefined, 0.45, 1 + min(0.6, bombsCaught * 0.006), 0.15);
     // Green star pop on a clean catch + a couple of bright spark flecks.
-    spawnParticles(b.pos, 4, 2.5, [.33, 1, .65], 0.4, 0.2,
-        { icon: ICON.star, additive: true, sizeMin: 0.4, sizeMax: 0.7, spin: 6 });
-    spawnParticles(b.pos, 4, 3.5, [.15, 1, .8], 0.35, 0.2,
-        { icon: ICON.spark, additive: true, sizeMin: 0.2, sizeMax: 0.35, spin: 10 });
+    particleBurst(b.pos, ICON.star, 6, hsl(.33, 1, .6), hsl(.42, 1, .7),
+        { size: 0.7, sizeEnd: 0.1, speed: 0.12, particleTime: 0.5, gravityScale: 0.15 });
+    particleBurst(b.pos, ICON.spark, 6, hsl(.15, 1, .8), hsl(.1, 1, .85),
+        { size: 0.35, sizeEnd: 0, speed: 0.2, particleTime: 0.4, gravityScale: 0.15, angleSpeed: 0.6 });
 
     // Classic Kaboom: get a bucket back every 1000 points.
     const earned = Math.floor(score / 1000);
@@ -230,34 +266,36 @@ function missBomb(missedBomb) {
     sfxMiss?.play(undefined, 0.95);
     missFreezeTimer = 0.9;
 
-    // Big ground explosion at the miss point — fireball bursts, bright sparks,
-    // and a soft glow flash to sell the impact.
+    // Big ground explosion at the miss point — fireball, bright sparks, a soft
+    // glow flash, and dark rising smoke.
     const groundPos = vec2(missedBomb.pos.x, FLOOR_Y + 0.2);
-    spawnParticles(groundPos, 30, 9, [.04, 1, .55], 1.0, 0.3,
-        { icon: ICON.burst, additive: true, sizeMin: 0.5, sizeMax: 1.1, spin: 5 });
-    spawnParticles(groundPos, 22, 5, [.11, 1, .7], 1.2, 0.2,
-        { icon: ICON.spark, additive: true, sizeMin: 0.25, sizeMax: 0.5, spin: 12 });
-    spawnParticles(groundPos, 10, 2, [.06, .8, .8], 0.5, 0,
-        { icon: ICON.glow, additive: true, sizeMin: 1.2, sizeMax: 2.4, spin: 0 });
-    spawnParticles(groundPos, 14, 3, [0, 0, .25], 1.4, -0.05,
-        { icon: ICON.glow, additive: false, sizeMin: 0.8, sizeMax: 1.5, spin: 0 });
+    particleBurst(groundPos, ICON.burst, 26, hsl(.04, 1, .6), hsl(.09, 1, .6),
+        { size: 1.1, sizeEnd: 0.2, speed: 0.4, particleTime: 0.9, gravityScale: 0.3, emitSize: 0.6 });
+    particleBurst(groundPos, ICON.spark, 22, hsl(.11, 1, .75), hsl(.07, 1, .7),
+        { size: 0.45, sizeEnd: 0, speed: 0.55, particleTime: 0.7, gravityScale: 0.25, angleSpeed: 0.7 });
+    particleBurst(groundPos, ICON.glow, 8, hsl(.07, .9, .8), hsl(.02, 1, .6),
+        { size: 2.4, sizeEnd: 0.5, speed: 0.12, particleTime: 0.4, gravityScale: 0, emitSize: 0.4 });
+    particleBurst(groundPos, ICON.glow, 12, hsl(0, 0, .18), hsl(0, 0, .28),
+        { size: 1.4, sizeEnd: 2.6, speed: 0.1, particleTime: 1.2, gravityScale: -0.06,
+          additive: false, fadeRate: 0.35, emitSize: 0.6 });
 
     // Detonate every other in-flight bomb harmlessly (classic mechanic).
     for (const b of bombs) {
         if (b !== missedBomb) {
-            spawnParticles(b.pos, 8, 4, [.05, 1, .55], 0.6, 0.3,
-                { icon: ICON.burst, additive: true, sizeMin: 0.3, sizeMax: 0.6, spin: 6 });
-            spawnParticles(b.pos, 6, 2, [.13, 1, .7], 0.5, 0.2,
-                { icon: ICON.spark, additive: true, sizeMin: 0.2, sizeMax: 0.35, spin: 10 });
+            particleBurst(b.pos, ICON.burst, 8, hsl(.05, 1, .55), hsl(.1, 1, .6),
+                { size: 0.6, sizeEnd: 0.1, speed: 0.25, particleTime: 0.6, gravityScale: 0.3 });
+            particleBurst(b.pos, ICON.spark, 6, hsl(.13, 1, .7), hsl(.1, 1, .75),
+                { size: 0.3, sizeEnd: 0, speed: 0.3, particleTime: 0.5, angleSpeed: 0.6 });
         }
     }
-    bombs = [];
+    clearBombs();
 
     if (lives <= 0) {
         setPlaying(false);
         // Defer the game-over dialog until the explosion settles so the
         // player sees the shake before the modal eats the screen.
         gameOverShown = false;
+        gameOverDelay = 1.2;
     }
 }
 
@@ -351,37 +389,9 @@ function updateBombs(dt) {
             if (b.pos.x >  lim) { b.pos.x =  lim; b.vel.x = -Math.abs(b.vel.x); }
         }
 
-        // Smoke trail — small gray wisps just above the bomb (where it
-        // just was). As the bomb falls past, the wisps recede upward
-        // naturally, drawing the trail. behind:true so they render under
-        // the bomb instead of obscuring it.
-        if (rand() < 0.75) {
-            particles.push({
-                pos: b.pos.copy().add(vec2(rand(-0.1, 0.1), rand(0.1, 0.3))),
-                vel: vec2(rand(-0.4, 0.4), rand(0, 0.6)),
-                life: 0.55, maxLife: 0.55,
-                h: 0, s: 0, l: 0.55 + rand(0, 0.15),
-                gravityScale: -0.05,                  // very slight rise
-                size: rand(0.45, 0.75),               // soft glow has a smaller visible core
-                icon: ICON.glow, additive: false,
-                angle: 0, spin: 0,
-                behind: true,
-            });
-        }
-        // Occasional bright fuse spark from the wick.
-        if (rand() < 0.35) {
-            particles.push({
-                pos: b.pos.copy().add(vec2(rand(-0.05, 0.05), BOMB_R + 0.42)),
-                vel: vec2(rand(-1, 1), rand(0.5, 2)),
-                life: 0.3, maxLife: 0.3,
-                h: 0.11, s: 1, l: 0.7,
-                gravityScale: 0.3,
-                size: rand(0.18, 0.3),
-                icon: ICON.spark, additive: true,
-                angle: rand(0, PI * 2), spin: rand(-8, 8),
-                behind: true,
-            });
-        }
+        // The smoke-trail + fuse-spark emitters ride along with the bomb.
+        if (b.smokeEmitter) b.smokeEmitter.pos = b.pos.copy();
+        if (b.fuseEmitter)  b.fuseEmitter.pos  = b.pos.add(vec2(0, BOMB_R + 0.42));
 
         // Catch test: only the TOP (highest) bucket catches. Lower buckets
         // are visual lives only — classic Kaboom rules.
@@ -389,6 +399,7 @@ function updateBombs(dt) {
         const dy = b.pos.y - catchY;
         if (dx < halfW + BOMB_R && Math.abs(dy) < bucketHalfH + BOMB_R && b.vel.y < 0) {
             catchBomb(b);
+            destroyBombFx(b);
             bombs.splice(i, 1);
             continue;
         }
@@ -398,20 +409,6 @@ function updateBombs(dt) {
             missBomb(b);
             return;     // bombs was wiped inside missBomb
         }
-    }
-}
-
-function updateParticles(dt) {
-    for (let i = particles.length; i--;) {
-        const p = particles[i];
-        p.pos.x += p.vel.x * dt;
-        p.pos.y += p.vel.y * dt;
-        p.vel.y -= 18 * dt * p.gravityScale;
-        p.vel.x *= 0.96;
-        p.vel.y *= 0.99;
-        if (p.spin) p.angle += p.spin * dt;
-        p.life -= dt;
-        if (p.life <= 0) particles.splice(i, 1);
     }
 }
 
@@ -697,25 +694,6 @@ function drawBuckets() {
     }
 }
 
-function drawParticles(behindLayer=false) {
-    for (const p of particles) {
-        if (!!p.behind !== behindLayer) continue;
-        const a = clamp(p.life / p.maxLife, 0, 1);
-        const col = hsl(p.h, p.s, p.l, a);
-        if (p.icon) {
-            // Additive sparks: base color carries the fade alpha (the sprite
-            // shape), additive color adds brightness with ZERO alpha — a
-            // non-zero additive alpha would fill the whole tile with a square.
-            if (p.additive)
-                drawTile(p.pos, vec2(p.size), p.icon, col, p.angle, false, hsl(p.h, p.s, p.l, 0));
-            else
-                drawTile(p.pos, vec2(p.size), p.icon, col, p.angle);
-        } else {
-            drawRect(p.pos, vec2(p.size, p.size), col);
-        }
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // LITTLEJS CALLBACKS
 
@@ -799,7 +777,8 @@ async function gameInit() {
             setPlaying(false);
             gameOverShown = false;
             // Reset visuals so title attract loop is clean.
-            bombs = []; particles = [];
+            clearParticles();
+            clearBombs();
             lives = 3;
             showMenu('title');
         },
@@ -841,7 +820,7 @@ async function gameInit() {
             }},
             { type: 'button', label: 'TITLE', onClick: () => {
                 hideMenu('gameover');
-                lives = 3; bombs = []; particles = [];
+                lives = 3; clearParticles(); clearBombs();
                 showMenu('title');
             }},
         ],
@@ -852,7 +831,7 @@ async function gameInit() {
 
     // ---- initial state ----
     // Build a starting world so the title screen has a moving backdrop.
-    bombs = []; particles = [];
+    clearBombs();
     lives = 3; wave = 1; bucketX = 0; bucketTargetX = 0;
     bomber = { x: -BOMBER_RANGE * 0.5, vx: bomberSpeed(1), dropTimer: 0, laughTimer: 0 };
     bucketsAwarded = 0;
@@ -877,14 +856,14 @@ function gameUpdate() {
     if (missShakeTimer > 0) missShakeTimer = max(0, missShakeTimer - dt);
 
     if (!isPlaying()) {
-        // Game over modal surfacing — wait until shake settles.
-        if (lives <= 0 && !gameOverShown && missShakeTimer <= 0 && particles.length < 5) {
+        if (gameOverDelay > 0) gameOverDelay -= dt;
+        // Game over modal surfacing — wait until the shake + explosion settle.
+        if (lives <= 0 && !gameOverShown && missShakeTimer <= 0 && gameOverDelay <= 0) {
             showGameOver();
         }
-        // Still tick particles/bomber for visual life on title/attract.
+        // Keep the bomber pacing for attract life on the title screen; the engine
+        // auto-updates the ParticleEmitters, so no manual particle tick is needed.
         if (!gameOverShown) {
-            updateParticles(dt);
-            // Mild bomber pacing on title for attract flavor.
             if (!lives || lives > 0) {
                 bomber.x += bomber.vx * dt * 0.6;
                 if (bomber.x > BOMBER_RANGE)  { bomber.x = BOMBER_RANGE;  bomber.vx = -Math.abs(bomber.vx); }
@@ -897,7 +876,6 @@ function gameUpdate() {
     if (missFreezeTimer > 0) {
         missFreezeTimer -= dt;
         updateBucket(dt);
-        updateParticles(dt);
         return;
     }
 
@@ -906,14 +884,12 @@ function gameUpdate() {
         if (waveClearTimer <= 0) startWave(wave + 1);
         updateBucket(dt);
         updateBomber(dt);
-        updateParticles(dt);
         return;
     }
 
     updateBucket(dt);
     updateBomber(dt);
     updateBombs(dt);
-    updateParticles(dt);
     checkWaveClear();
 }
 
@@ -931,10 +907,8 @@ function gameRender() {
     drawBuilding();
     drawTrees();
     drawBomber();
-    drawParticles(true);                 // trail smoke + sparks (behind bombs)
     for (const b of bombs) drawBomb(b);
     drawBuckets();
-    drawParticles(false);                // explosions / catch sparks (on top)
 }
 
 function gameRenderPost() {
