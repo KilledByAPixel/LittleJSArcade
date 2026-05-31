@@ -777,6 +777,243 @@ function maybeSpawnUfo()
 }
 
 // ============================================================
+// Multi-pass bloom (own WebGL — bypasses PostProcessPlugin)
+// ------------------------------------------------------------
+// Each frame: capture the rendered scene (+HUD) into a texture, extract
+// the bright vector lines, then ping-pong a separable Gaussian blur across
+// two reduced-res framebuffers for many iterations to build a wide, soft
+// glow, and finally composite sharp-scene + glow (+ vignette) to the screen.
+//
+// We share the engine's glContext but keep our own programs / FBOs / VAO.
+// The VAO is baked once over the engine's geometry buffer so the per-frame
+// passes never touch the global ARRAY_BUFFER binding the engine relies on,
+// and we restore instanced mode + the active texture before returning so
+// whatever the engine renders after us (touch gamepad, debug) is unaffected.
+// Registered as a render plugin, so it runs right where PostProcess would.
+// ============================================================
+const BLOOM_DOWNSAMPLE = 2;     // bloom buffers run at 1/2 canvas res (captures thin lines)
+const BLOOM_ITERATIONS = 6;     // blur passes (each = H + V) — more = wider/softer
+const BLOOM_THRESHOLD  = 0.25;  // luminance below this doesn't glow
+const BLOOM_INTENSITY  = 3.5;   // how strongly the glow is added back (blur dilutes peaks, so >1)
+
+const bloom = { ready:false };
+
+function initBloom()
+{
+    if (headlessMode) return;
+    if (!glEnable || !glContext)
+    {
+        console.warn('initBloom: WebGL not enabled — running without bloom.');
+        return;
+    }
+    buildBloomResources();
+    engineAddPlugin(undefined, bloomRender,
+        () => { bloom.ready = false; },   // context lost
+        () => { buildBloomResources(); }); // context restored
+}
+
+function buildBloomResources()
+{
+    const gl = glContext;
+
+    // Shared fullscreen-quad vertex shader: maps the engine's 0..1 geometry
+    // strip to clip space and passes the 0..1 position through as the uv.
+    const VS =
+        '#version 300 es\nprecision highp float;' +
+        'in vec2 p; out vec2 uv;' +
+        'void main(){ uv = p; gl_Position = vec4(p*2.-1., 0., 1.); }';
+
+    const makeProgram = (fs) =>
+    {
+        const compile = (src, type) =>
+        {
+            const s = gl.createShader(type);
+            gl.shaderSource(s, src);
+            gl.compileShader(s);
+            return s;
+        };
+        const prog = gl.createProgram();
+        gl.attachShader(prog, compile(VS, gl.VERTEX_SHADER));
+        gl.attachShader(prog, compile('#version 300 es\nprecision highp float;\n' + fs, gl.FRAGMENT_SHADER));
+        gl.bindAttribLocation(prog, 0, 'p'); // force 'p' to 0 so one VAO fits every program
+        gl.linkProgram(prog);
+        return prog;
+    };
+
+    // Bright pass + 4-tap box downsample: keep luminance above threshold.
+    bloom.brightProg = makeProgram(
+        'uniform sampler2D tex; uniform vec2 srcTexel; uniform float threshold;' +
+        'in vec2 uv; out vec4 c;' +
+        'void main(){' +
+        '  vec3 s  = texture(tex, uv + srcTexel*vec2(-1.,-1.)).rgb;' +
+        '       s += texture(tex, uv + srcTexel*vec2( 1.,-1.)).rgb;' +
+        '       s += texture(tex, uv + srcTexel*vec2(-1., 1.)).rgb;' +
+        '       s += texture(tex, uv + srcTexel*vec2( 1., 1.)).rgb;' +
+        '  s *= .25;' +
+        '  float b = max(max(s.r, s.g), s.b);' +
+        '  float k = max(b - threshold, 0.);' +
+        '  c = vec4(s * (b > 1e-4 ? k/b : 0.), 1.);' +
+        '}');
+
+    // Separable Gaussian — 5 linear-sampled taps cover 9 texels; dir picks axis.
+    bloom.blurProg = makeProgram(
+        'uniform sampler2D tex; uniform vec2 dir;' +
+        'in vec2 uv; out vec4 c;' +
+        'void main(){' +
+        '  vec3 s  = texture(tex, uv).rgb * .227027;' +
+        '       s += texture(tex, uv + dir*1.3846).rgb * .316216;' +
+        '       s += texture(tex, uv - dir*1.3846).rgb * .316216;' +
+        '       s += texture(tex, uv + dir*3.2308).rgb * .070270;' +
+        '       s += texture(tex, uv - dir*3.2308).rgb * .070270;' +
+        '  c = vec4(s, 1.);' +
+        '}');
+
+    // Composite: sharp scene + glow, then the soft vignette from the old look.
+    bloom.compositeProg = makeProgram(
+        'uniform sampler2D sceneTex; uniform sampler2D bloomTex; uniform float intensity;' +
+        'in vec2 uv; out vec4 c;' +
+        'void main(){' +
+        '  vec3 scene = texture(sceneTex, uv).rgb;' +
+        '  vec3 glow  = texture(bloomTex, uv).rgb;' +
+        '  vec3 col = scene + glow * intensity;' +
+        '  float dx = 2.*uv.x-1., dy = 2.*uv.y-1.;' +
+        '  col *= 1. - pow((dx*dx + dy*dy)/2., 6.);' + // vignette
+        '  c = vec4(col, 1.);' +
+        '}');
+
+    // One VAO over the engine geometry buffer (0..1 triangle-strip quad).
+    bloom.vao = gl.createVertexArray();
+    gl.bindVertexArray(bloom.vao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, glGeometryBuffer);
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0);
+    gl.bindVertexArray(null);
+
+    bloom.sceneTex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, bloom.sceneTex);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    bloom.targets = null;   // [{tex,fbo}, {tex,fbo}] ping-pong, allocated lazily
+    bloom.dw = bloom.dh = 0;
+    bloom.ready = true;
+}
+
+// (re)allocate the two reduced-res ping-pong render targets
+function bloomEnsureTargets(fullW, fullH)
+{
+    const gl = glContext;
+    const dw = max(1, fullW / BLOOM_DOWNSAMPLE | 0);
+    const dh = max(1, fullH / BLOOM_DOWNSAMPLE | 0);
+    if (bloom.targets && bloom.dw === dw && bloom.dh === dh) return;
+
+    if (bloom.targets)
+        for (const t of bloom.targets) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); }
+
+    bloom.targets = [];
+    for (let i = 0; i < 2; i++)
+    {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, dw, dh, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        const fbo = gl.createFramebuffer();
+        gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+        bloom.targets.push({ tex, fbo });
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    bloom.dw = dw;
+    bloom.dh = dh;
+}
+
+function bloomRender()
+{
+    if (headlessMode || !glEnable || !bloom.ready) return;
+
+    const gl = glContext;
+    const fullW = mainCanvas.width, fullH = mainCanvas.height;
+    const setTex = (prog, name, tex, unit) =>
+    {
+        gl.activeTexture(gl.TEXTURE0 + unit);
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.uniform1i(gl.getUniformLocation(prog, name), unit);
+    };
+
+    // 1) Flush the engine batch so the WebGL scene is on glCanvas, then combine
+    //    glCanvas + the 2D overlay (HUD) into the work canvas and upload it.
+    //    Clearing the overlay keeps the HUD from also drawing crisp on top.
+    glFlush();
+    workCanvas.width = fullW;
+    workCanvas.height = fullH;
+    glCopyToContext(workContext);            // WebGL scene
+    workContext.drawImage(mainCanvas, 0, 0); // HUD / overlay text on top
+    mainCanvas.width |= 0;                    // clear overlay
+
+    gl.bindVertexArray(bloom.vao);
+    gl.disable(gl.BLEND);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, bloom.sceneTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, workCanvas);
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+
+    bloomEnsureTargets(fullW, fullH);
+    const dw = bloom.dw, dh = bloom.dh;
+
+    // 2) Bright pass + downsample: scene -> targets[0]
+    gl.viewport(0, 0, dw, dh);
+    gl.useProgram(bloom.brightProg);
+    setTex(bloom.brightProg, 'tex', bloom.sceneTex, 0);
+    // box taps span half a downsample cell so the 4-tap box tiles the whole
+    // cell (with LINEAR filtering) instead of skipping pixels between lines
+    const cell = BLOOM_DOWNSAMPLE * 0.5;
+    gl.uniform2f(gl.getUniformLocation(bloom.brightProg, 'srcTexel'), cell/fullW, cell/fullH);
+    gl.uniform1f(gl.getUniformLocation(bloom.brightProg, 'threshold'), BLOOM_THRESHOLD);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, bloom.targets[0].fbo);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // 3) Ping-pong separable Gaussian blur (each iteration = H then V)
+    gl.useProgram(bloom.blurProg);
+    const dirLoc = gl.getUniformLocation(bloom.blurProg, 'dir');
+    let read = bloom.targets[0], write = bloom.targets[1];
+    for (let i = 0; i < BLOOM_ITERATIONS; i++)
+    {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, write.fbo);
+        setTex(bloom.blurProg, 'tex', read.tex, 0);
+        gl.uniform2f(dirLoc, 1/dw, 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        [read, write] = [write, read];
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, write.fbo);
+        setTex(bloom.blurProg, 'tex', read.tex, 0);
+        gl.uniform2f(dirLoc, 0, 1/dh);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+        [read, write] = [write, read];
+    }
+
+    // 4) Composite sharp scene + blurred glow -> screen (default framebuffer)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, fullW, fullH);
+    gl.useProgram(bloom.compositeProg);
+    setTex(bloom.compositeProg, 'sceneTex', bloom.sceneTex, 0);
+    setTex(bloom.compositeProg, 'bloomTex', read.tex, 1);
+    gl.uniform1f(gl.getUniformLocation(bloom.compositeProg, 'intensity'), BLOOM_INTENSITY);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // 5) Restore the engine's GL state for anything that renders after us.
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, glActiveTexture || null);
+    gl.bindVertexArray(null);
+    glSetInstancedMode(true);
+}
+
+// ============================================================
 // Core callbacks
 // ============================================================
 function gameInit()
@@ -791,44 +1028,8 @@ function gameInit()
     setEnablePhysicsSolver(false);
     setGravity(vec2());
 
-    // ============================================================
-    // Vector-arcade post-process. Two stacked bloom passes (tight
-    // halo + wide haze) over the pre-bloomed geometry, plus a
-    // soft vignette. HUD is composited in so it glows too.
-    // ============================================================
-    const televisionShader = `
-    // 5-tap cross-pattern blur, reused at multiple radii
-    vec4 bloomPass(vec2 p, float blurSize)
-    {
-        vec4 bloom = vec4(0);
-        bloom += texture(iChannel0, p + vec2(-2.*blurSize, 0)) * .12;
-        bloom += texture(iChannel0, p + vec2(   -blurSize, 0)) * .24;
-        bloom += texture(iChannel0, p)                         * .28;
-        bloom += texture(iChannel0, p + vec2(    blurSize, 0)) * .24;
-        bloom += texture(iChannel0, p + vec2( 2.*blurSize, 0)) * .12;
-        bloom += texture(iChannel0, p + vec2(0, -2.*blurSize)) * .12;
-        bloom += texture(iChannel0, p + vec2(0,    -blurSize)) * .24;
-        bloom += texture(iChannel0, p)                         * .28;
-        bloom += texture(iChannel0, p + vec2(0,     blurSize)) * .24;
-        bloom += texture(iChannel0, p + vec2(0,  2.*blurSize)) * .12;
-        return bloom;
-    }
-
-    void mainImage(out vec4 c, vec2 p)
-    {
-        p /= iResolution.xy;
-        c = texture(iChannel0, p);
-
-        // stacked bloom: tight halo + wide haze
-        c += bloomPass(p, .002) * .5;
-
-        // black vignette around edges
-        const float vignette = 2.;
-        const float vignettePow = 6.;
-        float dx = 2.*p.x-1., dy = 2.*p.y-1.;
-        c *= 1.-pow((dx*dx + dy*dy)/vignette, vignettePow);
-    }`;
-    new PostProcessPlugin(televisionShader, true);
+    // Multi-pass bloom (own WebGL ping-pong blur). See initBloom above.
+    initBloom();
 
     // stars
     stars = [];
