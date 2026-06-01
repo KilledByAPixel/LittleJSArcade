@@ -587,7 +587,9 @@ function drawStadium()
     // mask: re-open the interior (r<45) to foul-territory color, leaving the
     // seating as a ring; then cut the southern half so it sits behind the outfield
     drawTile(center, vec2(45*2), icons.circle, canvasClearColor);
-    drawRect(center.add(vec2(0, -100)), vec2(400, 200), canvasClearColor);
+
+    drawRect(center.add(vec2(0,-120)), vec2(2e3, 200), canvasClearColor,.5);
+    drawRect(center.add(vec2(0,-120)), vec2(2e3, 200), canvasClearColor,-.5);
 }
 
 function drawFieldGround()
