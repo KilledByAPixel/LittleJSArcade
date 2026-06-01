@@ -1,5 +1,5 @@
 <!DOCTYPE html><head>
-<title>LittleJS Connect 4</title>
+<title>LittleJS Drop Four</title>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
@@ -21,7 +21,7 @@ cameraPos = vec2(0, 0);
 cameraScale = 42;
 
 ///////////////////////////////////////////////////////////////////////////////
-// CONNECT 4 GAME
+// DROP FOUR GAME
 
 const ROWS = 6;
 const COLS = 7;
@@ -636,7 +636,7 @@ async function gameInit()
     // ----- title menu -----
     createMenu({
         id: 'title',
-        title: 'CONNECT 4',
+        title: 'Drop Four',
         dismissable: false,
         onStart: () => startGame('ai'),
         items: [
