@@ -52,6 +52,15 @@ function initDrawToTexture(cols = 4)
 {
     ASSERT(cols === 4 || cols === 8, 'cols must be 4 or 8');
 
+    // A generated atlas is always a high-res (2048px) sheet, so disable the
+    // engine's nearest-neighbour pixel-art filtering for smooth sampling. Set
+    // before the TextureInfo below so its GL texture gets LINEAR magFilter +
+    // mipmaps. Games used to set this at module top-level; it now lives here so
+    // any texture-generator game gets it automatically. The engine re-reads
+    // tilesPixelated every frame in enginePreRender, and gameInit (where this
+    // runs) completes before the first render, so the timing matches.
+    tilesPixelated = false;
+
     TILE_COLS    = cols;
     TILE_STRIDE  = ATLAS_SIZE / TILE_COLS;        // 512 or 256
     TILE_PADDING = TILE_COLS === 4 ? 12 : 6;       // transparent moat to stop mip bleed
