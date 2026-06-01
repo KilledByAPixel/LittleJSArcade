@@ -2,10 +2,12 @@
 
 // AI can use this module to build a sprite atlas from canvas 2D draw ops.
 // initDrawToTexture(cols) builds a cols x cols grid inside a 2048 atlas.
-// cols=4 (default) gives 16 tiles of 500px with 6px gutters (unchanged
-// from the original module). cols=8 gives 64 tiles of 250px with 3px
-// gutters. Only 4 and 8 are supported. initDrawToTexture() replaces
-// textureInfos[0]. drawToTexture() paints a tile and returns a TileInfo.
+// cols=4 (default) gives 16 tiles of 488px with 12px gutters; cols=8 gives
+// 64 tiles of 244px with 6px gutters. Only 4 and 8 are supported. Paint
+// functions always draw in a fixed DRAW_SIZE (500) space scaled to the tile,
+// so the gutter / tile pixel size can change without touching paint code.
+// initDrawToTexture() replaces textureInfos[0]. drawToTexture() paints a tile
+// and returns a TileInfo.
 // drawTextToTexture() is the shortcut for the common "centre an emoji or
 // short string in a tile" case, with optional hue-shift recolour.
 // saveAtlasImage()/saveAtlasPrompt() export the sheet + prompt.

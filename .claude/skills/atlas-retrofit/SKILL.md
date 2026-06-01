@@ -36,19 +36,14 @@ pentagon, hexagon, spark, star, burst, plus, heart, droplet, bolt, arrow.
 ## Size rule — 1:1, no fudge factor
 
 `drawCircle`'s size arg is the **diameter** (it forwards to `drawEllipse`, which
-uses `size.x/2` as radius). `drawDefaultIcon` paints each icon at radius
-`TILE_SIZE/2` — it fills the tile edge-to-edge — so an icon drawn at `vec2(D)`
-renders at diameter `D`. Map straight through: `drawCircle(pos, D)` →
+uses `size.x/2` as radius). Default-atlas icons fill their tile, so an icon drawn
+at `vec2(D)` renders at diameter `D`. Map straight through: `drawCircle(pos, D)` →
 `drawTile(pos, vec2(D), icons.circle, color)`.
 
-**Ignore the stale comment in `templates/textureGenerator.js` that mentions a
-`/1.15` headroom — that division was removed; the code is `r = c * scale`.** Do
-not scale sizes by 1.15 (or any factor) to "compensate." A naive reader of that
-comment will shrink every shape ~13%; don't.
-
-(Pre-existing atlas games were authored against the old `/1.15` shrink and may now
-render slightly large. Re-sizing those is a separate manual pass — NOT this
-skill's job. Map 1:1 and move on.)
+Do **not** multiply sizes by any `"fill"`/`"fit"`/`1.15` factor to "compensate."
+Older atlas games did that when icons were inset in their tile; icons now fill
+the tile, so such a factor over-sizes every shape — it's what made dominoes
+overlap their layout footprint. Drop it and map 1:1.
 
 ## Glow rule — plain tint by default; additive needs alpha-0
 
@@ -124,7 +119,7 @@ drawTile(pos, vec2(D), icons.glow, color, 0, false, hsl(.55,.9,.72, 0)); // alph
 
 | Mistake | Fix |
 |---|---|
-| Scaling sizes by 1.15 because of the comment | Map 1:1. The `/1.15` is gone. |
+| Multiplying sizes by a "fill"/"fit"/1.15 factor | Icons fill the tile now — map 1:1. |
 | Additive glow with a non-zero-alpha additive color | Additive color alpha must be 0, else a translucent square appears. |
 | Inventing or stripping the `?<version>` stamp on the new script tag | Copy sibling tags verbatim, stamp and all. |
 | Converting `ctx.arc` inside a `drawToTexture` paint fn | That bakes a sprite; only convert runtime `drawCircle`/`drawEllipse`. |
