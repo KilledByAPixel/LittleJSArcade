@@ -23,7 +23,8 @@ icons are white-on-transparent and tint per-instance via `drawTile`'s `color`.
 | Existing | Becomes |
 |---|---|
 | `drawCircle(pos, D, color)` | `drawTile(pos, vec2(D), icons.circle, color)` |
-| `drawEllipse(pos, vec2(w,h), color)` | `drawTile(pos, vec2(w,h), icons.circle, color)` |
+| `drawEllipse(pos, vec2(w,h), color)` | `drawTile(pos, vec2(w,h), icons.circle, color)` (non-uniform `vec2` stretches the round tile into the ellipse) |
+| `drawEllipse(pos, vec2(w,h), color, angle)` | `drawTile(pos, vec2(w,h), icons.circle, color, angle)` — **angle moves from `drawEllipse`'s 4th arg to `drawTile`'s 5th** (after `tileInfo`); easy to drop or mis-slot |
 | `drawCircleGradient(pos, D, inner, outer)` / `drawEllipseGradient` / a **symmetric** center→transparent `createRadialGradient` halo | `drawTile(pos, vec2(D), icons.glow, color)` (see glow rule) |
 | hand-built ring (`arc` + reverse `arc`) | `icons.ring` |
 | hand-built triangle / diamond / pentagon / hexagon | `icons.triangle` / `diamond` / `pentagon` / `hexagon` |

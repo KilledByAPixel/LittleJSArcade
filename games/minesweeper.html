@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -421,9 +422,12 @@ function runSelfTests()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+
 async function gameInit()
 {
     saveDataInit('minesweeper');
+    icons = initDefaultAtlas();
 
     // prevent browser right click menu
     document.addEventListener('contextmenu', e=>e.preventDefault());
@@ -659,8 +663,8 @@ function gameRender()
 
             if ((revealAll || gameOver) && isMine)
             {
-                drawCircle(pos, .55, hsl(0,.7,.5));
-                drawCircle(pos, .25, hsl(0,.7,.2));
+                drawTile(pos, vec2(.55), icons.circle, hsl(0,.7,.5));
+                drawTile(pos, vec2(.25), icons.circle, hsl(0,.7,.2));
             }
             else if (!isMine)
             {

@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -131,6 +132,9 @@ let slowTimer = 0;
 
 // sounds
 let sfxBounce, sfxBrick, sfxLose, sfxWin, sfxPower, sfxLaser;
+
+// default-atlas icon map (name -> TileInfo), tinted per draw
+let icons;
 
 
 function applyPaddleWidth()
@@ -613,6 +617,7 @@ function quitToTitleWithCleanup()
 async function gameInit()
 {
     saveDataInit('breakout');
+    icons = initDefaultAtlas();
     cameraPos = levelSize.scale(.5);
 
     sfxBounce = new SoundGenerator({ volume: .6, frequency: 400, release: .06, shapeCurve: 1.6 });
@@ -991,7 +996,7 @@ function gameRender()
             // Fresh silver has a dot to mark "needs another hit".
             // The dot vanishes after the first hit; the brick keeps the same color.
             if (b.hp >= b.maxHp)
-                drawCircle(b.pos, .32, hsl(0, 0, .15));
+                drawTile(b.pos, vec2(.32), icons.circle, hsl(0, 0, .15));
         }
         else if (b.special)
         {
@@ -1052,7 +1057,7 @@ function gameRender()
         for (let i = 0; i < b.trail.length; ++i)
         {
             const k = (i + 1) / (b.trail.length + 1);
-            drawCircle(b.trail[i], b.size * k, hsl(.12, .9, .6, k * .4));
+            drawTile(b.trail[i], vec2(b.size * k), icons.circle, hsl(.12, .9, .6, k * .4));
         }
 
         const ballColor =
@@ -1060,11 +1065,12 @@ function gameRender()
             slowTimer     > 0 ? hsl(.50, .9, .7) :
                                 hsl(.12, .9, .6);
         // dark rim, body, then a small offset highlight for shine
-        drawCircle(b.pos, b.size, shade(ballColor, .55));
-        drawCircle(b.pos, b.size * .8, ballColor);
-        drawCircle(
+        drawTile(b.pos, vec2(b.size), icons.circle, shade(ballColor, .55));
+        drawTile(b.pos, vec2(b.size * .8), icons.circle, ballColor);
+        drawTile(
             b.pos.add(vec2(-b.size * .18, b.size * .18)),
-            b.size * .35,
+            vec2(b.size * .35),
+            icons.circle,
             shade(ballColor, 1.6),
         );
     }

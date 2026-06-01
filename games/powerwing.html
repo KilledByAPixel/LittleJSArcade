@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -480,7 +481,7 @@ function renderPlayer()
     if (shieldTimer > 0)
     {
         const shieldAlpha = .3 + .2 * Math.sin(time * 8);
-        drawCircle(player.pos, 2.5, hsl(.75, .8, .6, shieldAlpha));
+        drawTile(player.pos, vec2(2.5), icons.circle, hsl(.75, .8, .6, shieldAlpha));
     }
 }
 
@@ -595,9 +596,9 @@ function renderBullets()
         else
         {
             // Enemy bullets - fireballs (bright red outer, bright yellow center)
-            drawCircle(b.pos, b.size * 2, hsl(.02, 1, .5));   // bright red outer
-            drawCircle(b.pos, b.size * 1.3, hsl(.08, 1, .55)); // orange middle
-            drawCircle(b.pos, b.size * .8, hsl(.14, 1, .6));   // bright yellow center
+            drawTile(b.pos, vec2(b.size * 2), icons.circle, hsl(.02, 1, .5));   // bright red outer
+            drawTile(b.pos, vec2(b.size * 1.3), icons.circle, hsl(.08, 1, .55)); // orange middle
+            drawTile(b.pos, vec2(b.size * .8), icons.circle, hsl(.14, 1, .6));   // bright yellow center
         }
     }
 }
@@ -901,11 +902,11 @@ function renderEnemies()
 
             // Core
             const coreGlow = hsl(.85, .9, .4 + .2 * Math.sin(time * 5));
-            drawCircle(e.pos, 1.2, coreGlow);
+            drawTile(e.pos, vec2(1.2), icons.circle, coreGlow);
 
             // Eyes
-            drawCircle(e.pos.add(vec2(-.5, .8)), .4, hsl(.02, 1, .6));
-            drawCircle(e.pos.add(vec2(-.5, -.8)), .4, hsl(.02, 1, .6));
+            drawTile(e.pos.add(vec2(-.5, .8)), vec2(.4), icons.circle, hsl(.02, 1, .6));
+            drawTile(e.pos.add(vec2(-.5, -.8)), vec2(.4), icons.circle, hsl(.02, 1, .6));
 
             // Health bar
             const healthPct = e.health / e.maxHealth;
@@ -934,7 +935,7 @@ function renderEnemies()
             else if (e.type === 3) // Tank
             {
                 drawRect(e.pos.add(vec2(-.5, 0)), vec2(.8, .4), e.color.scale(.6, 1));
-                drawCircle(e.pos, .5, e.color.scale(.8, 1));
+                drawTile(e.pos, vec2(.5), icons.circle, e.color.scale(.8, 1));
             }
 
             // Engine glow
@@ -1091,11 +1092,11 @@ function renderPowerups()
         const pulse = isPowerup ? 1 + .15 * Math.sin(time * 10) : 1;
 
         // Outer glow
-        drawCircle(pos, p.size * 1.6 * pulse, color.scale(1, .35));
+        drawTile(pos, vec2(p.size * 1.6 * pulse), icons.circle, color.scale(1, .35));
 
         // Core
-        drawCircle(pos, p.size * pulse, color);
-        drawCircle(pos, p.size * .7 * pulse, color.scale(1.3, 1));
+        drawTile(pos, vec2(p.size * pulse), icons.circle, color);
+        drawTile(pos, vec2(p.size * .7 * pulse), icons.circle, color.scale(1.3, 1));
 
         // Letter
         drawText(letter, pos, p.size * .8, hsl(0, 0, 1), .2, hsl(0, 0, 0));
@@ -1215,9 +1216,12 @@ function buildMenus()
 ///////////////////////////////////////////////////////////////////////////////
 // ENGINE CALLBACKS
 
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+
 async function gameInit()
 {
     saveDataInit('gradius');
+    icons = initDefaultAtlas();
     setCanvasFixedSize(vec2(1280, 720));
     cameraPos = vec2(0, 0);
 

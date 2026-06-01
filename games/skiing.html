@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -226,7 +227,7 @@ class Player
         if (this.jumpZ > 0)
         {
             const shadowScale = 1 + this.jumpZ * .15;
-            drawCircle(this.pos, .6 * shadowScale, hsl(0, 0, 0, .3 / shadowScale));
+            drawTile(this.pos, vec2(.6 * shadowScale), icons.circle, hsl(0, 0, 0, .3 / shadowScale));
         }
         
         // offset position based on jump height
@@ -257,9 +258,10 @@ class Player
         );
 
         // goggles/face
-        drawCircle(
+        drawTile(
             renderPos.add(vec2(0, .3).rotate(this.angle)),
-            .5,
+            vec2(.5),
+            icons.circle,
             hsl(.1, .9, .6)
         );
     }
@@ -441,14 +443,14 @@ function renderObstacles()
             else if (obs.type === 'rock')
             {
                 // gray rock
-                drawCircle(obs.pos, obs.size.x * .6, hsl(0, 0, .4));
-                drawCircle(obs.pos.add(vec2(.15, .1)), obs.size.x * .4, hsl(0, 0, .5));
+                drawTile(obs.pos, vec2(obs.size.x * .6), icons.circle, hsl(0, 0, .4));
+                drawTile(obs.pos.add(vec2(.15, .1)), vec2(obs.size.x * .4), icons.circle, hsl(0, 0, .5));
             }
             else if (obs.type === 'bump')
             {
                 // small snow bump
-                drawEllipse(obs.pos, obs.size, hsl(.55, .2, .8));
-                drawEllipse(obs.pos, obs.size.scale(.7), hsl(.55, .1, .9));
+                drawTile(obs.pos, obs.size, icons.circle, hsl(.55, .2, .8));
+                drawTile(obs.pos, obs.size.scale(.7), icons.circle, hsl(.55, .1, .9));
             }
             else if (obs.type === 'ramp')
             {
@@ -499,7 +501,7 @@ function renderParticles()
         const alpha = p.life / p.maxLife;
         const c = p.color.copy();
         c.a *= alpha;
-        drawCircle(p.pos, p.size, c);
+        drawTile(p.pos, vec2(p.size), icons.circle, c);
     }
 }
 
@@ -526,9 +528,12 @@ function resetGame()
 ///////////////////////////////////////////////////////////////////////////////
 // LittleJS Callbacks
 
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+
 async function gameInit()
 {
     saveDataInit('skiing');
+    icons = initDefaultAtlas();
     cameraPos = vec2(0, 0);
 
     // sounds

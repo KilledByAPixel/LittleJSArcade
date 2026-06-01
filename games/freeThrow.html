@@ -14,6 +14,7 @@
 </style>
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script>
@@ -102,6 +103,9 @@ let hoopOffsetX  = 0;
 let hoopElapsed  = 0;
 let popups       = [];           // floating score text: [{pos, vel, t, life, text, color, size}]
 const swishTimer = new Timer();  // drives the big "SWISH!" banner under the clock
+
+// default-atlas icon map (name -> TileInfo), tinted per draw
+let icons;
 
 //------------------------------------------------------------------------------
 // hoop / scoring geometry
@@ -404,6 +408,7 @@ async function gameInit()
 {
     setCanvasFixedSize(vec2(1280, 720));
     saveDataInit('basketball');
+    icons = initDefaultAtlas();
     canvasClearColor = COLOR_BG;
     setSoundVolume(.7);
     // Title has its own attract-mode behind the menu — leave it animating.
@@ -647,8 +652,11 @@ function drawHoopAssembly()
     const leftPeg  = getLeftPeg();
     const rightPeg = getRightPeg();
     drawRect(vec2(h.x, h.y), vec2(RIM_HALF_W * 2, .1), COLOR_RIM);
-    drawCircle(leftPeg,  RIM_PEG_R * 2, COLOR_RIM, .03, hsl(.02, .9, .25));
-    drawCircle(rightPeg, RIM_PEG_R * 2, COLOR_RIM, .03, hsl(.02, .9, .25));
+    for (const peg of [leftPeg, rightPeg])
+    {
+        drawTile(peg, vec2(RIM_PEG_R * 2 + .03), icons.circle, hsl(.02, .9, .25)); // dark rim
+        drawTile(peg, vec2(RIM_PEG_R * 2),       icons.circle, COLOR_RIM);          // body
+    }
 
     // net (4 vertical strands tapering inward)
     const netTop = h.y - .04;
@@ -679,11 +687,12 @@ function drawBasketball(pos, rot)
     const r  = BALL_RADIUS;
     const cs = Math.cos(rot), sn = Math.sin(rot);
 
-    // body
-    drawCircle(pos, r * 2, COLOR_BALL, .07, COLOR_BALL_DK);
+    // body (dark rim + orange fill)
+    drawTile(pos, vec2(r * 2 + .07), icons.circle, COLOR_BALL_DK);
+    drawTile(pos, vec2(r * 2),       icons.circle, COLOR_BALL);
 
     // soft top-left highlight (does not rotate — represents the light source)
-    drawCircle(pos.add(vec2(-r * .35, r * .35)), r * .85, hsl(.09, .9, .72, .35));
+    drawTile(pos.add(vec2(-r * .35, r * .35)), vec2(r * .85), icons.circle, hsl(.09, .9, .72, .35));
 
     // two straight diameter seams at 90° to each other
     const lw = .07;
@@ -721,7 +730,7 @@ function gameRender()
     drawRectGradient(vec2(0, FLOOR_Y + 10), vec2(40,20), hsl(0,0,1,.5), CLEAR_BLACK);
 
     // soft radial glow marking the drag zone (radius = MAX_DRAG)
-    drawCircleGradient(DRAG_CENTER, MAX_DRAG * 2, hsl(.6, .5, .6, .35), hsl(.6, .5, .6, 0));
+    drawTile(DRAG_CENTER, vec2(MAX_DRAG * 2), icons.glow, hsl(.6, .5, .6, .35));
 
     drawCourt();
     drawHoopAssembly();

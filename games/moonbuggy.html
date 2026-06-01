@@ -3,6 +3,7 @@
 <meta charset=utf-8>
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/tweakables.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
@@ -216,9 +217,12 @@ function fire()
 ///////////////////////////////////////////////////////////////////////////////
 // --- update
 
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+
 function gameInit()
 {
     saveDataInit('moonPatrol');
+    icons = initDefaultAtlas();
     document.addEventListener('contextmenu', e => e.preventDefault());
 
     setCanvasFixedSize(vec2(1280, 720));
@@ -670,10 +674,10 @@ function drawMoon(mx, my)
 
     //drawCrescent(vec2(mx, my), mr, 0.15, lit, PI/2, true); // crescent
 
-    drawCircle(vec2(mx, my), md, hsl(.6,.5,.05)); // dark disc
+    drawTile(vec2(mx, my), vec2(md), icons.circle, hsl(.6,.5,.05)); // dark disc
     drawCrescent(vec2(mx, my), md, 0.15, lit, 1.9); // bright crescent
-    drawCircle(vec2(mx+1.4, my+0.5), 0.6,  crater);  // craters on the lit sliver
-    drawCircle(vec2(mx+1.5, my-1.0), 0.45, crater);
+    drawTile(vec2(mx+1.4, my+0.5), vec2(0.6),  icons.circle, crater);  // craters on the lit sliver
+    drawTile(vec2(mx+1.5, my-1.0), vec2(0.45), icons.circle, crater);
 }
 
 function drawRidge(par, color, screenYFrac, amp, freq)
@@ -753,16 +757,16 @@ function drawRover()
     // wheels (suspension wobble look: bigger soft tyres)
     const wheel = (ox) => {
         const w = pos.add(rot(vec2(ox, -ROVER_SIZE.y/2 + 0.05), a));
-        drawCircle(w, 0.6, dark);
-        drawCircle(w, 0.34, hsl(.58,.2,.7));
-        drawCircle(w, 0.12, dark);
+        drawTile(w, vec2(0.6), icons.circle, dark);
+        drawTile(w, vec2(0.34), icons.circle, hsl(.58,.2,.7));
+        drawTile(w, vec2(0.12), icons.circle, dark);
     };
     wheel(-0.6); wheel(0.0); wheel(0.6);
 
     // turret aiming at the mouse
     const turret = pos.add(rot(vec2(0.25, 0.45), a));
     const aim = aimDir;
-    drawCircle(turret, 0.34, dark);
+    drawTile(turret, vec2(0.34), icons.circle, dark);
     drawLine(turret, turret.add(aim.scale(0.95)), 0.18, hsl(.55,.4,.5));
     drawLine(turret, turret.add(aim.scale(0.95)), 0.08, trim);
 }
@@ -789,29 +793,29 @@ function drawEntities()
     {
         if (u.hp <= 0 || u.pos.x < left || u.pos.x > right) continue;
         const glow = 0.5 + Math.sin(u.phase*2)*0.5;
-        drawEllipse(u.pos, vec2(2.0, 0.7), hsl(.85,.45,.55), 0, 0.08, hsl(.85,.3,.25));
-        drawEllipse(u.pos.add(vec2(0,0.25)), vec2(0.9, 0.55), hsl(.55,.4,.8, .9));
+        drawTile(u.pos, vec2(2.08, 0.78), icons.circle, hsl(.85,.3,.25));   // hull outline
+        drawTile(u.pos, vec2(2.0, 0.7), icons.circle, hsl(.85,.45,.55));    // hull
+        drawTile(u.pos.add(vec2(0,0.25)), vec2(0.9, 0.55), icons.circle, hsl(.55,.4,.8, .9));
         for (let i = -1; i <= 1; ++i)
-            drawCircle(u.pos.add(vec2(i*0.6, -0.18)), 0.18, hsl(.12,.9,.5+glow*0.3));
+            drawTile(u.pos.add(vec2(i*0.6, -0.18)), vec2(0.18), icons.circle, hsl(.12,.9,.5+glow*0.3));
     }
 
     // bombs
     for (const b of bombs)
     {
         if (!b.alive) continue;
-        drawCircle(b.pos, 0.36, hsl(.05,.85,.55));
-        drawCircle(b.pos, 0.18, hsl(.10,.9,.8));
+        drawTile(b.pos, vec2(0.36), icons.circle, hsl(.05,.85,.55));
+        drawTile(b.pos, vec2(0.18), icons.circle, hsl(.10,.9,.8));
     }
 
     // powerups
     for (const p of powerups)
     {
         const pulse = 0.1 + Math.abs(Math.sin(p.life*3))*0.12;
-        drawCircle(p.pos, 0.6 + pulse, hsl(.33,.8,.55, .9));
-        drawCircle(p.pos, 0.32, hsl(.33,.3,.2));
+        drawTile(p.pos, vec2(0.6 + pulse), icons.circle, hsl(.33,.8,.55, .9));
+        drawTile(p.pos, vec2(0.32), icons.circle, hsl(.33,.3,.2));
         // plus sign
-        drawRect(p.pos, vec2(0.34, 0.12), hsl(.33,.9,.8));
-        drawRect(p.pos, vec2(0.12, 0.34), hsl(.33,.9,.8));
+        drawTile(p.pos, vec2(0.34), icons.plus, hsl(.33,.9,.8));
     }
 
     // bullets
@@ -819,14 +823,14 @@ function drawEntities()
     {
         const dir = b.vel.normalize(0.7);
         drawLine(b.pos, b.pos.subtract(dir), 0.16, hsl(.14,.9,.7));
-        drawCircle(b.pos, 0.18, hsl(.14,1,.85));
+        drawTile(b.pos, vec2(0.18), icons.circle, hsl(.14,1,.85));
     }
 
     // particles
     for (const p of particles)
     {
         const t = clamp(1 - p.life/p.max, 0, 1);
-        drawCircle(p.pos, p.size*(1.2-t), p.colA.lerp(p.colB, t));
+        drawTile(p.pos, vec2(p.size*(1.2-t)), icons.circle, p.colA.lerp(p.colB, t));
     }
 }
 

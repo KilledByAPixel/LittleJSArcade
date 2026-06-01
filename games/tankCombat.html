@@ -3,6 +3,7 @@
 <meta charset=utf-8>
 </head><body>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -379,8 +380,8 @@ class Tank
         drawRect(this.pos, vec2(hullW, hullL), hullCol, ang);
 
         // turret (circle on top — rotation doesn't matter)
-        drawCircle(this.pos, turretR * 2 + 0.1, hullDark);
-        drawCircle(this.pos, turretR * 2, hullCol);
+        drawTile(this.pos, vec2(turretR * 2 + 0.1), icons.circle, hullDark);
+        drawTile(this.pos, vec2(turretR * 2), icons.circle, hullCol);
 
         // barrel extending forward from the turret — long axis in size.y
         const barrelPos = this.pos.add(fwd.scale(turretR + barrelLen * 0.5 - 0.05));
@@ -461,7 +462,7 @@ class Bullet
 
     render()
     {
-        drawCircle(this.pos, BULLET_RADIUS*2, rgb(1,1,1));
+        drawTile(this.pos, vec2(BULLET_RADIUS*2), icons.circle, rgb(1,1,1));
     }
 }
 
@@ -553,11 +554,14 @@ function buildMenus()
 // -------------------------------------------------------------------------
 // LittleJS callbacks
 
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+
 function gameInit()
 {
     // low-res + pixelated for a 2600-ish vibe
     setCanvasFixedSize(vec2(640, 360));
     setCanvasPixelated(true);
+    icons = initDefaultAtlas();
 
     // touch twin-stick gamepad: left stick moves, right (face-button) stick aims+fires
     touchGamepadEnable = true;

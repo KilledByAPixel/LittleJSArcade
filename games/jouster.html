@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -232,26 +233,26 @@ class Rider
 
         // Bird body
         const birdPos = this.pos.add(vec2(0, -0.2));
-        drawEllipse(birdPos, vec2(1.0, 0.7), birdColor.scale(1, alpha));
-        
+        drawTile(birdPos, vec2(1.0, 0.7), icons.circle, birdColor.scale(1, alpha));
+
         // Bird head
         const headOffset = mirror ? -0.4 : 0.4;
         const headPos = birdPos.add(vec2(headOffset, 0.2));
-        drawCircle(headPos, 0.35, birdColor.scale(1, alpha));
-        
+        drawTile(headPos, vec2(0.35), icons.circle, birdColor.scale(1, alpha));
+
         // Beak
         const beakOffset = mirror ? -0.25 : 0.25;
-        drawEllipse(headPos.add(vec2(beakOffset, -0.05)), vec2(0.25, 0.12), hsl(0.1, 0.9, 0.6, alpha));
-        
+        drawTile(headPos.add(vec2(beakOffset, -0.05)), vec2(0.25, 0.12), icons.circle, hsl(0.1, 0.9, 0.6, alpha));
+
         // Eye
         const eyeOffset = mirror ? -0.08 : 0.08;
-        drawCircle(headPos.add(vec2(eyeOffset, 0.08)), 0.08, rgb(0, 0, 0, alpha));
+        drawTile(headPos.add(vec2(eyeOffset, 0.08)), vec2(0.08), icons.circle, rgb(0, 0, 0, alpha));
 
         // Wings
         const wingX = mirror ? 0.3 : -0.3;
         const wingY = this.wingAngle * 0.3;
         const wingPos = birdPos.add(vec2(wingX, wingY));
-        drawEllipse(wingPos, vec2(0.4, 0.25), birdColor.scale(0.8, alpha), this.wingAngle * (mirror ? -1 : 1));
+        drawTile(wingPos, vec2(0.4, 0.25), icons.circle, birdColor.scale(0.8, alpha), this.wingAngle * (mirror ? -1 : 1));
 
         // Legs
         const legColor = hsl(0.1, 0.7, 0.5, alpha);
@@ -260,13 +261,13 @@ class Rider
 
         // Rider body
         const riderPos = this.pos.add(vec2(0, 0.35));
-        drawEllipse(riderPos, vec2(0.5, 0.6), riderColor.scale(1, alpha));
-        
+        drawTile(riderPos, vec2(0.5, 0.6), icons.circle, riderColor.scale(1, alpha));
+
         // Rider head
-        drawCircle(riderPos.add(vec2(0, 0.4)), 0.25, riderColor.scale(1.2, alpha));
-        
+        drawTile(riderPos.add(vec2(0, 0.4)), vec2(0.25), icons.circle, riderColor.scale(1.2, alpha));
+
         // Helmet
-        drawEllipse(riderPos.add(vec2(0, 0.5)), vec2(0.3, 0.15), riderColor.scale(0.8, alpha));
+        drawTile(riderPos.add(vec2(0, 0.5)), vec2(0.3, 0.15), icons.circle, riderColor.scale(0.8, alpha));
         
         // Lance
         const lanceDir = mirror ? -1 : 1;
@@ -274,7 +275,7 @@ class Rider
         const lanceEnd = riderPos.add(vec2(lanceDir * 0.9, -0.3));
         drawLine(lanceStart, lanceEnd, 0.08, hsl(0.08, 0.3, 0.6, alpha));
         // Lance tip
-        drawCircle(lanceEnd, 0.1, hsl(0.08, 0.2, 0.8, alpha));
+        drawTile(lanceEnd, vec2(0.1), icons.circle, hsl(0.08, 0.2, 0.8, alpha));
     }
 }
 
@@ -366,11 +367,11 @@ class Egg
         // Egg shape
         const wobble = this.hatchTimer < 2 ? Math.sin(time * 15) * 0.1 : 0;
         const eggColor = this.hatchTimer < 2 ? EGG_COLOR.lerp(ENEMY_COLOR, 0.3) : EGG_COLOR;
-        drawEllipse(this.pos, this.size, eggColor, wobble);
-        
+        drawTile(this.pos, this.size, icons.circle, eggColor, wobble);
+
         // Spots
-        drawCircle(this.pos.add(vec2(-0.1, 0.1)), 0.08, eggColor.scale(0.85, 1));
-        drawCircle(this.pos.add(vec2(0.12, -0.05)), 0.06, eggColor.scale(0.85, 1));
+        drawTile(this.pos.add(vec2(-0.1, 0.1)), vec2(0.08), icons.circle, eggColor.scale(0.85, 1));
+        drawTile(this.pos.add(vec2(0.12, -0.05)), vec2(0.06), icons.circle, eggColor.scale(0.85, 1));
     }
 }
 
@@ -571,9 +572,12 @@ function createPlatforms()
 ///////////////////////////////////////////////////////////////////////////////
 // Game callbacks
 
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+
 function gameInit()
 {
     saveDataInit('joust');
+    icons = initDefaultAtlas();
     setCanvasFixedSize(vec2(1280, 720));
     cameraPos = vec2(LEVEL_WIDTH / 2, LEVEL_HEIGHT / 2);
     

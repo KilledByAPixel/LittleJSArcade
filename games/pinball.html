@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../dist/box2d.wasm.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
@@ -112,8 +113,9 @@ class Ball extends Box2dObject
     }
     render()
     {
-        drawCircle(this.pos, BALL_DIAMETER, BALL_COLOR, 0.08, BLACK);
-        drawCircle(this.pos.add(vec2(-0.15, 0.15)), 0.3, hsl(0, 0, 1, 0.5));
+        drawTile(this.pos, vec2(BALL_DIAMETER + 0.08), icons.circle, BLACK);       // rim
+        drawTile(this.pos, vec2(BALL_DIAMETER), icons.circle, BALL_COLOR);
+        drawTile(this.pos.add(vec2(-0.15, 0.15)), vec2(0.3), icons.circle, hsl(0, 0, 1, 0.5));
     }
 }
 
@@ -145,8 +147,9 @@ class Bumper extends Box2dStaticObject
         const flash = this.flashTime > 0;
         const outer = flash ? WHITE : hsl(0.13, 0.9, 0.55);
         const inner = flash ? hsl(0.13, 1, 0.85) : hsl(0.13, 0.9, 0.35);
-        drawCircle(this.pos, this.radius * 2, outer, 0.15, BLACK);
-        drawCircle(this.pos, this.radius * 1.1, inner);
+        drawTile(this.pos, vec2(this.radius * 2 + 0.15), icons.circle, BLACK);   // rim
+        drawTile(this.pos, vec2(this.radius * 2), icons.circle, outer);
+        drawTile(this.pos, vec2(this.radius * 1.1), icons.circle, inner);
         this.flashTime = Math.max(0, this.flashTime - 1/60);
     }
 }
@@ -218,7 +221,7 @@ class Flipper extends Box2dObject
     render()
     {
         drawRect(this.pos, vec2(FLIPPER_LENGTH, FLIPPER_THICKNESS), FLIPPER_COLOR, this.angle);
-        drawCircle(this.pivotPos, FLIPPER_THICKNESS * 1.4, hsl(0, 0, 0.2));
+        drawTile(this.pivotPos, vec2(FLIPPER_THICKNESS * 1.4), icons.circle, hsl(0, 0, 0.2));
     }
 }
 
@@ -340,6 +343,8 @@ function resetGame()
 
 ///////////////////////////////////////////////////////////////////////////////
 
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+
 async function gameInit()
 {
     saveDataInit('pinball');
@@ -347,6 +352,7 @@ async function gameInit()
     cameraPos = vec2(0, PLAY_H/2);
 
     await box2dInit();
+    icons = initDefaultAtlas();
 
     sfxBumper = new SoundGenerator({ frequency: 440, release: 0.08, volume: 0.4, pitchJump: 200, pitchJumpTime: 0.02 });
     sfxSling = new SoundGenerator({ frequency: 320, release: 0.06, volume: 0.35, pitchJump: 120, pitchJumpTime: 0.02 });
@@ -484,7 +490,7 @@ function gameRender()
     drawRectGradient(vec2(0, WALL_TOP_Y/2), vec2(PLAY_W, WALL_TOP_Y),
                      hsl(0.62, 0.6, 0.15), hsl(0.7, 0.5, 0.05));
     // Dome interior fill
-    drawCircle(DOME_CENTER, DOME_RADIUS * 2, hsl(0.62, 0.6, 0.18));
+    drawTile(DOME_CENTER, vec2(DOME_RADIUS * 2), icons.circle, hsl(0.62, 0.6, 0.18));
 
     // Lane tint (narrow strip on the right, outside playfield).
     // This strip is the launch sensor: brighten it while the ball is armed to fire.

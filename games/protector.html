@@ -14,6 +14,7 @@
 </style>
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -372,7 +373,7 @@ function drawHumanFigure(p)
     const dp = dpos(p);
     drawRect(dp.add(vec2(0, -.1)), vec2(.25, .5), hsl(.07, .8, .7));
     drawRect(dp.add(vec2(0, .3)), vec2(.3, .25), hsl(.6, .4, .4)); // shirt
-    drawCircle(dp.add(vec2(0, .55)), .3, hsl(.07, .9, .85));        // head
+    drawTile(dp.add(vec2(0, .55)), vec2(.3), icons.circle, hsl(.07, .9, .85));        // head
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -729,8 +730,8 @@ class Mine
     {
         const dp = dpos(this.pos);
         const pulse = .5 + .5 * Math.sin(time * 8);
-        drawCircle(dp, .5, this.color);
-        drawCircle(dp, .25, hsl(.05, 1, pulse));
+        drawTile(dp, vec2(.5), icons.circle, this.color);
+        drawTile(dp, vec2(.25), icons.circle, hsl(.05, 1, pulse));
     }
 }
 
@@ -773,9 +774,9 @@ class Pod
     {
         const dp = dpos(this.pos);
         const pulse = .8 + .2 * Math.sin(time * 4);
-        drawCircle(dp, 1.4 * pulse, this.color);
-        drawCircle(dp, .8, hsl(.85, 1, .7));
-        drawCircle(dp, .3, hsl(.13, 1, .9));
+        drawTile(dp, vec2(1.4 * pulse), icons.circle, this.color);
+        drawTile(dp, vec2(.8), icons.circle, hsl(.85, 1, .7));
+        drawTile(dp, vec2(.3), icons.circle, hsl(.13, 1, .9));
     }
 }
 
@@ -822,8 +823,8 @@ class Swarmer
     render()
     {
         const dp = dpos(this.pos);
-        drawCircle(dp, .55, this.color);
-        drawCircle(dp, .25, hsl(.0, 1, .9));
+        drawTile(dp, vec2(.55), icons.circle, this.color);
+        drawTile(dp, vec2(.25), icons.circle, hsl(.0, 1, .9));
     }
 }
 
@@ -874,8 +875,8 @@ class Baiter
     render()
     {
         const dp = dpos(this.pos);
-        drawEllipse(dp, vec2(1.6, .35), this.color);
-        drawEllipse(dp.add(vec2(0, .15)), vec2(.6, .25), hsl(.55, 1, .7));
+        drawTile(dp, vec2(1.6, .35), icons.circle, this.color);
+        drawTile(dp.add(vec2(0, .15)), vec2(.6, .25), icons.circle, hsl(.55, 1, .7));
     }
 }
 
@@ -1158,9 +1159,12 @@ function enemyHitsPlayer()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+
 async function gameInit()
 {
     saveDataInit('defender');
+    icons = initDefaultAtlas();
     // touch gamepad: left analog stick moves, right stick (face-button area) aims/fires
     touchGamepadEnable = true;
     touchGamepadAnalog = true;
@@ -1364,7 +1368,7 @@ function drawBullets()
         // long streak in motion direction
         const len = b.vel.length() * .8 + .3;
         drawRect(dp, vec2(.18, len), b.color, b.vel.angle());
-        drawCircle(dp, .12, hsl(0, 0, 1));
+        drawTile(dp, vec2(.12), icons.circle, hsl(0, 0, 1));
     }
 }
 

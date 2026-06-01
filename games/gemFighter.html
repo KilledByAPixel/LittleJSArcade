@@ -3,6 +3,7 @@
 <meta charset="utf-8">
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -1219,6 +1220,7 @@ let currentMatch;
 let demoBoards = null;   // decorative gem-filled boards shown behind the title/menus
 let controllers;
 let sMove, sRotate, sSoft, sLock, sClear, sCrash, sCountTick, sAllClear, sCounterLand, sGameOver;
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
 
 ///////////////////////////////////////////////////////////////////////////////
 // Rendering
@@ -1259,14 +1261,8 @@ function drawGemGlyph(pos, ci, scale = 1, alpha = 1)
 {
     const draw = (r, c) =>
     {
-        if (ci === 0)
-        {
-            const p = [];
-            for (let i = 0; i < 3; i++)
-            { const a = -PI/2 + i * 2*PI/3; p.push(vec2(Math.cos(a)*r, Math.sin(a)*r)); }
-            drawPoly(p, c, 0, c, pos);
-        }
-        else if (ci === 1) drawCircle(pos, r * 1.7, c);
+        if (ci === 0)      drawTile(pos, vec2(r * 2),   icons.triangle, c);
+        else if (ci === 1) drawTile(pos, vec2(r * 1.7), icons.circle,   c);
         else if (ci === 2) drawRect(pos, vec2(r * 1.5), c, PI/4);
         else               drawRect(pos, vec2(r * 1.35), c);
     };
@@ -1285,13 +1281,13 @@ function drawGem(pos, gem, isActive)
     else if (gem.type === 'crash')
     {
         const c = GEM_COLORS[gem.color];
-        drawCircle(pos, 1.02, rgb(0,0,0,.30));                       // dark rim
-        drawCircle(pos, .92, c);
-        drawCircle(pos, .58, colorLerp(c, rgb(1,1,1), .20));         // lit core
+        drawTile(pos, vec2(1.02), icons.circle, rgb(0,0,0,.30));                       // dark rim
+        drawTile(pos, vec2(.92), icons.circle, c);
+        drawTile(pos, vec2(.58), icons.circle, colorLerp(c, rgb(1,1,1), .20));         // lit core
         const tw = .5 + .5 * Math.sin(time*6 + pos.x*2 + pos.y*3);   // fuse twinkle
-        drawCircle(pos.add(vec2(-.16, .16)), .2 + .06*tw, rgb(1,1,1,.5 + .25*tw));
+        drawTile(pos.add(vec2(-.16, .16)), vec2(.2 + .06*tw), icons.circle, rgb(1,1,1,.5 + .25*tw));
         drawGemGlyph(pos, gem.color, .72, .75);
-        if (isActive) drawCircle(pos, 1.0, rgb(1,1,1,.18));
+        if (isActive) drawTile(pos, vec2(1.0), icons.circle, rgb(1,1,1,.18));
     }
     else if (gem.type === 'counter')
     {
@@ -1306,7 +1302,7 @@ function drawGem(pos, gem, isActive)
         drawRect(pos, vec2(.92, .92), rgb(.6,.85,1,.35), PI/4);      // glow
         drawRect(pos, vec2(.78, .78), rgb(1,1,1,.9), PI/4);
         drawRect(pos, vec2(.46, .46), rgb(.8,.92,1,.95), PI/4);
-        drawCircle(pos, .22, rgb(1,1,1,.95));
+        drawTile(pos, vec2(.22), icons.circle, rgb(1,1,1,.95));
     }
 }
 
@@ -1431,7 +1427,7 @@ function drawBoardGems(board, boardIndex)
                 const gp = cellPos(boardIndex, c.x, c.y);
                 // Match the gem's real silhouette so a crash reads as a crash
                 // even in the landing preview.
-                if (c.gem.type === 'crash')        drawCircle(gp, .9, ghost);
+                if (c.gem.type === 'crash')        drawTile(gp, vec2(.9), icons.circle, ghost);
                 else if (c.gem.type === 'diamond') drawRect(gp, vec2(.9, .9), ghost, Math.PI/4);
                 else                               drawRect(gp, vec2(.9, .9), ghost);
             }
@@ -1561,7 +1557,7 @@ function renderParticles()
         const base = p.isFlash ? .35 : .14;
         const size = p.isFlash ? base * (1 - t * .4) : base * (1 + t * .5);
         const c = p.color;
-        drawCircle(p.pos, size, rgb(c.r, c.g, c.b, alpha));
+        drawTile(p.pos, vec2(size), icons.circle, rgb(c.r, c.g, c.b, alpha));
     }
 }
 
@@ -2863,6 +2859,8 @@ async function gameInit()
     cameraPos = vec2(0, 0);
     cameraScale = 50;
 
+    icons = initDefaultAtlas();
+
     setupMenus();
 
     sMove    = new SoundGenerator({frequency:520,release:.05,volume:.4,shapeCurve:1.5});
@@ -3016,7 +3014,7 @@ function gameRender()
     {
         const a = boardAccent(boards[i], i);
         const c = boardOrigin(i).add(vec2(BOARD_W/2, BOARD_H_VISIBLE/2));
-        drawCircleGradient(c, BOARD_W * 3.2, rgb(a.r, a.g, a.b, .16), rgb(a.r, a.g, a.b, 0));
+        drawTile(c, vec2(BOARD_W * 3.2), icons.glow, rgb(a.r, a.g, a.b, .16));
     }
 
     // beveled frames with team rim

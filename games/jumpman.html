@@ -3,6 +3,7 @@
 <meta charset=utf-8>
 </head><body>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -305,17 +306,17 @@ class Coin extends EngineObject
         const facing = s > 0;
 
         // dark outline
-        drawEllipse(this.pos, vec2(w + .08, h + .08), rgb(.45, .28, .04));
+        drawTile(this.pos, vec2(w + .08, h + .08), icons.circle, rgb(.45, .28, .04));
         // body (face vs back side)
-        drawEllipse(this.pos, vec2(w, h), facing ? rgb(1, .92, .25) : rgb(.78, .58, .12));
+        drawTile(this.pos, vec2(w, h), icons.circle, facing ? rgb(1, .92, .25) : rgb(.78, .58, .12));
         // inner detail only when wide enough to see
         if (w > .18)
         {
-            drawEllipse(this.pos, vec2(w * .55, h * .65),
+            drawTile(this.pos, vec2(w * .55, h * .65), icons.circle,
                 facing ? rgb(.95, .75, .12) : rgb(.55, .40, .08));
             if (facing)
-                drawEllipse(this.pos.add(vec2(-w * .30, h * .12)),
-                    vec2(w * .25, h * .30), rgb(1, 1, 1, .65));
+                drawTile(this.pos.add(vec2(-w * .30, h * .12)),
+                    vec2(w * .25, h * .30), icons.circle, rgb(1, 1, 1, .65));
         }
     }
 }
@@ -340,8 +341,8 @@ class PopCoin extends EngineObject
     render()
     {
         const sx = .26 + Math.cos(this.life * .8) * .22;
-        drawEllipse(this.pos, vec2(Math.abs(sx), .44), rgb(1, .88, .2));
-        drawEllipse(this.pos, vec2(Math.abs(sx) + .04, .48), rgb(.6, .4, .05, .5));
+        drawTile(this.pos, vec2(Math.abs(sx), .44), icons.circle, rgb(1, .88, .2));
+        drawTile(this.pos, vec2(Math.abs(sx) + .04, .48), icons.circle, rgb(.6, .4, .05, .5));
     }
 }
 
@@ -450,12 +451,12 @@ class Mushroom extends EngineObject
     render()
     {
         // cap (red with white spots)
-        drawEllipse(this.pos.add(vec2(0, .12)), vec2(1.0, .70), rgb(.95, .15, .15));
+        drawTile(this.pos.add(vec2(0, .12)), vec2(1.0, .70), icons.circle, rgb(.95, .15, .15));
         drawRect(this.pos.add(vec2(0, -.08)), vec2(1.0, .12), rgb(.95, .15, .15));
         // white spots
-        drawEllipse(this.pos.add(vec2(-.27, .22)), vec2(.20, .14), rgb(1, 1, 1));
-        drawEllipse(this.pos.add(vec2(.22, .17)),  vec2(.20, .14), rgb(1, 1, 1));
-        drawEllipse(this.pos.add(vec2(0, .32)),    vec2(.16, .12), rgb(1, 1, 1));
+        drawTile(this.pos.add(vec2(-.27, .22)), vec2(.20, .14), icons.circle, rgb(1, 1, 1));
+        drawTile(this.pos.add(vec2(.22, .17)),  vec2(.20, .14), icons.circle, rgb(1, 1, 1));
+        drawTile(this.pos.add(vec2(0, .32)),    vec2(.16, .12), icons.circle, rgb(1, 1, 1));
         // cap rim
         drawRect(this.pos.add(vec2(0, -.10)), vec2(1.05, .08), rgb(.55, .03, .03));
         // stem (cream)
@@ -1519,8 +1520,11 @@ function buildMenus()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+
 function gameInit()
 {
+    icons = initDefaultAtlas();
     cameraScale = 60;
     inputWASDEmulateDirection = true;
     touchGamepadEnable = true;
@@ -1641,8 +1645,8 @@ function drawTilePrimitive(x, y, t)
     else if (t === TT.FLAG)
     {
         // top ball of pole
-        drawEllipse(pos, vec2(.55, .55), rgb(.95, .95, .25));
-        drawEllipse(pos, vec2(.30, .30), rgb(.4, .4, .05));
+        drawTile(pos, vec2(.55, .55), icons.circle, rgb(.95, .95, .25));
+        drawTile(pos, vec2(.30, .30), icons.circle, rgb(.4, .4, .05));
     }
     else if (t === TT.POLE)
     {
@@ -1704,7 +1708,7 @@ function drawCastle()
 
     // door (arched-ish)
     drawRect(vec2(cx - .8, 1.7), vec2(1.2, 1.8), door);
-    drawEllipse(vec2(cx - .8, 2.5), vec2(1.2, .5), door);
+    drawTile(vec2(cx - .8, 2.5), vec2(1.2, .5), icons.circle, door);
 
     // pennant pole + small castle flag
     drawRect(vec2(cx + .25, 8.4), vec2(.08, 1.2), rgb(.85, .85, .85));
@@ -1744,17 +1748,17 @@ function gameRender()
         {
             const cx = cameraPos.x * .35 + i * 13 + 3;
             const cy = 11 + (i % 3) * 1.6;
-            drawEllipse(vec2(cx, cy), vec2(2.6, .9), rgb(1, 1, 1, .8));
-            drawEllipse(vec2(cx + 1.0, cy + .35), vec2(2.2, .7), rgb(1, 1, 1, .8));
-            drawEllipse(vec2(cx - 1.2, cy + .25), vec2(1.8, .6), rgb(1, 1, 1, .8));
+            drawTile(vec2(cx, cy), vec2(2.6, .9), icons.circle, rgb(1, 1, 1, .8));
+            drawTile(vec2(cx + 1.0, cy + .35), vec2(2.2, .7), icons.circle, rgb(1, 1, 1, .8));
+            drawTile(vec2(cx - 1.2, cy + .25), vec2(1.8, .6), icons.circle, rgb(1, 1, 1, .8));
         }
 
         // hills (mid parallax)
         for (let i = 0; i < 6; i++)
         {
             const hx = cameraPos.x * .6 + i * 22 - (cameraPos.x * .6) % 22 - 8;
-            drawEllipse(vec2(hx, .9), vec2(8, 4), rgb(.10, .55, .18));
-            drawEllipse(vec2(hx - 1.5, 1.2), vec2(4, 2.4), rgb(.18, .65, .22));
+            drawTile(vec2(hx, .9), vec2(8, 4), icons.circle, rgb(.10, .55, .18));
+            drawTile(vec2(hx - 1.5, 1.2), vec2(4, 2.4), icons.circle, rgb(.18, .65, .22));
         }
 
         // bushes (front decoration)
@@ -1762,9 +1766,9 @@ function gameRender()
         {
             const bx = (cameraPos.x * .9 + i * 9) % (LEVEL_W) - 4;
             const by = 1.25;
-            drawEllipse(vec2(bx, by), vec2(2.0, .8), rgb(.12, .55, .18));
-            drawEllipse(vec2(bx + 1.0, by + .15), vec2(1.6, .7), rgb(.16, .65, .22));
-            drawEllipse(vec2(bx - 1.0, by + .15), vec2(1.6, .7), rgb(.16, .65, .22));
+            drawTile(vec2(bx, by), vec2(2.0, .8), icons.circle, rgb(.12, .55, .18));
+            drawTile(vec2(bx + 1.0, by + .15), vec2(1.6, .7), icons.circle, rgb(.16, .65, .22));
+            drawTile(vec2(bx - 1.0, by + .15), vec2(1.6, .7), icons.circle, rgb(.16, .65, .22));
         }
     }
 
