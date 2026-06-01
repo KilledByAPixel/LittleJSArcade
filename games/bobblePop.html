@@ -16,11 +16,6 @@ tilesPixelated = false; // Disable pixelation
 paused = false;
 canvasMaxSize = vec2(2048);
 
-// on-screen touch pad
-touchGamepadEnable = true;
-touchGamepadAnalog = true;
-touchGamepadButtonCount = 1;
-
 ///////////////////////////////////////////////////////////////////////////////
 // SNOOD (bubble shooter) prototype
 
@@ -708,7 +703,7 @@ function gameUpdate()
         }
         else
         {
-            const AIM_SWEEP = 2.2; // radians per second
+            const AIM_SWEEP = 1.0; // radians per second
             const adj = clamp(gamepadStick(0).x + keyDirection().x, -1, 1); // +1 = right
             if (adj) // aimAngle measured from +X, so right (+) lowers the angle
                 aimAngle = clamp(aimAngle - adj * AIM_SWEEP * timeDelta, MIN_SHOT_ANGLE, MAX_SHOT_ANGLE);
