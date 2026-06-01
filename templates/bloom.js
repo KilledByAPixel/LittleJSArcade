@@ -191,6 +191,15 @@ function _bloomBuild()
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 8, 0);
     gl.bindVertexArray(null);
 
+    // The line above left glGeometryBuffer bound to the global ARRAY_BUFFER point.
+    // This build runs lazily mid-frame (after glPreRender already ran), and the
+    // engine's glFlush uploads instance data with bufferSubData(ARRAY_BUFFER, ...),
+    // relying on glArrayBuffer (the large instance buffer) being bound. Restore it
+    // so the glFlush that runs immediately after this build doesn't overflow the
+    // 32-byte geometry buffer. (The engine's own PostProcessPlugin avoids this by
+    // building its VAO at init, before the first glPreRender, not lazily here.)
+    gl.bindBuffer(gl.ARRAY_BUFFER, glArrayBuffer);
+
     _bloom.sceneTex = gl.createTexture();
     gl.bindTexture(gl.TEXTURE_2D, _bloom.sceneTex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
