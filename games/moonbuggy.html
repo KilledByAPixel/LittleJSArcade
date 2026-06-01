@@ -674,10 +674,13 @@ function drawMoon(mx, my)
 
     //drawCrescent(vec2(mx, my), mr, 0.15, lit, PI/2, true); // crescent
 
-    drawTile(vec2(mx, my), vec2(md), icons.circle, hsl(.6,.5,.05)); // dark disc
-    drawCrescent(vec2(mx, my), md, 0.15, lit, 1.9); // bright crescent
+    //drawTile(vec2(mx, my), vec2(md), icons.circle, hsl(.6,.5,.05)); // bright disc
+
+    drawTile(vec2(mx, my), vec2(md), icons.circle, lit); // bright disc
     drawTile(vec2(mx+1.4, my+0.5), vec2(0.6),  icons.circle, crater);  // craters on the lit sliver
     drawTile(vec2(mx+1.5, my-1.0), vec2(0.45), icons.circle, crater);
+
+    drawCrescent(vec2(mx, my), md*1.02, 0.85, hsl(0,0,0,.7), 1.9); // bright crescent
 }
 
 function drawRidge(par, color, screenYFrac, amp, freq)
