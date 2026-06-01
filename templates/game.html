@@ -21,11 +21,17 @@ cameraPos = vec2(0, 0); // Camera centered at origin
 canvasFixedSize = vec2(1920, 1080); // HD fixed resolution
 cameraScale = 32; // Camera zoom, larger is more zoomed in
 
+// default texture atlas icons (name -> TileInfo), baked in gameInit
+let icons;
+
 ///////////////////////////////////////////////////////////////////////////////
 async function gameInit()
 {
     // called once after the engine starts up
     // setup the game
+
+    // bake the 16 built-in white icons into the atlas (tint them per-instance)
+    icons = initDefaultAtlas();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -51,8 +57,8 @@ function gameRender()
     // draw background gradient
     drawRectGradient(cameraPos, getCameraSize(), BLACK, WHITE);
         
-    // draw some shapes
-    drawCircle(vec2(5,-3), 5, RED);
+    // draw some shapes (circle is an atlas sprite tinted red)
+    drawTile(vec2(5,-3), vec2(5), icons.circle, RED);
     drawRect(vec2(-5,-3), vec2(5,5), BLUE);
     drawLine(cameraPos, mousePos, 1,  YELLOW);
 
