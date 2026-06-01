@@ -3,6 +3,7 @@
 <meta charset=utf-8>
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
@@ -42,6 +43,7 @@ const CAMERA_SCALE_NEAR = 60;      // close-up near pad
 const CAMERA_ZOOM_IN_DIST  = 8;    // fully zoomed in inside this distance
 const CAMERA_ZOOM_OUT_DIST = 18;   // start zooming in inside this distance
 
+let icons;                         // default-atlas icon map (name -> TileInfo)
 let player, landingPad;
 let gameState = 0;                 // 0=playing, 1=landed, 2=crashed
 let level = 1;
@@ -185,7 +187,7 @@ class Debris extends EngineObject
     render()
     {
         const a = clamp(this.life/this.maxLife, 0, 1);
-        drawCircle(this.pos, this.size.x, rgb(this.color.r, this.color.g, this.color.b, a));
+        drawTile(this.pos, vec2(this.size.x), icons.circle, rgb(this.color.r, this.color.g, this.color.b, a));
     }
 }
 
@@ -209,9 +211,9 @@ class ShockWave extends EngineObject
     {
         const a = 1 - this.t;
         if (this.t < .4) // bright flash
-            drawCircle(this.pos, lerp(3, 7, this.t), rgb(1,.95,.7, (.4-this.t)*1.4));
+            drawTile(this.pos, vec2(lerp(3, 7, this.t)), icons.circle, rgb(1,.95,.7, (.4-this.t)*1.4));
         // expanding ring (transparent fill, glowing outline)
-        drawCircle(this.pos, lerp(1.5, 13, this.t), rgb(1,.7,.4,0), .35*a, rgb(1,.8,.5, a*.7));
+        drawTile(this.pos, vec2(lerp(1.5, 13, this.t)), icons.ring, rgb(1,.8,.5, a*.7));
     }
 }
 
@@ -444,9 +446,9 @@ class Player extends EngineObject
 
         // porthole window (rim + glass + glint)
         const win = w(vec2(0,.28));
-        drawCircle(win, .66, rgb(.62,.66,.74));
-        drawCircle(win, .5,  rgb(.28,.55,1));
-        drawCircle(win.add(vec2(-.1,.1).rotate(this.angle)), .18, rgb(.85,.92,1,.85));
+        drawTile(win, vec2(.66), icons.circle, rgb(.62,.66,.74));
+        drawTile(win, vec2(.5),  icons.circle, rgb(.28,.55,1));
+        drawTile(win.add(vec2(-.1,.1).rotate(this.angle)), vec2(.18), icons.circle, rgb(.85,.92,1,.85));
     }
 }
 
@@ -513,6 +515,8 @@ function gameInit()
 {
     saveDataInit('lunarLander');
     setCanvasFixedSize(vec2(900, 720));
+
+    icons = initDefaultAtlas();
 
     // build a deep, layered starfield once (screen-space, parallax by depth)
     stars = [];
@@ -617,11 +621,11 @@ function renderEarth()
     const ex = mod(W*.78 - cameraPos.x*6, W*1.6) - W*.3;
     const ey = H*.20 + cameraPos.y*4;
     const p = vec2(ex, ey);
-    drawCircleGradient(p, 360, rgb(.35,.6,1,.22), rgb(.35,.6,1,0), true, true); // atmosphere
-    drawCircle(p, 150, rgb(.16,.4,.78), 0, BLACK, true, true);                  // ocean
-    drawCircle(p.add(vec2(-30,-25)), 55, rgb(.3,.6,.42,.9), 0, BLACK, true, true); // land
-    drawCircle(p.add(vec2(40,30)),   42, rgb(.32,.58,.4,.9), 0, BLACK, true, true);
-    drawCircle(p.add(vec2(10,-50)),  30, rgb(.9,.95,1,.5), 0, BLACK, true, true);  // cloud/ice
+    drawTile(p, vec2(360), icons.glow, rgb(.35,.6,1,.22), 0, false, undefined, true, true); // atmosphere
+    drawTile(p, vec2(150), icons.circle, rgb(.16,.4,.78), 0, false, undefined, true, true); // ocean
+    drawTile(p.add(vec2(-30,-25)), vec2(55), icons.circle, rgb(.3,.6,.42,.9), 0, false, undefined, true, true); // land
+    drawTile(p.add(vec2(40,30)),   vec2(42), icons.circle, rgb(.32,.58,.4,.9), 0, false, undefined, true, true);
+    drawTile(p.add(vec2(10,-50)),  vec2(30), icons.circle, rgb(.9,.95,1,.5), 0, false, undefined, true, true);  // cloud/ice
     drawCrescent(p, 150, .15, hsl(0,0,0,.7), 1, false, 0, BLACK, glEnable, true);;
 }
 
@@ -652,7 +656,7 @@ function renderPad()
 {
     const c = landingPad.pos;
     // glow + slab
-    drawEllipse(c.add(vec2(0,.1)), vec2(padWidth*1.5, 1.4), rgb(.2,1,.4,.12));
+    drawTile(c.add(vec2(0,.1)), vec2(padWidth*1.5, 1.4), icons.circle, rgb(.2,1,.4,.12));
     drawRect(c, vec2(padWidth, PAD_THICK), rgb(.18,.9,.38));
     drawRect(c.add(vec2(0,.06)), vec2(padWidth, PAD_THICK*.4), rgb(.55,1,.7,.7));
 
@@ -661,9 +665,9 @@ function renderPad()
     for (const sx of [-1, 1])
     {
         const b = vec2(padX + sx*padWidth/2, padY + PAD_THICK);
-        drawCircleGradient(b.add(vec2(0,.9)), 2.4*pulse, rgb(1,.4,.2,.4*pulse), rgb(1,.4,.2,0));
+        drawTile(b.add(vec2(0,.9)), vec2(2.4*pulse), icons.glow, rgb(1,.4,.2,.4*pulse));
         drawLine(b, b.add(vec2(0,1.8)), .22, rgb(.6,.2,.1));
-        drawCircle(b.add(vec2(0,1.9)), .55, rgb(1, .55, .25, pulse));
+        drawTile(b.add(vec2(0,1.9)), vec2(.55), icons.circle, rgb(1, .55, .25, pulse));
     }
 }
 
