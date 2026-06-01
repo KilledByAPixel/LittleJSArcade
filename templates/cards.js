@@ -94,6 +94,9 @@ function initCardAtlas(options = {})
         'card-shaped solid-white silhouette for tint overlays');
     _cardSprites.back = drawToTexture(26, paintBack,
         'card back design');
+
+    // fix black halo around edges
+    whitenAtlasAlpha();
 }
 
 // Draws a face-up card. options: { size, angle, tint }
@@ -186,14 +189,92 @@ function _paintRankTile(label)
     };
 }
 
+// --- Vector suit shapes ------------------------------------------------------
+// Each draws one white suit centered in the 250x250 suit tile. drawCard tints
+// them red (hearts/diamonds) or black (spades/clubs) per instance.
+
+// Lobed body shared by heart (point down) and spade (point up). The bezier
+// construction mirrors the engine's default-atlas heart icon.
+function _suitLobed(ctx, cx, cy, rx, ry, pointDown)
+{
+    const sy = pointDown ? 1 : -1;
+    const topCtrl = .92, dip = .35, shoulder = .46, tip = .9, w = 1;
+    const p = (nx, ny) => [cx + nx * rx, cy + sy * ny * ry];
+    ctx.beginPath();
+    ctx.moveTo(...p(0, -dip));
+    ctx.bezierCurveTo(...p(0, -topCtrl), ...p(-w, -topCtrl), ...p(-w, -shoulder));
+    ctx.bezierCurveTo(...p(-w, 0), ...p(0, tip * .9), ...p(0, tip));
+    ctx.bezierCurveTo(...p(0, tip * .9), ...p(w, 0), ...p(w, -shoulder));
+    ctx.bezierCurveTo(...p(w, -topCtrl), ...p(0, -topCtrl), ...p(0, -dip));
+    ctx.closePath();
+    ctx.fill();
+}
+
+// Flared stem used by spade and club: narrow at the top, widening to the base.
+function _suitStem(ctx, cx, topY, baseY, halfW)
+{
+    const h = baseY - topY;
+    ctx.beginPath();
+    ctx.moveTo(cx, topY);
+    ctx.bezierCurveTo(cx + halfW * .2, topY + h * .5, cx + halfW * .7, baseY - h * .15, cx + halfW, baseY);
+    ctx.lineTo(cx - halfW, baseY);
+    ctx.bezierCurveTo(cx - halfW * .7, baseY - h * .15, cx - halfW * .2, topY + h * .5, cx, topY);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function _suitHeart(ctx)
+{
+    _suitLobed(ctx, 125, 122, 72, 92, true);
+}
+
+function _suitSpade(ctx)
+{
+    _suitLobed(ctx, 125, 100, 72, 86, false);
+    _suitStem(ctx, 125, 128, 200, 44);
+}
+
+function _suitDiamond(ctx)
+{
+    const cx = 125, cy = 125, hw = 72, hh = 102;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - hh);
+    ctx.lineTo(cx + hw, cy);
+    ctx.lineTo(cx, cy + hh);
+    ctx.lineTo(cx - hw, cy);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function _suitClub(ctx)
+{
+    const cx = 125, cy = 112, R = 100, lobeR = 35;
+    const lobe = (px, py, r=lobeR) => { ctx.beginPath(); ctx.arc(px, py, r, 0, 2 * PI); ctx.fill(); };
+    const w = .4;
+    lobe(cx, cy - .48 * R);            // top lobe
+    lobe(cx - w * R, cy + .16 * R);  // lower-left lobe
+    lobe(cx + w * R, cy + .16 * R);  // lower-right lobe
+    lobe(cx, cy, lobeR*.75); // cover center gap
+    _suitStem(ctx, cx, cy + .14 * R, 200, 42);
+}
+
+// Map the four standard suit glyphs to vector drawers so the default deck uses
+// crisp canvas shapes instead of font text (which renders inconsistently across
+// platforms and may show as a color emoji). A custom suitGlyphs override that
+// isn't one of these four falls back to text rendering.
+const _CARD_SUIT_DRAWERS = { '♥': _suitHeart, '♠': _suitSpade, '♦': _suitDiamond, '♣': _suitClub };
+
 function _paintSuitTile(glyph)
 {
+    const drawer = _CARD_SUIT_DRAWERS[glyph];
     return ctx =>
     {
         ctx.fillStyle = '#fff';
+        if (drawer)
+            return drawer(ctx);
+        // Fallback for custom (non-standard) suit glyphs.
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // Force a text-style suit, not a color emoji rendering.
         ctx.font = '210px "Arial Unicode MS", "DejaVu Sans", sans-serif';
         ctx.fillText(glyph, 125, 135);
     };

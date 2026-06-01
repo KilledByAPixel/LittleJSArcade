@@ -320,7 +320,7 @@ function showAtlas(visible = true)
     if (visible)
     {
         atlasCanvas.style.cssText =
-            'position:fixed;top:8px;right:8px;width:25vmin;height:25vmin;' +
+            'position:fixed;top:8px;right:8px;width:50vmin;height:50vmin;' +
             'border:2px solid #f0a;pointer-events:none;z-index:9999;' +
             'background:rgba(128,128,128,.5);image-rendering:auto;';
         document.body.appendChild(atlasCanvas);
