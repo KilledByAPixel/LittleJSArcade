@@ -90,7 +90,7 @@ const carRender = {
 const TRUCK_CAB     = vec2(1.10, 1.18);
 const TRUCK_TRAILER = vec2(1.70, 1.24);
 const TRUCK_GAP     = -.15;
-const TIRE_SIZE     = vec2(.62, .62);
+const TIRE_SIZE     = vec2(.56, .56);
 // Raise each car this fraction of its height within its lane so it sits on
 // the road instead of straddling the lane line.
 const CAR_LIFT      = .35;
@@ -100,7 +100,6 @@ const CAR_LIFT      = .35;
 // middle (so the round end caps never smear). See paintLog / drawLog.
 const LOG_BAKE_W   = 4.0;                          // world width the tile is baked at
 const LOG_CAP_FRAC = .2;                           // each end cap = this fraction of the tile
-const LOG_CAP_PX   = Math.round(500 * LOG_CAP_FRAC); // cap width in tile pixels
 const LOG_CAP_W    = LOG_BAKE_W * LOG_CAP_FRAC;    // cap width in world units (drawn fixed)
 let logCapTile, logMidTile;                        // sub-regions of atlas tile 13
 
@@ -782,10 +781,20 @@ function paintTrailerDetail(ctx) {
 }
 
 function paintTire(ctx) {
-    ctx.fillStyle = '#161616'; ctx.beginPath(); ctx.arc(250, 250, 232, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#383838'; ctx.beginPath(); ctx.arc(250, 250, 150, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#9a9a9a'; ctx.beginPath(); ctx.arc(250, 250, 92, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#5a5a5a'; ctx.beginPath(); ctx.arc(250, 250, 36, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#161616'; ctx.beginPath(); ctx.arc(250, 250, 232, 0, Math.PI*2); ctx.fill();  // rubber
+    ctx.fillStyle = '#2c2c2c'; ctx.beginPath(); ctx.arc(250, 250, 158, 0, Math.PI*2); ctx.fill();  // wheel face
+    // 8 spokes from hub out to the rim — drawTire rotates the tile by roll angle,
+    // so these visibly spin as the car drives.
+    ctx.strokeStyle = '#828282'; ctx.lineWidth = 26; ctx.lineCap = 'round';
+    for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4;
+        ctx.beginPath();
+        ctx.moveTo(250 + Math.cos(a)*44, 250 + Math.sin(a)*44);
+        ctx.lineTo(250 + Math.cos(a)*146, 250 + Math.sin(a)*146);
+        ctx.stroke();
+    }
+    ctx.fillStyle = '#9a9a9a'; ctx.beginPath(); ctx.arc(250, 250, 74, 0, Math.PI*2); ctx.fill();   // hub cap
+    ctx.fillStyle = '#5a5a5a'; ctx.beginPath(); ctx.arc(250, 250, 34, 0, Math.PI*2); ctx.fill();   // center bolt
 }
 
 function paintFrog(ctx) {
@@ -891,15 +900,21 @@ function buildAtlas() {
 
     // Sub-regions of the log tile for 3-slice drawing: left cap, stretchable
     // middle, right cap (the right cap reuses the left, mirrored).
-    const lp = sprites.log.pos, ltex = sprites.log.textureInfo;
-    logCapTile = new TileInfo(vec2(lp.x, lp.y),              vec2(LOG_CAP_PX, 500),        ltex, 0, 0);
-    logMidTile = new TileInfo(vec2(lp.x + LOG_CAP_PX, lp.y), vec2(500 - 2*LOG_CAP_PX, 500), ltex, 0, 0);
+    // Derive the slice sizes from the tile's ACTUAL baked pixel size — it is
+    // resolution-dependent (TILE_SIZE is ~1000px on a 4096 atlas, ~488 on 2048).
+    // A hard-coded 500 only sampled the top half on high-res GPUs.
+    const lp = sprites.log.pos, ltex = sprites.log.textureInfo, ts = sprites.log.size;
+    const capPx = Math.round(ts.x * LOG_CAP_FRAC);   // end cap width in tile px
+    logCapTile = new TileInfo(vec2(lp.x, lp.y),         vec2(capPx, ts.y),          ltex, 0, 0);
+    logMidTile = new TileInfo(vec2(lp.x + capPx, lp.y), vec2(ts.x - 2*capPx, ts.y), ltex, 0, 0);
 }
 
 // ------------------------------------------------------------
 // Rendering
 
-function drawTire(x, y) { drawTile(vec2(x, y), TIRE_SIZE, sprites.tire, WHITE); }
+// Roll angle = travel / radius, keyed off world x so wheels spin the right way
+// for both directions automatically (x grows → clockwise, LittleJS +angle).
+function drawTire(x, y) { drawTile(vec2(x, y), TIRE_SIZE, sprites.tire, WHITE, x / (TIRE_SIZE.x/2)); }
 
 // Paint the STATIC background into a 2D context. All the engine's world-space
 // draw helpers accept (..., useWebGL=false, screenSpace=false, context), which
