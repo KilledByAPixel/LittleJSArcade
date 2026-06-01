@@ -13,6 +13,7 @@
 <div id="wrap"></div>
 <script src="../templates/engineLoader.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
 'use strict';
@@ -73,6 +74,9 @@ let stars = [];
 let shootingStars = [];
 let mountains = [];
 let moonPos = vec2();
+
+// default-atlas icon map (name -> TileInfo)
+let icons;
 
 // ------------------------------------------------------------
 // Shape generation
@@ -340,7 +344,7 @@ function drawOneParticle(p)
     if (p.shape === 'rect')
         drawRect(p.pos, p.rectSize.scale(sizeMul), c, p.angle);
     else
-        drawCircle(p.pos, p.size * 2 * sizeMul, c);
+        drawTile(p.pos, vec2(p.size * 2 * sizeMul), icons.circle, c);
 }
 
 function drawParticles()
@@ -1032,6 +1036,7 @@ function gameInit()
     setCanvasFixedSize(vec2(1280, 720));
     setCameraPos(levelSize.scale(.5));
     setCameraScale(32);
+    icons = initDefaultAtlas();
 
     setSoundVolume(.28);
 
@@ -1350,10 +1355,10 @@ function drawGround()
     {
         const tw = .5 + .5 * Math.sin(s.phase + time * s.speed);
         const a = s.brightness * (.4 + .6 * tw);
-        drawCircle(vec2(s.x, s.y), s.size, hsl(s.hue, .35, .9, a));
+        drawTile(vec2(s.x, s.y), vec2(s.size), icons.circle, hsl(s.hue, .35, .9, a));
         // bright stars get a soft halo
         if (s.size > .14)
-            drawCircle(vec2(s.x, s.y), s.size * 3, hsl(s.hue, .6, .9, a * .15));
+            drawTile(vec2(s.x, s.y), vec2(s.size * 3), icons.glow, hsl(s.hue, .6, .9, a * .15));
     }
 
     // shooting stars
@@ -1362,22 +1367,22 @@ function drawGround()
         const t = clamp(ss.life / ss.maxLife, 0, 1);
         const tail = ss.pos.subtract(ss.vel.scale(.06));
         drawLine(tail, ss.pos, .08, hsl(.13, .8, .9, t));
-        drawCircle(ss.pos, .25, hsl(.13, .8, .95, t));
+        drawTile(ss.pos, vec2(.25), icons.circle, hsl(.13, .8, .95, t));
     }
 
     // full moon with soft radial halo and craters
-    drawCircleGradient(moonPos, 9.0, hsl(.13, .3, .9, .25), hsl(.13, .5, .85, 0));
-    drawCircle(moonPos, 3.0, hsl(.13, .15, .93, .95));
+    drawTile(moonPos, vec2(9.0), icons.glow, hsl(.13, .3, .9, .25));
+    drawTile(moonPos, vec2(3.0), icons.circle, hsl(.13, .15, .93, .95));
     // craters
-    drawCircle(moonPos.add(vec2(-.55,  .55)), .45, hsl(.12, .12, .78, .55));
-    drawCircle(moonPos.add(vec2( .7,  -.25)), .32, hsl(.12, .12, .78, .5));
-    drawCircle(moonPos.add(vec2( .15, -.85)), .25, hsl(.12, .12, .78, .5));
-    drawCircle(moonPos.add(vec2(-.85, -.4 )), .28, hsl(.12, .12, .78, .45));
-    drawCircle(moonPos.add(vec2( .4,   .8 )), .2,  hsl(.12, .12, .78, .4));
+    drawTile(moonPos.add(vec2(-.55,  .55)), vec2(.45), icons.circle, hsl(.12, .12, .78, .55));
+    drawTile(moonPos.add(vec2( .7,  -.25)), vec2(.32), icons.circle, hsl(.12, .12, .78, .5));
+    drawTile(moonPos.add(vec2( .15, -.85)), vec2(.25), icons.circle, hsl(.12, .12, .78, .5));
+    drawTile(moonPos.add(vec2(-.85, -.4 )), vec2(.28), icons.circle, hsl(.12, .12, .78, .45));
+    drawTile(moonPos.add(vec2( .4,   .8 )), vec2(.2),  icons.circle, hsl(.12, .12, .78, .4));
 
     // distant mountains
     for (const m of mountains)
-        drawCircle(vec2(m.x, m.y), m.r * 2, hsl(pal.mountainHue, .35, m.shade));
+        drawTile(vec2(m.x, m.y), vec2(m.r * 2), icons.circle, hsl(pal.mountainHue, .35, m.shade));
     // secondary closer hill band
     drawRect(vec2(levelSize.x/2, groundHeight + .1), vec2(levelSize.x, .2),
                       hsl(pal.mountainHue, .3, .1));
@@ -1412,7 +1417,7 @@ function drawCity(c)
 
     if (c.alive)
     {
-        drawEllipse(vec2(cx, floorY - .03), vec2(s.mainW + .8, .25), hsl(0, 0, 0, .4));
+        drawTile(vec2(cx, floorY - .03), vec2(s.mainW + .8, .25), icons.circle, hsl(0, 0, 0, .4));
 
         for (const b of s.blocks)
         {
@@ -1445,11 +1450,11 @@ function drawCity(c)
             const ay1 = ay0 + s.antennaH;
             drawLine(vec2(ax, ay0), vec2(ax, ay1), .05, hsl(.55, .1, .55));
             const blink = .5 + .5 * Math.sin(time * 4 + ax);
-            drawCircle(vec2(ax, ay1), .15, hsl(0, 1, .6, .35 + .65 * blink));
+            drawTile(vec2(ax, ay1), vec2(.15), icons.circle, hsl(0, 1, .6, .35 + .65 * blink));
         }
 
         if (s.hasDome)
-            drawCircle(vec2(cx, floorY + s.mainH), .5, s.rimColor);
+            drawTile(vec2(cx, floorY + s.mainH), vec2(.5), icons.circle, s.rimColor);
 
         if (c.hitFlash > 0)
             drawRect(vec2(cx, floorY + s.mainH/2), vec2(s.mainW * 1.3, s.mainH * 1.2),
@@ -1469,9 +1474,9 @@ function drawCity(c)
         for (const e of s.embers)
         {
             const flicker = .45 + .55 * Math.sin(e.phase + time * e.speed);
-            drawCircle(vec2(cx + e.x, floorY + e.y), .18 + .06 * flicker,
+            drawTile(vec2(cx + e.x, floorY + e.y), vec2(.18 + .06 * flicker), icons.circle,
                                   hsl(.04, 1, .55 + .15 * flicker, .8));
-            drawCircle(vec2(cx + e.x, floorY + e.y), .35 + .1 * flicker,
+            drawTile(vec2(cx + e.x, floorY + e.y), vec2(.35 + .1 * flicker), icons.glow,
                                   hsl(.05, 1, .55, .15));
         }
         // smoke pillars
@@ -1481,8 +1486,8 @@ function drawCity(c)
             const drift = Math.sin(t * .6) * .35;
             const yOff = .6 + i * .55 + (Math.sin(t * .8) + 1) * .35;
             const a = .4 - i * .09;
-            drawCircle(vec2(cx + drift + (i - 1) * .15, floorY + yOff),
-                                  .6 + i * .15, hsl(0, 0, .22 + i * .04, a));
+            drawTile(vec2(cx + drift + (i - 1) * .15, floorY + yOff),
+                                  vec2(.6 + i * .15), icons.circle, hsl(0, 0, .22 + i * .04, a));
         }
     }
 }
@@ -1494,7 +1499,7 @@ function drawBase(b)
 
     if (b.alive)
     {
-        drawEllipse(vec2(bx, floorY - .03), vec2(2.3, .25), hsl(0, 0, 0, .45));
+        drawTile(vec2(bx, floorY - .03), vec2(2.3, .25), icons.circle, hsl(0, 0, 0, .45));
 
         // bunker body
         drawRect(vec2(bx, floorY + .25), vec2(1.95, .5), hsl(.5, .15, .32));
@@ -1504,8 +1509,8 @@ function drawBase(b)
         // sandbag dots along the base
         for (let i = -2; i <= 2; i++)
         {
-            drawCircle(vec2(bx + i * .38, floorY + .12), .28, hsl(.1, .25, .32));
-            drawCircle(vec2(bx + i * .38, floorY + .14), .22, hsl(.1, .35, .48));
+            drawTile(vec2(bx + i * .38, floorY + .12), vec2(.28), icons.circle, hsl(.1, .25, .32));
+            drawTile(vec2(bx + i * .38, floorY + .14), vec2(.22), icons.circle, hsl(.1, .35, .48));
         }
 
         // turret cannon
@@ -1518,9 +1523,9 @@ function drawBase(b)
         const tip = pivotShifted.add(dir.scale(len));
         drawLine(pivotShifted, tip, .26, hsl(.55, .2, .35));
         drawLine(pivotShifted, tip, .14, hsl(.55, .25, .55));
-        drawCircle(pivotShifted, .42, hsl(.5, .25, .55));
-        drawCircle(pivotShifted, .28, hsl(.55, .35, .7));
-        drawCircle(tip, .15, hsl(.55, .35, .45));
+        drawTile(pivotShifted, vec2(.42), icons.circle, hsl(.5, .25, .55));
+        drawTile(pivotShifted, vec2(.28), icons.circle, hsl(.55, .35, .7));
+        drawTile(tip, vec2(.15), icons.circle, hsl(.55, .35, .45));
 
         // ammo readout - dots
         for (let i = 0; i < BASE_AMMO_MAX; i++)
@@ -1535,8 +1540,8 @@ function drawBase(b)
 
         if (b.flash > 0)
         {
-            drawCircle(tip, 1.2 * b.flash, hsl(.13, 1, .9, b.flash * 4));
-            drawCircle(tip, .6 * b.flash, hsl(.5, .2, 1, b.flash * 5));
+            drawTile(tip, vec2(1.2 * b.flash), icons.glow, hsl(.13, 1, .9, b.flash * 4));
+            drawTile(tip, vec2(.6 * b.flash), icons.circle, hsl(.5, .2, 1, b.flash * 5));
         }
     }
     else
@@ -1546,16 +1551,16 @@ function drawBase(b)
         drawRect(vec2(bx, floorY + .08), vec2(1.6, .2), hsl(0, 0, .12));
 
         const flicker = .5 + .5 * Math.sin(time * 5 + bx);
-        drawCircle(vec2(bx, floorY + .3), .2 * (1 + flicker * .3),
+        drawTile(vec2(bx, floorY + .3), vec2(.2 * (1 + flicker * .3)), icons.circle,
                               hsl(.04, 1, .5 + .2 * flicker, .8));
-        drawCircle(vec2(bx, floorY + .3), .5 * (1 + flicker * .2),
+        drawTile(vec2(bx, floorY + .3), vec2(.5 * (1 + flicker * .2)), icons.glow,
                               hsl(.05, 1, .5, .2));
 
         for (let i = 0; i < 2; i++)
         {
             const t = time + bx * .3 + i * 2;
-            drawCircle(vec2(bx + (i-.5)*.5 + Math.sin(t*.7)*.25, floorY + .6 + i * .45 + (Math.sin(t*.9)+1)*.25),
-                                  .55 + i*.1, hsl(0, 0, .28, .35 - i*.08));
+            drawTile(vec2(bx + (i-.5)*.5 + Math.sin(t*.7)*.25, floorY + .6 + i * .45 + (Math.sin(t*.9)+1)*.25),
+                                  vec2(.55 + i*.1), icons.circle, hsl(0, 0, .28, .35 - i*.08));
         }
     }
 }
@@ -1580,10 +1585,10 @@ function drawMissiles()
             if (m.mirv)
             {
                 const pulse = .85 + .15 * Math.sin(time * 10 + m.pulsePhase);
-                drawCircle(m.pos, .50 * pulse, hsl(0, 0, 1, .35));
-                drawCircle(m.pos, .32, hsl(.88, 1, .7));
-                drawCircle(m.pos, .20, hsl(.88, 1, .85));
-                drawCircle(m.pos, .10, hsl(0, 0, 1));
+                drawTile(m.pos, vec2(.50 * pulse), icons.glow, hsl(0, 0, 1, .35));
+                drawTile(m.pos, vec2(.32), icons.circle, hsl(.88, 1, .7));
+                drawTile(m.pos, vec2(.20), icons.circle, hsl(.88, 1, .85));
+                drawTile(m.pos, vec2(.10), icons.circle, hsl(0, 0, 1));
             }
             continue;
         }
@@ -1592,16 +1597,16 @@ function drawMissiles()
         if (m.smart)
         {
             const pulse = .8 + .2 * Math.sin(time * 14 + m.pulsePhase);
-            drawCircle(m.pos, .55 * pulse, hsl(pal.enemyHue, 1, .7, .35));
-            drawCircle(m.pos, .32, hsl(.95, .9, .55));
-            drawCircle(m.pos, .18, hsl(.0,  1,  .9));
-            drawCircle(m.pos, .08, hsl(.13, 1, 1));
+            drawTile(m.pos, vec2(.55 * pulse), icons.glow, hsl(pal.enemyHue, 1, .7, .35));
+            drawTile(m.pos, vec2(.32), icons.circle, hsl(.95, .9, .55));
+            drawTile(m.pos, vec2(.18), icons.circle, hsl(.0,  1,  .9));
+            drawTile(m.pos, vec2(.08), icons.circle, hsl(.13, 1, 1));
         }
         else
         {
-            drawCircle(m.pos, .35, hsl(pal.enemyHue, 1, .7, .5));
-            drawCircle(m.pos, .22, hsl(pal.enemyHue, 1, .8));
-            drawCircle(m.pos, .1, hsl(.15, 1, 1));
+            drawTile(m.pos, vec2(.35), icons.glow, hsl(pal.enemyHue, 1, .7, .5));
+            drawTile(m.pos, vec2(.22), icons.circle, hsl(pal.enemyHue, 1, .8));
+            drawTile(m.pos, vec2(.1), icons.circle, hsl(.15, 1, 1));
         }
     }
 
@@ -1609,8 +1614,8 @@ function drawMissiles()
     {
         drawLine(m.start, m.pos, m.w * 2.6, hsl(pal.abmHue, 1, .8, .18));
         drawLine(m.start, m.pos, m.w, hsl(pal.abmHue, .95, .75));
-        drawCircle(m.pos, .26, hsl(pal.abmHue, 1, .85, .6));
-        drawCircle(m.pos, .14, hsl(.5, .2, 1));
+        drawTile(m.pos, vec2(.26), icons.glow, hsl(pal.abmHue, 1, .85, .6));
+        drawTile(m.pos, vec2(.14), icons.circle, hsl(.5, .2, 1));
     }
 }
 
@@ -1634,22 +1639,22 @@ function drawFliers()
             // fuselage
             drawLine(p.add(vec2(-.60 * dir, 0)), p.add(vec2(.55 * dir, 0)), .28, body);
             // nose cone
-            drawCircle(p.add(vec2(.65 * dir, 0)), .26, body);
+            drawTile(p.add(vec2(.65 * dir, 0)), vec2(.26), icons.circle, body);
             // cockpit
-            drawCircle(p.add(vec2(.30 * dir, .02)), .14, hsl(.55, .55, .82));
+            drawTile(p.add(vec2(.30 * dir, .02)), vec2(.14), icons.circle, hsl(.55, .55, .82));
             // wing-tip nav lights (aviation red on port / green on starboard)
             const blink = .5 + .5 * Math.sin(time * 8 + f.phase);
-            drawCircle(p.add(vec2(-.45 * dir,  .60)), .11, hsl(0,   1, .6, .55 + .45 * blink));
-            drawCircle(p.add(vec2(-.45 * dir, -.60)), .11, hsl(.33, 1, .6, .55 + .45 * blink));
+            drawTile(p.add(vec2(-.45 * dir,  .60)), vec2(.11), icons.circle, hsl(0,   1, .6, .55 + .45 * blink));
+            drawTile(p.add(vec2(-.45 * dir, -.60)), vec2(.11), icons.circle, hsl(.33, 1, .6, .55 + .45 * blink));
         }
         else
         {
             drawLine(p, p.add(vec2(-.6, .5)), .1, hsl(.55, .1, .6));
             drawLine(p, p.add(vec2( .6, .5)), .1, hsl(.55, .1, .6));
-            drawCircle(p, .55, hsl(.13, .15, .7));
-            drawCircle(p, .35, hsl(.55, .25, .55));
+            drawTile(p, vec2(.55), icons.circle, hsl(.13, .15, .7));
+            drawTile(p, vec2(.35), icons.circle, hsl(.55, .25, .55));
             const blink = .5 + .5 * Math.sin(time * 6 + f.phase);
-            drawCircle(p, .1, hsl(.13, 1, .8, .5 + .5 * blink));
+            drawTile(p, vec2(.1), icons.circle, hsl(.13, 1, .8, .5 + .5 * blink));
         }
     }
 }
@@ -1668,28 +1673,20 @@ function drawExplosions()
         if (e.friendly)
         {
             // outer glow (soft halo)
-            drawCircleGradient(e.pos, d * 2.2,
-                                                  hsl(.55, .85, .65, .55 * phase),
-                                                  hsl(.6, 1, .4, 0));
+            drawTile(e.pos, vec2(d * 2.2), icons.glow, hsl(.55, .85, .65, .55 * phase));
             // hot core
-            drawCircleGradient(e.pos, d * 1.0,
-                                                  hsl(.45, .15, 1, .95 * flicker),
-                                                  hsl(.5, .9, .75, 0));
+            drawTile(e.pos, vec2(d * 1.0), icons.glow, hsl(.45, .15, 1, .95 * flicker));
             // shockwave ring
-            drawCircle(e.pos, d * 1.1, hsl(0,0,0,0), .1, hsl(.55, 1, .95, .9 * phase));
+            drawTile(e.pos, vec2(d * 1.1), icons.ring, hsl(.55, 1, .95, .9 * phase));
         }
         else
         {
             // outer glow
-            drawCircleGradient(e.pos, d * 2.2,
-                                                  hsl(.07, 1, .55, .55 * phase),
-                                                  hsl(.02, 1, .35, 0));
+            drawTile(e.pos, vec2(d * 2.2), icons.glow, hsl(.07, 1, .55, .55 * phase));
             // hot core (yellow-white)
-            drawCircleGradient(e.pos, d * 1.0,
-                                                  hsl(.14, .8, .98, .95 * flicker),
-                                                  hsl(.06, 1, .65, 0));
+            drawTile(e.pos, vec2(d * 1.0), icons.glow, hsl(.14, .8, .98, .95 * flicker));
             // shockwave ring
-            drawCircle(e.pos, d * 1.1, hsl(0,0,0,0), .1, hsl(.06, 1, .8, .9 * phase));
+            drawTile(e.pos, vec2(d * 1.1), icons.ring, hsl(.06, 1, .8, .9 * phase));
         }
     }
     setBlendMode(false);
@@ -1706,8 +1703,8 @@ function drawCrosshair()
     drawLine(p.add(vec2(.2, 0)), p.add(vec2(s, 0)),  .06, c);
     drawLine(p.add(vec2(0, -s)), p.add(vec2(0, -.2)), .06, c);
     drawLine(p.add(vec2(0, .2)), p.add(vec2(0, s)),  .06, c);
-    drawCircle(p, .14, hsl(.55, 1, .95, .9));
-    drawCircle(p, .4, hsl(.55, 1, .95, .12));
+    drawTile(p, vec2(.14), icons.circle, hsl(.55, 1, .95, .9));
+    drawTile(p, vec2(.4), icons.glow, hsl(.55, 1, .95, .12));
 }
 
 function gameRender()

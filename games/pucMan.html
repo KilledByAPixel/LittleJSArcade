@@ -4,6 +4,7 @@
  </head><body>
  <script src="../templates/engineLoader.js?1780292569262"></script>
  <script src="../templates/gameFx.js?1780292569262"></script>
+ <script src="../templates/textureGenerator.js?1780292569262"></script>
  <script src="../templates/menus.js?1780292569262"></script>
  <script>
 'use strict';
@@ -94,11 +95,15 @@ let fruitsSpawned = 0;              // how many bonus fruits have appeared so fa
 // --- sounds
 let sPellet, sPower, sEatGhost, sDie, sWin, sFruit;
 
+// default-atlas icon map (name -> TileInfo)
+let icons;
+
 // -----------------------------------------------------------------------------
 function gameInit()
 {
     saveDataInit('pacman');
     setCanvasFixedSize(vec2(600, 720));
+    icons = initDefaultAtlas();
 
     // simple bleeps
     sPellet   = new SoundGenerator({frequency: 780, release: .05, volume: .35, randomness: .02});
@@ -322,7 +327,7 @@ function gameRender()
         else if (powerPellets[i])
         {
             const pulse = .42 + .12*oscillate(3, 1, time);
-            drawCircle(vec2(x+.5, y+.5), pulse, pelletColor);
+            drawTile(vec2(x+.5, y+.5), vec2(pulse), icons.circle, pelletColor);
         }
     }
 
@@ -1000,7 +1005,7 @@ function drawPac(p)
     if (halfMouth < .03)
     {
         // mouth essentially closed — just a solid circle
-        drawCircle(p.pos, diameter, rgb(1, .92, 0));
+        drawTile(p.pos, vec2(diameter), icons.circle, rgb(1, .92, 0));
         return;
     }
 
@@ -1089,10 +1094,10 @@ function drawGhost(g)
         const eL = center.add(vec2(-eyeDX, eyeY));
         const eR = center.add(vec2(+eyeDX, eyeY));
         // ~2x previous size; whites are taller than wide like the arcade
-        drawEllipse(eL, vec2(.22, .28), rgb(1,1,1));
-        drawEllipse(eR, vec2(.22, .28), rgb(1,1,1));
-        drawCircle(eL.add(look), .14, rgb(.08,.18,.65));
-        drawCircle(eR.add(look), .14, rgb(.08,.18,.65));
+        drawTile(eL, vec2(.22, .28), icons.circle, rgb(1,1,1));
+        drawTile(eR, vec2(.22, .28), icons.circle, rgb(1,1,1));
+        drawTile(eL.add(look), vec2(.14), icons.circle, rgb(.08,.18,.65));
+        drawTile(eR.add(look), vec2(.14), icons.circle, rgb(.08,.18,.65));
     }
 }
 
@@ -1107,12 +1112,12 @@ function drawFruit()
     const cy = FRUIT_CELL_Y + .5;
 
     // two cherries (slight color difference between them so they read as separate)
-    drawCircle(vec2(cx - .15, cy - .05), .42, rgb(.95, .12, .12));
-    drawCircle(vec2(cx + .15, cy - .05), .42, rgb(.82, .08, .08));
+    drawTile(vec2(cx - .15, cy - .05), vec2(.42), icons.circle, rgb(.95, .12, .12));
+    drawTile(vec2(cx + .15, cy - .05), vec2(.42), icons.circle, rgb(.82, .08, .08));
 
     // highlights for that glossy arcade look
-    drawCircle(vec2(cx - .22, cy - .14), .12, rgb(1, .6, .6));
-    drawCircle(vec2(cx + .09, cy - .14), .12, rgb(1, .55, .55));
+    drawTile(vec2(cx - .22, cy - .14), vec2(.12), icons.circle, rgb(1, .6, .6));
+    drawTile(vec2(cx + .09, cy - .14), vec2(.12), icons.circle, rgb(1, .55, .55));
 
     // stems converging up to a joining point
     const joinX = cx + .03;
@@ -1122,7 +1127,7 @@ function drawFruit()
     drawLine(vec2(cx + .19, cy + .14), vec2(joinX, joinY), .06, stemColor);
 
     // a small tilted leaf at the stem join
-    drawEllipse(vec2(joinX + .18, joinY - .04), vec2(.22, .1), rgb(.25, .8, .25), -.6);
+    drawTile(vec2(joinX + .18, joinY - .04), vec2(.22, .1), icons.circle, rgb(.25, .8, .25), -.6);
 }
 
 function drawCenterBanner(title, subtitle)

@@ -153,8 +153,8 @@ function drawTable()
     // head string / foot spot dots
     const headX = -TABLE_SIZE.x/4;
     drawLine(vec2(headX, -TABLE_SIZE.y/2), vec2(headX, TABLE_SIZE.y/2), .1, rgb(1,1,1,.10));
-    drawCircle(vec2(TABLE_SIZE.x/4, 0), .2, rgb(1,1,1,.25));
-    drawCircle(vec2(headX, 0),         .2, rgb(1,1,1,.25));
+    drawTile(vec2(TABLE_SIZE.x/4, 0), vec2(.2), ballTiles[0], rgb(1,1,1,.25));
+    drawTile(vec2(headX, 0),          vec2(.2), ballTiles[0], rgb(1,1,1,.25));
 }
 
 // Rhombus marker for rail sights. `tall` = true → long axis vertical (used on
@@ -181,8 +181,8 @@ function drawPocketShadow(pos)
 }
 function drawPocketHole(pos)
 {
-    drawCircle(pos, POCKET_DIAM*1.10, rgb(0,0,0,1));
-    drawCircle(pos, POCKET_DIAM*0.90, rgb(.08,.04,.02,1));
+    drawTile(pos, vec2(POCKET_DIAM*1.10), ballTiles[0], rgb(0,0,0,1));
+    drawTile(pos, vec2(POCKET_DIAM*0.90), ballTiles[0], rgb(.08,.04,.02,1));
 }
 
 // Render a sinking ball at its lerped position, shrinking as it descends.
@@ -236,7 +236,7 @@ function drawCueStickBody(ballPos, dir, tipDist)
     // ferrule + leather tip (at the front)
     const ferB = ballPos.add(back.scale(tipDist + .25));
     drawLine(tip, ferB, CUE_TIP_HW * 2 + .02, rgb(.95,.95,.90));
-    drawCircle(tip, CUE_TIP_HW * 2, rgb(.30,.18,.55));
+    drawTile(tip, vec2(CUE_TIP_HW * 2), ballTiles[0], rgb(.30,.18,.55));
 }
 
 // Returns the cue stick pose for the current frame, or null if no stick
@@ -274,7 +274,7 @@ function getCueStickPose()
 
 function drawBallShadow(pos)
 {
-    drawCircle(pos.add(vec2(.10,-.12)), BALL_DIAM*1.02, rgb(0,0,0, SHADOW_ALPHA));
+    drawTile(pos.add(vec2(.10,-.12)), vec2(BALL_DIAM*1.02), ballTiles[0], rgb(0,0,0, SHADOW_ALPHA));
 }
 
 // Black backplate drawn just behind the ball tile so a thin dark ring shows
