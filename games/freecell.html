@@ -160,13 +160,17 @@ async function gameInit()
 
     newGame();
 
+    let resumedGame = false;    // true when an unfinished saved game was restored
     if (savedSnap)
     {
         loadState(savedSnap);   // also recomputes the `won` flag
         if (won)
             newGame();          // saved game was already finished — deal fresh
         else
+        {
             history.reset();    // re-seed history + save data with the restored game
+            resumedGame = true;
+        }
     }
 
     // Match the engine's master volume to whatever the options slider starts at,
@@ -278,8 +282,12 @@ async function gameInit()
         ],
     });
 
-    // Surface the title menu immediately — no click-to-reveal gate.
-    showMenu('title');
+    // If an unfinished saved game was restored, jump straight into it.
+    // Otherwise surface the title menu immediately — no click-to-reveal gate.
+    if (resumedGame)
+        setPlaying(true);
+    else
+        showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
