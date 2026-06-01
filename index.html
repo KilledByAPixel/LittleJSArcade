@@ -1530,22 +1530,32 @@ window.prevGame = () => stepGame(-1);
 // ===================== Debug: engine build switch =====================
 // Console helper (call from the launcher console). The chosen build is stored in
 // localStorage and read by templates/engineLoader.js, so it applies to EVERY game.
-//   littlejsBuild()          -> log the current override
+// 'release' is the shipped default, so picking it just clears the override.
+//   littlejsBuild()          -> show the current build + available options
 //   littlejsBuild('debug')   -> run every game on the debug build, reload current
-//   littlejsBuild('release') -> the shipped default build
+//   littlejsBuild('release') -> back to the shipped default build
 //   littlejsBuild('min')     -> minified release build
-//   littlejsBuild('default') -> clear the override
 window.littlejsBuild = function(build) {
     const BUILDS = ['debug', 'release', 'min'];
     const KEY = 'littlejs-build';
+    const current = localStorage.getItem(KEY) || 'release';
     if (build === undefined) {
-        console.log('littlejs build override:', localStorage.getItem(KEY) || '(none — default: release)');
+        console.log(
+            '%clittlejs build:%c ' + current + '%c\n' +
+            'Options: ' + BUILDS.join(', ') + '   (release = default)\n' +
+            "Switch every game with littlejsBuild('debug') / ('release') / ('min'), or littlejsDebug().",
+            'color: #f7c948; font-weight: bold;', 'color: #58a6ff; font-weight: bold;', 'color: #8b949e;'
+        );
         return;
     }
-    if (build === 'default' || build === null) localStorage.removeItem(KEY);
-    else if (BUILDS.includes(build)) localStorage.setItem(KEY, build);
-    else { console.warn("littlejsBuild: use 'debug' | 'release' | 'min' | 'default'"); return; }
-    console.log('littlejs build →', localStorage.getItem(KEY) || 'release (default)');
+    if (!BUILDS.includes(build)) {
+        console.warn("littlejsBuild: use 'debug', 'release', or 'min'");
+        return;
+    }
+    // 'release' is the default → clear the override; 'debug'/'min' persist it.
+    if (build === 'release') localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, build);
+    console.log('littlejs build → ' + build + (build === 'release' ? ' (default)' : ''));
     // Reload the current game so engineLoader.js re-reads the override immediately.
     if (currentFile) selectGame(currentFile, false);
 };
@@ -1814,7 +1824,7 @@ console.log(
     'color: #58a6ff; font-weight: bold;', 'color: #e6edf3;'
 );
 console.log(
-    '%cEnter debug mode for every game by calling %clittlejsDebug()%c — call littlejsBuild() to manage the build.',
+    '%cEnable debug mode by calling %clittlejsDebug()%c — call littlejsBuild() for more info.',
     'color: #8b949e;', 'color: #f7c948; font-weight: bold;', 'color: #8b949e;'
 );
 </script>
