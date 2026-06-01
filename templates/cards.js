@@ -537,18 +537,46 @@ function shuffledDeck()
     return deck;
 }
 
-// Draws a faint empty-slot outline at `pos`. `subtle` uses a lighter look
-// (e.g. foundations) than the default tableau slot.
-function drawCardSlot(pos, subtle = false)
+// Draws a faint empty-slot outline at `pos`. Pass `foundation = true` for the
+// home/foundation look: a warm gold frame plus a faint four-suit marker, so it
+// reads clearly differently from the neutral free-cell / tableau slot (which
+// is a plain white-outlined dark slot).
+function drawCardSlot(pos, foundation = false)
 {
-    const fill   = new Color(0, 0, 0, subtle ? 0.18 : 0.30);
-    const stroke = new Color(1, 1, 1, subtle ? 0.55 : 0.30);
-    drawRect(pos, CARD_SIZE, fill);
-    const t = 0.12;   // outline = 4 thin rects (drawRect has no outline param)
-    drawRect(vec2(pos.x, pos.y + CARD_SIZE.y/2), vec2(CARD_SIZE.x, t), stroke);
-    drawRect(vec2(pos.x, pos.y - CARD_SIZE.y/2), vec2(CARD_SIZE.x, t), stroke);
-    drawRect(vec2(pos.x - CARD_SIZE.x/2, pos.y), vec2(t, CARD_SIZE.y), stroke);
-    drawRect(vec2(pos.x + CARD_SIZE.x/2, pos.y), vec2(t, CARD_SIZE.y), stroke);
+    // 4-rect outline (drawRect has no stroke param). `t` = line thickness.
+    const outline = (stroke, t) =>
+    {
+        drawRect(vec2(pos.x, pos.y + CARD_SIZE.y/2), vec2(CARD_SIZE.x, t), stroke);
+        drawRect(vec2(pos.x, pos.y - CARD_SIZE.y/2), vec2(CARD_SIZE.x, t), stroke);
+        drawRect(vec2(pos.x - CARD_SIZE.x/2, pos.y), vec2(t, CARD_SIZE.y), stroke);
+        drawRect(vec2(pos.x + CARD_SIZE.x/2, pos.y), vec2(t, CARD_SIZE.y), stroke);
+    };
+
+    if (foundation)
+    {
+        // Gold frame + faint warm fill — a distinct hue from the free cells,
+        // not just a brightness tweak.
+        drawRect(pos, CARD_SIZE, new Color(0.85, 0.65, 0.15, 0.16));
+        outline(new Color(1.0, 0.82, 0.30, 0.80), 0.18);
+
+        // Faint 2×2 cluster of the four suit pips — the classic "build all
+        // four suits here" marker. Needs the atlas; skip if not built yet.
+        if (_cardSprites)
+        {
+            const pipColor = new Color(1, 0.95, 0.8, 0.10);
+            const dx = CARD_SIZE.x * 0.22, dy = CARD_SIZE.y * 0.22;
+            const ps = vec2(2.1);
+            drawTile(pos.add(vec2(-dx,  dy)), ps, _cardSprites.suits[0], pipColor);
+            drawTile(pos.add(vec2( dx,  dy)), ps, _cardSprites.suits[1], pipColor);
+            drawTile(pos.add(vec2(-dx, -dy)), ps, _cardSprites.suits[2], pipColor);
+            drawTile(pos.add(vec2( dx, -dy)), ps, _cardSprites.suits[3], pipColor);
+        }
+        return;
+    }
+
+    // Neutral slot (free cells, tableau): dark fill, plain white outline.
+    drawRect(pos, CARD_SIZE, new Color(0, 0, 0, 0.30));
+    outline(new Color(1, 1, 1, 0.30), 0.12);
 }
 
 // Clears finished tweens. Call once per frame (e.g. gameUpdatePost) with the
