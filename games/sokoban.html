@@ -4,6 +4,7 @@
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
 'use strict';
@@ -57,6 +58,9 @@ const MOVE_DELAY = 0.12;
 
 // Sounds
 let sfxMove, sfxPush, sfxComplete, sfxUndo, sfxRestart;
+
+// default-atlas icon map (name -> TileInfo)
+let icons;
 
 // Debug solver state
 let solverResults = null;  // Array of {level, solvable, moves, time} or null
@@ -685,21 +689,21 @@ function drawPlayer(pos)
     const drawPos = pos.add(vec2(0, bobOffset));
     
     // Shadow
-    drawCircle(pos.add(vec2(.05, -.12)), size * .85, rgb(0,0,0,.3));
-    
+    drawTile(pos.add(vec2(.05, -.12)), vec2(size * .85), icons.circle, rgb(0,0,0,.3));
+
     // Body
-    drawCircle(drawPos, size, COLOR_PLAYER);
-    
+    drawTile(drawPos, vec2(size), icons.circle, COLOR_PLAYER);
+
     // Inner highlight
-    drawCircle(drawPos.add(vec2(-.1, .15)), size * .4, COLOR_PLAYER.lerp(rgb(1,1,1), .35));
-    
+    drawTile(drawPos.add(vec2(-.1, .15)), vec2(size * .4), icons.circle, COLOR_PLAYER.lerp(rgb(1,1,1), .35));
+
     // Face - eyes
     const eyeOffset = .15;
     const eyeSize = .12;
-    drawCircle(drawPos.add(vec2(-eyeOffset, .1)), eyeSize, rgb(1,1,1));
-    drawCircle(drawPos.add(vec2(eyeOffset, .1)), eyeSize, rgb(1,1,1));
-    drawCircle(drawPos.add(vec2(-eyeOffset, .08)), eyeSize * .5, rgb(.1,.1,.2));
-    drawCircle(drawPos.add(vec2(eyeOffset, .08)), eyeSize * .5, rgb(.1,.1,.2));
+    drawTile(drawPos.add(vec2(-eyeOffset, .1)), vec2(eyeSize), icons.circle, rgb(1,1,1));
+    drawTile(drawPos.add(vec2(eyeOffset, .1)), vec2(eyeSize), icons.circle, rgb(1,1,1));
+    drawTile(drawPos.add(vec2(-eyeOffset, .08)), vec2(eyeSize * .5), icons.circle, rgb(.1,.1,.2));
+    drawTile(drawPos.add(vec2(eyeOffset, .08)), vec2(eyeSize * .5), icons.circle, rgb(.1,.1,.2));
     
     // Smile
     drawRect(drawPos.add(vec2(0, -.12)), vec2(.22, .06), rgb(.1,.1,.2));
@@ -711,13 +715,13 @@ function drawTarget(pos)
     const pulse = .5 + Math.sin(time * 3) * .15;
     
     // Outer glow
-    drawCircle(pos, .5, COLOR_TARGET.lerp(rgb(1,1,1), .2).scale(1, pulse * .4));
-    
+    drawTile(pos, vec2(.5), icons.circle, COLOR_TARGET.lerp(rgb(1,1,1), .2).scale(1, pulse * .4));
+
     // Inner circle
-    drawCircle(pos, .35, COLOR_TARGET.scale(1, pulse * .6));
-    
+    drawTile(pos, vec2(.35), icons.circle, COLOR_TARGET.scale(1, pulse * .6));
+
     // Center dot
-    drawCircle(pos, .15, COLOR_TARGET);
+    drawTile(pos, vec2(.15), icons.circle, COLOR_TARGET);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -726,6 +730,7 @@ async function gameInit()
     saveDataInit('sokoban');
     bestLevel = getSaveData().bestLevel ?? 0;
     setCanvasFixedSize(vec2(960, 720));
+    icons = initDefaultAtlas();
 
     // gamepad: on-screen touch pad for mobile (8-way digital d-pad + 2 face buttons for undo/restart)
     touchGamepadEnable = true;
