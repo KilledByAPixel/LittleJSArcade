@@ -3,6 +3,7 @@
 <meta charset=utf-8>
 </head>
 <script src="../dist/littlejs.js?1780289306365"></script>
+<script src="../templates/textureGenerator.js?1780289306365"></script>
 <script src="../templates/gameFx.js?1780289306365"></script>
 <script src="../templates/menus.js?1780289306365"></script>
 <script>
@@ -68,6 +69,9 @@ const COLORS = [
     hsl(0, 0, .80),
 ];
 const OUTLINE = hsl(0,0,0,.8);
+
+// default texture atlas icons (name -> TileInfo), baked in gameInit
+let icons;
 
 // Sounds
 let sShoot, sPop, sDrop, sLose, sWin, sTick;
@@ -571,6 +575,10 @@ function endGame()
 function gameInit()
 {
     saveDataInit('snood');
+
+    // bake the 16 built-in white icons into the atlas (tint them per-instance)
+    icons = initDefaultAtlas();
+
     // Canvas clear matches the panel tint so any area outside the play rectangle
     // (above the wall, beside the panel, etc.) blends in instead of reading as a black bar.
     setCanvasClearColor(hsl(.6, .18, .14));
@@ -796,9 +804,22 @@ function drawAimLine()
         if ((i & 1) === 0)
         {
             const fade = 1 - i/maxSteps;
-            drawCircle(pos, .09, hsl(0,0,1,.45*fade));
+            drawTile(pos, vec2(.09 * 1.15), icons.circle, hsl(0,0,1,.45*fade));
         }
     }
+}
+
+// draw a glossy bubble from the default atlas: dark rim + tinted body + highlight.
+// `diam` is the visible (rim) diameter, matching the old drawCircle diameter.
+// The /1.15 in the icon means a tile of size d renders a circle of diameter d/1.15,
+// so multiply by 1.15 to make the outer rim land exactly at `diam`.
+function drawBubble(pos, color, diam = BUBBLE_DIAM, glossAlpha = .5)
+{
+    const rim = diam * 1.15;
+    drawTile(pos, vec2(rim), icons.circle, OUTLINE);         // dark rim
+    drawTile(pos, vec2(rim * .88), icons.circle, color);     // colored body
+    drawTile(pos.add(vec2(-diam*.18, diam*.18)),             // upper-left gloss
+        vec2(diam*.34), icons.circle, hsl(0,0,1,glossAlpha));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -822,17 +843,12 @@ function gameRenderPost()
             fill.g = fill.g * (1-k) + k;
             fill.b = fill.b * (1-k) + k;
         }
-        drawCircle(p, BUBBLE_DIAM, fill, .06, OUTLINE);
-        // tiny highlight
-        drawCircle(p.add(vec2(-.12,.12)), .22, hsl(0,0,1,.5));
+        drawBubble(p, fill);
     }
 
     // falling disconnected bubbles
     for (const f of fallers)
-    {
-        drawCircle(f.pos, BUBBLE_DIAM, f.color, .06, OUTLINE);
-        drawCircle(f.pos.add(vec2(-.12,.12)), .22, hsl(0,0,1,.18));
-    }
+        drawBubble(f.pos, f.color, BUBBLE_DIAM, .18);
 
     // pop FX — expanding fades + flying shards
     for (const fx of popFX)
@@ -844,15 +860,16 @@ function gameRenderPost()
             const alpha = 1 - t;
             const fill = fx.color.copy();
             fill.a = alpha * .8;
-            const outline = hsl(0, 0, 1, alpha);
-            drawCircle(fx.pos, BUBBLE_DIAM * scale, fill, .04, outline);
+            // soft expanding glow + bright ring for the burst
+            drawTile(fx.pos, vec2(BUBBLE_DIAM * scale * 1.3), icons.glow, fill);
+            drawTile(fx.pos, vec2(BUBBLE_DIAM * scale * 1.15), icons.ring, hsl(0,0,1,alpha));
         }
         else // shard
         {
             const alpha = 1 - t;
             const c = fx.color.copy();
             c.a = alpha;
-            drawCircle(fx.pos, .28 * (1 - t*.4), c);
+            drawTile(fx.pos, vec2(.28 * (1 - t*.4) * 1.15), icons.circle, c);
         }
     }
 
@@ -862,10 +879,7 @@ function gameRenderPost()
 
     // projectile
     if (projectile)
-    {
-        drawCircle(projectile.pos, BUBBLE_DIAM, COLORS[projectile.colorIndex], .06, OUTLINE);
-        drawCircle(projectile.pos.add(vec2(-.12,.12)), .22, hsl(0,0,1,.18));
-    }
+        drawBubble(projectile.pos, COLORS[projectile.colorIndex], BUBBLE_DIAM, .18);
 
     // dotted aim line — simulates the projectile path (including wall bounces)
     // so the player can see where their shot will land
@@ -887,14 +901,13 @@ function gameRenderPost()
     drawLine(shooterPos.add(dir.scale(-2)), shooterPos.add(dir.scale(1.6)), arrowWidth, aimColor);
     drawPoly([aimEnd, wing1, wing2], aimColor, arrowWidth, CLEAR_WHITE);
 
-    drawCircle(shooterPos, BUBBLE_DIAM, COLORS[currentColorIndex], .06, OUTLINE);
+    drawBubble(shooterPos, COLORS[currentColorIndex]);
 
     // next bubble preview + NEXT label
     const nextPos = shooterPos.add(vec2(3.5, 0));
     drawText('NEXT', nextPos.add(vec2(-1.1, 0)), .5, hsl(0,0,1), .08, hsl(0,0,0));
     const nextCirclePos = nextPos.add(vec2(0,.05));
-    drawCircle(nextCirclePos, .65, COLORS[nextColorIndex], .05, OUTLINE);
-    drawCircle(nextCirclePos.add(vec2(-.08, .08)), .2, hsl(0,0,1,.18));
+    drawBubble(nextCirclePos, COLORS[nextColorIndex], .65, .18);
 
     // score / shots — world space, right-aligned just left of the shooter to mirror NEXT
     drawText(
