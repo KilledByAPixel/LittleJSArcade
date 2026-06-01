@@ -46,9 +46,9 @@ const _CARD_CORNER_RANK_OFFSET = vec2(1.0, 1.0);
 const _CARD_CORNER_RANK_SIZE   = vec2(1.8);
 const _CARD_CORNER_SUIT_OFFSET = vec2(2.05, .95);
 const _CARD_CORNER_SUIT_SIZE   = vec2(1.4);
-const _CARD_PIP_SIZE           = vec2(1.1);
+const _CARD_PIP_SIZE           = vec2(1.3);
 const _CARD_PIP_SPREAD_X       = 1.2;
-const _CARD_PIP_SPREAD_Y       = 1.6;
+const _CARD_PIP_SPREAD_Y       = 1.7;
 
 // --- Internal state ---
 let _cardSprites  = null;     // { ranks:[13], suits:[4], bg, tint, back } of TileInfos
