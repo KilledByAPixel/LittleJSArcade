@@ -14,6 +14,11 @@ showEngineVersion = false; // Hide engine version console display
 tilesPixelated = false; // Disable pixelation
 paused = false;
 
+// on-screen touch pad
+touchGamepadEnable = true;
+touchGamepadAnalog = true;
+touchGamepadButtonCount = 1;
+
 ///////////////////////////////////////////////////////////////////////////////
 // Lunar Lander (solid-color primitives only) - smooth terrain + level ramp
 
@@ -487,11 +492,6 @@ function gameInit()
 {
     saveDataInit('lunarLander');
     setCanvasFixedSize(vec2(720, 720));
-
-    // on-screen touch pad (left stick rotates, face button thrusts)
-    touchGamepadEnable = true;
-    touchGamepadAnalog = true;
-    touchGamepadButtonCount = 1;
 
     // build a deep, layered starfield once (screen-space, parallax by depth)
     stars = [];
