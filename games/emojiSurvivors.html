@@ -3223,24 +3223,26 @@ async function gameInit()
     // ────────────────────────────────────────────────────────────────────
 
     // Row 0 — Utility + Heroes
+    // Paint functions draw in the fixed 500x500 DRAW_SIZE space (tile center
+    // = 250), scaled to fill the tile — independent of tile resolution.
     sprites.circle    = drawToTexture(0, ctx =>
     {
         ctx.fillStyle = '#fff';
         ctx.beginPath();
-        ctx.arc(125, 125, 114, 0, Math.PI * 2);
+        ctx.arc(250, 250, 228, 0, Math.PI * 2);
         ctx.fill();
     }, 'a solid white circle');
     sprites.shadow    = drawToTexture(1, ctx =>
     {
-        // Radius 114 keeps the soft alpha edge a few px inside the 250px
-        // tile so it never bleeds into a neighbouring cell.
-        const grad = ctx.createRadialGradient(125, 125, 0, 125, 125, 114);
+        // Radius 228 keeps the soft alpha edge a few px inside the 500-unit
+        // paint space so it never bleeds into a neighbouring cell.
+        const grad = ctx.createRadialGradient(250, 250, 0, 250, 250, 228);
         grad.addColorStop(0,   'rgba(255,255,255,1)');
         grad.addColorStop(.55, 'rgba(255,255,255,.7)');
         grad.addColorStop(1,   'rgba(255,255,255,0)');
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(125, 125, 114, 0, Math.PI * 2);
+        ctx.arc(250, 250, 228, 0, Math.PI * 2);
         ctx.fill();
     }, 'a soft white radial gradient circle');
     sprites.heroWizard = drawTextToTexture(2, '🧙', {description: 'wizard hero', flipX: true});
