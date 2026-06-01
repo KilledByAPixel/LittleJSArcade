@@ -20,7 +20,7 @@ canvasMaxSize = vec2(2048);
 
 // track + camera constants (tuned for a ~960x540 canvas)
 const DRAW_DIST       = 260;   // how many road segments to draw
-const ROAD_W          = 1.85;  // road half-width in world units
+const ROAD_W          = 1.15;  // road half-width in world units
 var   CAMERA_HEIGHT   = 0.72;  // bigger = road appears lower (tweakable)
 var   CAMERA_DEPTH    = 1.00;  // perspective strength (tweakable)
 const RUMBLE_W        = 1.22;  // rumble extends beyond road
@@ -76,6 +76,8 @@ let lap = 0;
 let timeLeftFrames = 60 * 60; // 60 seconds at 60 fps
 let crashTimer = 0;
 let inputSteer = 0; // -1..1, combined keyboard + mouse, shared with render
+let steerMode = 'mouse';   // active steering device: 'mouse' | 'key' (most-recent wins)
+let lastMouseScreenX = -1; // for detecting mouse movement (-1 = uninitialized)
 
 // AI cars
 let aiCars = [];
@@ -265,18 +267,7 @@ function gameUpdate()
     const padBrake = gamepadIsDown(1) || stick.y < -.4;
     const up = dir.y > 0 || padGas, down = dir.y < 0 || padBrake;
 
-    // pointer steering. On a mouse, cursor x-position always steers (no
-    // button required); on touch, only an active touch counts (because the
-    // pointer has no resting position when no finger is down).
     // Left button/touch = gas, right button = brake.
-    const cx = mainCanvasSize.x / 2;
-    let mouseSteer = 0;
-    let mouseSteerActive = false;
-    if (!isTouchDevice || mouseIsDown(0))
-    {
-        mouseSteer = clamp((mousePosScreen.x - cx) / cx, -1, 1);
-        mouseSteerActive = true;
-    }
     const gas   = up   || mouseIsDown(0);
     const brake = down || mouseIsDown(2);
 
@@ -296,13 +287,30 @@ function gameUpdate()
     // steering as lateral acceleration -> velocity (with damping)
     // gives weight/inertia: car keeps drifting briefly after key release,
     // so curves are about anticipating rather than spamming the key.
-    // Mouse takes priority when active so a pointer input doesn't fight the
-    // keyboard; keyboard arrows still work when the cursor is centered or on
-    // touch devices not currently being touched.
     const kbSteer = dir.x;
-    // steer priority: gamepad stick (when pushed) > active mouse/touch > keyboard
+
+    // Pick the active steering device by MOST-RECENT USE so mouse and keyboard
+    // coexist: pressing an arrow/WASD switches to keyboard, then simply MOVING
+    // the mouse hands control back — no click required (the old code locked to
+    // one device until you clicked). Detect mouse use by cursor movement or a
+    // held button.
+    const cx = mainCanvasSize.x / 2;
+    const mouseMoved = lastMouseScreenX >= 0 && abs(mousePosScreen.x - lastMouseScreenX) > .5;
+    lastMouseScreenX = mousePosScreen.x;
+    const pointerHeld = mouseIsDown(0) || mouseIsDown(2);
+    if (kbSteer !== 0)
+        steerMode = 'key';
+    else if (mouseMoved || pointerHeld)
+        steerMode = 'mouse';
+
+    // cursor-position steering value; on touch there's no resting cursor, so
+    // require a held pointer there (desktop steers just by hovering).
+    const mouseUsable = !isTouchDevice || pointerHeld;
+    const mouseSteer = mouseUsable ? clamp((mousePosScreen.x - cx) / cx, -1, 1) : 0;
+
+    // steer priority: gamepad stick (when pushed) > active device (mouse/key)
     const rawSteer = padSteer ? clamp(padSteer, -1, 1)
-                   : mouseSteerActive ? mouseSteer
+                   : steerMode === 'mouse' ? mouseSteer
                    : kbSteer;
     // need to be moving forward to steer at all — ramps from 0 (stopped) to
     // full at MIN_STEER_SPEED, then stays at full. Prevents the car from
@@ -552,8 +560,8 @@ function renderRoadAndCars()
         const p = projectPoint(z, x, v);
         p.i = i;
         p.curve = seg.curve;
-        p.grassAlt = (((baseIndex + i) / 6)|0) & 1;
-        p.rumbleAlt = (((baseIndex + i) / 3)|0) & 1;
+        p.grassAlt = (((baseIndex + i) / 12)|0) & 1;
+        p.rumbleAlt = (((baseIndex + i) / 6)|0) & 1;
         proj[i] = p;
     }
 
