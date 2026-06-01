@@ -6,6 +6,7 @@
 <script src="../templates/engineLoader.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameAI.js?1780292569262"></script>
 <script>
 'use strict';
@@ -59,6 +60,7 @@ const MOVE_DURATION = 0.25;
 
 // Sounds
 let sfxMove, sfxCapture, sfxKing, sfxWin, sfxLose, sfxSelect;
+let icons; // default-atlas icon map (initDefaultAtlas)
 
 ///////////////////////////////////////////////////////////////////////////////
 // BOARD LOGIC
@@ -679,21 +681,21 @@ function drawPiece(pos, piece, scale = 1)
     const player = playerOf(piece);
 
     // Shadow
-    drawCircle(pos.add(vec2(0.1, -0.1)), r * 2 * 0.95, rgb(0, 0, 0, 0.4));
+    drawTile(pos.add(vec2(0.1, -0.1)), vec2(r * 2 * 0.95), icons.circle, rgb(0, 0, 0, 0.4));
 
     const main = player === PLAYER_RED ? hsl(0,    0.85, 0.45) : hsl(0, 0, 0.12);
     const dark = player === PLAYER_RED ? hsl(0,    0.85, 0.25) : hsl(0, 0, 0.02);
     const hi   = player === PLAYER_RED ? hsl(0.02, 0.8,  0.65) : hsl(0, 0, 0.35);
 
-    drawCircle(pos, r * 2,        dark);
-    drawCircle(pos, r * 2 * 0.88, main);
-    drawCircle(pos, r * 2 * 0.7,  dark);
-    drawCircle(pos, r * 2 * 0.62, main);
-    drawCircle(pos.add(vec2(-0.18 * scale, 0.18 * scale)), r * 2 * 0.28, hi);
+    drawTile(pos, vec2(r * 2),        icons.circle, dark);
+    drawTile(pos, vec2(r * 2 * 0.88), icons.circle, main);
+    drawTile(pos, vec2(r * 2 * 0.7),  icons.circle, dark);
+    drawTile(pos, vec2(r * 2 * 0.62), icons.circle, main);
+    drawTile(pos.add(vec2(-0.18 * scale, 0.18 * scale)), vec2(r * 2 * 0.28), icons.circle, hi);
 
     if (isKing(piece))
     {
-        drawCircle(pos, r * 2 * 0.42, hsl(.12, 1, .55));
+        drawTile(pos, vec2(r * 2 * 0.42), icons.circle, hsl(.12, 1, .55));
         drawText('K', pos.add(vec2(0, -0.04)), r * 1.05, rgb(.2, .1, 0), 0.08, hsl(.13, 1, .8));
     }
 }
@@ -742,7 +744,7 @@ function drawBoard()
         {
             const pos = getCellWorldPos(m.toRow, m.toCol);
             const color = m.capture ? rgb(1, 0.3, 0.3, 0.7) : rgb(0.3, 1, 0.4, 0.6);
-            drawCircle(pos, PIECE_RADIUS * 2 * 0.6, color);
+            drawTile(pos, vec2(PIECE_RADIUS * 2 * 0.6), icons.circle, color);
         }
     }
 
@@ -890,6 +892,8 @@ async function gameInit()
     cameraPos = vec2(0, 0);
     canvasClearColor = new Color().setHex('#0d0d14');
     difficulty = getSaveData().difficulty ?? 'hard';
+
+    icons = initDefaultAtlas(); // bake 16 white-on-transparent icons into tiles 0-15
 
     // One callback drives `paused` for every menu (including dialogs).
     installAutoPause();

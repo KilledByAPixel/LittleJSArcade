@@ -6,6 +6,7 @@
 <script src="../templates/engineLoader.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameAI.js?1780292569262"></script>
 <script>
 'use strict';
@@ -57,6 +58,7 @@ let hoverCell = null;
 
 // Sounds
 let sfxPlaceWhite, sfxPlaceBlack, sfxWin, sfxLose, sfxSelect;
+let icons; // default-atlas icon map (initDefaultAtlas)
 
 ///////////////////////////////////////////////////////////////////////////////
 // BOARD LOGIC
@@ -581,14 +583,14 @@ function drawDiscFlip(pos, color, scaleX = 1, scaleY = 1)
     const radiusY = DISC_RADIUS * scaleY;
     
     // Shadow (ellipse)
-    drawEllipse(pos.add(vec2(0.08, -0.08)), vec2(radiusX * 2 * 0.95, radiusY * 2 * 0.95), rgb(0, 0, 0, 0.3));
+    drawTile(pos.add(vec2(0.08, -0.08)), vec2(radiusX * 2 * 0.95, radiusY * 2 * 0.95), icons.circle, rgb(0, 0, 0, 0.3));
 
     const color1 = color === DISC_BLACK ? hsl(0, 0, 0.15) : hsl(0, 0, 0.95);
     const color2 = color === DISC_BLACK ? hsl(0, 0, 0.6) : hsl(0, 0, 0.8);
-    
+
     // Disc with highlight
-    drawEllipse(pos, vec2(radiusX * 2, radiusY * 2), color1);
-    drawEllipse(pos.add(vec2(-0.15 * scaleX, 0.15 * scaleY)), vec2(radiusX * 2 * 0.3, radiusY * 2 * 0.3), color2);
+    drawTile(pos, vec2(radiusX * 2, radiusY * 2), icons.circle, color1);
+    drawTile(pos.add(vec2(-0.15 * scaleX, 0.15 * scaleY)), vec2(radiusX * 2 * 0.3, radiusY * 2 * 0.3), icons.circle, color2);
 }
 
 function drawFlippingDisc(pos, fromColor, toColor, progress)
@@ -650,8 +652,8 @@ function drawBoard()
     {
         const pos = getCellWorldPos(lastMove.row, lastMove.col);
         const pulseSize = 1 + Math.sin(time * 5) * 0.12;
-        drawCircle(pos, DISC_RADIUS * 2.3 * pulseSize, hsl(.15,1,.4));
-        drawCircle(pos, DISC_RADIUS * 2.1 * pulseSize, hsl(.15,1,.5));
+        drawTile(pos, vec2(DISC_RADIUS * 2.3 * pulseSize), icons.circle, hsl(.15,1,.4));
+        drawTile(pos, vec2(DISC_RADIUS * 2.1 * pulseSize), icons.circle, hsl(.15,1,.5));
     }
     
     // Valid move indicators (gameplay only — keep them off the title board)
@@ -666,7 +668,7 @@ function drawBoard()
                 rgb(0.3, 0.3, 0.3, isHover ? 0.6 : 0.3) :
                 rgb(0.8, 0.8, 0.8, isHover ? 0.6 : 0.3);
 
-            drawCircle(pos, DISC_RADIUS * 0.8, color);
+            drawTile(pos, vec2(DISC_RADIUS * 0.8), icons.circle, color);
         }
     }
     
@@ -800,6 +802,8 @@ async function gameInit()
     canvasClearColor = new Color().setHex('#0d0d14');
     difficulty = getSaveData().difficulty ?? 'hard';
     setSoundVolume(.8);
+
+    icons = initDefaultAtlas(); // bake 16 white-on-transparent icons into tiles 0-15
 
     // One callback drives `paused` for every menu (including dialogs).
     installAutoPause();

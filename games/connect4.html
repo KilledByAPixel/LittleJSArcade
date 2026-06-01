@@ -6,6 +6,7 @@
 <script src="../templates/engineLoader.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameAI.js?1780292569262"></script>
 <script>
 'use strict';
@@ -55,6 +56,7 @@ let hoverCol = -1;
 
 // Sounds
 let sfxDrop, sfxWin, sfxLose, sfxSelect;
+let icons; // default-atlas icon map (initDefaultAtlas)
 
 ///////////////////////////////////////////////////////////////////////////////
 // BOARD LOGIC
@@ -455,13 +457,13 @@ function drawDisc(pos, player, scale = 1)
     const r = DISC_RADIUS * scale;
 
     // Shadow
-    drawCircle(pos.add(vec2(0.06, -0.06)), r * 2 * 0.95, rgb(0, 0, 0, 0.3));
+    drawTile(pos.add(vec2(0.06, -0.06)), vec2(r * 2 * 0.95), icons.circle, rgb(0, 0, 0, 0.3));
 
     // Main disc
-    drawCircle(pos, r * 2, getDiscColor(player));
+    drawTile(pos, vec2(r * 2), icons.circle, getDiscColor(player));
 
     // Highlight
-    drawCircle(pos.add(vec2(-0.12 * scale, 0.12 * scale)), r * 2 * 0.3, getDiscHighlight(player));
+    drawTile(pos.add(vec2(-0.12 * scale, 0.12 * scale)), vec2(r * 2 * 0.3), icons.circle, getDiscHighlight(player));
 }
 
 function drawBoard()
@@ -480,7 +482,7 @@ function drawBoard()
         for (let col = 0; col < COLS; col++)
         {
             const pos = getCellWorldPos(row, col);
-            drawCircle(pos, DISC_RADIUS * 2, rgb(0.02, 0.02, 0.06));
+            drawTile(pos, vec2(DISC_RADIUS * 2), icons.circle, rgb(0.02, 0.02, 0.06));
         }
     }
 
@@ -509,7 +511,7 @@ function drawBoard()
         {
             const pos = getCellWorldPos(cell.row, cell.col);
             const pulse = 1 + Math.sin(time * 6) * 0.1;
-            drawCircle(pos, DISC_RADIUS * 2.2 * pulse, rgb(1, 1, 1, 0.4));
+            drawTile(pos, vec2(DISC_RADIUS * 2.2 * pulse), icons.circle, rgb(1, 1, 1, 0.4));
         }
     }
 
@@ -622,6 +624,8 @@ async function gameInit()
     cameraPos = vec2(0, 0);
     canvasClearColor = new Color().setHex('#0d0d14');
     difficulty = getSaveData().difficulty ?? 'medium';
+
+    icons = initDefaultAtlas(); // bake 16 white-on-transparent icons into tiles 0-15
 
     // One callback drives `paused` for every menu (including dialogs).
     installAutoPause();
