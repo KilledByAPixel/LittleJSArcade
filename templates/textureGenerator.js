@@ -491,7 +491,7 @@ const _defaultIconDrawers = (() =>
 
     function burst(ctx, x, y, r)
     {
-        starPath(ctx, x, y, r, r/2, 10);
+        starPath(ctx, x, y, r, r*.7, 10);
         ctx.fill();
     }
 
