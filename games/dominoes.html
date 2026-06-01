@@ -554,7 +554,12 @@ function drawHumanHand()
         const hl = (id === selectedTileId) ? 1 : 0;
         drawDominoTile(pos, t.a, t.b, false, true, hl);
         if (!isLegal && phase === 'playerTurn')
-            drawRect(pos, vec2(TILE_SHORT, TILE_LONG), hsl(0,0,0,0.45));  // dim illegal
+        {
+            // Dim illegal tiles with the same rounded-rect shape as the domino
+            // body (matching drawDominoTile), not a hard-edged square.
+            const body = vec2(TILE_SHORT, TILE_LONG).scale(ICON_SQUARE_FILL);
+            drawTile(pos, body, icons.roundSquare, hsl(0,0,0,0.45));
+        }
         handTilePositions.push({id, pos});
     }
 }
