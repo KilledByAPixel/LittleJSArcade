@@ -44,8 +44,9 @@
         else localStorage.setItem(KEY, build);
         location.reload();
     };
-    // Short alias — flip every game into the debug engine build in one call.
-    window.littlejsDebug = () => window.littlejsBuild('debug');
+    // Short alias — littlejsDebug() turns the debug build on for every game;
+    // littlejsDebug(false) turns it back off (release default).
+    window.littlejsDebug = (on = true) => window.littlejsBuild(on ? 'debug' : 'release');
 
     let stored = null;
     try { stored = localStorage.getItem(KEY); } catch (e) {}     // private-mode / disabled storage
@@ -54,4 +55,12 @@
                 : (stored && FILES[stored]) ? stored
                 : BUILD;
     document.write('<script src="../dist/' + FILES[build] + '?' + VER + '"><\/script>');
+
+    // Centrally apply engine settings every game shared, so they don't have to be
+    // repeated in each file: silence the version/build console messages and hide the
+    // corner debug watermark. These are top-level `let`s in the engine, so they don't
+    // exist until the tag above executes — but classic scripts share one global lexical
+    // scope, so this inline script (parser-blocking, runs right after the engine is
+    // defined and before any game's engineInit) can flip them.
+    document.write('<script>showEngineVersion=false;<\/script>');
 }

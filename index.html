@@ -1611,8 +1611,9 @@ window.littlejsBuild = function(build) {
     // Reload the current game so engineLoader.js re-reads the override immediately.
     if (currentFile) selectGame(currentFile, false);
 };
-// Short alias — flip every game into the debug engine build in one call.
-window.littlejsDebug = () => littlejsBuild('debug');
+// Short alias — littlejsDebug() turns the debug build on for every game;
+// littlejsDebug(false) turns it back off (release default).
+window.littlejsDebug = (on = true) => littlejsBuild(on ? 'debug' : 'release');
 
 // ===================== Wire-up =====================
 
