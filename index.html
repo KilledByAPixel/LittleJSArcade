@@ -866,6 +866,12 @@
 
 // category: row grouping in the welcome screen (one per game).
 // emoji:    single grapheme used as "boxart" on tiles + sidebar cards.
+// emojiStyle: optional inline-CSS string applied to that emoji's element on
+//           both the welcome tile and the sidebar card (e.g.
+//           'filter: invert(1) hue-rotate(120deg)'). Most games omit it; use it
+//           to recolor/invert/filter an emoji that doesn't fit the game. Note an
+//           inline `filter:` overrides the tile's stylesheet drop-shadow glow —
+//           include your own drop-shadow in the string to keep it.
 // tags:     descriptive chips on the card (visible to the user).
 // keywords: search-only synonyms — original arcade name (for renames) plus
 //           genre cues people might type. Never rendered as chips.
@@ -1090,7 +1096,9 @@ function makeCard(g) {
             '<div class="desc"></div>' +
             '<div class="chips"></div>' +
         '</div>';
-    card.querySelector('.emoji').textContent = g.emoji || '';
+    const cardEmoji = card.querySelector('.emoji');
+    cardEmoji.textContent = g.emoji || '';
+    if (g.emojiStyle) cardEmoji.style.cssText += g.emojiStyle;
     card.querySelector('.name').textContent = g.name;
     card.querySelector('.desc').textContent = g.desc;
     // High score badge inside the expanded body, before the description.
@@ -1214,7 +1222,9 @@ function makeTile(g, index) {
             '<div class="desc"></div>' +
             '<div class="chips"></div>' +
         '</div>';
-    tile.querySelector('.emoji').textContent = g.emoji || '';
+    const tileEmoji = tile.querySelector('.emoji');
+    tileEmoji.textContent = g.emoji || '';
+    if (g.emojiStyle) tileEmoji.style.cssText += g.emojiStyle;
     tile.querySelector('.name').textContent = g.name;
     tile.querySelector('.desc').textContent = g.desc;
     const chipsEl = tile.querySelector('.chips');
@@ -1362,7 +1372,9 @@ function makeScoreTile(g, score, index) {
             '<div class="name"></div>' +
             '<div class="score-big"></div>' +
         '</div>';
-    tile.querySelector('.emoji').textContent = g.emoji || '';
+    const tileEmoji = tile.querySelector('.emoji');
+    tileEmoji.textContent = g.emoji || '';
+    if (g.emojiStyle) tileEmoji.style.cssText += g.emojiStyle;
     tile.querySelector('.name').textContent = g.name;
     tile.querySelector('.score-big').textContent = scoreEmoji(g) + ' ' + formatScore(g, score);
     const cat = catByKey[g.category];
