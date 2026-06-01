@@ -760,6 +760,7 @@ function addExplosion(pos, friendly)
 {
     explosions.push({
         pos: pos.copy(),
+        lifetime:0,
         r: 0,
         rMax: explosionMaxRadius * (friendly ? 1 : .7),
         friendly,
@@ -849,6 +850,7 @@ function updateExplosions()
 {
     for (const e of explosions)
     {
+        e.lifetime += timeDelta;
         if (e.state === 0)
         {
             e.r += explosionGrowRate * timeDelta;
@@ -1676,7 +1678,7 @@ function drawExplosions()
             // hot core
             drawTile(e.pos, vec2(d * 1.0), icons.glow, hsl(.45, .15, 1, .95 * flicker));
             // shockwave ring
-            drawTile(e.pos, vec2(d * 1.1), icons.ring, hsl(.55, 1, .95, .9 * phase));
+            drawTile(e.pos, vec2( e.lifetime*8), icons.ring, hsl(.55, 1, .95, .2 * phase));
         }
         else
         {
@@ -1685,7 +1687,7 @@ function drawExplosions()
             // hot core (yellow-white)
             drawTile(e.pos, vec2(d * 1.0), icons.glow, hsl(.14, .8, .98, .95 * flicker));
             // shockwave ring
-            drawTile(e.pos, vec2(d * 1.1), icons.ring, hsl(.06, 1, .8, .9 * phase));
+            drawTile(e.pos, vec2(e.lifetime*8), icons.ring, hsl(.06, 1, .8, .2 * phase));
         }
     }
     setBlendMode(false);
