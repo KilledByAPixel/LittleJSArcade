@@ -38,6 +38,12 @@ let board = [];
 let currentPlayer = PLAYER_1;
 let hoverCell = null;
 
+// Piece drop-shadow — a darkened circle drawn under each piece (press \ to tweak).
+let shadowEnable = true;
+let shadowOffset = 0.12;    // world-unit offset (down-right, opposite the highlight)
+let shadowDarkness = 0.35;  // 0..1 — how much it darkens the board underneath
+let shadowSize = 1.0;       // shadow diameter relative to the piece
+
 // gameMode picks between the two play modes (set in startGame).
 let gameMode = 'pvp'; // 'pvp' | 'ai'
 
@@ -142,6 +148,13 @@ async function gameInit()
     setMenuVisibilityCallback(v => paused = v);
 
     sfxPlace = new SoundGenerator({frequency: 440, release: 0.05, volume: 0.3});
+
+    // Piece shadow tweakables — press \ to open the panel and adjust live.
+    tweakDivider('Piece Shadow');
+    tweak('shadowEnable');
+    tweak('shadowOffset',   {min: 0, max: 0.5});
+    tweak('shadowDarkness', {min: 0, max: 1});
+    tweak('shadowSize',     {min: 0.5, max: 1.5});
 
     // ----- title menu -----
     // Two play modes, so raw createMenu (createTitleMenu assumes one PLAY).
@@ -272,6 +285,13 @@ function gameRender()
         const cell = board[row][col];
         if (cell === EMPTY) continue;
         const pos = getCellWorldPos(row, col);
+
+        // Soft drop-shadow: a darkening circle offset down-right (opposite the
+        // upper-left highlight). rgb(0,0,0,alpha) blends over the board to darken.
+        if (shadowEnable)
+            drawTile(pos.add(vec2(shadowOffset, -shadowOffset)),
+                vec2(PIECE_DIAMETER * shadowSize), icons.circle, rgb(0, 0, 0, shadowDarkness));
+
         const color = cell === PLAYER_1 ? hsl(0, 0, 0.15) : hsl(0, 0, 0.95);
         drawTile(pos, vec2(PIECE_DIAMETER), icons.circle, color);
         // Specular highlight (upper-left), Othello-style
