@@ -5,6 +5,7 @@
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
 'use strict';
@@ -66,6 +67,9 @@ let foodSpawnTimer;  // small grow-in animation when food appears
 
 // sounds (created in gameInit so user-gesture audio is happy)
 let sEat, sBonus, sDie, sStep;
+
+// default-atlas icon map (name -> TileInfo)
+let icons;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Helpers
@@ -414,6 +418,7 @@ function showGameOverMenu()
 async function gameInit()
 {
     saveDataInit('snake');
+    icons = initDefaultAtlas();
     canvasClearColor = BLACK;
     cameraPos = vec2(0,0);
 
@@ -527,10 +532,10 @@ function gameRender()
         const pulse  = .72 + Math.sin(foodPulseTimer * 6) * .05;
         const growIn = foodSpawnTimer > 0 ? clamp(1 - foodSpawnTimer/.25, 0, 1) : 1;
         const size   = pulse * (.45 + .55*growIn);
-        drawCircle(p, size + .22, hsl(.99, .8, .55, .18));                  // soft glow
-        drawCircle(p, size,       hsl(.99, .75, .57));                      // apple body
-        drawCircle(p.add(vec2(-.14,.14)), size*.28, hsl(.04,.7,.85,.9));    // highlight
-        drawCircle(p.add(vec2(.10, size*.85)), size*.22, hsl(.34,.6,.45));  // leaf
+        drawTile(p, vec2(size + .22), icons.glow, hsl(.99, .8, .55, .18));                  // soft glow
+        drawTile(p, vec2(size),       icons.circle, hsl(.99, .75, .57));                    // apple body
+        drawTile(p.add(vec2(-.14,.14)), vec2(size*.28), icons.circle, hsl(.04,.7,.85,.9));  // highlight
+        drawTile(p.add(vec2(.10, size*.85)), vec2(size*.22), icons.circle, hsl(.34,.6,.45));// leaf
     }
 
     // bonus fruit — time-limited gold with a depleting timer ring; blinks late
@@ -541,11 +546,11 @@ function gameRender()
         const warn  = bonusTimer < 1.8;
         const blink = warn ? .55 + .45*Math.sin(time*16) : 1;
         const pulse = .80 + Math.sin(foodPulseTimer * 8) * .07;
-        drawCircle(p, pulse + .45, hsl(.13, 1, .60, .15*blink));            // glow
-        drawCircle(p, pulse + .22, hsl(.13, 1, .62, .22*blink));
-        drawCircle(p, pulse,       hsl(.13, 1, .56, blink));                // body
-        drawCircle(p, pulse*.6,    hsl(.16, 1, .82, blink));                // bright core
-        drawCircle(p.add(vec2(-.16,.16)), pulse*.18, hsl(0,0,1,.8*blink));  // sparkle
+        drawTile(p, vec2(pulse + .45), icons.glow, hsl(.13, 1, .60, .15*blink));            // glow
+        drawTile(p, vec2(pulse + .22), icons.glow, hsl(.13, 1, .62, .22*blink));
+        drawTile(p, vec2(pulse),       icons.circle, hsl(.13, 1, .56, blink));              // body
+        drawTile(p, vec2(pulse*.6),    icons.circle, hsl(.16, 1, .82, blink));              // bright core
+        drawTile(p.add(vec2(-.16,.16)), vec2(pulse*.18), icons.circle, hsl(0,0,1,.8*blink));// sparkle
         drawTimerRing(p, pulse + .55, frac, hsl(.13, 1, .72, blink));
     }
 
@@ -571,14 +576,14 @@ function gameRender()
             ? hsl(0, 1, lerp(.45, .65, 1-t))
             : hsl(.34, .62, lerp(.32, .56, 1-t));   // pastel green, brighter toward head
         if (i > 0) drawLine(pts[i], pts[i-1], bodyW, col);
-        drawCircle(pts[i], bodyW, col);
+        drawTile(pts[i], vec2(bodyW), icons.circle, col);
     }
 
     // head cap (brighter) + googly eyes + occasional tongue flick
     {
         const hp   = pts[0];
         const hcol = (!alive && flash) ? hsl(0,1,.62) : hsl(.34, .72, .60);
-        drawCircle(hp, bodyW + headSwell, hcol);
+        drawTile(hp, vec2(bodyW + headSwell), icons.circle, hcol);
 
         const forward = vec2(dir.x, dir.y);
         const side    = vec2(-dir.y, dir.x);     // perpendicular to forward
@@ -600,10 +605,10 @@ function gameRender()
                 drawLine(base, base.add(forward.scale(.30)), .07, hsl(.98,.85,.6));
             }
 
-            drawCircle(eyeA, eyeD, hsl(0,0,1));
-            drawCircle(eyeB, eyeD, hsl(0,0,1));
-            drawCircle(eyeA.add(pupilLean), pupilD, hsl(0,0,.05));
-            drawCircle(eyeB.add(pupilLean), pupilD, hsl(0,0,.05));
+            drawTile(eyeA, vec2(eyeD), icons.circle, hsl(0,0,1));
+            drawTile(eyeB, vec2(eyeD), icons.circle, hsl(0,0,1));
+            drawTile(eyeA.add(pupilLean), vec2(pupilD), icons.circle, hsl(0,0,.05));
+            drawTile(eyeB.add(pupilLean), vec2(pupilD), icons.circle, hsl(0,0,.05));
         }
         else
         {
