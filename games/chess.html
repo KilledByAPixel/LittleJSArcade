@@ -7,6 +7,7 @@
 <script src="../templates/menus.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../templates/gameAI.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script>
 'use strict';
 
@@ -15,7 +16,8 @@ paused = false;
 
 gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
-cameraScale = 60;
+cameraScale = 80;
+canvasFixedSize = vec2(720, 1080);
 
 ///////////////////////////////////////////////////////////////////////////////
 // CHESS GAME
@@ -37,8 +39,15 @@ const COLOR_BLACK = 'b';
 
 // Use the filled (solid) Unicode glyphs for both colors — the outlined
 // "white" glyphs render thin and inconsistent next to the solid black ones.
-// The fillColor / outlineColor on drawText distinguishes white from black.
+// Each glyph is baked into the texture atlas once at startup (see
+// bakePieceSprites): white = light fill + dark outline, black = the reverse.
 const PIECE_GLYPHS = { P:'♟', N:'♞', B:'♝', R:'♜', Q:'♛', K:'♚' };
+
+// Atlas sprites, painted once in gameInit via the textureGenerator module.
+// pieceSprites[color][type] -> TileInfo; circleSprite -> a solid white disc
+// reused (tinted) for the legal-move destination dots.
+const pieceSprites = { w: {}, b: {} };
+let circleSprite;
 
 // Square colors
 const LIGHT_SQUARE = hsl(.1, .35, .75);
@@ -936,6 +945,48 @@ function worldPosToSquare(worldPos)
     return null;
 }
 
+// Bake every piece glyph + a reusable circle into the texture atlas. Called
+// once from gameInit. 12 piece tiles + 1 circle fit easily in a 16-tile sheet.
+function bakePieceSprites()
+{
+    initDrawToTexture(4); // 4x4 = 16 tiles of 488px
+    const types = [PIECE_PAWN, PIECE_KNIGHT, PIECE_BISHOP, PIECE_ROOK, PIECE_QUEEN, PIECE_KING];
+    let tile = 0;
+    for (const color of [COLOR_WHITE, COLOR_BLACK]) {
+        const fill    = color === COLOR_WHITE ? '#f2f2f2' : '#1a1a1a';
+        const outline = color === COLOR_WHITE ? '#1a1a1a' : '#f2f2f2';
+        const label   = color === COLOR_WHITE ? 'white ' : 'black ';
+        for (const type of types)
+            pieceSprites[color][type] = paintPieceTile(tile++, PIECE_GLYPHS[type], fill, outline, label + type);
+    }
+    // A solid white disc — tinted per-instance for the legal-move dots.
+    circleSprite = drawToTexture(tile++, ctx => {
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(DRAW_SIZE / 2, DRAW_SIZE / 2, DRAW_SIZE * 0.47, 0, Math.PI * 2);
+        ctx.fill();
+    }, 'a solid white circle');
+}
+
+// Paint one chess glyph centered in a tile: a thick contrasting stroke for the
+// outline, the fill color on top. Chess glyphs are monochrome vector glyphs so
+// strokeText gives a clean outline (unlike color emoji).
+function paintPieceTile(tile, glyph, fill, outline, description)
+{
+    return drawToTexture(tile, ctx => {
+        ctx.font = (DRAW_SIZE * 0.8) + 'px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.lineJoin = 'round';
+        const cx = DRAW_SIZE / 2, cy = DRAW_SIZE / 2;
+        ctx.lineWidth = DRAW_SIZE * 0.055;
+        ctx.strokeStyle = outline;
+        ctx.strokeText(glyph, cx, cy);
+        ctx.fillStyle = fill;
+        ctx.fillText(glyph, cx, cy);
+    }, description);
+}
+
 function drawBoard()
 {
     const boardSize = BOARD_SIZE * SQUARE_SIZE;
@@ -989,8 +1040,8 @@ function drawBoard()
                 // Capture: hollow ring around the target piece
                 drawCircle(pos, SQUARE_SIZE * 0.85, new Color(0,0,0,0), SQUARE_SIZE * 0.07, rgb(0.4, 0.9, 0.4, 0.7));
             } else {
-                // Empty target: small filled dot
-                drawCircle(pos, SQUARE_SIZE * 0.3, rgb(0.4, 0.9, 0.4, 0.6));
+                // Empty target: small filled dot (baked circle sprite, tinted)
+                drawTile(pos, vec2(SQUARE_SIZE * 0.32), circleSprite, rgb(0.4, 0.9, 0.4, 0.6));
             }
         }
     }
@@ -1001,10 +1052,7 @@ function drawBoard()
             const p = board[r][c];
             if (!p) continue;
             const pos = getSquareWorldPos(r, c).add(vec2(0, PIECE_Y_OFFSET));
-            const glyph = PIECE_GLYPHS[p.type];
-            const fillColor = p.color === COLOR_WHITE ? hsl(0, 0, 0.95) : hsl(0, 0, 0.1);
-            const outlineColor = p.color === COLOR_WHITE ? hsl(0, 0, 0.1) : hsl(0, 0, 0.95);
-            drawText(glyph, pos, SQUARE_SIZE * 0.95, fillColor, 0.08, outlineColor);
+            drawTile(pos, vec2(SQUARE_SIZE * 1.15), pieceSprites[p.color][p.type]);
         }
     }
 
@@ -1155,8 +1203,8 @@ function quitToTitleWithCleanup()
 async function gameInit()
 {
     saveDataInit('chess');
-    setCanvasFixedSize(vec2(550, 720));
     canvasClearColor = new Color().setHex('#0d0d14');
+    bakePieceSprites();
     difficulty = getSaveData().difficulty ?? 'medium';
     setSoundVolume(.8);
     installAutoPause();

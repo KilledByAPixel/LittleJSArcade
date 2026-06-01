@@ -16,7 +16,8 @@ paused = false;
 
 gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
-cameraScale = 42;
+cameraScale = 55;
+canvasFixedSize = vec2(720, 1080);
 
 ///////////////////////////////////////////////////////////////////////////////
 // DROP FOUR GAME
@@ -619,7 +620,6 @@ const AI_VS_AI_DELAY = 0.5;
 async function gameInit()
 {
     saveDataInit('connect4');
-    setCanvasFixedSize(vec2(600, 720));
     cameraPos = vec2(0, 0);
     canvasClearColor = new Color().setHex('#0d0d14');
     difficulty = getSaveData().difficulty ?? 'medium';

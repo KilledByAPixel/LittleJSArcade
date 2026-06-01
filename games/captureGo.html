@@ -16,7 +16,9 @@ paused = false;
 
 gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
-cameraScale = 60;
+
+cameraScale = 76;
+canvasFixedSize = vec2(700, 1080);
 
 ///////////////////////////////////////////////////////////////////////////////
 // CAPTURE GO (ATARI GO) — 9×9
@@ -684,7 +686,6 @@ function quitToTitleWithCleanup()
 async function gameInit()
 {
     saveDataInit('captureGo');
-    setCanvasFixedSize(vec2(600, 820));
     cameraPos       = vec2(0, 0);
     canvasClearColor = new Color().setHex('#0d0d14');
     difficulty = getSaveData().difficulty ?? 'medium';

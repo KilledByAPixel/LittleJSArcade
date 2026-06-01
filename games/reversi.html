@@ -16,7 +16,8 @@ paused = false;
 
 gravity = vec2(0, 0);
 cameraPos = vec2(0, 0);
-cameraScale = 42;
+cameraScale = 46;
+canvasFixedSize = vec2(700, 1080);
 
 ///////////////////////////////////////////////////////////////////////////////
 // OTHELLO GAME
@@ -796,7 +797,6 @@ const AI_VS_AI_DELAY = 0.5;
 async function gameInit()
 {
     saveDataInit('othello');
-    setCanvasFixedSize(vec2(720, 900));
     cameraPos = vec2(0, 0);
     canvasClearColor = new Color().setHex('#0d0d14');
     difficulty = getSaveData().difficulty ?? 'hard';
