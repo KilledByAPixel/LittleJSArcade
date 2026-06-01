@@ -138,11 +138,10 @@ let atlasIcons;
 let gameOverTimer, gameOverMenuShown, gameOverMenuHandle;
 
 // Draw a filled circle via the default atlas instead of drawCircle. The atlas
-// circle fills r = tileSize/2/1.15, so a tile of diameter*1.15 matches the
-// radius drawCircle(pos, diameter) would have produced.
+// circle now fills its tile, so a tile of `diameter` matches drawCircle(pos, diameter).
 function drawCircleTile(pos, diameter, color)
 {
-    drawTile(pos, vec2(diameter * 1.15), atlasIcons.circle, color);
+    drawTile(pos, vec2(diameter), atlasIcons.circle, color);
 }
 
 let sfxDrill, sfxClear, sfxChain, sfxCapsule, sfxDeath, sfxLand, sfxWin, sfxStep;

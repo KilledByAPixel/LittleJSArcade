@@ -102,9 +102,9 @@ let stars = [];
 // circle tile instead of drawCircle (one batched textured quad vs a tessellated
 // polygon per call). See gameInit's initDefaultAtlas().
 let atlasIcons;
-// the atlas circle fills 1/1.15 of its tile (glow headroom), so a drawTile of
-// size = diameter*1.15 matches drawCircle(pos, diameter) exactly.
-const CIRCLE_FIT = 1.15;
+// the atlas circle now fills its tile, so a drawTile of size = diameter matches
+// drawCircle(pos, diameter); CIRCLE_FIT is kept as a no-op size multiplier.
+const CIRCLE_FIT = 1.0;
 
 // ============================================================
 // Helpers

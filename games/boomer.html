@@ -533,10 +533,10 @@ function drawBomber() {
     const stepBob = Math.abs(Math.sin(walkPhase)) * 0.08;
 
     // Rounded body part — the atlas roundSquare gives the bomber soft, organic
-    // edges. Scaled up 1.15x to offset the icon's in-tile padding so each part
-    // keeps the same footprint a drawRect would have had.
+    // edges. The icon now fills its tile, so each part keeps the same footprint
+    // a drawRect would have had.
     const limb = (pos, size, color) =>
-        drawTile(pos, size.scale(1.15), ICON.roundSquare, color);
+        drawTile(pos, size, ICON.roundSquare, color);
 
     // Legs (striped red/white pants) — each leg bobs on its own phase so one
     // foot lifts while the other plants, giving a natural walking gait. Leg +

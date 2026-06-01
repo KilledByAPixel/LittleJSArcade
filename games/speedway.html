@@ -479,11 +479,10 @@ function fillRectS(x, y, w, h, color) // top-left origin, like ctx.fillRect
 function fillCircleS(x, y, r, color)
 {
     // Draw the baked 'circle' atlas tile (tinted) instead of a gl polygon. The
-    // icon fills 1/1.15 of its tile (glow headroom), so scale the tile up by
-    // 1.15 to land a circle of diameter r*2. Fall back to drawCircle if the
-    // atlas didn't load.
+    // icon now fills its tile, so a tile of diameter r*2 matches drawCircle.
+    // Fall back to drawCircle if the atlas didn't load.
     if (icons)
-        drawTile(vec2(x, y), vec2(r*2*1.15), icons.circle, color, 0, undefined, undefined, glEnable, true);
+        drawTile(vec2(x, y), vec2(r*2), icons.circle, color, 0, undefined, undefined, glEnable, true);
     else
         drawCircle(vec2(x, y), r*2, color, 0, BLACK, glEnable, true);
 }

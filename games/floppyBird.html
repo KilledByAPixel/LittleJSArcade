@@ -95,10 +95,9 @@ const birdWingDk   = hsl(.1,.85,.25,.22);
 // default-atlas icons (baked in gameInit). Every sprite below is a tinted
 // instance of one of these 16 white icons instead of a raw primitive.
 let atlasIcons;
-// the baked icons leave 1.15x headroom inside each tile (so the soft glow
-// fits); multiply sizes by this to make an icon fill the footprint a raw
-// primitive of the same dimension used to cover.
-const ICON_FILL = 1.15;
+// the baked icons now fill their tile, so an icon matches the footprint a raw
+// primitive of the same dimension would cover; ICON_FILL is a no-op multiplier.
+const ICON_FILL = 1.0;
 
 // game state
 const STATE_READY = 0;

@@ -25,9 +25,9 @@ const GRAVITY_Y = 28;
 const SLOWMO_TIME = 3;      // seconds of slow-mo when power peg is hit
 const SLOWMO_SCALE = .35;   // gameplay time multiplier while slow-mo is active
 
-// Atlas-icon drawing: the baked circle/glow icons fill ~1/1.15 of their tile,
-// so multiply a desired visual diameter by ICON_FIT to size the sprite.
-const ICON_FIT = 1.15;
+// Atlas-icon drawing: the baked circle/glow icons now fill their tile, so the
+// sprite size equals the desired visual diameter; ICON_FIT is a no-op multiplier.
+const ICON_FIT = 1.0;
 const OUTLINE = .16;        // black backing-ring thickness for solid discs
 
 ///////////////////////////////////////////////////////////////////////////////
