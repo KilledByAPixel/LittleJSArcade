@@ -51,6 +51,7 @@ let sfxHit, sfxSink, sfxBounce;
 // stable decorative spots for the sand border (generated once at init)
 let sandSpots = [];
 let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
+let previewMode = false;   // true while drawing the menu's hole thumbnails
 
 // holes (hand-built layouts) - 9 holes total
 const holes = [
@@ -189,12 +190,17 @@ function drawCourseGrass()
     // should still draw at the world origin so they map to the cell center.
     const origin = vec2();
 
-    // sand/dirt area outside the course
-    drawRect(origin, COURSE_SIZE.add(vec2(8)), rgb(.42,.34,.20));
+    // sand/dirt area + scattered pebbles — gameplay only; previews skip them so
+    // thumbnails stay clean and within their cell (no oversized brown backdrop).
+    if (!previewMode)
+    {
+        // sand/dirt area outside the course
+        drawRect(origin, COURSE_SIZE.add(vec2(8)), rgb(.42,.34,.20));
 
-    // scatter pebbles/dirt clumps on the sand for texture
-    for (const s of sandSpots)
-        drawTile(s.pos, vec2(s.size), icons.circle, s.color);
+        // scatter pebbles/dirt clumps on the sand for texture
+        for (const s of sandSpots)
+            drawTile(s.pos, vec2(s.size), icons.circle, s.color);
+    }
 
     // dark wood frame just outside the play area
     drawRect(origin, COURSE_SIZE.add(vec2(1.6)), rgb(.10,.08,.04));
@@ -308,15 +314,12 @@ function drawHoleAndFlag(pos)
 // the camera at that cell, then calling the same world-space draw functions
 // gameplay uses — all through WebGL so the white atlas icons tint for free.
 //
-// Implementation notes:
-// - WebGL batches every draw against ONE projection matrix uploaded per frame,
-//   so to retarget each cell we flush the pending batch, set the cell camera,
-//   and re-run glPreRender(false) (rebuilds the matrix, no clear). Each cell is
-//   flushed before the next so its draws use its own matrix.
-// - A GL scissor clips this cell's output (the sand area is drawn larger than
-//   the course) — the WebGL equivalent of the old mainContext.clip().
-// - The sculpted ball/cup/stone use drawCanvas2D (2D overlay, always on top);
-//   they map to the cell via the same camera and stay within the course bounds.
+// WebGL batches every draw against ONE projection matrix uploaded per frame, so
+// to retarget each cell we flush the pending batch, set the cell camera, and
+// re-run glPreRender(false) (rebuilds the matrix, no clear). Each cell is flushed
+// before the next so its draws use its own matrix. No clipping needed: previewMode
+// makes drawCourseGrass skip the oversized sand backdrop, so a thumbnail stays
+// within its cell (the wood frame is barely larger than the course).
 function renderHolePreview(holeSpec, cx, cy, scale)
 {
     glFlush();   // flush any pending batch (e.g. the menu title) before retargeting
@@ -329,21 +332,16 @@ function renderHolePreview(holeSpec, cx, cy, scale)
     );
     glPreRender(false);   // rebuild the projection for this cell's camera (no clear)
 
-    // clip to the cell (course + 1-unit margin); GL scissor origin is bottom-left
-    const halfW = (COURSE_SIZE.x/2 + 1.0) * scale;
-    const halfH = (COURSE_SIZE.y/2 + 1.0) * scale;
-    glContext.enable(glContext.SCISSOR_TEST);
-    glContext.scissor(cx - halfW, mainCanvasSize.y - (cy + halfH), halfW * 2, halfH * 2);
-
+    previewMode = true;
     drawCourseGrass();
     for (const o of holeSpec.obstacles)
         drawObstacle(o);
     drawTeeMarker(holeSpec.tee);
     drawBallBody(holeSpec.tee);
     drawHoleAndFlag(holeSpec.hole);
+    previewMode = false;
 
-    glFlush();   // draw this cell's batch while the scissor is still active
-    glContext.disable(glContext.SCISSOR_TEST);
+    glFlush();   // draw this cell's batch before the next camera/matrix change
     cameraPos = savedPos;
     cameraScale = savedScale;
 }

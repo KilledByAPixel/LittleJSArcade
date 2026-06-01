@@ -122,9 +122,14 @@ drawTile(pos, vec2(D), icons.glow, color, 0, false, hsl(.55,.9,.72, 0)); // alph
   `getImageData(TILE×TILE)` + full-pixel JS multiply + `putImageData` — fine in
   WebGL (free shader multiply), **catastrophic** in canvas-2D. `drawCircle`/
   `drawEllipse` tint for free there (vector fill, no readback). If a draw function
-  is shared with a `glEnable=false` render path, **leave it as vector primitives**
-  — converting it can freeze the browser (many previews × many sprites × every
-  frame). miniGolf is the canonical example.
+  is shared with a `glEnable=false` render path, the safe default is to **leave it
+  as vector primitives** — converting it can freeze the browser (many previews ×
+  many sprites × every frame). The alternative (only if the atlas is wanted there)
+  is to convert that render path itself to WebGL — e.g. miniGolf's
+  `renderHolePreview` now renders each cell with a per-cell camera +
+  `glPreRender(false)` matrix re-upload instead of canvas-2D + `mainContext.clip()`,
+  so tinting is the free WebGL path again. That's more plumbing (engine internals);
+  prefer vector unless WebGL there is specifically wanted.
 
 ## Common mistakes
 
