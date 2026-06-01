@@ -368,14 +368,14 @@ function showAtlas(visible = true)
 // Tile order (row-major, 0..15):
 //   0 circle     1 glow      2 ring       3 roundSquare
 //   4 triangle   5 diamond   6 pentagon   7 hexagon
-//   8 droplet    9 heart    10 plus      11 arrow
-//  12 burst     13 spark    14 star      15 bolt
+//   8 spark      9 star     10 burst     11 plus
+//  12 heart     13 droplet  14 bolt      15 arrow
 
 const DEFAULT_ICON_NAMES = [
     'circle', 'glow',  'ring', 'roundSquare',
     'triangle', 'diamond', 'pentagon', 'hexagon',
-    'heart', 'droplet', 'plus', 'arrow', 
-    'spark', 'star', 'burst', 'bolt',
+    'spark', 'star', 'burst', 'plus',
+    'heart', 'droplet', 'bolt', 'arrow', 
 ];
 
 // Private registry: name -> fn(ctx, x, y, r). Each draws a white icon centred
@@ -576,10 +576,10 @@ const _defaultIconDrawers = (() =>
     }
 
     return {
-        circle, droplet, roundSquare, triangle,
-        diamond, pentagon, hexagon, ring,
-        glow, burst, spark, star,
-        heart, plus, arrow, bolt,
+        circle, glow, ring, roundSquare,
+        triangle, diamond, pentagon, hexagon,
+        spark, star, burst, plus,
+        heart, droplet, bolt, arrow,
     };
 })();
 
