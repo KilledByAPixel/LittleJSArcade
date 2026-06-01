@@ -3,7 +3,6 @@
 <meta charset="utf-8">
 </head>
 <script src="../templates/engineLoader.js?1780292569262"></script>
-<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
 <script src="../dist/box2d.wasm.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
@@ -47,7 +46,6 @@ let aimDrag = vec2();
 
 // sounds
 let sfxHit, sfxSink, sfxBounce;
-let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
 
 // stable decorative spots for the sand border (generated once at init)
 let sandSpots = [];
@@ -194,7 +192,7 @@ function drawCourseGrass()
 
     // scatter pebbles/dirt clumps on the sand for texture
     for (const s of sandSpots)
-        drawTile(s.pos, vec2(s.size), icons.circle, s.color);
+        drawCircle(s.pos, s.size, s.color);
 
     // dark wood frame just outside the play area
     drawRect(origin, COURSE_SIZE.add(vec2(1.6)), rgb(.10,.08,.04));
@@ -241,13 +239,13 @@ function drawObstacle(o)
 
 function drawTeeMarker(pos)
 {
-    drawTile(pos, vec2(.5), icons.circle, rgb(1,1,1,.5));
+    drawCircle(pos, .5, rgb(1,1,1,.5));
 }
 
 function drawBallBody(pos, diameter=BALL_DIAMETER)
 {
     // squashed ground shadow
-    drawTile(pos.add(vec2(.15,-.18)), vec2(diameter * .95, diameter * .55), icons.circle, rgb(0,0,0,.32));
+    drawEllipse(pos.add(vec2(.15,-.18)), vec2(diameter * .95, diameter * .55), rgb(0,0,0,.32));
 
     // body with radial highlight + tiny specular dot
     drawCanvas2D(pos, vec2(diameter), 0, false, (ctx) =>
@@ -273,7 +271,7 @@ function drawBallBody(pos, diameter=BALL_DIAMETER)
 function drawHoleAndFlag(pos)
 {
     // soft outer shadow ring on the grass
-    drawTile(pos, vec2(HOLE_RING_DIAMETER), icons.circle, rgb(0,0,0,.35));
+    drawCircle(pos, HOLE_RING_DIAMETER, rgb(0,0,0,.35));
 
     // recessed cup with radial gradient (lighter rim, pitch black center)
     drawCanvas2D(pos, vec2(HOLE_DIAMETER), 0, false, (ctx) =>
@@ -294,7 +292,7 @@ function drawHoleAndFlag(pos)
     const poleTop    = pos.add(vec2(0, 3.4));
     drawLine(pos.add(vec2(.1, .55)), pos.add(vec2(2.4, .9)), .14, rgb(0,0,0,.25));
     drawLine(poleBottom, poleTop, .14, rgb(.92,.92,.88));
-    drawTile(poleTop, vec2(.22), icons.circle, rgb(1,.95,.55));
+    drawCircle(poleTop, .22, rgb(1,.95,.55));
 
     const w = Math.sin(time * 3.0) * .25;
     const flagBase = poleTop.add(vec2(0, -.15));
@@ -312,9 +310,8 @@ function drawHoleAndFlag(pos)
 // - We force the canvas-2D path (glEnable=false) so that mainContext.clip()
 //   actually constrains the drawing to the cell rect. WebGL output goes to a
 //   separate canvas that bypasses 2D clipping.
-// - drawCanvas2D draws to canvas-2D directly; drawTile/drawRect/drawLine route
-//   through WebGL when glEnable is on, so forcing glEnable=false sends them all
-//   through the clipped 2D context too.
+// - drawCanvas2D and drawCircle/Ellipse already use canvas-2D directly; only
+//   drawRect/drawLine route through WebGL by default.
 function renderHolePreview(holeSpec, cx, cy, scale)
 {
     // clip to the cell rect so neighboring cells don't bleed into each other
@@ -418,7 +415,7 @@ function drawWoodPlank(pos, size, angle)
 function drawStonePillar(pos, diameter)
 {
     // ground shadow
-    drawTile(pos.add(vec2(.18, -.22)), vec2(diameter * 1.02), icons.circle, rgb(0,0,0,.32));
+    drawCircle(pos.add(vec2(.18, -.22)), diameter * 1.02, rgb(0,0,0,.32));
 
     // radial-gradient stone body (highlight upper-left, dark lower-right)
     drawCanvas2D(pos, vec2(diameter), 0, false, (ctx) =>
@@ -434,9 +431,9 @@ function drawStonePillar(pos, diameter)
     });
 
     // crisp rim
-    drawTile(pos, vec2(diameter),       icons.circle, rgb(0,0,0,0));
-    drawTile(pos, vec2(diameter + .12), icons.circle, rgb(0,0,0,.55));
-    drawTile(pos, vec2(diameter),       icons.circle, rgb(0,0,0,0));
+    drawCircle(pos, diameter,        rgb(0,0,0,0));
+    drawCircle(pos, diameter + .12,  rgb(0,0,0,.55));
+    drawCircle(pos, diameter,        rgb(0,0,0,0));
 }
 
 function drawHazardBumper(pos, size, angle)
@@ -567,7 +564,7 @@ class GolfBall extends Box2dObject
                 const t = i / this.trail.length;
                 const a = (1 - t) * .35 * intensity;
                 const d = BALL_DIAMETER * (1 - t * .55);
-                drawTile(this.trail[i], vec2(d), icons.circle, rgb(1,1,1, a));
+                drawCircle(this.trail[i], d, rgb(1,1,1, a));
             }
         }
 
@@ -710,7 +707,6 @@ async function gameInit()
     saveDataInit('miniGolf');
     // setup box2d first!
     await box2dInit();
-    icons = initDefaultAtlas();
 
     // visuals
     canvasClearColor = rgb(.08,.12,.08);
