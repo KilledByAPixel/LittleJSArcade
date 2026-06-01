@@ -12,6 +12,7 @@
 // engine settings
 debugWatermark = false; // Hide debug watermark in corner
 showEngineVersion = false; // Hide engine version console display
+tilesPixelated = false;
 
 // --- Geometry Dash-ish micro runner ------------------------------------------
 // Untextured primitives only: cube auto-runs, jump over spikes/blocks.
@@ -588,13 +589,13 @@ function drawPlayer()
     const sq = player.land;
     const size = vec2(PLAYER_SIZE.x * (1 + .45*sq), PLAYER_SIZE.y * (1 - .45*sq));
 
-    // soft neon glow
-    drawRect(player.pos, size.scale(1.7), hsl(.90, .85, .6, .12), player.angle);
-    drawRect(player.pos, size.scale(1.35), hsl(.90, .85, .6, .16), player.angle);
+    // soft neon glow (rounded square so the halo matches the cube's corners)
+    drawTile(player.pos, size.scale(1.7), atlasIcons.roundSquare, hsl(.90, .85, .6, .12), player.angle);
+    drawTile(player.pos, size.scale(1.35), atlasIcons.roundSquare, hsl(.90, .85, .6, .16), player.angle);
 
-    // cube body
-    drawRect(player.pos, size, hsl(.90, .80, .60), player.angle);
-    drawRect(player.pos, size.scale(.78), hsl(.90, .72, .38), player.angle);
+    // rounded-rect body + darker inner panel for depth
+    drawTile(player.pos, size, atlasIcons.roundSquare, hsl(.90, .80, .60), player.angle);
+    drawTile(player.pos, size.scale(.78), atlasIcons.roundSquare, hsl(.90, .72, .38), player.angle);
 
     // tiny face dot
     const eyeOffset = vec2(.16, .08).rotate(player.angle);
