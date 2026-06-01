@@ -418,7 +418,7 @@ const lightDir = vec2(-.7, .5).normalize();
 function drawWedge(pos, dir, size, color)
 {
     const a = Math.atan2(dir.y, dir.x);
-    drawTile(pos, vec2(size, size*1.5), spriteAtlas.triangle, color, PI/2 - a);
+    drawTile(pos, vec2(size*1.5, size*2), spriteAtlas.triangle, color, PI/2 - a);
 }
 
 // -------------------------------------------------------------
