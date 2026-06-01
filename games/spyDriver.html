@@ -1120,6 +1120,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Drive an endless road and destroy enemy vehicles to score points. Avoid hitting civilians or you will lose your score multiplier. Collect weapon pickups for special attacks.',
+        extraItems: [
+            {type:'text', text:'Mouse / Arrows steer · Space / Click fire · Z oil slick · X smoke'},
+        ],
     });
 
     createPauseMenu({

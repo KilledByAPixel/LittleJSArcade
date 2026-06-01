@@ -267,7 +267,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n + 'm',
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
         ],
     });
     createOptionsMenu({
@@ -278,11 +278,12 @@ function buildMenus()
         ],
     });
     createMenu({
-        id:'about', title:'ABOUT', onHide: popMenu,
+        id:'about', title:'HELP', onHide: popMenu,
         items: [
             {type:'text', text:'Race your buggy across the lunar surface — jump the boulders, ' +
                 'gun down the UFOs, and dodge their bombs. Barrel down the hills to build speed, ' +
                 'but watch the speedometer: you bleed it climbing back up.'},
+            {type:'text', text:'Space / click jump · Right-click fire · Mouse aim turret'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

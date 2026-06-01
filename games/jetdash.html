@@ -880,7 +880,7 @@ async function gameInit()
             {type:'label',  text:'Hold to fly. Dodge. Collect.'},
             {type:'label',  id:'bestLabel', text:'Best: 0 M'},
             {type:'button', label:'PLAY',    onClick: playFromTitle},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
         ],
         onShow: () =>
         {
@@ -890,16 +890,15 @@ async function gameInit()
         },
     });
 
-    // ----- about menu (demos the `text` item: wrapping multi-line paragraph) -----
+    // ----- about menu -----
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'label', text:'Jetdash'},
-            {type:'text', text:'Hold to thrust, release to fall, and weave through zappers, ' +
-                'missiles and lasers as you fly as far as you can. Grab coins along the way and snag ' +
-                'shield bubbles to absorb a hit.'},
+            {type:'text', text:'Fly as far as possible by weaving through zappers, missiles and lasers. ' +
+                'Grab coins and shield bubbles — a shield absorbs one hit.'},
+            {type:'text', text:'Hold Space / Up arrow / click to thrust · Release to fall'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

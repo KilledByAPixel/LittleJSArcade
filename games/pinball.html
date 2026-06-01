@@ -383,6 +383,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Hit bumpers, slingshots, and targets to rack up points. You have 3 balls — keep them out of the drain. Hold to charge the plunger, then release to launch.',
+        extraItems: [
+            {type:'text', text:'Left Arrow / Z · Left flipper   Right Arrow / / · Right flipper'},
+        ],
     });
 
     createPauseMenu({

@@ -424,7 +424,7 @@ async function gameInit()
         onPlay: () => startGame(),
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
         ],
     });
 
@@ -437,12 +437,12 @@ async function gameInit()
     // ----- about -----
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Drag the ball like a slingshot and release to flick it at the hoop. '+
-                'A clean swish is worth more than a banked make, and a hot streak adds bonus points '+
-                'until you miss. The hoop never stops moving — and it only gets faster.'},
+            {type:'text', text:'Score as many baskets as you can before time runs out. ' +
+                'A swish scores more than a bank shot, and consecutive makes build a streak bonus.'},
+            {type:'text', text:'Drag the ball like a slingshot, then release to shoot'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

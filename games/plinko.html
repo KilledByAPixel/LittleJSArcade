@@ -471,7 +471,7 @@ async function gameInit()
         showBest: true,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -485,11 +485,12 @@ async function gameInit()
     // ---------- About ----------
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:
                 'Aim and drop balls to bounce down through the pegs into the scoring slots — the center is worth the most. You start with 10 balls and earn another every 100 points, so stack up the highest score you can.'},
+            {type:'text', text: 'Mouse / touch aim and click to drop · Left / Right also aim · Space drops'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

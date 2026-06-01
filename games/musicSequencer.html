@@ -408,6 +408,9 @@ function gameInit()
         anchor: 'top-right',
         direction: 'horizontal',
         items: [
+            {type:'button', id:'help', label:'?',
+                title: 'How to use',
+                onClick: ()=> showMenu('about')},
             {type:'button', id:'clear', label:'🗑',
                 title: 'Clear pattern',
                 onClick: ()=> showConfirmDialog({
@@ -425,6 +428,10 @@ function gameInit()
         ],
     });
     getToolbar('global').show();
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Click grid cells to toggle steps on or off. Each row is an instrument — drums, piano notes, or custom zzfx sounds. Press Play to loop the pattern. Adjust tempo and volume with the sliders at the bottom. Click a PASTE slot to load a custom zzfx sound.',
+    });
     buildControlsMenu();
     showMenu('controls');
     buildPasteDialog();

@@ -847,7 +847,7 @@ function buildMenus()
         ],
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',  onClick: () => pushMenu('about')},
         ],
         onShow: () => {
             const m = getMenu('title');
@@ -858,12 +858,12 @@ function buildMenus()
     createOptionsMenu();
 
     createMenu({
-        id: 'about', title: 'ABOUT', onHide: popMenu,
+        id: 'about', title: 'HELP', onHide: popMenu,
         items: [
             {type:'text', text:
-                'Defend Earth from the descending invaders — shoot them all before ' +
-                'they reach the ground. Duck behind the barriers for cover, but they ' +
-                'crumble fast, and the fewer aliens left, the faster they march.'},
+                'Shoot all the invaders before they reach the ground. ' +
+                'Take cover behind the barriers, but they crumble — and the fewer aliens remain, the faster they advance.'},
+            {type:'text', text:'Arrows / WASD move · Space shoot · Mouse also moves and shoots'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

@@ -636,7 +636,7 @@ async function gameInit()
         showBest: true,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
         ],
         onPlay: startNewGame,
     });
@@ -653,11 +653,13 @@ async function gameInit()
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Bounce the ball off your paddle to smash every brick without letting it fall. ' +
-                'Catch falling powerups to widen up, multiball, go sticky, fire lasers, and more.'},
+            {type:'text', text:'Bounce the ball off your paddle to smash every brick — don\'t let the ball fall. ' +
+                'Catch power-ups to widen your paddle, add balls, go sticky, fire lasers, and more. ' +
+                'Clear all 5 levels, then loop with rising speed.'},
+            {type:'text', text:'Mouse or Arrows / WASD move paddle · Space / click launch ball'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

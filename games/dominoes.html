@@ -782,7 +782,7 @@ async function gameInit()
         revealOnClick: false,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
         ],
     });
 
@@ -790,12 +790,11 @@ async function gameInit()
     createOptionsMenu();
 
     createMenu({
-        id: 'about', title: 'ABOUT', onHide: popMenu,
+        id: 'about', title: 'HELP', onHide: popMenu,
         items: [
-            {type:'text', text:'Block Dominoes. Match a pip on one of your tiles ' +
-                'to an open end of the line. Empty your hand to win; if the board ' +
-                'locks, the lower pip count wins. The AI plays fairly using Monte ' +
-                'Carlo determinization — it never sees your tiles.'},
+            {type:'text', text:'Match a pip on one of your tiles to an open end of the line. ' +
+                'Empty your hand to win; if the board locks, the lower pip total wins.'},
+            {type:'text', text:'Click a tile in your hand, then click an open end to place it.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

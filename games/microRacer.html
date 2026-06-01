@@ -762,6 +762,17 @@ function buildMenus()
         },
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Race 3 laps against 3 AI cars on a randomly generated track. Finish in 1st place and set the best time. Grab boost pickups on the road for a speed burst!',
+        extraItems: [
+            {type:'text', text:'Arrows / WASD · Steer & throttle · Space · Drift'},
+        ],
     });
 
     createPauseMenu({

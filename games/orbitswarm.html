@@ -942,19 +942,20 @@ function buildMenus()
         items: [
             {type:'button', label:'MEDIUM', onClick: () => startGame('medium')},
             {type:'button', label:'HARD',   onClick: () => startGame('hard')},
-            {type:'button', label:'ABOUT',  onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
         ],
     });
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Conquer the galaxy by sending fleets from your planets to take over the rest. ' +
-                'Drag from a planet you own to another to launch ships — outgrow the AI and ' +
-                'sweep the board before it overwhelms you.'},
+                'Conquer every planet by sending fleets from planets you own. ' +
+                'Drag from your planet to a target to launch ships — capture all enemy ' +
+                'planets before the AI overwhelms you.'},
+            {type:'text', text:'Drag to send fleet · 1-4 set fleet % · Space confirm'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

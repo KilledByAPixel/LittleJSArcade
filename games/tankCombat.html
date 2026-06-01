@@ -531,6 +531,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Two-player tank battle on a walled arena — shoot the enemy tank to score points. Bullets bounce off walls, so bank your shots. Red plays WASD + Space; Blue plays Arrows + Enter.',
+        extraItems: [
+            {type:'text', text:'Red: WASD move · Space fire  |  Blue: Arrows move · Enter fire'},
+        ],
     });
 
     createPauseMenu({

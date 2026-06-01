@@ -144,7 +144,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -152,13 +152,14 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:
                 'Eat every pellet to clear the maze without getting caught by the ghosts. ' +
                 'Grab a big power pellet to turn the ghosts blue and chase them down for ' +
                 'escalating bonus points.'},
+            {type:'text', text: 'Arrow keys move'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

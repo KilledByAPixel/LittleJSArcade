@@ -1182,7 +1182,7 @@ async function gameInit()
             {type:'button',              label:'PLAYER VS PLAYER', onClick: () => startGame('pvp')},
             {type:'button', id:'aiVsAi', label:'AI VS AI',         onClick: () => startGame('aivai')},
             {type:'button',              label:'OPTIONS',          onClick: () => pushMenu('options')},
-            {type:'button',              label:'ABOUT',            onClick: () => pushMenu('about')},
+            {type:'button',              label:'HELP',             onClick: () => pushMenu('about')},
         ],
     });
 
@@ -1203,10 +1203,11 @@ async function gameInit()
     // About menu
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Standard chess. Click a piece to select it, then click a highlighted square to move. Castling, en passant, and promotion are all handled. Draws auto-claim on stalemate, threefold repetition, fifty-move rule, and insufficient material.'},
+            {type:'text', text:'Checkmate the opponent\'s king to win. Castling, en passant, and promotion are all handled; draws resolve automatically on stalemate, repetition, and fifty-move rule.'},
+            {type:'text', text:'Click a piece to select it, then click a highlighted square to move.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

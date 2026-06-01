@@ -400,6 +400,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type: 'button', label: 'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Time your swing to connect with each pitch and launch as many home runs as you can. Swing early or late and you\'ll miss — hit the sweet spot for a perfect blast.',
+        extraItems: [
+            {type: 'text', text: 'Space / Click swing · Enter next pitch'},
+        ],
     });
 
     createPauseMenu({

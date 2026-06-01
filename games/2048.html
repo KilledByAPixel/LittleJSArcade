@@ -160,7 +160,7 @@ function buildMenus()
         onPlay: () => { newGame(); setPlaying(true); },
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
         ],
     });
 
@@ -179,13 +179,15 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         dismissable: true,
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Slide all the tiles in one direction; matching numbers merge into one of double the value. ' +
-                'Reach the 2048 tile to win — then keep going for a higher score.'},
+                'Slide all tiles in one direction — matching numbers merge into double the value. ' +
+                'Reach the 2048 tile to win, then keep going for a higher score.'},
+            {type:'text', text:
+                'Arrows / WASD slide · swipe on touch'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

@@ -1499,6 +1499,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type: 'button', label: 'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Run and jump through the level, collecting coins and stomping enemies, and reach the castle flag to win.',
+        extraItems: [
+            {type: 'text', text: 'Arrows / WASD run · Space / Up / Z jump · Shift / X run fast · Down enter pipe'},
+        ],
     });
 
     createPauseMenu({

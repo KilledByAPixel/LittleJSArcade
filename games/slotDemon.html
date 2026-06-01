@@ -784,7 +784,7 @@ async function gameInit()
             {type:'button',   label:'FULLSCREEN', onClick: toggleFullscreen},
             {type:'separator'},
             {type:'button',   label:'MEDALS', onClick: () => pushMenu('medals')},
-            {type:'button',   label:'ABOUT',  onClick: () => pushMenu('about')},
+            {type:'button',   label:'HELP',   onClick: () => pushMenu('about')},
             {type:'separator'},
             // Explicit progress wipe. newGame() resets state, saveGame() persists
             // the fresh state over the old blob.
@@ -797,16 +797,16 @@ async function gameInit()
         ],
     });
 
-    // ----- about menu (demos the `text` item: wrapping multi-line paragraph) -----
+    // ----- help menu -----
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'label', text:'SLOT DEMON'},
-            {type:'text',  text:'Run a casino in Hell. Click machines to spin, ' +
-                'then buy demons to work the reels for you. Expand the pit, level ' +
-                'up machines, and build an infernal money engine.'},
+            {type:'text',  text:'Click a slot machine to spin it and win coins. ' +
+                'Use coins to buy demons who spin machines automatically, ' +
+                'then upgrade and expand to build an infernal money engine.'},
+            {type:'text',  text:'Click machine to spin · Drag demon onto machine to assign · Click demon to reassign'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

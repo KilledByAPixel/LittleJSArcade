@@ -787,7 +787,7 @@ async function gameInit()
         onPlay:   startGame,
         items: [
             {type: 'button', label: 'OPTIONS', onClick: () => pushMenu('options')},
-            {type: 'button', label: 'ABOUT',   onClick: () => pushMenu('about')},
+            {type: 'button', label: 'HELP',    onClick: () => pushMenu('about')},
         ],
     });
 
@@ -806,11 +806,12 @@ async function gameInit()
 
     // ----- ABOUT -----
     createMenu({
-        id: 'about', title: 'ABOUT', onHide: popMenu,
+        id: 'about', title: 'HELP', onHide: popMenu,
         items: [
             {type: 'text', text:
-                'Prowl a maze of corridors in this raycast shooter and gun down the guards ' +
-                'before they get you. Stay sharp — they lurk around every corner.'},
+                'Prowl a maze of corridors in this raycast shooter and gun down all the guards ' +
+                'to escape each level. Stay sharp — they lurk around every corner.'},
+            {type: 'text', text: 'WASD / Arrows move · Mouse look · Click shoot'},
             {type: 'separator'},
             {type: 'button', label: 'BACK', onClick: () => hideMenu('about')},
         ],

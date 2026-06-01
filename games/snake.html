@@ -359,7 +359,7 @@ function buildMenus()
         formatBest: n => `BEST  ${n}`,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
         ],
     });
 
@@ -367,13 +367,12 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'label', text:'A LittleJS prototype.'},
             {type:'text',  text:'Eat the red apples to grow and score, but don\'t crash into ' +
-                'the walls or your own tail. Now and then a golden fruit appears — grab it ' +
-                'before it vanishes for a big bonus.'},
+                'the walls or your own tail. Grab the golden fruit before it vanishes for a big bonus.'},
+            {type:'text',  text:'Arrows / WASD steer'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

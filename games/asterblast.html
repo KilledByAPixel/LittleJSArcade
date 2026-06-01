@@ -866,7 +866,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',  onClick: () => pushMenu('about')},
         ],
     });
 
@@ -883,11 +883,13 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Blast the asteroids and saucers without crashing into them. Clear the field to advance — but watch the saucers, they shoot back. Hyperspace jumps you out of trouble when you\'re cornered.'},
+                'Blast all asteroids and saucers to clear each wave and advance. Saucers shoot back — destroy them fast. Hyperspace teleports you to safety when cornered.'},
+            {type:'text', text:
+                'Arrows / WASD rotate & thrust · Space shoot · Shift hyperspace'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

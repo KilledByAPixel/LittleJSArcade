@@ -691,21 +691,20 @@ async function gameInit()
             item?.setLabel(bestShots ? `BEST  ${bestShots}` : '');
         },
         items: [
-            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
         ],
     });
 
     // ----- about menu -----
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Move the mouse to aim from the cue ball. ' +
-                'Distance from the cue ball sets your shot power (longer = harder). ' +
-                'Click to break.\n\n' +
+            {type:'text', text:
                 'Sink all 15 balls in as few shots as possible. ' +
-                'Scratching (sinking the cue ball) costs you a stroke and respawns the cue.'},
+                'Scratching (sinking the cue ball) costs a stroke and respawns it.'},
+            {type:'text', text: 'Mouse to aim · distance from cue sets power · click to shoot'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

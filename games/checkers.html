@@ -914,7 +914,7 @@ async function gameInit()
             {type:'button',              label:'PLAYER VS PLAYER', onClick: () => startGame('pvp')},
             {type:'button', id:'aiVsAi', label:'AI VS AI',         onClick: () => startGame('aivai')},
             {type:'button',              label:'OPTIONS',          onClick: () => pushMenu('options')},
-            {type:'button',              label:'ABOUT',            onClick: () => pushMenu('about')},
+            {type:'button',              label:'HELP',             onClick: () => pushMenu('about')},
         ],
     });
 
@@ -935,11 +935,12 @@ async function gameInit()
     // ----- about menu -----
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:'Move diagonally and jump opponent pieces to capture them — captures are mandatory. ' +
                 'Reach the far row to crown a King that moves both ways. Capture everything to win.'},
+            {type:'text', text:'Click a piece to select it, then click where to move.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

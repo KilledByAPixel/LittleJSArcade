@@ -543,7 +543,7 @@
       ],
       items: [
         {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-        {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
+        {type:'button', label:'HELP', onClick: () => pushMenu('about')},
       ],
       onShow: () => {
         const m = getMenu('title');
@@ -556,10 +556,12 @@
     createOptionsMenu();
 
     createMenu({
-      id: 'about', title: 'ABOUT', onHide: popMenu,
+      id: 'about', title: 'HELP', onHide: popMenu,
       items: [
         {type:'text', text:
-          'Hop five frogs safely home, one at a time. Dodge the traffic, then ride logs across the river without ever touching the water. Fill all five slots and the next level runs faster.'},
+          'Guide each frog home: dodge traffic on the road, then ride logs across the river. Fill all five home slots to advance — each level runs faster.'},
+        {type:'text', text:
+          'Arrows / WASD move · Click to hop toward cursor'},
         {type:'separator'},
         {type:'button', label:'BACK', onClick: () => hideMenu('about')},
       ],

@@ -574,6 +574,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Ski downhill as far as possible without crashing. Move the mouse to steer — aim toward the slopes to accelerate, veer sideways to slow down. Click or tap to jump over obstacles.',
+        extraItems: [
+            {type:'text', text:'Mouse steer · Click jump'},
+        ],
     });
 
     createPauseMenu({

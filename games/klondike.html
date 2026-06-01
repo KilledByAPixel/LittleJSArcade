@@ -234,7 +234,7 @@ async function gameInit()
         revealOnClick: false,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
         ],
     });
 
@@ -257,14 +257,14 @@ async function gameInit()
     // ----- about menu -----
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'The classic solitaire. Build the four foundations up from Ace to ' +
-                'King by suit, stacking tableau columns down by alternating color — ' +
-                'only a King may start an empty column. Click the stock to deal more ' +
-                'cards when you get stuck.'},
+                'Build the four foundations up from Ace to King by suit. Stack tableau ' +
+                'columns down in alternating color — only a King may start an empty column. ' +
+                'Click the stock to deal more cards when stuck.'},
+            {type:'text', text:'Click cards to select · Drag to move · Z undo · Shift+Z redo'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

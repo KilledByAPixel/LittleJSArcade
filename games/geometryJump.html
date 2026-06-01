@@ -721,7 +721,7 @@ function buildMenus()
             {type:'button', label:'DAILY',  title:"Today's seed - one shared run for everyone",          onClick: () => startRun('daily', 0)},
             {type:'separator'},
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
         ],
     });
 
@@ -756,12 +756,12 @@ function buildMenus()
     // ----- about -----
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'label', text:'GEOMETRY JUMP'},
-            {type:'text',  text:'Your cube auto-runs forward — tap to jump spikes, walls and ' +
-                'platforms and reach the goal portal. One touch and you restart, so nail the rhythm.'},
+            {type:'text',  text:'Your cube auto-runs — jump over every spike and wall to reach the goal portal. ' +
+                'One hit restarts the level, so learn the rhythm.'},
+            {type:'text',  text:'Space / Up arrow / click to jump · R restart'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

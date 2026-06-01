@@ -1079,7 +1079,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',  onClick: () => pushMenu('about')},
         ],
     });
 
@@ -1087,11 +1087,14 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'Defend six cities from raining missiles by aiming your explosions where the incoming streaks will be — your shots take time to arrive, so lead them. Lose every city and it\'s over.'},
+                'Defend your cities from waves of incoming missiles. Click where you ' +
+                'want your explosion to detonate — shots take time to arrive, so lead ' +
+                'the targets. Lose every city and it\'s game over.'},
+            {type:'text', text:'Click to fire · aim ahead of incoming missiles'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

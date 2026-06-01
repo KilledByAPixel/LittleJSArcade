@@ -186,6 +186,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Race against the clock on a looping circuit. Pass as many rival cars as possible before time runs out. Stay on the road — driving in the grass scrubs speed.',
+        extraItems: [
+            {type:'text', text:'Up accelerate · Down brake · Left / Right steer'},
+        ],
     });
 
     createPauseMenu({

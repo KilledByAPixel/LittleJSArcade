@@ -533,6 +533,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Flap through the gaps between pipes without crashing. Each pipe you pass earns a point — how far can you go?',
+        extraItems: [
+            {type:'text', text:'Space / Up Arrow / Click · Tap to flap'},
+        ],
     });
 
     createPauseMenu({

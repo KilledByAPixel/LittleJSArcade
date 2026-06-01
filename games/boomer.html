@@ -759,12 +759,15 @@ async function gameInit() {
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             { type: 'text', text:
-                'The Mad Bomber rains bombs from the rooftop — sweep your buckets to catch every last one. Miss one and your bottom bucket blows, detonating the rest of the wave.\n\n' +
-                'Clear a whole wave for a bonus, and earn a bucket back every 1000 points.' },
+                'The Mad Bomber drops bombs from the rooftop — move your buckets to catch every one. ' +
+                'Miss a bomb and your bottom bucket explodes, wiping out the rest of the wave. ' +
+                'Clear a full wave for a bonus; earn a bucket back every 1000 points.' },
+            { type: 'text', text:
+                'Mouse or Arrows / WASD move bucket' },
             { type: 'separator' },
             { type: 'button', label: 'BACK', onClick: () => hideMenu('about') },
         ],
@@ -784,7 +787,7 @@ async function gameInit() {
         },
         extraItems: [
             { type: 'button', label: 'OPTIONS', onClick: () => pushMenu('options') },
-            { type: 'button', label: 'ABOUT', onClick: () => pushMenu('about') },
+            { type: 'button', label: 'HELP',    onClick: () => pushMenu('about') },
         ],
     });
 
@@ -799,7 +802,7 @@ async function gameInit() {
         formatBest: n => 'BEST: ' + n,
         items: [
             { type: 'button', label: 'OPTIONS', onClick: () => pushMenu('options') },
-            { type: 'button', label: 'ABOUT', onClick: () => pushMenu('about') },
+            { type: 'button', label: 'HELP',    onClick: () => pushMenu('about') },
         ],
     });
 

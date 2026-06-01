@@ -1193,6 +1193,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Shoot down waves of enemies and defeat the boss to win. Collect power-ups to upgrade your weapons. Survive as long as possible and build the highest score.',
+        extraItems: [
+            {type:'text', text:'Arrows / WASD · Move   Space / Z · Shoot   X · Bomb'},
+        ],
     });
 
     createPauseMenu({

@@ -3400,7 +3400,7 @@ async function gameInit()
                                        'and spawn rate. XP and coin gain ' +
                                        'scale up to match.',
                                 onClick: cycleCurse},
-            {type: 'button',    label: 'ABOUT',   onClick: () => pushMenu('about')},
+            {type: 'button',    label: 'HELP',    onClick: () => pushMenu('about')},
         ],
     });
 
@@ -3596,14 +3596,16 @@ async function gameInit()
     // HTML source header + TWEMOJI-LICENSE.txt, so it's kept out of here.
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         dismissable: true,
         onHide: popMenu,
         items: [
             {type: 'text', text:
                 'Move to dodge the swarm while your weapons fire on their own. ' +
-                'Grab 💎 to level up and pick new weapons and passives, then ' +
+                'Grab 💎 to level up and choose new weapons and passives, then ' +
                 'survive 15:00 and beat the ☠️ Reaper to win.'},
+            {type: 'text', text:
+                'Arrows / WASD move'},
             {type: 'separator'},
             {type: 'button', label: 'BACK', onClick: () => hideMenu('about')},
         ],

@@ -598,7 +598,7 @@ function gameInit()
         onPlay: () => setPlaying(true),
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
         ],
     });
 
@@ -608,12 +608,13 @@ function gameInit()
     // ----- about menu -----
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Aim and shoot bubbles to match three or more of a color and pop them — ' +
-                'disconnected clusters fall away for bonus points. ' +
-                'The grid creeps down over time; don\'t let it cross the danger line.'},
+            {type:'text', text:'Shoot bubbles to match 3 or more of the same color and pop them. ' +
+                'Disconnected clusters fall for bonus points. ' +
+                'Clear the grid before it descends past the danger line.'},
+            {type:'text', text:'Aim with mouse or Arrows / A-D · click or tap to shoot'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

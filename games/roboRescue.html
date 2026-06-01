@@ -2403,7 +2403,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
         ],
     });
 
@@ -2413,14 +2413,13 @@ function buildMenus()
     // How to play
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:
-                'You are the last defender against waves of robots out to destroy ' +
-                'the last human family. Blast everything that moves and touch Mommy, ' +
-                'Daddy and Mikey to rescue them for escalating bonuses. Hulks can\'t ' +
-                'be killed, so dodge them and keep moving.'},
+                'Blast the robots to score points and rescue the three hostages for ' +
+                'big bonuses. Hulks cannot be shot — dodge them. Survive all waves to win.'},
+            {type:'text', text:'Arrows / WASD move · Mouse aim · Click / hold shoot'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

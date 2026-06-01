@@ -1181,7 +1181,7 @@ async function gameInit()
         onPlay: startGame,
         items: [
             {type:'button', label:'OPTIONS',  onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',    onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
         ],
         revealOnClick: false,
     });
@@ -1190,13 +1190,14 @@ async function gameInit()
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:
                 'Defend your humans from the alien landers in this Defender-style shooter. ' +
                 'Blast the landers before they haul a human to the top and mutate — lose all ten and the planet explodes. ' +
                 'Catch falling humans and set them safely back down to survive.'},
+            {type:'text', text: 'Arrows / WASD fly · Z / Space shoot · X smart bomb · C hyperspace'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],
@@ -1205,7 +1206,7 @@ async function gameInit()
     createPauseMenu({
         onQuit: quitToTitleWithCleanup,
         extraItems: [
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
         ],
     });

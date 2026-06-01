@@ -823,7 +823,7 @@ async function gameInit()
             {type:'button',              label:'PLAYER VS PLAYER', onClick: () => startGame('pvp')},
             {type:'button', id:'aiVsAi', label:'AI VS AI',         onClick: () => startGame('aivai')},
             {type:'button',              label:'OPTIONS',          onClick: () => pushMenu('options')},
-            {type:'button',              label:'ABOUT',            onClick: () => pushMenu('about')},
+            {type:'button',              label:'HELP',             onClick: () => pushMenu('about')},
         ],
     });
 
@@ -844,11 +844,13 @@ async function gameInit()
     // ----- about menu -----
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         onHide: popMenu,
         items: [
-            {type:'text', text:'Reversi — sandwich opponent discs between two of yours ' +
-                'to flip them. Most discs at the end wins. Includes a watchable AI-vs-AI mode.'},
+            {type:'text', text:'Sandwich opponent discs between two of yours to flip them. ' +
+                'The player with the most discs when the board is full wins.'},
+            {type:'text', text:'Click a highlighted square to place your disc. ' +
+                'Use AI VS AI to watch the computer play itself.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

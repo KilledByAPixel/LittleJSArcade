@@ -2726,7 +2726,7 @@ function setupMenus()
             showMenu('mode');
         },
         items: [
-            { type:'button', label:'ABOUT', onClick: () => pushMenu('about') },
+            { type:'button', label:'HELP', onClick: () => pushMenu('about') },
         ],
         canReveal: () => matchState === 'title',
     });
@@ -2797,11 +2797,12 @@ function setupMenus()
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         dismissable: true,
         onHide: popMenu,
         items: [
-            { type:'text', text:"A cartoony super-deformed fighter in the spirit of Super Gem Fighter. Chain attacks to drop gems on your rival, then power up and unleash flashy super moves to win the round." },
+            { type:'text', text:"Chain gem attacks to drop pieces on your opponent's board and deplete their health to win the round." },
+            { type:'text', text:'P1: A/D move · W hard-drop · S soft-drop · Z/X rotate · P2: Arrows move · Up hard-drop · Down soft-drop'},
         ],
     });
 

@@ -183,7 +183,7 @@ function buildMenus()
         onPlay: () => { resetGame(); setPlaying(true); },
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
         ],
     });
 
@@ -205,14 +205,15 @@ function buildMenus()
 
     createMenu({
         id: 'about',
-        title: 'ABOUT',
+        title: 'HELP',
         dismissable: true,
         onHide: popMenu,
         items: [
             {type:'text', text:
                 'Aim and drop your ball to knock out every orange peg before you run out of ' +
                 'shots. Chain hits without stopping to build a combo multiplier, and catch the ' +
-                'ball in the moving bucket for a free one.'},
+                'ball in the moving bucket for a free shot.'},
+            {type:'text', text: 'Mouse / touch aim and click to shoot · Space also shoots'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('about')},
         ],

@@ -622,6 +622,17 @@ function buildMenus()
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        items: [
+            {type: 'button', label: 'HELP', onClick: () => pushMenu('about')},
+        ],
+    });
+
+    createAboutMenu({
+        title: 'HELP',
+        text: 'Drop colored pills onto the virus-filled board and line up 4 or more of the same color to clear them. Eliminate every virus to win the level.',
+        extraItems: [
+            {type: 'text', text: 'Arrows / WASD move · Down soft drop · Up / X rotate CW · Z rotate CCW · Space hard drop'},
+        ],
     });
 
     createPauseMenu({
