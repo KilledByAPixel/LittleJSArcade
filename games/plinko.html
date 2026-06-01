@@ -15,6 +15,7 @@
 <script src="../dist/box2d.wasm.js?1780269028378"></script>
 <script src="../templates/menus.js?1780269028378"></script>
 <script src="../templates/gameFx.js?1780269028378"></script>
+<script src="../templates/textureGenerator.js?1780269028378"></script>
 <script>
 'use strict';
 
@@ -65,6 +66,7 @@ let pegs           = [];          // Box2dStaticObject[]
 let slots          = [];          // {x, value, flashTimer}
 let balls          = [];          // PlinkoBall[]
 let scorePops      = [];          // {pos, value, life, color}
+let icons          = {};          // name -> TileInfo, from initDefaultAtlas()
 
 ///////////////////////////////////////////////////////////////////////////////
 // Sounds
@@ -144,10 +146,12 @@ class PlinkoBall extends Box2dObject
 
     render()
     {
-        // glossy ball — base color + subtle highlight
-        drawCircle(this.pos, BALL_RADIUS*2, this.color, .08, hsl(0,0,0,.5));
-        drawCircle(this.pos.add(vec2(-BALL_RADIUS*.35, BALL_RADIUS*.35)),
-            BALL_RADIUS*.55, hsl(0, 0, 1, .35));
+        // glossy ball — soft glow + tinted circle sprite + highlight
+        const glow = this.color.copy(); glow.a = .4;
+        drawTile(this.pos, vec2(BALL_RADIUS*4), icons.glow, glow);
+        drawTile(this.pos, vec2(BALL_RADIUS*2.3), icons.circle, this.color);
+        drawTile(this.pos.add(vec2(-BALL_RADIUS*.32, BALL_RADIUS*.32)),
+            vec2(BALL_RADIUS*1), icons.circle, hsl(0, 0, 1, .4));
     }
 }
 
@@ -188,8 +192,10 @@ function buildBoard()
             if (x < left + .8 || x > right - .8) continue;
             const peg = new Box2dStaticObject(vec2(x, y));
             peg.color = hsl(.13, .9, .8);
-            peg.lineColor = hsl(.13, .8, .4);
-            peg.lineWidth = .08;
+            // render as a tinted circle sprite (Box2dObject draws its tile when
+            // tileInfo is set; the fixture below still handles collision)
+            peg.tileInfo = icons.circle;
+            peg.size = vec2(PEG_RADIUS*2.3);
             peg.addCircle(PEG_RADIUS*2, vec2(), 0, .05, .65);
             peg.isPeg = true;
             peg.flashTimer = new Timer();
@@ -409,7 +415,7 @@ function drawPops()
         {
             const t = 1 - a;                 // expand as it fades
             const c = p.color.copy(); c.a = a;
-            drawCircle(p.pos, p.size * (.3 + t), hsl(0, 0, 0, 0), .2, c);
+            drawTile(p.pos, vec2(p.size * (.6 + t*2)), icons.ring, c);
         }
         else if (p.value)
         {
@@ -420,7 +426,7 @@ function drawPops()
         else
         {
             const c = p.color.copy(); c.a = a;
-            drawCircle(p.pos, p.size * a, c);
+            drawTile(p.pos, vec2(p.size * a * 2.5), icons.glow, c);
         }
     });
 }
@@ -445,6 +451,9 @@ async function gameInit()
     // Box2D first — every body needs the world to exist.
     await box2dInit();
     setCanvasFixedSize(vec2(700, 1080));
+
+    // bake the 16 built-in white icons into tiles 0-15; we tint per-instance
+    icons = initDefaultAtlas();
 
     canvasClearColor = new Color().setHex('#0a0e1a');
     gravity = vec2(0, -50);
@@ -586,8 +595,8 @@ function gameRender()
     drawLine(vec2(aimClamped, DROP_LINE_Y - 1),
              vec2(aimClamped, DROP_LINE_Y - 3),
              .12, hsl(.13, .9, .7, a));
-    drawCircle(vec2(aimClamped, DROP_LINE_Y),
-        BALL_RADIUS*2, hsl(.13, .9, .7, .4), .08, hsl(.13, .9, .7));
+    drawTile(vec2(aimClamped, DROP_LINE_Y),
+        vec2(BALL_RADIUS*2.3), icons.circle, hsl(.13, .9, .7, .5));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -599,8 +608,8 @@ function gameRenderPost()
         if (p.isPeg && p.flashTimer.active())
         {
             const t = 1 - p.flashTimer.getPercent();
-            drawCircle(p.pos, PEG_RADIUS*2 + t*.5,
-                hsl(.13, 1, .8, t * .7));
+            drawTile(p.pos, vec2(PEG_RADIUS*2.3 + t*2),
+                icons.glow, hsl(.13, 1, .8, t * .7));
         }
     });
 
