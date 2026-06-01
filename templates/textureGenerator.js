@@ -593,7 +593,8 @@ function drawDefaultIcon(name, tileIndex, scale = 1)
     return drawToTexture(tileIndex, ctx =>
     {
         const c = TILE_SIZE / 2;
-        const r = c * scale;
+        const headroom = .99;
+        const r = c * headroom * scale;
         ctx.fillStyle = '#fff';
         ctx.strokeStyle = '#fff';
         ctx.lineJoin = 'round';
