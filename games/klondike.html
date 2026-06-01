@@ -275,6 +275,7 @@ async function gameInit()
     // default mute / fullscreen / hamburger trio. They're hidden while
     // at title since there's no game in progress to undo or restart.
     installDefaultToolbar({
+        landscapeStack:true,
         extraItemsBefore: [
             {type:'button', id:'undo', label:'↶', title:'Undo (Z)', onClick: undoState},
             {type:'button', id:'redo', label:'↷', title:'Redo (Y)', onClick: redoState},

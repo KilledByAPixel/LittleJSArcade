@@ -21,6 +21,11 @@
 //       items:[ {type:'button', label:'☰', onClick: () => m.show()} ],
 //   });
 //
+// Toolbar config: id, anchor ('top-right' default | 'top-left' | 'bottom-*'),
+//   direction ('horizontal' default | 'vertical'), landscapeStack (default
+//   false — opt in to flip a horizontal toolbar to a vertical stack in
+//   landscape only; corner item stays in its corner), items.
+//
 // Item types:  label, text (wrapping paragraph), separator, button, toggle,
 //              slider, checkbox, color (HTML5 picker), input (text field;
 //              arrow/Enter/Space are passed to the field while focused),
@@ -434,11 +439,19 @@ function createToolbar(config)
         id:        null,
         anchor:    'top-right',
         direction: 'horizontal',
+        // landscapeStack: opt-in responsive flip. When true, a normally
+        // horizontal toolbar stacks vertically in landscape orientation
+        // (where the canvas is letterboxed with room in the side gutter)
+        // and stays horizontal in portrait. The corner item (e.g. the
+        // hamburger) stays pinned to its corner — see the CSS rules. No-op
+        // on toolbars built with direction:'vertical'.
+        landscapeStack: false,
         items:     [],
     }, config);
 
     const el = document.createElement('div');
     el.className = 'ljs-menu-toolbar anchor-' + cfg.anchor + ' dir-' + cfg.direction;
+    if (cfg.landscapeStack) el.classList.add('ljs-toolbar-landscape-stack');
     el.classList.add('ljs-hidden');              // start hidden; user calls show()
     menuSystemRoot.appendChild(el);
 
@@ -512,6 +525,7 @@ function installDefaultToolbar(opts)
         id:               'hud',
         anchor:           'top-right',
         direction:        'horizontal',
+        landscapeStack:   false,  // stack vertically in landscape (see createToolbar)
         mute:             true,
         fullscreen:       true,
         panelButton:      true,   // grid library button — touch + in-launcher only
@@ -604,6 +618,7 @@ function installDefaultToolbar(opts)
         id:        opts.id,
         anchor:    opts.anchor,
         direction: opts.direction,
+        landscapeStack: opts.landscapeStack,
         items,
     });
     toolbar.show();
@@ -1992,6 +2007,18 @@ button.ljs-grid-cell { cursor: pointer; }
 .ljs-menu-toolbar.anchor-bottom-left  { bottom: var(--toolbar-margin); left: var(--toolbar-margin); }
 .ljs-menu-toolbar.anchor-bottom-right { bottom: var(--toolbar-margin); right: var(--toolbar-margin); }
 .ljs-menu-toolbar.dir-vertical { flex-direction: column; }
+/* landscapeStack: opt-in responsive flip (set via createToolbar). A horizontal
+   toolbar stacks vertically in landscape (canvas is letterboxed, side gutter has
+   room) and stays horizontal in portrait. The column direction is chosen per
+   anchor so the item that sits in the corner horizontally — last child for the
+   right anchors, first child for the left — stays pinned to that same corner
+   when stacked (e.g. the top-right hamburger stays at the top, buttons below). */
+@media (orientation: landscape) {
+    .ljs-menu-toolbar.ljs-toolbar-landscape-stack.anchor-top-right,
+    .ljs-menu-toolbar.ljs-toolbar-landscape-stack.anchor-bottom-left  { flex-direction: column-reverse; }
+    .ljs-menu-toolbar.ljs-toolbar-landscape-stack.anchor-top-left,
+    .ljs-menu-toolbar.ljs-toolbar-landscape-stack.anchor-bottom-right { flex-direction: column; }
+}
 /* iOS top-URL-bar browsers (see the ios-topbar tag) overlap fixed top content
    in PORTRAIT; drop the top toolbar + the rotate-overlay button clear of the
    bar. Landscape hides the bar, and desktop/Safari never get the class. */
