@@ -230,8 +230,7 @@ function gameInit()
 
     // gamepad: on-screen touch pad — right stick aims the turret, face buttons jump/fire
     touchGamepadEnable = true;
-    touchGamepadAnalog = true;     // analog right stick for aiming
-    touchGamepadLeftStick = false;    // left stick not needed for this game
+    touchGamepadAnalog = true;     // analog left stick for aiming
     touchGamepadButtonCount = 2;   // A = jump, B = fire
 
     sJump  = new SoundGenerator({ volume:.55, frequency:300, attack:0, release:.14, shapeCurve:1.7, slide:1.4, noise:.02 });
@@ -381,7 +380,7 @@ function aimToward()
     // stick aims the turret. When neither is actively aiming, hold the last aim
     // so releasing the stick doesn't snap the turret back to the mouse.
     const turret = rover.pos.add(rot(vec2(0.25, 0.45), rover.angle));
-    const stick = gamepadStick(1);
+    const stick = gamepadStick(0);
     if (usingMouseInput())
         _moonAim = mousePos.subtract(turret).normalize();
     else if (stick.lengthSquared() > .04)

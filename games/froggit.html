@@ -26,8 +26,8 @@
   touchGamepadEnable = true;
   touchGamepadAnalog = false;
   touchGamepadLeftStick = false;
-  touchGamepadButtonCount = 0;
   touchGamepadRightStick = true;
+  touchGamepadButtonCount = 0;
 
   // ------------------------------------------------------------
   // Frogger (primitives only)
@@ -360,8 +360,7 @@
     // merges the d-pad + touch d-pad into gamepadStick(0), so reading both and
     // picking the dominant cardinal covers every directional input.
     const kb = keyDirection();
-    const stickId = isTouchDevice ? 1:0;
-    const stick = gamepadStick(stickId);
+    const stick = gamepadStick(0);
     let dir = vec2();
     if (kb.x || kb.y)
       dir = abs(kb.x) > abs(kb.y) ? vec2(sign(kb.x), 0) : vec2(0, sign(kb.y));

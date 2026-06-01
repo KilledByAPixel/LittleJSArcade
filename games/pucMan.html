@@ -604,7 +604,7 @@ function updatePlayer()
 
     // gamepad / touch / d-pad: live read, cardinal-only (whichever axis is dominant).
     // Held-stick acts like holding an arcade joystick.
-    const stick = gamepadStick(isTouchDevice ? 1 : 0); // left stick, cardinal-only
+    const stick = gamepadStick(0); // left stick, cardinal-only
     if (stick.lengthSquared() > .25*.25)
     {
         player.desiredDir = abs(stick.x) > abs(stick.y)
