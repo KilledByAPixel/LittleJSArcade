@@ -791,6 +791,7 @@ function buildToolbar()
     });
 
     installDefaultToolbar({
+        landscapeStack:true,
         grayedWhen:  () => gameState === 'menu',
         extraItemsAfter: [
             {type:'button', label:'?', title:'Help', onClick: () => pushMenu('help')},
@@ -1070,7 +1071,7 @@ function gameRenderPost()
 
     // hud
     const hud = `Hole ${holeIndex+1}/${holes.length}   Strokes: ${holeStrokes}   Total: ${totalStrokes}\n` +
-        `Drag from the ball to aim + shoot.  R = Retry, N = Next hole`;
+        `Drag from the ball to aim + shoot.`;
     drawTextScreen(hud, vec2(mainCanvasSize.x/2, 52), 36, WHITE, 4, rgb(0,0,0,.6));
 }
 

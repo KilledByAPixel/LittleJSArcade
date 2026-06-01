@@ -514,7 +514,7 @@ async function gameInit()
         },
     });
 
-    installDefaultToolbar();
+    installDefaultToolbar({landscapeStack:true});
 
     // persist the live round when the tab is hidden or closed so the latest
     // board state and elapsed time survive a reload (saveGame no-ops unless a

@@ -1096,10 +1096,6 @@ function gameRenderPost()
     drawTextScreen('SCORE', vec2(80, hudY), 26, color);
     drawTextScreen(String(score).padStart(4, '0'), vec2(80, hudY + 32), 26, rgb(.95,.95,.95));
     
-    // HI-SCORE on top right only
-    drawTextScreen('HI-SCORE', vec2(mainCanvasSize.x - 100, hudY), 26, color);
-    drawTextScreen(String(max(score, getBestScore())).padStart(4, '0'), vec2(mainCanvasSize.x - 100, hudY + 32), 26, rgb(.95,.95,.95));
-    
     // Lives indicator with ship icons at bottom - below the green line
     const livesY = mainCanvasSize.y - 18;
     for (let i = 0; i < lives - 1 && i < 5; i++)

@@ -656,7 +656,7 @@ function gameInit()
     });
 
     // ----- HUD toolbar -----
-    installDefaultToolbar();
+    installDefaultToolbar({landscapeStack:true});
 
     setPlaying(false);
     showMenu('title'); // title's onShow runs resetGame

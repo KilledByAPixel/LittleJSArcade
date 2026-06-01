@@ -484,14 +484,14 @@ function buildMenus()
         onQuit:    quitToTitle,
     });
 
-    installDefaultToolbar();
+    installDefaultToolbar({landscapeStack:true});
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 function gameInit()
 {
     saveDataInit('lunarLander');
-    setCanvasFixedSize(vec2(720, 720));
+    setCanvasFixedSize(vec2(900, 720));
 
     // build a deep, layered starfield once (screen-space, parallax by depth)
     stars = [];

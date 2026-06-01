@@ -1238,6 +1238,7 @@ async function gameInit()
 
     // HUD toolbar
     installDefaultToolbar({
+        landscapeStack:true,
         extraItemsBefore: [
             {type:'button', id:'undo', label:'↶', title:'Undo last move', onClick: () => undoMove()},
         ],

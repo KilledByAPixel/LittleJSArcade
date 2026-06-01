@@ -205,7 +205,7 @@ async function gameInit()
 
     // ----- HUD toolbar (always visible — hamburger grays out while
     // the title menu is on top, since pause is meaningless before play).
-    installDefaultToolbar();
+    installDefaultToolbar({landscapeStack:true});
 
     initBoard();
     setPlaying(false);

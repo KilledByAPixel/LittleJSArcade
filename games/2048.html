@@ -194,7 +194,7 @@ function buildMenus()
         ],
     });
 
-    installDefaultToolbar();
+    installDefaultToolbar({landscapeStack:true});
 }
 
 function showWinDialog()
@@ -589,7 +589,7 @@ function gameUpdatePost()
             saveGame();
     }
 
-    cameraPos = vec2(0, 0);
+    cameraPos = vec2(0, .5);
     const s = boardWorldSize();
     const margin = .5;
     const viewPixels = min(mainCanvasSize.x, mainCanvasSize.y * 0.78);
