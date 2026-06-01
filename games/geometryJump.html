@@ -3,9 +3,8 @@
 <meta charset=utf-8>
 </head><body>
 <script src="../dist/littlejs.js?1780269028378"></script>
-<script src="../templates/bloom.js?1780269028378"></script>
 <script src="../templates/gameFx.js?1780269028378"></script>
-<script src="../templates/tweakables.js?1780269028378"></script>
+<script src="../templates/textureGenerator.js?1780269028378"></script>
 <script src="../templates/menus.js?1780269028378"></script>
 <script>
 'use strict';
@@ -63,6 +62,9 @@ let unlocked = {classic: 1, remix: 1};
 
 // Sounds
 let sJump, sDie, sWin;
+
+// default-icon sprite atlas (name -> TileInfo), baked in gameInit
+let atlasIcons;
 
 function resetGame()
 {
@@ -501,8 +503,14 @@ function drawSpike(s)
     const b = vec2(s.x + s.w,     s.y);
     const c = vec2(s.x + s.w/2,   s.y + s.h);
 
-    // body with crisp bright outline (bloom supplies the glow)
-    drawPoly([a,b,c], hsl(pal.haz, .9, .62), .08, hsl(pal.haz + .02, 1, .5));
+    // glow halo
+    const ga = vec2(s.x - .2,         s.y);
+    const gb = vec2(s.x + s.w + .2,   s.y);
+    const gc = vec2(s.x + s.w/2,      s.y + s.h + .3);
+    drawPoly([ga,gb,gc], hsl(pal.haz, .9, .6, .24));
+
+    // body with crisp bright outline
+    drawPoly([a,b,c], hsl(pal.haz, .9, .62), .08, hsl(pal.haz + .02, 1, .82));
     // highlight edge
     drawLine(c, a.lerp(b,.5), .06, hsl(0,0,1,.4));
 }
@@ -512,7 +520,10 @@ function drawBlock(b)
     const isCeil = b.style === 1;
     const hue = isCeil ? pal.haz : pal.block;
 
-    // bright neon rim (slightly larger than the body; bloom supplies the glow)
+    // soft outer glow so the block lifts off the dark background
+    drawRect(b.pos, b.size.add(vec2(.5)), hsl(hue, .85, .55, .18));
+
+    // bright neon rim (slightly larger than the body)
     drawRect(b.pos, b.size.add(vec2(.16)), hsl(hue, .95, .72));
 
     // bright body + darker inner panel for depth
@@ -560,7 +571,8 @@ function drawFloor()
     for (let gx = Math.floor(left); gx <= Math.ceil(right); ++gx)
         drawLine(vec2(gx, 0), vec2(gx, -4), .04, hsl(pal.block, .5, .35, .12));
 
-    // crisp white lip at the play line (bloom supplies the glow)
+    // glowing top edge: tinted glow then a crisp white lip
+    drawRect(vec2(centerX, 0), vec2(w, .2), hsl(pal.block, .9, .6, .35));
     drawLine(vec2(left, 0), vec2(right, 0), .08, hsl(0,0,1,.35));
 }
 
@@ -576,7 +588,11 @@ function drawPlayer()
     const sq = player.land;
     const size = vec2(PLAYER_SIZE.x * (1 + .45*sq), PLAYER_SIZE.y * (1 - .45*sq));
 
-    // cube body (bloom supplies the glow)
+    // soft neon glow
+    drawRect(player.pos, size.scale(1.7), hsl(.90, .85, .6, .12), player.angle);
+    drawRect(player.pos, size.scale(1.35), hsl(.90, .85, .6, .16), player.angle);
+
+    // cube body
     drawRect(player.pos, size, hsl(.90, .80, .60), player.angle);
     drawRect(player.pos, size.scale(.78), hsl(.90, .72, .38), player.angle);
 
@@ -598,22 +614,14 @@ function drawFinish()
 {
     const pulse = .5 + .5*Math.sin(time*4);
 
-    // goal portal at the end of the level (drawn behind the floor so its base tucks under the ground)
+    // glowing goal portal at the end of the level (drawn behind the floor so its base tucks under the ground)
+    for (let i=4; i>=1; --i)
+        drawRect(vec2(endX, 3.5), vec2(.45*i, 8), hsl(.33, .9, .55, .1 + .04*pulse));
     drawRect(vec2(endX, 3.5), vec2(.4, 8), hsl(.33, 1, .65, .82 + .12*pulse));
 
     // checker flag band near the top of the pole
     for (let i=0; i<5; ++i)
         drawRect(vec2(endX + .55, 6.6 - i*.5), vec2(.5, .5), (i%2) ? hsl(0,0,1) : hsl(0,0,.1));
-}
-
-// Draw screen-space text with the engine image font, plus a dark drop-shadow for
-// contrast. glow=true renders into the WebGL scene so bloom makes the text glow;
-// glow=false renders crisp onto the 2D overlay (stays sharp, sits atop the HUD).
-function drawImageText(text, pos, size, color, glow=false, center=true)
-{
-    const off = max(2, size * .07);
-    engineImageFont.drawTextScreen(text, pos.add(vec2(off, off)), size, center, hsl(0,0,0,.75), glow);
-    engineImageFont.drawTextScreen(text, pos, size, center, color, glow);
 }
 
 function drawParticles()
@@ -721,7 +729,7 @@ function buildMenus()
             {type:'button', label:'DAILY',  title:"Today's seed - one shared run for everyone",          onClick: () => startRun('daily', 0)},
             {type:'separator'},
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('help')},
         ],
     });
 
@@ -740,8 +748,6 @@ function buildMenus()
             {type:'separator'},
             {type:'checkbox', id:'shake', label:'SCREEN SHAKE', value:true, persist:'shake',
                 onChange: v => setScreenShakeEnabled(v)},
-            {type:'checkbox', id:'bloom', label:'BLOOM', value:true, persist:'bloom',
-                onChange: v => setBloomEnabled(v)},
             {type:'button',   label:'FULLSCREEN', onClick: toggleFullscreen},
             {type:'separator'},
             {type:'button',   label:'RESET PROGRESS', onClick: () => showConfirmDialog({
@@ -755,7 +761,7 @@ function buildMenus()
 
     // ----- about -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -763,7 +769,7 @@ function buildMenus()
                 'One hit restarts the level, so learn the rhythm.'},
             {type:'text',  text:'Space / Up arrow / click to jump · R restart'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 
@@ -796,11 +802,10 @@ function gameInit()
     setCanvasFixedSize(vec2(1280, 720));
     cameraScale = 64;
 
-    // neon glow post-process: punchy on the bright rims/spikes/player, soft sky
-    bloomInit({downsample: 2, iterations: 4, threshold: .3, intensity: 3, vignette: .9});
-
-    // dev tweakables (press \ to toggle): live Bloom controls (templates/bloom.js)
-    bloomTweaks();
+    // sprite atlas: bake the default white-on-transparent icon set into tiles
+    // 0-15 so drawTile(pos, size, atlasIcons.NAME, color) is available for art.
+    initDrawToTexture();
+    atlasIcons = initDefaultAtlas();
 
     sJump = new Sound([,,126,,.05,,1,1.6,,22,,,,,,,,.78,.02,,160]); // Jump 8391
     sDie  = new Sound([1.39,,663,.02,.17,.42,1,.29,-6.4,1.1,,,.12,,,.2,,.53,.19,,-2303]); // Powerup 401
@@ -903,22 +908,22 @@ function gameRenderPost()
     // bright leading edge
     if (progress > 0 && progress < 1)
         drawRect(vec2(left + barW*progress, by), vec2(4, barH), hsl(.33,1,.8), 0, false, true);
-    // % on the bar + level readout left of it: crisp on the overlay (atop the HUD)
-    drawImageText(`${pct}%`, vec2(cx, by), 18, hsl(0,0,1,.95));
-    drawImageText(`LEVEL ${levelIndex+1}/${TOTAL_LEVELS}`, vec2(left - 78, by), 16, hsl(.9,.8,.7));
+    drawTextScreen(`${pct}%`, vec2(cx, by + 1), 18, hsl(0,0,1,.95), 3, hsl(0,0,0,.7), 'center', undefined, 'bold');
 
-    // big status banners glow with the scene bloom
+    // level readout (left of the bar)
+    drawTextScreen(`LEVEL ${levelIndex+1}/${TOTAL_LEVELS}`, vec2(left - 70, by + 1), 22, hsl(.9,.8,.7), 3, hsl(0,0,0,.7), 'center', undefined, 'bold');
+
     if (state === 'dead')
     {
-        drawImageText('CRASH!', vec2(cx, mainCanvasSize.y/2 - 60), 90, hsl(0, .9, .6), true);
-        drawImageText('Click to try again', vec2(cx, mainCanvasSize.y/2 + 30), 32, hsl(0,0,1,.9), true);
+        drawTextScreen('CRASH!', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 - 60), 110, hsl(0, .9, .6), 10, hsl(0,0,0,.8));
+        drawTextScreen('Click to try again', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 + 30), 44, hsl(0,0,1,.9), 6, hsl(0,0,0,.8));
     }
     else if (state === 'win')
     {
         const title  = campaignComplete ? 'CAMPAIGN COMPLETE!' : 'LEVEL CLEAR!';
         const prompt = campaignComplete ? 'Click to return to title' : 'Click for next level';
-        drawImageText(title, vec2(cx, mainCanvasSize.y/2 - 60), campaignComplete ? 56 : 80, hsl(.33, .9, .55), true);
-        drawImageText(prompt, vec2(cx, mainCanvasSize.y/2 + 30), 32, hsl(0,0,1,.9), true);
+        drawTextScreen(title, vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 - 60), campaignComplete ? 84 : 110, hsl(.33, .9, .55), 10, hsl(0,0,0,.8));
+        drawTextScreen(prompt, vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 + 30), 44, hsl(0,0,1,.9), 6, hsl(0,0,0,.8));
     }
 }
 
