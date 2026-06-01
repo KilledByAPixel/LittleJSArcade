@@ -804,22 +804,20 @@ function drawAimLine()
         if ((i & 1) === 0)
         {
             const fade = 1 - i/maxSteps;
-            drawTile(pos, vec2(.09 * 1.15), icons.circle, hsl(0,0,1,.45*fade));
+            drawTile(pos, vec2(.09), icons.circle, hsl(0,0,1,.45*fade));
         }
     }
 }
 
 // draw a glossy bubble from the default atlas: dark rim + tinted body + highlight.
-// `diam` is the visible (rim) diameter, matching the old drawCircle diameter.
-// The /1.15 in the icon means a tile of size d renders a circle of diameter d/1.15,
-// so multiply by 1.15 to make the outer rim land exactly at `diam`.
+// `diam` is the visible (rim) diameter; icons fill their tile so size maps 1:1.
 function drawBubble(pos, color, diam = BUBBLE_DIAM, glossAlpha = .5)
 {
-    const rim = diam * 1.15;
+    const rim = diam;
     drawTile(pos, vec2(rim), icons.circle, OUTLINE);         // dark rim
     drawTile(pos, vec2(rim * .95), icons.circle, color);     // colored body
     drawTile(pos.add(vec2(-diam*.18, diam*.18)),             // upper-left gloss
-        vec2(diam*.3), icons.circle, hsl(0,0,1,glossAlpha));
+        vec2(diam*.26), icons.circle, hsl(0,0,1,glossAlpha));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -861,15 +859,15 @@ function gameRenderPost()
             const fill = fx.color.copy();
             fill.a = alpha * .8;
             // soft expanding glow + bright ring for the burst
-            drawTile(fx.pos, vec2(BUBBLE_DIAM * scale * 1.3), icons.glow, fill);
-            drawTile(fx.pos, vec2(BUBBLE_DIAM * scale * 1.15), icons.ring, hsl(0,0,1,alpha));
+            drawTile(fx.pos, vec2(BUBBLE_DIAM * scale * 1.13), icons.glow, fill);
+            drawTile(fx.pos, vec2(BUBBLE_DIAM * scale), icons.ring, hsl(0,0,1,alpha));
         }
         else // shard
         {
             const alpha = 1 - t;
             const c = fx.color.copy();
             c.a = alpha;
-            drawTile(fx.pos, vec2(.28 * (1 - t*.4) * 1.15), icons.circle, c);
+            drawTile(fx.pos, vec2(.28 * (1 - t*.4)), icons.circle, c);
         }
     }
 

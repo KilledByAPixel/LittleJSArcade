@@ -395,11 +395,11 @@ const PIP_R = 0.09;          // visible pip radius
 // name -> TileInfo map from initDefaultAtlas(), built in gameInit.
 let icons;
 
-// The default-atlas sprites are inset within their tiles (roundSquare fills
-// ~75% of the cell, circle ~87%), so scale up at draw time to make the visible
-// sprite match the intended world footprint.
-const ICON_SQUARE_FILL = 1.34;
-const ICON_CIRCLE_FILL = 1.15;
+// Default-atlas icons now fill their tile, so a drawTile size maps 1:1 to the
+// visible sprite. circle maps directly; roundSquare is still drawn a touch
+// larger than the nominal footprint so the rounded body reads at the right size.
+const ICON_SQUARE_FILL = 1.165;
+const ICON_CIRCLE_FILL = 1.0;
 
 // Standard pip layout positions within a unit square half, in [-.5,.5] range,
 // keyed by pip count 0-6. Each entry is an array of vec2 offsets.
@@ -424,7 +424,7 @@ function drawDominoTile(pos, valA, valB, horizontal, faceUp = true, highlight = 
     const size = horizontal ? vec2(TILE_LONG, TILE_SHORT) : vec2(TILE_SHORT, TILE_LONG);
     const body = size.scale(ICON_SQUARE_FILL);
     // Body + border, both as tinted roundSquare sprites.
-    drawTile(pos, body.add(vec2(0.18, 0.18)), icons.roundSquare, hsl(0, 0, 0.1));   // border
+    drawTile(pos, body.add(vec2(0.157, 0.157)), icons.roundSquare, hsl(0, 0, 0.1));   // border
     drawTile(pos, body, icons.roundSquare, faceUp ? hsl(0, 0, 0.93) : hsl(.6, .3, .35));
     if (highlight > 0)
         drawTile(pos, body, icons.roundSquare, hsl(.15, 1, .5, 0.35 * highlight));
