@@ -817,9 +817,9 @@ function drawBubble(pos, color, diam = BUBBLE_DIAM, glossAlpha = .5)
 {
     const rim = diam * 1.15;
     drawTile(pos, vec2(rim), icons.circle, OUTLINE);         // dark rim
-    drawTile(pos, vec2(rim * .88), icons.circle, color);     // colored body
+    drawTile(pos, vec2(rim * .95), icons.circle, color);     // colored body
     drawTile(pos.add(vec2(-diam*.18, diam*.18)),             // upper-left gloss
-        vec2(diam*.34), icons.circle, hsl(0,0,1,glossAlpha));
+        vec2(diam*.3), icons.circle, hsl(0,0,1,glossAlpha));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
