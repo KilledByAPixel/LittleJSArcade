@@ -5,6 +5,7 @@
 <script src="../dist/littlejs.js?1780283499920"></script>
 <script src="../templates/gameFx.js?1780283499920"></script>
 <script src="../templates/menus.js?1780283499920"></script>
+<script src="../templates/textureGenerator.js?1780283499920"></script>
 <script>
 'use strict';
 
@@ -37,7 +38,7 @@ const DRILL_TIME = 0.28;
 const WALK_TIME = 0.14;
 const GRAVITY_TICK = 0.12;
 const PLAYER_FALL_TIME = 0.10;
-const AIR_DRAIN = 0.55;
+const AIR_DRAIN = 1.5;
 const CAPSULE_AIR_GAIN = 30;
 const CAPSULE_CHANCE = 0.06;
 
@@ -130,10 +131,21 @@ let pieces;
 let nextPieceId;
 let player;
 let air, depth, score, chain, gameOver, won;
-function saveDrillerBest() { submitBestScore(score); }
+let isNewBest;
+function saveDrillerBest() { isNewBest = submitBestScore(score); }
 let gravityTimer;
 let pendingMatchCheck;
 let destroyedFx;
+let atlasIcons;
+let gameOverTimer, gameOverMenuShown, gameOverMenuHandle;
+
+// Draw a filled circle via the default atlas instead of drawCircle. The atlas
+// circle fills r = tileSize/2/1.15, so a tile of diameter*1.15 matches the
+// radius drawCircle(pos, diameter) would have produced.
+function drawCircleTile(pos, diameter, color)
+{
+    drawTile(pos, vec2(diameter * 1.15), atlasIcons.circle, color);
+}
 
 let sfxDrill, sfxClear, sfxChain, sfxCapsule, sfxDeath, sfxLand, sfxWin, sfxStep;
 
@@ -257,8 +269,11 @@ function resetGame()
     chain = 0;
     gameOver = false;
     won = false;
+    isNewBest = false;
     gravityTimer = 0;
     pendingMatchCheck = false;
+    gameOverTimer = new Timer();
+    gameOverMenuShown = false;
     cameraPos = vec2(0, -4);
 }
 
@@ -527,6 +542,7 @@ function killPlayer(reason)
     player.deathReason = reason;
     addScreenShake(0.25, 0.5);
     sfxDeath.play();
+    gameOverTimer.set(0.7);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -534,6 +550,7 @@ async function gameInit()
 {
     saveDataInit('mrDriller');
     setCanvasFixedSize(vec2(720, 960));
+    atlasIcons = initDefaultAtlas();
 
     sfxDrill   = new SoundGenerator({volume:.28, frequency:300, release:.12, shapeCurve:1.2, pitchJump:180, pitchJumpTime:.04, noise:.2});
     sfxClear   = new SoundGenerator({volume:.40, frequency:480, release:.25, shapeCurve:1.1, pitchJump:320, pitchJumpTime:.05, delay:.03});
@@ -590,19 +607,48 @@ function buildMenus()
     installDefaultToolbar();
 }
 
+// Game-over menu — a real menus.js menu so it works on touch / mouse / gamepad
+// / keyboard (no R key needed). RETRY replays, MAIN MENU quits to the title.
+function showGameOver()
+{
+    gameOverMenuShown = true;
+    if (gameOverMenuHandle) gameOverMenuHandle.destroy();
+
+    const title = won ? 'YOU ESCAPED!'
+        : player.deathReason === 'suffocated' ? 'OUT OF AIR' : 'CRUSHED';
+    const lines = ['Depth ' + player.gy + ' m', 'Score ' + score];
+    if (isNewBest) lines.push('NEW BEST!');
+
+    gameOverMenuHandle = createMenu({
+        id: 'gameover',
+        title,
+        dismissable: false,
+        initialItemId: 'retry',
+        items: [
+            {type:'text', text: lines.join('\n')},
+            {type:'button', id:'retry', label:'RETRY',     onClick: startGame},
+            {type:'button',             label:'MAIN MENU', onClick: () => quitToTitle()},
+        ],
+    });
+    showMenu('gameover');
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdate()
 {
     if (bindPauseKey({when: () => isPlaying() && !gameOver})) return;
     if (!isPlaying()) return;
 
-    if (keyWasPressed('KeyR')) { resetGame(); return; }
-    if (gameOver) return;
+    if (gameOver)
+    {
+        if (!gameOverMenuShown && gameOverTimer.elapsed()) showGameOver();
+        return;
+    }
 
     air -= AIR_DRAIN * timeDelta;
     if (air <= 0) { air = 0; killPlayer('suffocated'); return; }
 
-    if (player.gy >= MAX_DEPTH) { won = true; gameOver = true; saveDrillerBest(); sfxWin.play(); return; }
+    if (player.gy >= MAX_DEPTH) { won = true; gameOver = true; saveDrillerBest(); sfxWin.play(); gameOverTimer.set(0.7); return; }
 
     processInput();
     updatePlayer();
@@ -670,11 +716,24 @@ function gameRender()
         drawText('GOAL', vec2(0, goalWP.y - 0.2), 0.9, rgb(1, .9, .3), 0.18, rgb(0,0,0));
     }
 
+    // Visible grid-row band (a cell at row gy renders at world y = -gy).
+    // Pieces/fx outside this band are off-screen — skip them so we only draw
+    // the ~6 bands the camera can see instead of all ~450 pieces in the shaft.
+    const rowLo = -cameraPos.y - camSize.y/2 - 1;
+    const rowHi = -cameraPos.y + camSize.y/2 + 1;
+
     // pieces
     for (const id in pieces)
     {
         const p = pieces[id];
         if (!p.alive) continue;
+        let minY = Infinity, maxY = -Infinity;
+        for (let i=0; i<p.cells.length; i++)
+        {
+            if (p.cells[i].y < minY) minY = p.cells[i].y;
+            if (p.cells[i].y > maxY) maxY = p.cells[i].y;
+        }
+        if (maxY < rowLo || minY > rowHi) continue;
         drawPiece(p);
     }
 
@@ -689,6 +748,7 @@ function gameRender()
         const inflate = 1 + (1 - a) * 0.35;
         for (let j=0; j<d.cells.length; j++)
         {
+            if (d.cells[j].y < rowLo || d.cells[j].y > rowHi) continue;
             const wp = cellWorldPos(d.cells[j].x, d.cells[j].y);
             drawRect(wp, vec2(inflate, inflate), c);
         }
@@ -757,7 +817,7 @@ function drawPiece(p)
             if (p.cells[i].y > maxY) maxY = p.cells[i].y;
         }
         const centerWP = vec2((minX + maxX)/2 - (COLS-1)/2, -(minY + maxY)/2);
-        drawCircle(centerWP, 1.0, rgb(1,1,1,.85));
+        drawCircleTile(centerWP, 1.0, rgb(1,1,1,.85));
         drawText('O2', centerWP, 0.7, rgb(.1, .3, .6), 0.08, rgb(0,0,0));
     }
 }
@@ -765,12 +825,12 @@ function drawPiece(p)
 function drawPlayer()
 {
     const p = cellWorldPos(player.gx, player.gy);
-    drawCircle(p, 0.92, rgb(.95, .95, 1));
+    drawCircleTile(p, 0.92, rgb(.95, .95, 1));
     drawRect(p.add(vec2(0, -0.15)), vec2(0.72, 0.55), rgb(.95, .25, .25));
-    drawCircle(p.add(vec2(0, 0.08)), 0.66, rgb(.30, .55, .95));
-    drawCircle(p.add(vec2(-0.14 * player.facing, 0.22)), 0.22, rgb(.85, .95, 1));
-    drawCircle(p.add(vec2(-0.10, 0.05)), 0.10, rgb(0,0,0));
-    drawCircle(p.add(vec2( 0.14, 0.05)), 0.10, rgb(0,0,0));
+    drawCircleTile(p.add(vec2(0, 0.08)), 0.66, rgb(.30, .55, .95));
+    drawCircleTile(p.add(vec2(-0.14 * player.facing, 0.22)), 0.22, rgb(.85, .95, 1));
+    drawCircleTile(p.add(vec2(-0.10, 0.05)), 0.10, rgb(0,0,0));
+    drawCircleTile(p.add(vec2( 0.14, 0.05)), 0.10, rgb(0,0,0));
 
     let bx = 0, by = -0.50;
     if (player.drillDir === 'left')       { bx = -0.50; by = -0.05; }
@@ -787,7 +847,7 @@ function drawPlayer()
         {
             const a = Math.random() * 6.28;
             const r = 0.3 + Math.random() * 0.3;
-            drawCircle(p.add(vec2(bx + Math.cos(a)*r, by + Math.sin(a)*r)), 0.08, rgb(1, .9, .4));
+            drawCircleTile(p.add(vec2(bx + Math.cos(a)*r, by + Math.sin(a)*r)), 0.08, rgb(1, .9, .4));
         }
     }
 }
@@ -818,19 +878,17 @@ function gameRenderPost()
     if (chain > 1)
         drawTextScreen('CHAIN x' + chain + '!', vec2(sw/2, 56), 26, rgb(1, .7, .3), 4, rgb(0,0,0), 'center');
 
-    if (gameOver)
+    // Brief death/win banner during the short delay before the game-over menu
+    // surfaces (the menu itself carries depth/score + RETRY / MAIN MENU).
+    if (gameOver && !gameOverMenuShown)
     {
-        drawRect(vec2(sw/2, sh/2), vec2(sw, 240), rgb(0,0,0,.78), 0, false, true);
         const msg = won ? 'YOU ESCAPED!' :
             player.deathReason === 'suffocated' ? 'OUT OF AIR' : 'CRUSHED';
         const mc = won ? rgb(1, .9, .3) : rgb(1, .4, .4);
-        drawTextScreen(msg, vec2(sw/2, sh/2 - 40), 60, mc, 6, rgb(0,0,0), 'center');
-        drawTextScreen('Depth: ' + player.gy + ' m     Score: ' + score,
-            vec2(sw/2, sh/2 + 16), 24, rgb(1,1,1), 3, rgb(0,0,0), 'center');
-        drawTextScreen('Press R to restart', vec2(sw/2, sh/2 + 56), 22, rgb(.8,.9,1), 3, rgb(0,0,0), 'center');
+        drawTextScreen(msg, vec2(sw/2, sh/2 - 10), 60, mc, 6, rgb(0,0,0), 'center');
     }
 
-    drawTextScreen('< / > walk or drill    v drill down    R restart',
+    drawTextScreen('< / > walk or drill    v drill down',
         vec2(sw/2, sh - 20), 16, rgb(.75, .85, .95), 2, rgb(0,0,0), 'center');
 }
 
