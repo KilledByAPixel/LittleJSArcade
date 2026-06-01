@@ -17,7 +17,6 @@ tilesPixelated = false; // Disable pixelation
 // Pole Position (tiny playable prototype)
 
 // track + camera constants (tuned for a ~960x540 canvas)
-const CANVAS_SIZE     = vec2(960, 540);
 const DRAW_DIST       = 260;   // how many road segments to draw
 const ROAD_W          = 1.85;  // road half-width in world units
 const CAMERA_HEIGHT   = 0.72;  // bigger = road appears lower
@@ -135,7 +134,7 @@ function resetGame()
 function gameInit()
 {
     saveDataInit('polePosition');
-    setCanvasFixedSize(CANVAS_SIZE);
+    setCanvasMaxSize(vec2(2048));
     buildTrack();
 
     // gamepad: on-screen touch pad with an analog left stick (steer) and one
@@ -387,22 +386,37 @@ function projectPoint(z, x, w, h, horizonY)
     return { screenX, screenY, scale, roadW, rumbleW };
 }
 
-function fillQuad(ctx, x1,y1, x2,y2, x3,y3, x4,y4)
+// screen-space draw helpers routed through LittleJS WebGL (replace raw ctx fills).
+// Each screen-pixel point is converted to world space so it round-trips exactly
+// back to the same pixel when the engine renders the gl scene.
+const spt = (x, y)=> screenToWorld(vec2(x, y));
+
+function fillQuad(x1,y1, x2,y2, x3,y3, x4,y4, color)
 {
-    ctx.beginPath();
-    ctx.moveTo(x1,y1);
-    ctx.lineTo(x2,y2);
-    ctx.lineTo(x3,y3);
-    ctx.lineTo(x4,y4);
-    ctx.closePath();
-    ctx.fill();
+    // drawPoly triangulates via glPolyStrip and auto-corrects winding
+    drawPoly([spt(x1,y1), spt(x2,y2), spt(x3,y3), spt(x4,y4)], color);
+}
+
+function fillRectS(x, y, w, h, color) // top-left origin, like ctx.fillRect
+{
+    drawRect(vec2(x + w/2, y + h/2), vec2(w, h), color, 0, glEnable, true);
+}
+
+function fillCircleS(x, y, r, color)
+{
+    drawCircle(vec2(x, y), r*2, color, 0, BLACK, glEnable, true);
+}
+
+function fillEllipseS(x, y, rx, ry, color)
+{
+    drawEllipse(vec2(x, y), vec2(rx*2, ry*2), color, 0, 0, BLACK, glEnable, true);
 }
 
 // deterministic tiny hash for scenery variation
 const frac = (x)=> x - Math.floor(x);
 const hash01 = (n)=> frac(Math.sin(n*127.1) * 43758.5453123);
 
-function drawTree(ctx, x, yGround, size, seed)
+function drawTree(x, yGround, size, seed)
 {
     // size in pixels
     const trunkH = size * 0.34;
@@ -413,23 +427,20 @@ function drawTree(ctx, x, yGround, size, seed)
     const hue = .30 + (hash01(seed+2)-.5) * .06;
 
     // trunk
-    ctx.fillStyle = hsl(.08, .45, .28).toString();
-    ctx.fillRect(x - trunkW/2, yGround - trunkH + hJit, trunkW, trunkH);
+    fillRectS(x - trunkW/2, yGround - trunkH + hJit, trunkW, trunkH, hsl(.08, .45, .28));
 
-    // canopy (3 blobs)
-    ctx.fillStyle = hsl(hue, .70, .30).toString();
-    ctx.beginPath();
+    // canopy (3 overlapping blobs, same opaque color so they read as one)
+    const canopy = hsl(hue, .70, .30);
     const cY = yGround - trunkH + hJit;
     const r1 = canopyR * (0.85 + hash01(seed+3)*0.25);
     const r2 = canopyR * (0.75 + hash01(seed+4)*0.30);
     const r3 = canopyR * (0.70 + hash01(seed+5)*0.35);
-    ctx.arc(x,                 cY - canopyR*0.55, r1, 0, Math.PI*2);
-    ctx.arc(x - canopyR*0.55,  cY - canopyR*0.20, r2, 0, Math.PI*2);
-    ctx.arc(x + canopyR*0.55,  cY - canopyR*0.15, r3, 0, Math.PI*2);
-    ctx.fill();
+    fillCircleS(x,                cY - canopyR*0.55, r1, canopy);
+    fillCircleS(x - canopyR*0.55, cY - canopyR*0.20, r2, canopy);
+    fillCircleS(x + canopyR*0.55, cY - canopyR*0.15, r3, canopy);
 }
 
-function drawSign(ctx, x, yGround, size, seed)
+function drawSign(x, yGround, size, seed)
 {
     const postH = size * 0.60;
     const postW = max(2, size * 0.07);
@@ -437,33 +448,27 @@ function drawSign(ctx, x, yGround, size, seed)
     const boardH = size * 0.22;
 
     // post
-    ctx.fillStyle = hsl(0, 0, .25).toString();
-    ctx.fillRect(x - postW/2, yGround - postH, postW, postH);
+    fillRectS(x - postW/2, yGround - postH, postW, postH, hsl(0, 0, .25));
 
     // sign board
     const hue = hash01(seed+7);
-    ctx.fillStyle = hsl(hue, .75, .55).toString();
-    ctx.fillRect(x - boardW/2, yGround - postH - boardH*0.85, boardW, boardH);
+    fillRectS(x - boardW/2, yGround - postH - boardH*0.85, boardW, boardH, hsl(hue, .75, .55));
 
     // stripe detail
-    ctx.fillStyle = hsl(0,0,1,.85).toString();
-    ctx.fillRect(x - boardW*0.42, yGround - postH - boardH*0.62, boardW*0.84, max(2, boardH*0.18));
+    fillRectS(x - boardW*0.42, yGround - postH - boardH*0.62, boardW*0.84, max(2, boardH*0.18), hsl(0,0,1,.85));
 }
 
 function renderRoadAndCars()
 {
-    const ctx = mainContext;
     const w = mainCanvasSize.x;
     const h = mainCanvasSize.y;
     const horizonY = h * 0.36;
 
     // sky
-    ctx.fillStyle = hsl(.58, .55, .75).toString();
-    ctx.fillRect(0, 0, w, horizonY);
+    fillRectS(0, 0, w, horizonY, hsl(.58, .55, .75));
 
     // distant haze
-    ctx.fillStyle = hsl(.58, .25, .85, .25).toString();
-    ctx.fillRect(0, horizonY-18, w, 36);
+    fillRectS(0, horizonY-18, w, 36, hsl(.58, .25, .85, .25));
 
     // precompute visible road
     const baseIndex = trackPos|0;
@@ -494,8 +499,7 @@ function renderRoadAndCars()
     }
 
     // grass base under horizon
-    ctx.fillStyle = hsl(.33, .85, .25).toString();
-    ctx.fillRect(0, horizonY, w, h-horizonY);
+    fillRectS(0, horizonY, w, h-horizonY, hsl(.33, .85, .25));
 
     // dash pattern settings (in world segments)
     const dashPeriod = 8;
@@ -526,8 +530,7 @@ function renderRoadAndCars()
         }
 
         // grass stripes
-        ctx.fillStyle = (cur.grassAlt ? hsl(.33,.85,.22) : hsl(.33,.80,.28)).toString();
-        ctx.fillRect(0, yFar, w, yNear - yFar);
+        fillRectS(0, yFar, w, yNear - yFar, cur.grassAlt ? hsl(.33,.85,.22) : hsl(.33,.80,.28));
 
         // rumble strips
         const farL = prev.screenX - prev.rumbleW;
@@ -535,8 +538,8 @@ function renderRoadAndCars()
         const nearL = cur.screenX - cur.rumbleW;
         const nearR = cur.screenX + cur.rumbleW;
 
-        ctx.fillStyle = (cur.rumbleAlt ? hsl(0,0,1) : hsl(0,1,.45)).toString();
-        fillQuad(ctx, nearL, yNear, farL, yFar, farR, yFar, nearR, yNear);
+        fillQuad(nearL, yNear, farL, yFar, farR, yFar, nearR, yNear,
+            cur.rumbleAlt ? hsl(0,0,1) : hsl(0,1,.45));
 
         // road
         const farRL = prev.screenX - prev.roadW;
@@ -544,8 +547,8 @@ function renderRoadAndCars()
         const nearRL = cur.screenX - cur.roadW;
         const nearRR = cur.screenX + cur.roadW;
 
-        ctx.fillStyle = (cur.rumbleAlt ? hsl(0,0,.23) : hsl(0,0,.18)).toString();
-        fillQuad(ctx, nearRL, yNear, farRL, yFar, farRR, yFar, nearRR, yNear);
+        fillQuad(nearRL, yNear, farRL, yFar, farRR, yFar, nearRR, yNear,
+            cur.rumbleAlt ? hsl(0,0,.23) : hsl(0,0,.18));
 
         // center line (dashed, locked to world so it scrolls correctly)
         const worldPos = baseIndex + i + offset;
@@ -555,10 +558,9 @@ function renderRoadAndCars()
             const nearC = cur.screenX;
             const lineWFar = max(1, prev.roadW * .03);
             const lineWNear = max(1, cur.roadW * .03);
-            ctx.fillStyle = hsl(0,0,.92,.9).toString();
-            fillQuad(ctx,
+            fillQuad(
                 nearC-lineWNear, yNear, farC-lineWFar, yFar,
-                farC+lineWFar, yFar, nearC+lineWNear, yNear);
+                farC+lineWFar, yFar, nearC+lineWNear, yNear, hsl(0,0,.92,.9));
         }
 
         // roadside scenery (trees + signs) — queue for the depth-sorted pass
@@ -572,20 +574,20 @@ function renderRoadAndCars()
             {
                 const xTreeL = cur.screenX - (cur.rumbleW + cur.roadW*0.85);
                 const seed = segIndex*3 + 1;
-                sprites.push({ depth: i, draw: ()=> drawTree(ctx, xTreeL, yNear, baseSize, seed) });
+                sprites.push({ depth: i, draw: ()=> drawTree(xTreeL, yNear, baseSize, seed) });
             }
             if ((segIndex % 11) === 0)
             {
                 const xTreeR = cur.screenX + (cur.rumbleW + cur.roadW*0.85);
                 const seed = segIndex*3 + 2;
-                sprites.push({ depth: i, draw: ()=> drawTree(ctx, xTreeR, yNear, baseSize, seed) });
+                sprites.push({ depth: i, draw: ()=> drawTree(xTreeR, yNear, baseSize, seed) });
             }
             if ((segIndex % 13) === 0)
             {
                 const side = (segIndex & 1) ? -1 : 1;
                 const xSign = cur.screenX + side * (cur.rumbleW + cur.roadW*0.55);
                 const seed = segIndex*5 + 7;
-                sprites.push({ depth: i, draw: ()=> drawSign(ctx, xSign, yNear, baseSize*0.85, seed) });
+                sprites.push({ depth: i, draw: ()=> drawSign(xSign, yNear, baseSize*0.85, seed) });
             }
         }
 
@@ -615,20 +617,20 @@ function renderRoadAndCars()
                 const nearRumbleW = nearRoadW * RUMBLE_W;
 
                 // rumble
-                ctx.fillStyle = (p.rumbleAlt ? hsl(0,0,1) : hsl(0,1,.45)).toString();
-                fillQuad(ctx,
+                fillQuad(
                     nearScreenX - nearRumbleW, yBottom,
                     p.screenX   - p.rumbleW,   yTop,
                     p.screenX   + p.rumbleW,   yTop,
-                    nearScreenX + nearRumbleW, yBottom);
+                    nearScreenX + nearRumbleW, yBottom,
+                    p.rumbleAlt ? hsl(0,0,1) : hsl(0,1,.45));
 
                 // road
-                ctx.fillStyle = (p.rumbleAlt ? hsl(0,0,.23) : hsl(0,0,.18)).toString();
-                fillQuad(ctx,
+                fillQuad(
                     nearScreenX - nearRoadW, yBottom,
                     p.screenX   - p.roadW,   yTop,
                     p.screenX   + p.roadW,   yTop,
-                    nearScreenX + nearRoadW, yBottom);
+                    nearScreenX + nearRoadW, yBottom,
+                    p.rumbleAlt ? hsl(0,0,.23) : hsl(0,0,.18));
 
                 // dashed center line
                 const capWorldPos = baseIndex + offset;
@@ -636,12 +638,11 @@ function renderRoadAndCars()
                 {
                     const lineWTop = max(1, p.roadW * .03);
                     const lineWBot = max(1, nearRoadW * .03);
-                    ctx.fillStyle = hsl(0,0,.92,.9).toString();
-                    fillQuad(ctx,
+                    fillQuad(
                         nearScreenX - lineWBot, yBottom,
                         p.screenX   - lineWTop, yTop,
                         p.screenX   + lineWTop, yTop,
-                        nearScreenX + lineWBot, yBottom);
+                        nearScreenX + lineWBot, yBottom, hsl(0,0,.92,.9));
                 }
             }
         }
@@ -696,7 +697,7 @@ function renderRoadAndCars()
         if (sy - carH < h*0.08 || sy > h) continue;
 
         const colorH = c.colorH;
-        sprites.push({ depth, draw: ()=> drawAICar(ctx, carX, sy, carW, carH, colorH) });
+        sprites.push({ depth, draw: ()=> drawAICar(carX, sy, carW, carH, colorH) });
     }
 
     // draw queued sprites far -> near so trees can occlude cars and vice versa
@@ -708,67 +709,56 @@ function renderRoadAndCars()
     const carScreenY = h * 0.86;
     const carScreenX = w * 0.5 + inputSteer * 6;
     const carScale = 1;
-    drawPlayerCar(ctx, carScreenX, carScreenY, carScale);
+    drawPlayerCar(carScreenX, carScreenY, carScale);
 
     // subtle vignette
-    ctx.fillStyle = hsl(0,0,0,.18).toString();
-    ctx.fillRect(0, 0, w, 12);
-    ctx.fillRect(0, h-12, w, 12);
+    fillRectS(0, 0, w, 12, hsl(0,0,0,.18));
+    fillRectS(0, h-12, w, 12, hsl(0,0,0,.18));
 }
 
-function drawAICar(ctx, cx, groundY, W, H, colorH)
+function drawAICar(cx, groundY, W, H, colorH)
 {
     // Compact F1 silhouette: trapezoid body, exposed rear tires,
     // tiny rear wing. Helmet only on cars big enough to read it.
-    const body = hsl(colorH, .75, .55).toString();
-    const tire = hsl(0,0,.10).toString();
+    const body = hsl(colorH, .75, .55);
+    const tire = hsl(0,0,.10);
 
     // soft shadow
-    ctx.fillStyle = hsl(0,0,0,.4).toString();
-    ctx.fillRect(cx - W*0.55, groundY - max(1, H*0.04), W*1.10, max(2, H*0.08));
+    fillRectS(cx - W*0.55, groundY - max(1, H*0.04), W*1.10, max(2, H*0.08), hsl(0,0,0,.4));
 
     // rear tires (sticking outside the body)
     const rtW = W*0.22, rtH = H*0.44;
-    ctx.fillStyle = tire;
-    ctx.fillRect(cx - W*0.50,         groundY - rtH, rtW, rtH);
-    ctx.fillRect(cx + W*0.50 - rtW,   groundY - rtH, rtW, rtH);
+    fillRectS(cx - W*0.50,       groundY - rtH, rtW, rtH, tire);
+    fillRectS(cx + W*0.50 - rtW, groundY - rtH, rtW, rtH, tire);
 
     // body trapezoid
     const botY = groundY - H*0.20;
     const topY = groundY - H*0.95;
     const botW = W*0.60;
     const topW = W*0.22;
-    ctx.fillStyle = body;
-    fillQuad(ctx,
+    fillQuad(
         cx - botW/2, botY,
         cx - topW/2, topY,
         cx + topW/2, topY,
-        cx + botW/2, botY);
+        cx + botW/2, botY, body);
 
     // rear wing - thin dark band behind/above the rear tires
-    ctx.fillStyle = hsl(0,0,.12).toString();
-    ctx.fillRect(cx - W*0.42, groundY - H*0.56, W*0.84, max(1, H*0.07));
+    fillRectS(cx - W*0.42, groundY - H*0.56, W*0.84, max(1, H*0.07), hsl(0,0,.12));
 
     // cockpit opening
     const ckBotW = W*0.22, ckTopW = W*0.13;
-    ctx.fillStyle = hsl(0,0,.08).toString();
-    fillQuad(ctx,
+    fillQuad(
         cx - ckBotW/2, groundY - H*0.34,
         cx - ckTopW/2, groundY - H*0.68,
         cx + ckTopW/2, groundY - H*0.68,
-        cx + ckBotW/2, groundY - H*0.34);
+        cx + ckBotW/2, groundY - H*0.34, hsl(0,0,.08));
 
     // driver helmet (skip on tiny far cars to avoid noise)
     if (H > 18)
-    {
-        ctx.fillStyle = hsl(0,0,.95).toString();
-        ctx.beginPath();
-        ctx.arc(cx, groundY - H*0.55, max(1, H*0.10), 0, Math.PI*2);
-        ctx.fill();
-    }
+        fillCircleS(cx, groundY - H*0.55, max(1, H*0.10), hsl(0,0,.95));
 }
 
-function drawPlayerCar(ctx, x, y, s=1)
+function drawPlayerCar(x, y, s=1)
 {
     // F1 silhouette from behind: tapered body, exposed wheels,
     // driver's helmet and a rear wing element behind the rear axle.
@@ -776,129 +766,106 @@ function drawPlayerCar(ctx, x, y, s=1)
     const H = 68*s;
 
     const flash = crashTimer>0 && (frame&3)<2;
-    const red      = flash ? hsl(0,0,1).toString()    : hsl(.01, .85, .52).toString();
-    const redDark  = flash ? hsl(0,0,.78).toString()  : hsl(.01, .85, .34).toString();
-    const tire     = hsl(0,0,.08).toString();
-    const tireTop  = hsl(0,0,.22).toString();
+    const red      = flash ? hsl(0,0,1)   : hsl(.01, .85, .52);
+    const redDark  = flash ? hsl(0,0,.78) : hsl(.01, .85, .34);
+    const tire     = hsl(0,0,.08);
+    const tireTop  = hsl(0,0,.22);
 
     // ground shadow
-    ctx.fillStyle = hsl(0,0,0,.45).toString();
-    ctx.beginPath();
-    ctx.ellipse(x, y + H*0.04, W*0.62, H*0.10, 0, 0, Math.PI*2);
-    ctx.fill();
+    fillEllipseS(x, y + H*0.04, W*0.62, H*0.10, hsl(0,0,0,.45));
 
     // rear tires (largest, closest to camera) - poking out wider than body
     const rtW = W*0.22, rtH = H*0.46;
     const rtY = y - rtH;
     const rtxL = x - W*0.50;
     const rtxR = x + W*0.50 - rtW;
-    ctx.fillStyle = tire;
-    ctx.fillRect(rtxL, rtY, rtW, rtH);
-    ctx.fillRect(rtxR, rtY, rtW, rtH);
-    ctx.fillStyle = tireTop;
-    ctx.fillRect(rtxL, rtY, rtW, rtH*0.16);
-    ctx.fillRect(rtxR, rtY, rtW, rtH*0.16);
+    fillRectS(rtxL, rtY, rtW, rtH, tire);
+    fillRectS(rtxR, rtY, rtW, rtH, tire);
+    fillRectS(rtxL, rtY, rtW, rtH*0.16, tireTop);
+    fillRectS(rtxR, rtY, rtW, rtH*0.16, tireTop);
 
     // rear wing - black plate spanning behind the body, with endplates
     const wingY  = y - H*0.52;
     const wingH  = H*0.08;
     const wingW  = W*0.96;
-    ctx.fillStyle = hsl(0,0,.12).toString();
-    ctx.fillRect(x - wingW/2, wingY, wingW, wingH);
-    ctx.fillStyle = redDark;
-    ctx.fillRect(x - wingW/2,            wingY - wingH*1.6, wingH*0.5, wingH*2.2);
-    ctx.fillRect(x + wingW/2 - wingH*0.5, wingY - wingH*1.6, wingH*0.5, wingH*2.2);
+    fillRectS(x - wingW/2, wingY, wingW, wingH, hsl(0,0,.12));
+    fillRectS(x - wingW/2,             wingY - wingH*1.6, wingH*0.5, wingH*2.2, redDark);
+    fillRectS(x + wingW/2 - wingH*0.5, wingY - wingH*1.6, wingH*0.5, wingH*2.2, redDark);
 
     // main body - trapezoid: wide at rear, narrow toward nose
     const bodyBotW = W*0.58;
     const bodyTopW = W*0.18;
     const bodyTopY = y - H*0.98;
     const bodyBotY = y - H*0.18;
-    ctx.fillStyle = red;
-    fillQuad(ctx,
+    fillQuad(
         x - bodyBotW/2, bodyBotY,
         x - bodyTopW/2, bodyTopY,
         x + bodyTopW/2, bodyTopY,
-        x + bodyBotW/2, bodyBotY);
+        x + bodyBotW/2, bodyBotY, red);
 
     // body side-shading for depth (left + right slivers)
-    ctx.fillStyle = redDark;
-    fillQuad(ctx,
+    fillQuad(
         x - bodyBotW/2,           bodyBotY,
         x - bodyTopW/2,           bodyTopY,
         x - bodyTopW/2 + W*0.025, bodyTopY,
-        x - bodyBotW/2 + W*0.07,  bodyBotY);
-    fillQuad(ctx,
+        x - bodyBotW/2 + W*0.07,  bodyBotY, redDark);
+    fillQuad(
         x + bodyBotW/2 - W*0.07,  bodyBotY,
         x + bodyTopW/2 - W*0.025, bodyTopY,
         x + bodyTopW/2,           bodyTopY,
-        x + bodyBotW/2,           bodyBotY);
+        x + bodyBotW/2,           bodyBotY, redDark);
 
     // white centerline stripe down the nose
     const strBotW = W*0.08;
     const strTopW = W*0.03;
-    ctx.fillStyle = hsl(0,0,.95).toString();
-    fillQuad(ctx,
+    fillQuad(
         x - strBotW/2, bodyBotY,
         x - strTopW/2, bodyTopY,
         x + strTopW/2, bodyTopY,
-        x + strBotW/2, bodyBotY);
+        x + strBotW/2, bodyBotY, hsl(0,0,.95));
 
     // front tires - smaller, peek above the body line near the front
     const ftW = W*0.13, ftH = H*0.20;
     const ftY = y - H*0.78;
-    ctx.fillStyle = tire;
-    ctx.fillRect(x - W*0.34, ftY, ftW, ftH);
-    ctx.fillRect(x + W*0.34 - ftW, ftY, ftW, ftH);
+    fillRectS(x - W*0.34, ftY, ftW, ftH, tire);
+    fillRectS(x + W*0.34 - ftW, ftY, ftW, ftH, tire);
 
     // cockpit opening - dark trapezoid set into the body
     const ckBotW = W*0.26;
     const ckTopW = W*0.15;
     const ckBotY = y - H*0.32;
     const ckTopY = y - H*0.70;
-    ctx.fillStyle = hsl(0,0,.08).toString();
-    fillQuad(ctx,
+    fillQuad(
         x - ckBotW/2, ckBotY,
         x - ckTopW/2, ckTopY,
         x + ckTopW/2, ckTopY,
-        x + ckBotW/2, ckBotY);
+        x + ckBotW/2, ckBotY, hsl(0,0,.08));
 
     // driver helmet - white sphere with a dark visor band
     const helmR = H*0.13;
     const helmY = y - H*0.55;
-    ctx.fillStyle = hsl(0,0,.95).toString();
-    ctx.beginPath();
-    ctx.arc(x, helmY, helmR, 0, Math.PI*2);
-    ctx.fill();
-    ctx.fillStyle = hsl(.6, .4, .12).toString();
-    ctx.fillRect(x - helmR*0.85, helmY - helmR*0.18, helmR*1.7, helmR*0.55);
+    fillCircleS(x, helmY, helmR, hsl(0,0,.95));
+    fillRectS(x - helmR*0.85, helmY - helmR*0.18, helmR*1.7, helmR*0.55, hsl(.6, .4, .12));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 function gameRender()
 {
-    // clear (engine might already clear, but this is explicit)
-    mainContext.clearRect(0, 0, mainCanvasSize.x, mainCanvasSize.y);
-
     if (state === 'play')
         renderRoadAndCars();
     else
     {
         // background for title/timeup
-        const ctx = mainContext;
         const w = mainCanvasSize.x;
         const h = mainCanvasSize.y;
-        ctx.fillStyle = hsl(.58, .55, .75).toString();
-        ctx.fillRect(0, 0, w, h);
-        ctx.fillStyle = hsl(.33, .85, .25).toString();
-        ctx.fillRect(0, h*0.55, w, h*0.45);
+        fillRectS(0, 0, w, h, hsl(.58, .55, .75));
+        fillRectS(0, h*0.55, w, h*0.45, hsl(.33, .85, .25));
 
         // tiny fake road
-        ctx.fillStyle = hsl(0,0,.2).toString();
-        fillQuad(ctx, w*.40, h, w*.46, h*.58, w*.54, h*.58, w*.60, h);
+        fillQuad(w*.40, h, w*.46, h*.58, w*.54, h*.58, w*.60, h, hsl(0,0,.2));
 
         // parked car
-        drawPlayerCar(ctx, w*0.5, h*0.82, 1);
+        drawPlayerCar(w*0.5, h*0.82, 1);
     }
 }
 
