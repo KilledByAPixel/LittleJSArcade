@@ -830,6 +830,9 @@ function createOptionsMenu(opts)
         items.push({type:'button', label: opts.resetBestLabel,
             onClick: () => showConfirmDialog({
                 message: opts.resetBestMessage,
+                // Resetting is not a navigation — keep the back chain so YES
+                // returns to this options menu instead of closing to nothing.
+                keepStack: true,
                 onYes: () => resetBestScore(),
             })});
     }
@@ -1274,10 +1277,17 @@ function showGameOverDialog(opts)
 // NO closes the dialog and restores the parent.
 //
 //   showConfirmDialog({message, title?, icon?, onYes?, onNo?,
-//                      yesLabel?, noLabel?})
+//                      yesLabel?, noLabel?, keepStack?})
 //
 // `dismissable` is false — Esc/B/Start/backdrop all do nothing, forcing
 // an explicit choice. yesLabel / noLabel default to 'YES' / 'NO'.
+//
+// `keepStack:true` — for confirms whose YES is NOT a navigation (e.g. RESET
+// BEST / RESET PROGRESS, where the user should land back on the menu they
+// came from). YES then behaves like NO for navigation: it leaves the submenu
+// stack intact so closing the dialog restores the parent menu, and runs onYes
+// for its side effect only. Without it, YES wipes the back chain and a
+// non-navigating onYes leaves no menu visible at all.
 
 function showConfirmDialog(opts)
 {
@@ -1298,7 +1308,10 @@ function showConfirmDialog(opts)
         : {type:'label', text: message});
     items.push({type:'button', id:'yes', label: opts.yesLabel || 'YES', onClick: () =>
     {
-        clearSubmenuStack();   // YES means caller decides what's next
+        // By default YES means the caller decides what's next, so wipe the
+        // back chain. keepStack:true leaves it intact so destroy -> onHide ->
+        // popMenu restores the parent menu (see keepStack note above).
+        if (!opts.keepStack) clearSubmenuStack();
         dialog.destroy();
         if (opts.onYes) opts.onYes();
     }});

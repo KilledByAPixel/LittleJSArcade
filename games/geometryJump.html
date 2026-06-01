@@ -753,6 +753,7 @@ function buildMenus()
             {type:'separator'},
             {type:'button',   label:'RESET PROGRESS', onClick: () => showConfirmDialog({
                 title:'RESET PROGRESS', icon:'⚠️', message:'Re-lock all levels in Classic and Remix?',
+                keepStack: true,   // not a navigation — return to OPTIONS on YES
                 onYes: () => { unlocked = {classic:1, remix:1}; saveData({unlocked});
                     showMenuToast({icon:'🔄', title:'Progress reset'}); },
             })},
