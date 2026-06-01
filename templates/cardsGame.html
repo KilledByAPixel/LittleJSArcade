@@ -301,6 +301,18 @@ function gameRender()
         drawCardShape(c.pos.add(vec2(0.25, -0.25)), CARD_SIZE.add(vec2(0.1, 0.1)), shadow);
     for (const c of handStack.cards)
         drawAnyCard(c, c.pos, null);
+
+    // --- TEMP: suit alignment check — hold T to overlay all four suits at the
+    // view center, each a distinct translucent color. Where they align you get
+    // a neutral blend; any offset shows as a coloured fringe. Delete this block
+    // when done. (♥ red, ♠ green, ♦ blue, ♣ yellow.)
+    if (keyIsDown('KeyT'))
+    {
+        const tints = [new Color(1,0,0,.5), new Color(0,1,0,.5),
+                       new Color(0,.4,1,.5), new Color(1,1,0,.5)];
+        for (let i = 0; i < 4; ++i)
+            drawTile(cameraPos, vec2(20), _cardSprites.suits[i], tints[i]);
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

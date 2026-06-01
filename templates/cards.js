@@ -44,9 +44,9 @@ const _CARD_DEFAULT_BLACK = new Color(0.05, 0.05, 0.05);
 // size.x / CARD_SIZE.x so glyphs stay proportional.
 const _CARD_CORNER_RANK_OFFSET = vec2(1.0, 1.0);
 const _CARD_CORNER_RANK_SIZE   = vec2(1.8);
-const _CARD_CORNER_SUIT_OFFSET = vec2(2.0, 1.0);
+const _CARD_CORNER_SUIT_OFFSET = vec2(2.05, .95);
 const _CARD_CORNER_SUIT_SIZE   = vec2(1.4);
-const _CARD_PIP_SIZE           = vec2(1.4);
+const _CARD_PIP_SIZE           = vec2(1.1);
 const _CARD_PIP_SPREAD_X       = 1.2;
 const _CARD_PIP_SPREAD_Y       = 1.6;
 
@@ -186,7 +186,7 @@ function _paintRankTile(label)
         // "10" is the only two-char rank — shrink so it fits.
         const size = label.length > 1 ? 160 : 200;
         ctx.font = 'bold ' + size + 'px sans-serif';
-        ctx.fillText(label, 125, 130);
+        ctx.fillText(label, 125, 130, 160);
     };
 }
 
@@ -226,18 +226,18 @@ function _suitStem(ctx, cx, topY, baseY, halfW)
 
 function _suitHeart(ctx)
 {
-    _suitLobed(ctx, 125, 122, 72, 92, true);
+    _suitLobed(ctx, 125, 122, 72, 110, true);
 }
 
 function _suitSpade(ctx)
 {
     _suitLobed(ctx, 125, 100, 72, 86, false);
-    _suitStem(ctx, 125, 128, 200, 44);
+    _suitStem(ctx, 125, 138, 210, 44);
 }
 
 function _suitDiamond(ctx)
 {
-    const cx = 125, cy = 125, hw = 72, hh = 102;
+    const cx = 125, cy = 125, hw = 72, hh = 100;
     ctx.beginPath();
     ctx.moveTo(cx, cy - hh);
     ctx.lineTo(cx + hw, cy);
@@ -249,14 +249,14 @@ function _suitDiamond(ctx)
 
 function _suitClub(ctx)
 {
-    const cx = 125, cy = 112, R = 100, lobeR = 35;
+    const cx = 125, cy = 115, R = 105, lobeR = 39;
     const lobe = (px, py, r=lobeR) => { ctx.beginPath(); ctx.arc(px, py, r, 0, 2 * PI); ctx.fill(); };
     const w = .4;
     lobe(cx, cy - .48 * R);            // top lobe
     lobe(cx - w * R, cy + .16 * R);  // lower-left lobe
     lobe(cx + w * R, cy + .16 * R);  // lower-right lobe
-    lobe(cx, cy, lobeR*.75); // cover center gap
-    _suitStem(ctx, cx, cy + .14 * R, 200, 42);
+    lobe(cx, cy, lobeR*.7); // cover center gap
+    _suitStem(ctx, cx, cy + .14 * R, 210, 42);
 }
 
 // Map the four standard suit glyphs to vector drawers so the default deck uses
