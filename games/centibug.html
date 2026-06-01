@@ -926,7 +926,7 @@ function resetGame()
         gameWon = false;
         winTimer = 0;
         spider = null;
-        spiderSpawnTimer = rand(5, 8);
+        spiderSpawnTimer = rand(9, 16);
         nextBonusLifeAt = BONUS_LIFE_AT;
         bottomReached = false;
         reinforcementTimer = 0;
@@ -1291,7 +1291,7 @@ function gameUpdate()
                 if (spider && spider.destroyed)
                 {
                         spider = null;
-                        spiderSpawnTimer = rand(4, 7) - clamp((level-1) * .3, 0, 3);
+                        spiderSpawnTimer = rand(10, 15) - clamp((level-1) * .3, 0, 7);
                 }
                 if (!spider)
                 {
@@ -1304,7 +1304,7 @@ function gameUpdate()
                 {
                         spider.destroy();
                         spider = null;
-                        spiderSpawnTimer = rand(4, 7);
+                        spiderSpawnTimer = rand(10, 15) - clamp((level-1) * .3, 0, 7);
                         playerDie();
                 }
         }
