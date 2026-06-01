@@ -115,6 +115,16 @@ drawTile(pos, vec2(D), icons.glow, color, 0, false, hsl(.55,.9,.72, 0)); // alph
   icon is the inverse of `glow`; faking it looks worse. Leave it.
 - Calm / board games: swap the shape, keep behavior — don't add glow/juice that
   wasn't there.
+- **Games that draw shapes through a forced canvas-2D path (`glEnable=false`)** —
+  e.g. a level-select that renders many `renderHolePreview`-style cells per frame
+  with `mainContext.clip()`. `drawTile` of a **white** atlas icon must be *tinted*,
+  and the canvas-2D tint path (`drawImageColor`) does a per-call
+  `getImageData(TILE×TILE)` + full-pixel JS multiply + `putImageData` — fine in
+  WebGL (free shader multiply), **catastrophic** in canvas-2D. `drawCircle`/
+  `drawEllipse` tint for free there (vector fill, no readback). If a draw function
+  is shared with a `glEnable=false` render path, **leave it as vector primitives**
+  — converting it can freeze the browser (many previews × many sprites × every
+  frame). miniGolf is the canonical example.
 
 ## Common mistakes
 
@@ -124,6 +134,7 @@ drawTile(pos, vec2(D), icons.glow, color, 0, false, hsl(.55,.9,.72, 0)); // alph
 | Additive glow with a non-zero-alpha additive color | Additive color alpha must be 0, else a translucent square appears. |
 | Inventing or stripping the `?<version>` stamp on the new script tag | Copy sibling tags verbatim, stamp and all. |
 | Converting `ctx.arc` inside a `drawToTexture` paint fn | That bakes a sprite; only convert runtime `drawCircle`/`drawEllipse`. |
+| Converting a shape drawn through a `glEnable=false` path (clipped preview) | Canvas-2D tint of a white tile = per-call `getImageData` readback → browser freeze. Leave it vector. |
 | `initDefaultAtlas()` after the first `drawTile`, or called twice | Wire it once, before any draw, in `gameInit`. |
 | Force-fitting a rectangle/line/vignette to an icon | Leave true primitives and inverse vignettes alone. |
 | Calling `initDefaultAtlas()` in a game with its own `drawToTexture` sprites | It overwrites tiles 0–15. STOP; the skill doesn't apply. |
