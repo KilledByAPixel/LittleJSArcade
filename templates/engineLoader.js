@@ -38,6 +38,8 @@
         else { console.warn("littlejsBuild: use 'debug' | 'release' | 'min' | 'default'"); return; }
         location.reload();
     };
+    // Short alias — flip every game into the debug engine build in one call.
+    window.littlejsDebug = () => window.littlejsBuild('debug');
 
     let stored = null;
     try { stored = localStorage.getItem(KEY); } catch (e) {}     // private-mode / disabled storage

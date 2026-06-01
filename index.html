@@ -1549,6 +1549,8 @@ window.littlejsBuild = function(build) {
     // Reload the current game so engineLoader.js re-reads the override immediately.
     if (currentFile) selectGame(currentFile, false);
 };
+// Short alias — flip every game into the debug engine build in one call.
+window.littlejsDebug = () => littlejsBuild('debug');
 
 // ===================== Wire-up =====================
 
@@ -1771,6 +1773,18 @@ function setupSparkles() {
     }, 650);
 }
 
+// Engine build via URL: index.html?debug=1 forces the debug build for every
+// game, ?debug=0 clears the override (back to the release default). Applied
+// before loadFromHash() so a game launched on first load already sees it. The
+// param is then stripped so it doesn't linger in bookmarks / shared links.
+(function applyDebugParam() {
+    const v = new URLSearchParams(location.search).get('debug');
+    if (v == null) return;
+    if (v === '1') localStorage.setItem('littlejs-build', 'debug');
+    else if (v === '0') localStorage.removeItem('littlejs-build');
+    history.replaceState(null, '', location.pathname + location.hash);
+})();
+
 buildFilterChips();
 renderList();
 loadFromHash();
@@ -1798,6 +1812,10 @@ console.log(
 console.log(
     '%cAI Tools:%c https://github.com/KilledByAPixel/LittleJS-AI',
     'color: #58a6ff; font-weight: bold;', 'color: #e6edf3;'
+);
+console.log(
+    '%cEnter debug mode for every game by calling %clittlejsDebug()%c — call littlejsBuild() to manage the build.',
+    'color: #8b949e;', 'color: #f7c948; font-weight: bold;', 'color: #8b949e;'
 );
 </script>
 </body>
