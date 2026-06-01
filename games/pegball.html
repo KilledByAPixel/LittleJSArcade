@@ -4,6 +4,7 @@
 </head>
 <script src="../dist/littlejs.js?1780269028378"></script>
 <script src="../templates/gameFx.js?1780269028378"></script>
+<script src="../templates/textureGenerator.js?1780269028378"></script>
 <script src="../templates/menus.js?1780269028378"></script>
 <script>
 'use strict';
@@ -11,6 +12,7 @@
 // engine settings
 debugWatermark = false;
 showEngineVersion = false;
+tilesPixelated = false;  // smooth scaling for the atlas icons
 
 ///////////////////////////////////////////////////////////////////////////////
 // Tuning
@@ -25,6 +27,11 @@ const GRAVITY_Y = 28;
 const SLOWMO_TIME = 3;      // seconds of slow-mo when power peg is hit
 const SLOWMO_SCALE = .35;   // gameplay time multiplier while slow-mo is active
 
+// Atlas-icon drawing: the baked circle/glow icons fill ~1/1.15 of their tile,
+// so multiply a desired visual diameter by ICON_FIT to size the sprite.
+const ICON_FIT = 1.15;
+const OUTLINE = .16;        // black backing-ring thickness for solid discs
+
 ///////////////////////////////////////////////////////////////////////////////
 // State
 
@@ -38,11 +45,31 @@ let slowMoT;         // real-time seconds remaining of slow-mo
 
 let sfxShoot, sfxPeg, sfxOrange, sfxPower, sfxBucket, sfxLose, sfxWin;
 
+let icons;  // name->TileInfo map from the default sprite atlas
+
+///////////////////////////////////////////////////////////////////////////////
+// Atlas draw helpers — replace drawCircle with the baked circle/glow icons
+
+// Tinted circle/glow icon sized to a visual diameter (matches drawCircle size).
+function drawIcon(name, pos, diam, color, angle = 0)
+{
+    drawTile(pos, vec2(diam * ICON_FIT), icons[name], color, angle);
+}
+
+// Solid disc with an optional black backing ring (replaces drawCircle's outline).
+function drawDisc(pos, diam, color, outlineColor)
+{
+    if (outlineColor) drawIcon('circle', pos, diam + OUTLINE, outlineColor);
+    drawIcon('circle', pos, diam, color);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 function gameInit()
 {
     setCanvasFixedSize(vec2(700, 1080));
     saveDataInit('peggle');
+    icons = initDefaultAtlas();  // bake the 16 white icons into tiles 0-15
+    whitenAtlasAlpha();          // kill the dark edge fringe on the white icons
     cameraScale = 35;
     cameraPos = vec2(0, 0);
     gravity = vec2(0, 0); // ball gravity is applied manually
@@ -570,22 +597,22 @@ function gameRender()
         {
             // Faster sparkle pulse so the player can spot it
             const pulse = .8 + .2 * Math.sin(time * 7 + p.phase);
-            drawCircle(p.pos, r * 4,   hsl(.33, 1, .55, .15 * pulse * alpha));
-            drawCircle(p.pos, r * 2.8, hsl(.33, 1, .6,  .35 * pulse * alpha));
-            drawCircle(p.pos, r * 2,   hsl(.33, .95, .55 * pulse, alpha), .08, hsl(0,0,0,alpha));
+            drawIcon('glow', p.pos, r * 5,   hsl(.33, 1, .55, .25 * pulse * alpha));
+            drawIcon('glow', p.pos, r * 3.4, hsl(.33, 1, .6,  .45 * pulse * alpha));
+            drawDisc(p.pos, r * 2, hsl(.33, .95, .55 * pulse, alpha), hsl(0,0,0,alpha));
         }
         else if (p.orange)
         {
             const pulse = .85 + .15 * Math.sin(time * 4 + p.phase);
-            drawCircle(p.pos, r * 3.2, hsl(.08, 1, .55, .15 * pulse * alpha));
-            drawCircle(p.pos, r * 2.4, hsl(.08, 1, .6,  .3  * pulse * alpha));
-            drawCircle(p.pos, r * 2,   hsl(.08, .95, .55 * pulse, alpha), .08, hsl(0,0,0,alpha));
+            drawIcon('glow', p.pos, r * 4,   hsl(.08, 1, .55, .25 * pulse * alpha));
+            drawIcon('glow', p.pos, r * 3,   hsl(.08, 1, .6,  .4  * pulse * alpha));
+            drawDisc(p.pos, r * 2, hsl(.08, .95, .55 * pulse, alpha), hsl(0,0,0,alpha));
         }
         else
         {
-            drawCircle(p.pos, r * 2, hsl(.58, .65, .55, alpha), .08, hsl(0,0,0,alpha));
+            drawDisc(p.pos, r * 2, hsl(.58, .65, .55, alpha), hsl(0,0,0,alpha));
         }
-        drawCircle(p.pos.add(vec2(-r*.3, r*.3)), r * .7, hsl(0, 0, 1, .32 * alpha));
+        drawIcon('circle', p.pos.add(vec2(-r*.3, r*.3)), r * .7, hsl(0, 0, 1, .32 * alpha));
     }
 
     // Bucket
@@ -604,31 +631,31 @@ function gameRender()
 
     // Ball trail
     for (const t of trail)
-        drawCircle(t.pos, BALL_R * 1.8 * t.life, hsl(.55, .85, .85, t.life * .45));
+        drawIcon('glow', t.pos, BALL_R * 2.4 * t.life, hsl(.55, .85, .85, t.life * .5));
 
     // Ball
     if (activeBall)
     {
-        drawCircle(activeBall.pos, activeBall.r * 3,   hsl(.55, .9, .8, .12));
-        drawCircle(activeBall.pos, activeBall.r * 2.3, hsl(.55, .9, .85, .25));
-        drawCircle(activeBall.pos, activeBall.r * 2,   hsl(.55, .7, .75), .08, hsl(0,0,0));
-        drawCircle(activeBall.pos.add(vec2(-activeBall.r*.3, activeBall.r*.3)),
+        drawIcon('glow', activeBall.pos, activeBall.r * 4,   hsl(.55, .9, .8, .2));
+        drawIcon('glow', activeBall.pos, activeBall.r * 2.8, hsl(.55, .9, .85, .3));
+        drawDisc(activeBall.pos, activeBall.r * 2, hsl(.55, .7, .75), hsl(0,0,0));
+        drawIcon('circle', activeBall.pos.add(vec2(-activeBall.r*.3, activeBall.r*.3)),
             activeBall.r * .65, hsl(0, 0, 1, .55));
     }
 
     // Cannon base + rotating barrel
-    drawCircle(cannonPos, 1.9, hsl(.05, .4, .12));
-    drawCircle(cannonPos, 1.55, hsl(.05, .55, .25));
+    drawIcon('circle', cannonPos, 1.9, hsl(.05, .4, .12));
+    drawIcon('circle', cannonPos, 1.55, hsl(.05, .55, .25));
     {
         const ang = aimDir.angle();
         const barrelLen = 1.6, barrelW = .6;
         const bc = cannonPos.add(aimDir.scale(barrelLen/2 + .25));
         drawRect(bc, vec2(barrelW + .15, barrelLen + .15), hsl(.05, .55, .15), ang);
         drawRect(bc, vec2(barrelW,        barrelLen),       hsl(.06, .75, .42), ang);
-        drawCircle(cannonPos.add(aimDir.scale(barrelLen + .15)), .35, hsl(.05, .55, .15));
+        drawIcon('circle', cannonPos.add(aimDir.scale(barrelLen + .15)), .35, hsl(.05, .55, .15));
     }
-    drawCircle(cannonPos, .95, hsl(.06, .7, .45));
-    drawCircle(cannonPos, .6,  hsl(.06, .5, .25));
+    drawIcon('circle', cannonPos, .95, hsl(.06, .7, .45));
+    drawIcon('circle', cannonPos, .6,  hsl(.06, .5, .25));
 
     // Aim guide
     if (isPlaying() && !gameOver && ballsRemaining > 0 && !activeBall)
@@ -638,7 +665,7 @@ function gameRender()
         {
             const dp = start.add(aimDir.scale(i * .75));
             const f = 1 - i / 6;
-            drawCircle(dp, .22, hsl(.12, .1, 1, f * .85));
+            drawIcon('circle', dp, .22, hsl(.12, .1, 1, f * .85));
         }
     }
 
