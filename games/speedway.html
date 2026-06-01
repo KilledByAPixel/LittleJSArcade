@@ -12,6 +12,7 @@
 debugWatermark = false; // Hide debug watermark in corner
 showEngineVersion = false; // Hide engine version console display
 tilesPixelated = false; // Disable pixelation
+canvasMaxSize = vec2(2048);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Pole Position (tiny playable prototype)
@@ -134,7 +135,6 @@ function resetGame()
 function gameInit()
 {
     saveDataInit('polePosition');
-    setCanvasMaxSize(vec2(2048));
     buildTrack();
 
     // gamepad: on-screen touch pad with an analog left stick (steer) and one
