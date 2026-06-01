@@ -5,6 +5,7 @@
 <script src="../dist/littlejs.js?1780279545667"></script>
 <script src="../templates/gameFx.js?1780279545667"></script>
 <script src="../templates/menus.js?1780279545667"></script>
+<script src="../templates/tweakables.js?1780279545667"></script>
 <script>
 'use strict';
 
@@ -20,9 +21,30 @@ canvasMaxSize = vec2(2048);
 // track + camera constants (tuned for a ~960x540 canvas)
 const DRAW_DIST       = 260;   // how many road segments to draw
 const ROAD_W          = 1.85;  // road half-width in world units
-const CAMERA_HEIGHT   = 0.72;  // bigger = road appears lower
-const CAMERA_DEPTH    = 1.00;  // perspective strength
+var   CAMERA_HEIGHT   = 0.72;  // bigger = road appears lower (tweakable)
+var   CAMERA_DEPTH    = 1.00;  // perspective strength (tweakable)
 const RUMBLE_W        = 1.22;  // rumble extends beyond road
+
+// adaptive view: the projection was authored for a 16:9 reference. The canvas
+// is now responsive (canvasMaxSize). We cover-fit anchored to HEIGHT, so the
+// image always looks identical to landscape 16:9 and a narrower (portrait)
+// window simply crops more off the left & right edges (see computeView).
+const REF_W           = 960;   // reference (design) canvas width
+const REF_H           = 540;   // reference (design) canvas height
+var   HORIZON_FRAC    = 0.36;  // horizon position as a fraction of height (tweakable)
+
+// reference near-edge road half-width (px), computed at the design size with
+// the DEFAULT HORIZON_FRAC (0.36) and CAMERA_HEIGHT (0.72). The player car art
+// (drawn at scale 1 = 110px) was authored against this width, so sizing the car
+// by currentNearHalf / this keeps it matched to the road at every aspect and
+// camera tweak. Uses literals (not the tweakable vars) so it stays fixed.
+const REF_NEAR_ROAD_HALF =
+    ((REF_H + 2) - REF_H*0.36) / (0.72 * REF_H) * ROAD_W * (REF_W/2);
+
+// per-frame view (set by computeView): cx=screen center x, projW=horizontal
+// px per world-unit at scale 1, projH=vertical recession px, horizonY, and
+// viewScale (1 at the reference, used to size the screen-fixed cars/sprites).
+let view = {};
 
 const MAX_SPEED       = 0.90;  // world segments per frame
 const ACCEL           = 0.012;
@@ -151,6 +173,17 @@ function gameInit()
     sEngine = new SoundGenerator({ volume:.22, frequency:55, attack:0, release:.06, shapeCurve:.3, noise:.05, bitCrush:7 });
 
     proj = new Array(DRAW_DIST+2);
+
+    // live view/projection tuning — press \ to toggle the tweakables panel.
+    // These are read fresh every frame by computeView/projectPoint, so dragging
+    // a slider re-frames the road immediately (great for dialing in portrait).
+    if (typeof tweak === 'function')
+    {
+        tweakDivider('View');
+        tweak('HORIZON_FRAC',        {min:0.20, max:0.55}); // lower = higher horizon, more road
+        tweak('CAMERA_HEIGHT',       {min:0.40, max:1.40}); // bigger = road sits lower
+        tweak('CAMERA_DEPTH',        {min:0.60, max:1.80}); // perspective strength / zoom
+    }
 
     buildMenus();
     // Set up the world so the title screen shows the actual start state
@@ -375,12 +408,37 @@ function gameUpdatePost()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-function projectPoint(z, x, w, h, horizonY)
+function computeView()
+{
+    const w = mainCanvasSize.x;
+    const h = mainCanvasSize.y;
+    const cx = w/2;
+
+    // Cover-fit anchored to HEIGHT. The scene always renders at the authored
+    // 16:9 proportions, scaled so the full design height fills the canvas
+    // height; the horizontal scale is locked to the same factor and centered
+    // on cx. So narrowing the window doesn't change the image at all — it just
+    // crops more off the left & right. Widening reveals more grass to the sides.
+    const projH = h;                       // vertical recession fills the height
+    const projW = h * (REF_W / REF_H) / 2; // horizontal scale locked to the same factor
+    const horizonY = h * HORIZON_FRAC;
+
+    // ground-plane scale at the near edge (screen bottom) — same inversion the
+    // near cap uses. Size the screen-fixed player car by the road's half-width
+    // here so it always sits correctly on the road, whatever the aspect or the
+    // CAMERA_HEIGHT/HORIZON_FRAC tweaks do to the near road width.
+    const groundScale = (h + 2 - horizonY) / (CAMERA_HEIGHT * projH);
+    const viewScale = groundScale * ROAD_W * projW / REF_NEAR_ROAD_HALF;
+
+    return view = { w, h, cx, projW, projH, horizonY, viewScale };
+}
+
+function projectPoint(z, x, v)
 {
     const scale = CAMERA_DEPTH / z;
-    const screenX = w/2 + scale * (x - playerX) * w/2;
-    const screenY = horizonY + scale * CAMERA_HEIGHT * h;
-    const roadW = scale * ROAD_W * w/2;
+    const screenX = v.cx + scale * (x - playerX) * v.projW;
+    const screenY = v.horizonY + scale * CAMERA_HEIGHT * v.projH;
+    const roadW = scale * ROAD_W * v.projW;
     const rumbleW = roadW * RUMBLE_W;
 
     return { screenX, screenY, scale, roadW, rumbleW };
@@ -460,9 +518,10 @@ function drawSign(x, yGround, size, seed)
 
 function renderRoadAndCars()
 {
-    const w = mainCanvasSize.x;
-    const h = mainCanvasSize.y;
-    const horizonY = h * 0.36;
+    const v = computeView();
+    const w = v.w;
+    const h = v.h;
+    const horizonY = v.horizonY;
 
     // sky
     fillRectS(0, 0, w, horizonY, hsl(.58, .55, .75));
@@ -490,7 +549,7 @@ function renderRoadAndCars()
         // Cars closer than this clamp use direct projection (see car loop) so
         // the clamp doesn't make them snap to proj[0]'s z=1.2 plane.
         const z = max(1.2, i + 1 - offset);
-        const p = projectPoint(z, x, w, h, horizonY);
+        const p = projectPoint(z, x, v);
         p.i = i;
         p.curve = seg.curve;
         p.grassAlt = (((baseIndex + i) / 6)|0) & 1;
@@ -568,7 +627,7 @@ function renderRoadAndCars()
         if (cur.scale > 0.003 && yNear > horizonY + 6)
         {
             const segIndex = (baseIndex + i) % trackLen;
-            const baseSize = clamp(cur.scale * h * 1.15, 14, 230);
+            const baseSize = clamp(cur.scale * v.projH * 1.15, 14, 230);
 
             if ((segIndex % 7) === 0)
             {
@@ -609,11 +668,11 @@ function renderRoadAndCars()
             if (yTop < h)
             {
                 const yBottom = h + 2; // small overshoot to avoid edge cracks
-                // invert screenY = horizonY + scale*CAMERA_HEIGHT*h with scale=CAMERA_DEPTH/z
-                const zNear = CAMERA_DEPTH * CAMERA_HEIGHT * h / (yBottom - horizonY);
+                // invert screenY = horizonY + scale*CAMERA_HEIGHT*projH with scale=CAMERA_DEPTH/z
+                const zNear = CAMERA_DEPTH * CAMERA_HEIGHT * v.projH / (yBottom - horizonY);
                 const scNear = CAMERA_DEPTH / zNear;
-                const nearScreenX = w/2 + scNear * (0 - playerX) * w/2;
-                const nearRoadW = scNear * ROAD_W * w/2;
+                const nearScreenX = v.cx + scNear * (0 - playerX) * v.projW;
+                const nearRoadW = scNear * ROAD_W * v.projW;
                 const nearRumbleW = nearRoadW * RUMBLE_W;
 
                 // rumble
@@ -671,8 +730,8 @@ function renderRoadAndCars()
         if (dz < DIRECT_DZ)
         {
             sc = CAMERA_DEPTH / dz;
-            sx = w/2 + sc * (0 - playerX) * w/2;
-            sy = horizonY + sc * CAMERA_HEIGHT * h;
+            sx = v.cx + sc * (0 - playerX) * v.projW;
+            sy = horizonY + sc * CAMERA_HEIGHT * v.projH;
             depth = dz + offset - 1; // matches the idx the proj path would use
         }
         else
@@ -689,9 +748,9 @@ function renderRoadAndCars()
             depth = idx;
         }
 
-        const carX = sx + sc * c.offset * w/2;
-        const carW = max(6, sc * 0.28 * w/2);
-        const carH = max(8, sc * 0.36 * h);
+        const carX = sx + sc * c.offset * v.projW;
+        const carW = max(6, sc * 0.28 * v.projW);
+        const carH = max(8, sc * 0.36 * v.projH);
 
         // simple occlusion: don't draw if behind horizon
         if (sy - carH < h*0.08 || sy > h) continue;
@@ -707,9 +766,8 @@ function renderRoadAndCars()
     // player car (screen-fixed, like arcade view) — visual nudge mirrors the
     // combined steer input (keyboard + mouse) for a touch of body roll feel.
     const carScreenY = h * 0.86;
-    const carScreenX = w * 0.5 + inputSteer * 6;
-    const carScale = 1;
-    drawPlayerCar(carScreenX, carScreenY, carScale);
+    const carScreenX = v.cx + inputSteer * 6 * v.viewScale;
+    drawPlayerCar(carScreenX, carScreenY, v.viewScale);
 
     // subtle vignette
     fillRectS(0, 0, w, 12, hsl(0,0,0,.18));
@@ -856,8 +914,9 @@ function gameRender()
     else
     {
         // background for title/timeup
-        const w = mainCanvasSize.x;
-        const h = mainCanvasSize.y;
+        const v = computeView(); // reuse the in-game car scale so sizes match
+        const w = v.w;
+        const h = v.h;
         fillRectS(0, 0, w, h, hsl(.58, .55, .75));
         fillRectS(0, h*0.55, w, h*0.45, hsl(.33, .85, .25));
 
@@ -865,7 +924,7 @@ function gameRender()
         fillQuad(w*.40, h, w*.46, h*.58, w*.54, h*.58, w*.60, h, hsl(0,0,.2));
 
         // parked car
-        drawPlayerCar(w*0.5, h*0.82, 1);
+        drawPlayerCar(w*0.5, h*0.82, v.viewScale);
     }
 }
 
