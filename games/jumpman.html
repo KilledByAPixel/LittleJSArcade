@@ -1500,11 +1500,11 @@ function buildMenus()
         onPlay: startGame,
         revealOnClick: false,
         items: [
-            {type: 'button', label: 'HELP', onClick: () => pushMenu('about')},
+            {type: 'button', label: 'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
-    createAboutMenu({
+    createHelpMenu({
         title: 'HELP',
         text: 'Run and jump through the level, collecting coins and stomping enemies, and reach the castle flag to win.',
         extraItems: [

@@ -424,7 +424,7 @@ async function gameInit()
         onPlay: () => startGame(),
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('help')},
         ],
     });
 
@@ -436,7 +436,7 @@ async function gameInit()
 
     // ----- about -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -444,7 +444,7 @@ async function gameInit()
                 'A swish scores more than a bank shot, and consecutive makes build a streak bonus.'},
             {type:'text', text:'Drag the ball like a slingshot, then release to shoot'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

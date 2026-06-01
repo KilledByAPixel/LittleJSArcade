@@ -643,7 +643,7 @@ async function gameInit()
             {type:'button',              label:'PLAYER VS PLAYER', onClick: () => startGame('pvp')},
             {type:'button', id:'aiVsAi', label:'AI VS AI',         onClick: () => startGame('aivai')},
             {type:'button',              label:'OPTIONS',          onClick: () => pushMenu('options')},
-            {type:'button',              label:'HELP',             onClick: () => pushMenu('about')},
+            {type:'button',              label:'HELP',             onClick: () => pushMenu('help')},
         ],
     });
 
@@ -663,14 +663,14 @@ async function gameInit()
 
     // ----- about menu -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:'Drop discs into columns to connect four in a row — horizontally, vertically, or diagonally. First to four wins.'},
             {type:'text', text:'Click a column to drop your disc.'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

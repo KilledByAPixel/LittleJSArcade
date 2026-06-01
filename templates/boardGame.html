@@ -25,7 +25,7 @@ cameraScale = 62;
 // Two-player turn-based game on an NxN grid. Fork this file, then replace
 // placePiece(), aiMove(), and the piece-rendering loop in gameRender() with
 // the rules and visuals of your game. Menus (title / pause / options /
-// about / confirm) are wired via menus.js — see templates/menuGame.html for
+// help / confirm) are wired via menus.js — see templates/menuGame.html for
 // the canonical menu demo.
 
 const BOARD_SIZE = 8;
@@ -153,7 +153,7 @@ async function gameInit()
             {type:'button', label:'PLAYER VS AI',     onClick: () => startGame('ai')},
             {type:'button', label:'PLAYER VS PLAYER', onClick: () => startGame('pvp')},
             {type:'button', label:'OPTIONS',          onClick: () => pushMenu('options')},
-            {type:'button', label:'ABOUT',            onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',             onClick: () => pushMenu('help')},
         ],
     });
 
@@ -172,17 +172,17 @@ async function gameInit()
         ],
     });
 
-    // ----- about menu -----
+    // ----- help menu -----
     createMenu({
-        id: 'about',
-        title: 'ABOUT',
+        id: 'help',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'text', text:'A template for turn-based two-player board games on an NxN grid. ' +
                 'Fork this file and replace placePiece(), aiMove(), and the piece-rendering ' +
                 'loop in gameRender() with the rules and visuals of your game.'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

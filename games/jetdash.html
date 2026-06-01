@@ -880,7 +880,7 @@ async function gameInit()
             {type:'label',  text:'Hold to fly. Dodge. Collect.'},
             {type:'label',  id:'bestLabel', text:'Best: 0 M'},
             {type:'button', label:'PLAY',    onClick: playFromTitle},
-            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('help')},
         ],
         onShow: () =>
         {
@@ -892,7 +892,7 @@ async function gameInit()
 
     // ----- about menu -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -900,7 +900,7 @@ async function gameInit()
                 'Grab coins and shield bubbles — a shield absorbs one hit.'},
             {type:'text', text:'Hold Space / Up arrow / click to thrust · Release to fall'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

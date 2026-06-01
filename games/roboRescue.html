@@ -2403,7 +2403,7 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
@@ -2412,7 +2412,7 @@ function buildMenus()
 
     // How to play
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -2421,7 +2421,7 @@ function buildMenus()
                 'big bonuses. Hulks cannot be shot — dodge them. Survive all waves to win.'},
             {type:'text', text:'Arrows / WASD move · Mouse aim · Click / hold shoot'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

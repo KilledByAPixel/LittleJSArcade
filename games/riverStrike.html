@@ -256,11 +256,11 @@ function buildMenus()
         onPlay: startGame,
         revealOnClick: false,
         items: [
-            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
-    createAboutMenu({
+    createHelpMenu({
         title: 'HELP',
         text: 'Fly your jet down the river, destroy enemy boats and island targets, and collect fuel depots to keep flying. Hit the river banks or run out of fuel and it\'s game over.',
         extraItems: [

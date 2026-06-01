@@ -234,7 +234,7 @@ async function gameInit()
         revealOnClick: false,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
         ],
     });
 
@@ -256,7 +256,7 @@ async function gameInit()
 
     // ----- about menu -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -266,7 +266,7 @@ async function gameInit()
                 'Click the stock to deal more cards when stuck.'},
             {type:'text', text:'Click cards to select · Drag to move · Z undo · Shift+Z redo'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

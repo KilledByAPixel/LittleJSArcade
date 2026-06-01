@@ -2726,7 +2726,7 @@ function setupMenus()
             showMenu('mode');
         },
         items: [
-            { type:'button', label:'HELP', onClick: () => pushMenu('about') },
+            { type:'button', label:'HELP', onClick: () => pushMenu('help') },
         ],
         canReveal: () => matchState === 'title',
     });
@@ -2796,7 +2796,7 @@ function setupMenus()
     });
 
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         dismissable: true,
         onHide: popMenu,

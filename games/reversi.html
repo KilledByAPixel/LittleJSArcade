@@ -823,7 +823,7 @@ async function gameInit()
             {type:'button',              label:'PLAYER VS PLAYER', onClick: () => startGame('pvp')},
             {type:'button', id:'aiVsAi', label:'AI VS AI',         onClick: () => startGame('aivai')},
             {type:'button',              label:'OPTIONS',          onClick: () => pushMenu('options')},
-            {type:'button',              label:'HELP',             onClick: () => pushMenu('about')},
+            {type:'button',              label:'HELP',             onClick: () => pushMenu('help')},
         ],
     });
 
@@ -843,7 +843,7 @@ async function gameInit()
 
     // ----- about menu -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -852,7 +852,7 @@ async function gameInit()
             {type:'text', text:'Click a highlighted square to place your disc. ' +
                 'Use AI VS AI to watch the computer play itself.'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

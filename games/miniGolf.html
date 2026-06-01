@@ -782,7 +782,7 @@ function buildToolbar()
 {
     if (typeof installDefaultToolbar !== 'function') return;
 
-    createAboutMenu({
+    createHelpMenu({
         title: 'HELP',
         text: 'Play all 9 holes of mini golf in as few strokes as possible. Complete all 9 holes to post your total stroke count to the leaderboard.',
         extraItems: [
@@ -793,7 +793,7 @@ function buildToolbar()
     installDefaultToolbar({
         grayedWhen:  () => gameState === 'menu',
         extraItemsAfter: [
-            {type:'button', label:'?', title:'Help', onClick: () => pushMenu('about')},
+            {type:'button', label:'?', title:'Help', onClick: () => pushMenu('help')},
         ],
         onHamburger: () =>
         {

@@ -569,11 +569,11 @@ function buildMenus()
         onPlay: startGame,
         revealOnClick: false,
         items: [
-            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
-    createAboutMenu({
+    createHelpMenu({
         title: 'HELP',
         text: 'Drill through colored blocks to reach the bottom before your air runs out. Drill into a block of the same color as its neighbor to trigger a chain dissolve and earn bonus points.',
         extraItems: [

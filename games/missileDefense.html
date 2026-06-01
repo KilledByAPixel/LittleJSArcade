@@ -1079,14 +1079,14 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',  onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',  onClick: () => pushMenu('help')},
         ],
     });
 
     createOptionsMenu();
 
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -1096,7 +1096,7 @@ function buildMenus()
                 'the targets. Lose every city and it\'s game over.'},
             {type:'text', text:'Click to fire · aim ahead of incoming missiles'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

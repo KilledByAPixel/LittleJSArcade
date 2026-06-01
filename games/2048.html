@@ -160,7 +160,7 @@ function buildMenus()
         onPlay: () => { newGame(); setPlaying(true); },
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
         ],
     });
 
@@ -178,7 +178,7 @@ function buildMenus()
     });
 
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         dismissable: true,
         onHide: popMenu,
@@ -189,7 +189,7 @@ function buildMenus()
             {type:'text', text:
                 'Arrows / WASD slide · swipe on touch'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

@@ -623,11 +623,11 @@ function buildMenus()
         onPlay: startGame,
         revealOnClick: false,
         items: [
-            {type: 'button', label: 'HELP', onClick: () => pushMenu('about')},
+            {type: 'button', label: 'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
-    createAboutMenu({
+    createHelpMenu({
         title: 'HELP',
         text: 'Drop colored pills onto the virus-filled board and line up 4 or more of the same color to clear them. Eliminate every virus to win the level.',
         extraItems: [

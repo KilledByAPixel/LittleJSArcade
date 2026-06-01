@@ -710,7 +710,7 @@ async function gameInit()
             {type:'button',              label:'PLAYER VS PLAYER', onClick: () => startGame('pvp')},
             {type:'button', id:'aiVsAi', label:'AI VS AI',         onClick: () => startGame('aivai')},
             {type:'button',              label:'OPTIONS',          onClick: () => pushMenu('options')},
-            {type:'button',              label:'HELP',             onClick: () => pushMenu('about')},
+            {type:'button',              label:'HELP',             onClick: () => pushMenu('help')},
         ],
     });
 
@@ -730,7 +730,7 @@ async function gameInit()
 
     // ----- about menu -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -739,7 +739,7 @@ async function gameInit()
                 'Standard Go rules apply — groups with no liberties are removed; suicide and ko are forbidden.'},
             {type:'text', text:'Click an intersection to place a stone · R restart'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

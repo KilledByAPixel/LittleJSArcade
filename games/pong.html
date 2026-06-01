@@ -309,7 +309,7 @@ showEngineVersion = false; // Hide engine version console display
                     revealOnClick: false,
                     items: [
                             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-                            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+                            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
                     ],
             });
 
@@ -321,7 +321,7 @@ showEngineVersion = false; // Hide engine version console display
                     ],
             });
 
-            createAboutMenu({
+            createHelpMenu({
                     title: 'HELP',
                     text: 'First to 10 points wins. Move your paddle to deflect the ball past the opponent. Hit the ball near the paddle edges for a sharper angle, and slice with a moving paddle to curve the ball.',
                     extraItems: [

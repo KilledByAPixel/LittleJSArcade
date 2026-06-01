@@ -691,13 +691,13 @@ async function gameInit()
             item?.setLabel(bestShots ? `BEST  ${bestShots}` : '');
         },
         items: [
-            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
     // ----- about menu -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -706,7 +706,7 @@ async function gameInit()
                 'Scratching (sinking the cue ball) costs a stroke and respawns it.'},
             {type:'text', text: 'Mouse to aim · distance from cue sets power · click to shoot'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

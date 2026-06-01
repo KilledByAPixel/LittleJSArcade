@@ -470,7 +470,7 @@ async function gameInit()
             {type:'button', id:'mediumBtn', label:'MEDIUM', onClick: () => startDifficulty('medium', 16, 16, 40)},
             {type:'button', id:'hardBtn',   label:'HARD',   onClick: () => startDifficulty('hard',   30, 16, 99)},
             {type:'separator'},
-            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('help')},
         ],
         // Refresh best-time labels every time the title appears so a fresh
         // record from the previous round is reflected immediately.
@@ -483,7 +483,7 @@ async function gameInit()
     });
 
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -492,7 +492,7 @@ async function gameInit()
                 'safe squares. The first click is always safe.'},
             {type:'text', text:'Left-click reveal · Right-click flag · Shift+click flag'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

@@ -633,11 +633,11 @@ function buildMenus()
         onPlay: startGame,
         revealOnClick: false,
         items: [
-            {type: 'button', label: 'HELP', onClick: () => pushMenu('about')},
+            {type: 'button', label: 'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
-    createAboutMenu({
+    createHelpMenu({
         title: 'HELP',
         text: 'Flap your ostrich to gain altitude and joust enemy riders — strike from above to knock them off and score points. Clear every wave to advance.',
         extraItems: [

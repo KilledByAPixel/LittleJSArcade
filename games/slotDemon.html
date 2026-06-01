@@ -784,7 +784,7 @@ async function gameInit()
             {type:'button',   label:'FULLSCREEN', onClick: toggleFullscreen},
             {type:'separator'},
             {type:'button',   label:'MEDALS', onClick: () => pushMenu('medals')},
-            {type:'button',   label:'HELP',   onClick: () => pushMenu('about')},
+            {type:'button',   label:'HELP',   onClick: () => pushMenu('help')},
             {type:'separator'},
             // Explicit progress wipe. newGame() resets state, saveGame() persists
             // the fresh state over the old blob.
@@ -799,7 +799,7 @@ async function gameInit()
 
     // ----- help menu -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -808,7 +808,7 @@ async function gameInit()
                 'then upgrade and expand to build an infernal money engine.'},
             {type:'text',  text:'Click machine to spin · Drag demon onto machine to assign · Click demon to reassign'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

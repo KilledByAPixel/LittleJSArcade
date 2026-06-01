@@ -347,7 +347,7 @@ function createMenu(config)
 //       ],
 //       items: [                        // rendered AFTER PLAY
 //           {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-//           {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+//           {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
 //       ],
 //   });
 //
@@ -706,7 +706,7 @@ function _arcadePanelHandshake(onConfirm)
 //       onQuit:    quitToTitle,               // adds QUIT TO TITLE (with confirm)
 //       extraItems: [                         // inserted between RESTART and QUIT
 //           {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-//           {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('about')},
+//           {type:'button', label:'HOW TO PLAY', onClick: () => pushMenu('help')},
 //       ],
 //   });
 //
@@ -834,6 +834,37 @@ function createOptionsMenu(opts)
             })});
     }
 
+    items.push({type:'separator'});
+    items.push({type:'button', label: opts.backLabel,
+        onClick: () => hideMenu(opts.id)});
+
+    return createMenu({
+        id:     opts.id,
+        title:  opts.title,
+        onHide: popMenu,
+        items,
+    });
+}
+
+// Build a simple read-only info menu (how-to-play / HELP). Mirrors the
+// hand-rolled `createMenu({id:'help', ...})` pattern many games use inline: a
+// wrapping text paragraph, optional extra items (e.g. a controls line), then a
+// separator and BACK button. Opened via pushMenu('help'); returns via popMenu.
+//   createHelpMenu({title, text, extraItems, id, backLabel})
+function createHelpMenu(opts)
+{
+    opts = Object.assign({
+        id:        'help',
+        title:     'HELP',
+        text:      'A LittleJS prototype.',
+        extraItems: [],
+        backLabel: 'BACK',
+    }, opts || {});
+
+    const items = [];
+    if (opts.text)
+        items.push({type:'text', text: opts.text});
+    items.push(...opts.extraItems);
     items.push({type:'separator'});
     items.push({type:'button', label: opts.backLabel,
         onClick: () => hideMenu(opts.id)});

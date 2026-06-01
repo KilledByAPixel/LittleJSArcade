@@ -758,7 +758,7 @@ async function gameInit() {
     createOptionsMenu();
 
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -769,7 +769,7 @@ async function gameInit() {
             { type: 'text', text:
                 'Mouse or Arrows / WASD move bucket' },
             { type: 'separator' },
-            { type: 'button', label: 'BACK', onClick: () => hideMenu('about') },
+            { type: 'button', label: 'BACK', onClick: () => hideMenu('help') },
         ],
     });
 
@@ -787,7 +787,7 @@ async function gameInit() {
         },
         extraItems: [
             { type: 'button', label: 'OPTIONS', onClick: () => pushMenu('options') },
-            { type: 'button', label: 'HELP',    onClick: () => pushMenu('about') },
+            { type: 'button', label: 'HELP',    onClick: () => pushMenu('help') },
         ],
     });
 
@@ -802,7 +802,7 @@ async function gameInit() {
         formatBest: n => 'BEST: ' + n,
         items: [
             { type: 'button', label: 'OPTIONS', onClick: () => pushMenu('options') },
-            { type: 'button', label: 'HELP',    onClick: () => pushMenu('about') },
+            { type: 'button', label: 'HELP',    onClick: () => pushMenu('help') },
         ],
     });
 

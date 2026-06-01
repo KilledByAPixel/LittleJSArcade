@@ -782,7 +782,7 @@ async function gameInit()
         revealOnClick: false,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
         ],
     });
 
@@ -790,13 +790,13 @@ async function gameInit()
     createOptionsMenu();
 
     createMenu({
-        id: 'about', title: 'HELP', onHide: popMenu,
+        id: 'help', title: 'HELP', onHide: popMenu,
         items: [
             {type:'text', text:'Match a pip on one of your tiles to an open end of the line. ' +
                 'Empty your hand to win; if the board locks, the lower pip total wins.'},
             {type:'text', text:'Click a tile in your hand, then click an open end to place it.'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

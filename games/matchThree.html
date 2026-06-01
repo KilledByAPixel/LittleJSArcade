@@ -214,7 +214,7 @@ async function gameInit()
         showBest: true,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',    onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
         ],
         // Show the title immediately instead of waiting for a click. Audio
         // is still gated by browser policy until the first user interaction.
@@ -225,7 +225,7 @@ async function gameInit()
     createOptionsMenu();
 
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -233,7 +233,7 @@ async function gameInit()
                 'and clear them. Set up chains and cascades to multiply your score.'},
             {type:'text', text:'Drag to swap gems · matches clear automatically'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

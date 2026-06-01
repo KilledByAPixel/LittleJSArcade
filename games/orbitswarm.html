@@ -942,12 +942,12 @@ function buildMenus()
         items: [
             {type:'button', label:'MEDIUM', onClick: () => startGame('medium')},
             {type:'button', label:'HARD',   onClick: () => startGame('hard')},
-            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('help')},
         ],
     });
 
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -957,7 +957,7 @@ function buildMenus()
                 'planets before the AI overwhelms you.'},
             {type:'text', text:'Drag to send fleet · 1-4 set fleet % · Space confirm'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

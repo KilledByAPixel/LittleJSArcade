@@ -144,14 +144,14 @@ function buildMenus()
         formatBest: n => 'BEST ' + n,
         items: [
             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
     createOptionsMenu();
 
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -161,7 +161,7 @@ function buildMenus()
                 'escalating bonus points.'},
             {type:'text', text: 'Arrow keys move'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

@@ -3400,7 +3400,7 @@ async function gameInit()
                                        'and spawn rate. XP and coin gain ' +
                                        'scale up to match.',
                                 onClick: cycleCurse},
-            {type: 'button',    label: 'HELP',    onClick: () => pushMenu('about')},
+            {type: 'button',    label: 'HELP',    onClick: () => pushMenu('help')},
         ],
     });
 
@@ -3595,7 +3595,7 @@ async function gameInit()
     // About — short how-to-play. Twemoji (CC-BY 4.0) attribution lives in the
     // HTML source header + TWEMOJI-LICENSE.txt, so it's kept out of here.
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         dismissable: true,
         onHide: popMenu,
@@ -3607,7 +3607,7 @@ async function gameInit()
             {type: 'text', text:
                 'Arrows / WASD move'},
             {type: 'separator'},
-            {type: 'button', label: 'BACK', onClick: () => hideMenu('about')},
+            {type: 'button', label: 'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

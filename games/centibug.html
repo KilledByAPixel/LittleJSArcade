@@ -1045,21 +1045,21 @@
                     formatBest: n => 'BEST ' + n,
                     items: [
                             {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-                            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+                            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
                     ],
             });
 
             createOptionsMenu();
 
             createMenu({
-                    id: 'about', title: 'HELP', onHide: popMenu,
+                    id: 'help', title: 'HELP', onHide: popMenu,
                     items: [
                             {type:'text', text:
                                     'Blast the centipede before it winds into your zone. Shooting a middle segment splits the chain and spawns mushrooms — clear it all without getting touched to score. Spiders are worth bonus points.'},
                             {type:'text', text:
                                     'Arrows / WASD move · Space / click shoot'},
                             {type:'separator'},
-                            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+                            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
                     ],
             });
 

@@ -543,7 +543,7 @@
       ],
       items: [
         {type:'button', label:'OPTIONS',     onClick: () => pushMenu('options')},
-        {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+        {type:'button', label:'HELP', onClick: () => pushMenu('help')},
       ],
       onShow: () => {
         const m = getMenu('title');
@@ -556,14 +556,14 @@
     createOptionsMenu();
 
     createMenu({
-      id: 'about', title: 'HELP', onHide: popMenu,
+      id: 'help', title: 'HELP', onHide: popMenu,
       items: [
         {type:'text', text:
           'Guide each frog home: dodge traffic on the road, then ride logs across the river. Fill all five home slots to advance — each level runs faster.'},
         {type:'text', text:
           'Arrows / WASD move · Click to hop toward cursor'},
         {type:'separator'},
-        {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+        {type:'button', label:'BACK', onClick: () => hideMenu('help')},
       ],
     });
 

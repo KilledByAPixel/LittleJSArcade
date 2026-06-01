@@ -1194,11 +1194,11 @@ function buildMenus()
         onPlay: startGame,
         revealOnClick: false,
         items: [
-            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
-    createAboutMenu({
+    createHelpMenu({
         title: 'HELP',
         text: 'Shoot down waves of enemies and defeat the boss to win. Collect power-ups to upgrade your weapons. Survive as long as possible and build the highest score.',
         extraItems: [

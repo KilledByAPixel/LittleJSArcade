@@ -90,7 +90,7 @@ async function gameInit()
             {type:'button', label:'PLAY',    onClick: playFromTitle},
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
             {type:'button', label:'MEDALS',  onClick: () => pushMenu('medals')},
-            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
         ],
     });
 
@@ -176,10 +176,10 @@ async function gameInit()
         ],
     });
 
-    // ----- about menu (demos the `text` item: wrapping multi-line paragraph) -----
+    // ----- help menu (demos the `text` item: wrapping multi-line paragraph) -----
     createMenu({
-        id: 'about',
-        title: 'ABOUT',
+        id: 'help',
+        title: 'HELP',
         onHide: popMenu,
         items: [
             {type:'label', text:'menus.js demo'},
@@ -189,7 +189,7 @@ async function gameInit()
                 'custom.\n\nKeyboard, gamepad, mouse and touch input are all wired ' +
                 'automatically.'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

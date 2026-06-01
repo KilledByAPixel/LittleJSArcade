@@ -207,7 +207,7 @@ async function gameInit()
         revealOnClick: false,
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('help')},
         ],
     });
 
@@ -223,7 +223,7 @@ async function gameInit()
 
     // ----- about menu -----
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         onHide: popMenu,
         items: [
@@ -233,7 +233,7 @@ async function gameInit()
             {type:'text', text:
                 'Click or drag cards to move · Double-click to auto-send to foundation · Z undo · Y redo'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

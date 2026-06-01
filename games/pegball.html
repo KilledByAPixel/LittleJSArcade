@@ -210,7 +210,7 @@ function buildMenus()
         onPlay: () => { resetGame(); setPlaying(true); },
         items: [
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',   onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP',   onClick: () => pushMenu('help')},
         ],
     });
 
@@ -231,7 +231,7 @@ function buildMenus()
     });
 
     createMenu({
-        id: 'about',
+        id: 'help',
         title: 'HELP',
         dismissable: true,
         onHide: popMenu,
@@ -242,7 +242,7 @@ function buildMenus()
                 'ball in the moving bucket for a free shot.'},
             {type:'text', text: 'Mouse / touch aim and click to shoot · Space also shoots'},
             {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('about')},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
     });
 

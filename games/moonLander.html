@@ -461,11 +461,11 @@ function buildMenus()
         showBest: true,
         formatBest: n => 'BEST ' + n,
         items: [
-            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
-    createAboutMenu({
+    createHelpMenu({
         title: 'HELP',
         text: 'Guide your lander to the glowing pad without crashing. Score points for each safe landing — earn bonuses for a gentle touchdown and leftover fuel. Each level the pad gets smaller and fuel is scarcer.',
         extraItems: [

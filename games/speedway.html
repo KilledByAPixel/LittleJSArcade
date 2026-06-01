@@ -187,11 +187,11 @@ function buildMenus()
         onPlay: startGame,
         revealOnClick: false,
         items: [
-            {type:'button', label:'HELP', onClick: () => pushMenu('about')},
+            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
         ],
     });
 
-    createAboutMenu({
+    createHelpMenu({
         title: 'HELP',
         text: 'Race against the clock on a looping circuit. Pass as many rival cars as possible before time runs out. Stay on the road — driving in the grass scrubs speed.',
         extraItems: [
