@@ -396,9 +396,10 @@ const PIP_R = 0.09;          // visible pip radius
 let icons;
 
 // Default-atlas icons now fill their tile, so a drawTile size maps 1:1 to the
-// visible sprite. circle maps directly; roundSquare is still drawn a touch
-// larger than the nominal footprint so the rounded body reads at the right size.
-const ICON_SQUARE_FILL = 1.165;
+// visible sprite. Body and pips are sized to their exact world footprint (1.0)
+// so the chain layout's footprint-based spacing leaves a clean CHAIN_GAP between
+// tiles instead of letting the rounded bodies overlap.
+const ICON_SQUARE_FILL = 1.0;
 const ICON_CIRCLE_FILL = 1.0;
 
 // Standard pip layout positions within a unit square half, in [-.5,.5] range,
