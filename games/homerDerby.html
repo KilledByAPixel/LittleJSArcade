@@ -5,6 +5,7 @@
 <script src="../templates/engineLoader.js?1780292569262"></script>
 <script src="../dist/box2d.wasm.js?1780292569262"></script>
 <script src="../templates/gameFx.js?1780292569262"></script>
+<script src="../templates/textureGenerator.js?1780292569262"></script>
 <script src="../templates/menus.js?1780292569262"></script>
 <script>
 'use strict';
@@ -39,6 +40,7 @@ const pitchSpeedMin = 26;
 const pitchSpeedMax = 34;
 
 // Game state
+let icons;                // default-atlas icon map (name -> TileInfo)
 let ball, backstopObj;
 let pitchNumber = 0, balls = 0, strikes = 0, hits = 0, perfectHits = 0, homeRuns = 0;
 let bestDistance = 0;
@@ -181,9 +183,9 @@ class Ball extends Box2dObject
     render()
     {
         // soft shadow
-        drawCircle(this.pos.add(vec2(.08, -.08)), ballRadius*2.1, hsl(0,0,0,.25));
+        drawTile(this.pos.add(vec2(.08, -.08)), vec2(ballRadius*2.1), icons.circle, hsl(0,0,0,.25));
         // ball
-        drawCircle(this.pos, ballRadius*2, this.color);
+        drawTile(this.pos, vec2(ballRadius*2), icons.circle, this.color);
         // stitching (rotates with body)
         const a = this.angle;
         const r = ballRadius*.7;
@@ -426,6 +428,7 @@ function buildMenus()
 async function gameInit()
 {
     await box2dInit();
+    icons = initDefaultAtlas();
 
     cameraScale = 8;
     cameraPos = vec2(0, 19);
@@ -560,21 +563,32 @@ function ringPoly(rInner, rOuter, a0, a1, segs)
 
 function drawStadium()
 {
-    const segs = 56;
+    // The bowl is built from full concentric circles centered on home plate, then
+    // the inner disc and the southern half are masked back to foul-territory color
+    // so the rings read as a stadium wrapping the outfield. Drawn outermost first.
+    const center   = platePos;
+    const concrete = hsl(.62, .05, .44);
+    const seatA    = hsl(.58, .16, .56);
+    const seatB    = hsl(.60, .32, .36);
 
-    // concrete seating bowl — huge, wraps fully around and runs off every screen edge
-    drawPoly(ringPoly(43, 90, -.3, PI + .3, segs), hsl(.62, .05, .44));
+    // outer concrete bowl
+    drawTile(center, vec2(180), icons.circle, concrete);
 
-    // tiers of seats as gap-free connected arcs (a "line list")
-    for (let i = 0; i < 8; i++)
+    // seat tiers: each smaller disc leaves a ring of the previous color
+    let r = 80;
+    for (let i = 0; i < 9; i++)
     {
-        const r = 47 + i*4.7;
-        const c = i % 2 ? hsl(.60, .32, .36) : hsl(.58, .16, .56);
-        drawLineList(arcPoints(r, .1, PI - .1, segs), 3.2, c);
+        drawTile(center, vec2(r*2), icons.circle, i % 2 ? seatB : seatA);
+        r -= 4.2;
     }
 
-    // front railing at the lip of the bowl
-    drawLineList(arcPoints(45, .5, PI - .5, segs), .5, hsl(0, 0, .82));
+    // bright front railing ring at the lip of the bowl
+    drawTile(center, vec2(46*2), icons.circle, hsl(0, 0, .82));
+
+    // mask: re-open the interior (r<45) to foul-territory color, leaving the
+    // seating as a ring; then cut the southern half so it sits behind the outfield
+    drawTile(center, vec2(45*2), icons.circle, canvasClearColor);
+    drawRect(center.add(vec2(0, -100)), vec2(400, 200), canvasClearColor);
 }
 
 function drawFieldGround()
@@ -594,8 +608,8 @@ function drawFieldGround()
     drawRect(infieldCenter, vec2(17, 17), hsl(.34, .5, .33), PI/4);
 
     // dirt cutouts at home and the mound
-    drawCircle(platePos.add(vec2(0, .3)), 5, dirt);
-    drawCircle(moundCenter, 4, hsl(.08, .38, .42));
+    drawTile(platePos.add(vec2(0, .3)), vec2(5), icons.circle, dirt);
+    drawTile(moundCenter, vec2(4), icons.circle, hsl(.08, .38, .42));
 
     // warning track — single connected outline, no gaps
     drawLineList(arcPoints(fenceRadius - 1.6, fairA0, fairA1, segs), 1.8, hsl(.08, .4, .4));
@@ -653,37 +667,37 @@ function drawBatter()
     drawPoly(box, hsl(0, 0, 1, .06), .1, hsl(0, 0, 1, .4));
 
     // shadow + stance
-    drawEllipse(batterPos.add(vec2(.25, -.3)), vec2(2.2, 2.4), hsl(0, 0, 0, .22));
-    drawEllipse(batterPos.add(vec2(-.55, -.55)), vec2(.55, 1.0), pants, .35);
-    drawEllipse(batterPos.add(vec2( .45, -.7)),  vec2(.55, 1.0), pants, -.25);
+    drawTile(batterPos.add(vec2(.25, -.3)), vec2(2.2, 2.4), icons.circle, hsl(0, 0, 0, .22));
+    drawTile(batterPos.add(vec2(-.55, -.55)), vec2(.55, 1.0), icons.circle, pants, .35);
+    drawTile(batterPos.add(vec2( .45, -.7)),  vec2(.55, 1.0), icons.circle, pants, -.25);
 
     // torso
-    drawEllipse(batterPos.add(vec2(-.05, .15)), vec2(1.7, 2.1), jersey, .1);
+    drawTile(batterPos.add(vec2(-.05, .15)), vec2(1.7, 2.1), icons.circle, jersey, .1);
 
     // arms reaching to the grip
     drawLine(batterPos.add(vec2(-.3, .55)), hand, .42, jersey);
     drawLine(batterPos.add(vec2(.25, .6)),  hand, .36, jersey);
-    drawCircle(hand, .55, skin);
+    drawTile(hand, vec2(.55), icons.circle, skin);
 
     // helmet (with brim toward the pitcher + a little shine)
-    drawEllipse(batterPos.add(vec2(0, 1.05)), vec2(.95, .45), helmet);
-    drawCircle(batterPos.add(vec2(0, .55)), 1.05, helmet);
-    drawCircle(batterPos.add(vec2(-.2, .75)), .35, hsl(.6, .5, .42));
+    drawTile(batterPos.add(vec2(0, 1.05)), vec2(.95, .45), icons.circle, helmet);
+    drawTile(batterPos.add(vec2(0, .55)), vec2(1.05), icons.circle, helmet);
+    drawTile(batterPos.add(vec2(-.2, .75)), vec2(.35), icons.circle, hsl(.6, .5, .42));
 }
 
 function drawFielders()
 {
     // catcher (south of plate, crouched, mitt up toward the plate)
-    drawEllipse(catcherPos.add(vec2(.2, -.25)), vec2(2.5, 2.5), hsl(0, 0, 0, .22));
-    drawCircle(catcherPos, 1.7, hsl(.05, .55, .42));
-    drawCircle(catcherPos.add(vec2(0, .4)), .9, hsl(.6, .4, .3));
-    drawCircle(catcherPos.add(vec2(.15, 1.0)), .6, hsl(.08, .5, .35));
+    drawTile(catcherPos.add(vec2(.2, -.25)), vec2(2.5, 2.5), icons.circle, hsl(0, 0, 0, .22));
+    drawTile(catcherPos, vec2(1.7), icons.circle, hsl(.05, .55, .42));
+    drawTile(catcherPos.add(vec2(0, .4)), vec2(.9), icons.circle, hsl(.6, .4, .3));
+    drawTile(catcherPos.add(vec2(.15, 1.0)), vec2(.6), icons.circle, hsl(.08, .5, .35));
 
     // pitcher on the mound
-    drawEllipse(pitcherPos.add(vec2(.25, -.25)), vec2(2.1, 2.3), hsl(0, 0, 0, .22));
-    drawEllipse(pitcherPos.add(vec2(0, -.1)), vec2(1.7, 2.0), hsl(0, .5, .42), -.08);
-    drawCircle(pitcherPos.add(vec2(0, .35)), .95, hsl(0, .4, .3));
-    drawCircle(pitcherPos.add(vec2(0, .35)), .55, hsl(.07, .5, .62));
+    drawTile(pitcherPos.add(vec2(.25, -.25)), vec2(2.1, 2.3), icons.circle, hsl(0, 0, 0, .22));
+    drawTile(pitcherPos.add(vec2(0, -.1)), vec2(1.7, 2.0), icons.circle, hsl(0, .5, .42), -.08);
+    drawTile(pitcherPos.add(vec2(0, .35)), vec2(.95), icons.circle, hsl(0, .4, .3));
+    drawTile(pitcherPos.add(vec2(0, .35)), vec2(.55), icons.circle, hsl(.07, .5, .62));
 }
 
 function drawField()
@@ -717,7 +731,7 @@ function drawBat()
 
     // swing-arc hint
     if (swingTimer.active())
-        drawCircle(a, 1.0 + swingT*2.2, hsl(.55, .6, .8, .07));
+        drawTile(a, vec2(1.0 + swingT*2.2), icons.circle, hsl(.55, .6, .8, .07));
 }
 
 function drawParticles()
@@ -730,7 +744,7 @@ function drawParticles()
         p.v = p.v.scale(.96); // air drag
         p.p = p.p.add(p.v.scale(timeDelta));
         const fade = clamp(p.t / .6, 0, 1);
-        drawCircle(p.p, lerp(.1, .9, p.t/.6), p.c.scale(1, fade));
+        drawTile(p.p, vec2(lerp(.1, .9, p.t/.6)), icons.circle, p.c.scale(1, fade));
     }
 }
 
