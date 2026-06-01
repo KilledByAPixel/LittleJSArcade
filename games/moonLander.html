@@ -319,7 +319,7 @@ class Player extends EngineObject
         lastLevelScore = (level*100) + (this.fuel*4 | 0) + soft;
         totalScore += lastLevelScore;
         submitBestScore(totalScore);
-        messageTimer.set(999);
+        messageTimer.set(.6);   // brief beat to admire the landing, then the menu
     }
 
     explode()
@@ -327,12 +327,12 @@ class Player extends EngineObject
         if (gameState) return;
         gameState = 2;
         this.trail.emitRate = 0;
-        messageTimer.set(999);
+        messageTimer.set(1.2);  // let the explosion play out before the menu pauses it
         sfxBoom.play();
         addScreenShake(1.6, .6);
 
         makeExplosion(this.pos, this.velocity);
-        submitBestScore(totalScore);
+        // best score is submitted by the game-over dialog (so it can flag NEW BEST)
         this.destroy();
     }
 
@@ -487,6 +487,29 @@ function buildMenus()
     installDefaultToolbar({landscapeStack:true});
 }
 
+// End-of-round menus. Routed through menus.js dialogs (DOM pointer events) so
+// CONTINUE / GAME OVER work on touch — the on-screen gamepad owns raw touches,
+// so a tap never reaches mouseWasPressed and a canvas "tap to continue" can't fire.
+function showLevelCleared()
+{
+    showAlertDialog({
+        title:   `LEVEL ${level} CLEARED!`,
+        message: `+${lastLevelScore}\nTotal ${totalScore}`,
+        okLabel: 'CONTINUE',
+        onOk:    () => startLevel(level + 1),
+    });
+}
+
+function showGameOver()
+{
+    showGameOverDialog({
+        score:      totalScore,
+        format:     s => 'Score ' + s,
+        extraLines: [`Reached level ${level}`],
+        onContinue: quitToTitle,
+    });
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 function gameInit()
 {
@@ -528,11 +551,12 @@ function gameUpdate()
     if (keyWasPressed('KeyR'))
         startGame();
 
-    // continue: next level after landing, new run after crashing
-    if (gameState && (mouseWasPressed(0) || keyWasPressed('Space') || keyWasPressed('Enter')))
+    // once the landing/explosion has played, surface the end-of-round menu;
+    // it handles continue on every device (keyboard, mouse, gamepad, touch)
+    if (gameState && messageTimer.elapsed() && !isMenuVisible())
     {
-        if (gameState === 1) startLevel(level + 1);
-        else                 startGame();
+        if (gameState === 1) showLevelCleared();
+        else                 showGameOver();
     }
 }
 
@@ -699,17 +723,9 @@ function gameRenderPost()
     hudBar(px+16, py+110, pw-32, 'SPD',  vel/(SAFE_SPEED*2.2), vel < SAFE_SPEED ? safeC : badC, 1/2.2);
     hudBar(px+16, py+136, pw-32, 'TILT', ang/(SAFE_ANGLE*2.2), ang < SAFE_ANGLE ? safeC : badC, 1/2.2);
 
-    // end states
-    if (gameState === 1)
-    {
-        drawTextScreen(`LEVEL ${level} CLEARED!\n\n+${lastLevelScore}   Total ${totalScore}`,
-            vec2(mainCanvasSize.x/2, mainCanvasSize.y/2), 54, rgb(.2,1,.4,.97), 8, rgb(0,0,0,.7));
-    }
-    else if (gameState === 2)
-    {
-        drawTextScreen(`CRASHED!\n\nReached level ${level}   Score ${totalScore}`,
-            vec2(mainCanvasSize.x/2, mainCanvasSize.y/2), 54, rgb(1,.3,.22,.97), 8, rgb(0,0,0,.7));
-    }
+    // end-of-round messaging is handled by the menus.js dialogs (showLevelCleared /
+    // showGameOver) so it works on touch; the brief delay before they appear lets
+    // the landing settle / the explosion play.
 }
 
 ///////////////////////////////////////////////////////////////////////////////
