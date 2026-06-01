@@ -95,8 +95,9 @@ function initCardAtlas(options = {})
     _cardSprites.back = drawToTexture(26, paintBack,
         'card back design');
 
-    // fix black halo around edges
-    whitenAtlasAlpha();
+    // De-halo the white tiles (ranks, suits, tint mask) but keep the card
+    // front (24) and back (26) — those have intentional dark/coloured art.
+    whitenAtlasAlpha([24, 26]);
 }
 
 // Draws a face-up card. options: { size, angle, tint }

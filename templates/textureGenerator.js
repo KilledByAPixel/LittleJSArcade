@@ -246,15 +246,39 @@ function flushAtlas()
 // Only valid for a uniformly white atlas — it overwrites colour. Call it AFTER
 // all white tiles are painted; if you later draw more tiles, call it again
 // (a normal flush re-uploads the black-RGB canvas and undoes this).
-function whitenAtlasAlpha()
+//
+// `ignoreTiles` (optional array of tile indices) lets a mixed atlas keep some
+// tiles' real colours: pixels inside those tiles' cells are left untouched, so
+// a sprite that WANTS a dark outline (e.g. a card front's thin black border or
+// a coloured card back) survives while the surrounding white tiles still get
+// de-haloed. Omit it for the original whole-atlas behaviour.
+function whitenAtlasAlpha(ignoreTiles = [])
 {
     flushAtlas(); // make sure the GL texture exists / is current first
     if (!glContext || !textureInfos[0].glTexture) return; // canvas2D: no GL halo
 
     const image = atlasCtx.getImageData(0, 0, ATLAS_SIZE, ATLAS_SIZE);
     const d = image.data;
-    for (let i = 0; i < d.length; i += 4)
-        d[i] = d[i+1] = d[i+2] = 255; // white RGB, leave d[i+3] (alpha) alone
+    if (!ignoreTiles.length)
+    {
+        for (let i = 0; i < d.length; i += 4)
+            d[i] = d[i+1] = d[i+2] = 255; // white RGB, leave d[i+3] (alpha) alone
+    }
+    else
+    {
+        // Whiten every pixel except those falling inside an ignored tile's cell.
+        const skip = new Set(ignoreTiles);
+        for (let py = 0; py < ATLAS_SIZE; ++py)
+        {
+            const rowTile = (py / TILE_STRIDE | 0) * TILE_COLS;
+            for (let px = 0; px < ATLAS_SIZE; ++px)
+            {
+                if (skip.has(rowTile + (px / TILE_STRIDE | 0))) continue;
+                const i = (py * ATLAS_SIZE + px) * 4;
+                d[i] = d[i+1] = d[i+2] = 255; // white RGB, leave alpha alone
+            }
+        }
+    }
 
     glContext.bindTexture(glContext.TEXTURE_2D, textureInfos[0].glTexture);
     glContext.texImage2D(glContext.TEXTURE_2D, 0, glContext.RGBA,
