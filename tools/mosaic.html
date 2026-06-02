@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LittleJS Arcade — Mosaic</title>
+<style>
+    /* Capture-friendly: pure black backdrop, no margins, no scrollbars. */
+    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
+
+    /* Tight grid of game panels — gap 0 so panels butt right up against
+       each other. COLS x ROWS is set from JS via CSS custom properties. */
+    #grid {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        grid-template-columns: repeat(var(--cols), 1fr);
+        grid-template-rows: repeat(var(--rows), 1fr);
+        gap: 0;
+        background: #000;
+    }
+    #grid iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+        background: #000;
+    }
+
+    /* One-time hint — fades out on its own; clicking it (a user gesture) also
+       lets each game's audio resume if you want sound for the capture. */
+    #hint {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        z-index: 10;
+        padding: 8px 16px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, .6);
+        color: #fff;
+        font: 13px/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        letter-spacing: .3px;
+        pointer-events: auto;
+        cursor: pointer;
+        transition: opacity .6s;
+    }
+    #hint.gone { opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div id="grid"></div>
+<div id="hint">Mosaic running — click for sound · press H to hide this</div>
+
+<script>
+'use strict';
+
+// ============================================================================
+// Mosaic — loads a grid of LittleJS Arcade games at once, auto-starts each one
+// (clicking its menus.js PLAY button), hides all menu/HUD chrome, and revives
+// any game that reaches game-over. Built for capturing video, not for playing.
+//
+// Swap games / grid size by editing GAMES and COLS/ROWS below.
+// ============================================================================
+
+// Grid shape. 4 wide x 3 tall = 12 panels, landscape (good for 16:9 video).
+// Flip these to 3 x 4 for a portrait mosaic.
+const COLS = 4;
+const ROWS = 3;
+
+// Game files (relative to this tools/ folder -> ../games/). The first ten are
+// every game flagged `top:` in index.html; the last two are lively extras
+// added to fill the 4x3 grid. Reorder / swap freely.
+const GAMES = [
+    'missileDefense.html',  // top 1
+    'roboRescue.html',      // top 2
+    'pool.html',            // top 3
+    'emojiSurvivors.html',  // top 4
+    'tetrix.html',          // top 6
+    'spaceIntruders.html',  // top 7
+    'froggit.html',         // top 9
+    'freecell.html',        // top 9
+    'asterblast.html',      // top 10
+    'checkers.html',        // top 10
+    'centibug.html',        // extra — marching centipede, constant motion
+    'geometryJump.html',    // extra — auto-runner, constant motion
+];
+
+const gridEl = document.getElementById('grid');
+gridEl.style.setProperty('--cols', COLS);
+gridEl.style.setProperty('--rows', ROWS);
+
+// CSS injected into each game to hide its menu system (title/pause/options
+// menus, dialogs, and the corner HUD toolbar all live under #littlejs-menus).
+const HIDE_MENUS_CSS = '#littlejs-menus{display:none!important;}';
+
+// Click a game's PLAY button. menus.js gives the title menu's play item
+// data-item-id="play"; a programmatic .click() fires its handler even while
+// the element is hidden by our injected CSS.
+function clickPlay(doc) {
+    const btn = doc.querySelector('#littlejs-menus .ljs-menu-item[data-item-id="play"]');
+    if (btn) { btn.click(); return true; }
+    return false;
+}
+
+// Build the grid and wire up each game.
+const frames = GAMES.map(file => {
+    const frame = document.createElement('iframe');
+    frame.src = '../games/' + file;
+    // Allow autoplay / gamepad / fullscreen, same as the launcher's iframe.
+    frame.setAttribute('allow', 'autoplay *; gamepad *; fullscreen *');
+    frame.dataset.file = file;
+    frame.started = false;          // one-shot guard for games without menus.js
+
+    frame.addEventListener('load', () => {
+        // Inject the menu-hiding style once the document exists. The rule is
+        // global, so it still applies to the #littlejs-menus root that menus.js
+        // creates later during gameInit.
+        try {
+            const doc = frame.contentDocument;
+            const style = doc.createElement('style');
+            style.textContent = HIDE_MENUS_CSS;
+            (doc.head || doc.documentElement).appendChild(style);
+        } catch (e) { /* cross-origin or not ready — watchdog still tries */ }
+    });
+
+    gridEl.appendChild(frame);
+    return frame;
+});
+
+// Watchdog: every couple seconds, make sure every game is actually playing.
+// - menus.js games expose isPlaying(): if it returns false (title or game-over
+//   dialog up), clear any menu and re-click PLAY to (re)start the game.
+// - games without isPlaying() get a single best-effort PLAY click.
+function tick() {
+    for (const frame of frames) {
+        let win, doc;
+        try { win = frame.contentWindow; doc = frame.contentDocument; }
+        catch (e) { continue; }     // not same-origin / not loaded yet
+        if (!doc) continue;
+
+        try {
+            const playing = (typeof win.isPlaying === 'function') ? win.isPlaying() : null;
+            if (playing === false) {
+                // Title screen or game-over dialog is up — clear it and restart.
+                if (typeof win.hideAllMenus === 'function') win.hideAllMenus();
+                clickPlay(doc);
+            } else if (playing === null && !frame.started) {
+                // Game doesn't use menus.js game-flow helpers — try once.
+                if (clickPlay(doc)) frame.started = true;
+            }
+        } catch (e) { /* game still initializing — try again next tick */ }
+    }
+}
+setInterval(tick, 2000);
+tick();
+
+// ----- Hint overlay: fade after a few seconds, dismiss on click or 'H'. -----
+const hintEl = document.getElementById('hint');
+const hideHint = () => hintEl.classList.add('gone');
+hintEl.addEventListener('click', () => { hideHint(); tick(); });
+addEventListener('keydown', e => { if (e.key === 'h' || e.key === 'H') hideHint(); });
+setTimeout(hideHint, 5000);
+</script>
+</body>
+</html>
