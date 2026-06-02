@@ -2330,7 +2330,8 @@ button.ljs-grid-cell { cursor: pointer; }
 }
 @keyframes ljsfx-hue{ from{background-position:0 0;} to{background-position:300% 0;} }
 .fx-shine{
-    color:#3a4660; background:linear-gradient(110deg,#3a4660 0%,#3a4660 40%,#fff 50%,#3a4660 60%,#3a4660 100%);
+    color:var(--fx-color,#a7b5c8);
+    background:linear-gradient(110deg,var(--fx-color,#a7b5c8) 0%,var(--fx-color,#a7b5c8) 40%,#fff 50%,var(--fx-color,#a7b5c8) 60%,var(--fx-color,#a7b5c8) 100%);
     background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
     animation:ljsfx-shine calc(2.6s / var(--fx-speed,1)) linear infinite;
 }
