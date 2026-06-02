@@ -1383,6 +1383,7 @@ function showAlertDialog(opts)
     const dialog = createMenu({
         id,
         title:         opts.title || null,
+        titleFx:       opts.titleFx,
         dismissable:   true,         // BACK / Esc / B / backdrop all close it
         initialItemId: 'ok',
         onHide:        popMenu,
@@ -1430,11 +1431,18 @@ function showGameOverDialog(opts)
         message = lines.join('\n');
     }
 
+    // Default heading FX: gold shimmer on a win, red glow on a loss.
+    // Caller can override with opts.titleFx, or disable with titleFx:null.
+    let titleFx = opts.titleFx;
+    if (titleFx === undefined)
+        titleFx = won ? { fill:'gold' } : { fill:'neon', color:'#e23' };
+
     showAlertDialog({
-        title: won ? 'YOU WIN!' : 'GAME OVER',
-        icon:  won ? '🏆' : '💥',
+        title:   won ? 'YOU WIN!' : 'GAME OVER',
+        icon:    won ? '🏆' : '💥',
+        titleFx,
         message,
-        onOk: onContinue,
+        onOk:    onContinue,
     });
 }
 
@@ -1489,6 +1497,7 @@ function showConfirmDialog(opts)
     const dialog = createMenu({
         id,
         title:         opts.title || null,
+        titleFx:       opts.titleFx,
         dismissable:   false,
         initialItemId: 'no',
         onHide:        popMenu,

@@ -72,6 +72,13 @@ const bar=document.createElement('div'); bar.style.marginTop='16px'; document.bo
     const b=document.createElement('button'); b.textContent='show '+id;
     b.onclick=()=>showMenu(id); bar.appendChild(b); bar.appendChild(document.createTextNode(' '));
 });
+const b3=document.createElement('button'); b3.textContent='game over (win)';
+b3.onclick=()=>showGameOverDialog({won:true, score:1234});
+const b4=document.createElement('button'); b4.textContent='game over (loss)';
+b4.onclick=()=>showGameOverDialog({won:false, score:42});
+const b5=document.createElement('button'); b5.textContent='loss, fx disabled';
+b5.onclick=()=>showGameOverDialog({won:false, score:42, titleFx:null});
+[b3,b4,b5].forEach(b=>{document.body.appendChild(b);document.body.appendChild(document.createTextNode(' '));});
 </script>
 </body>
 </html>
