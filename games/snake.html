@@ -50,13 +50,20 @@ const fieldOffsetY  = .8;   // shift the playfield up to open a bottom HUD strip
 // versus mode (Tron-light-cycles flavored race vs an AI snake)
 const versusWinApples    = 10;  // first snake to this many apples wins the round
 const versusStepInterval = .11; // steady shared speed in versus (no ramp)
+const versusApples       = 2;   // apples kept on the board at once in versus
+const versusAppleStagger = .7;  // seconds before a fresh apple pops in (staggered)
+const versusSpawnOffset  = 7;   // cells each snake starts from center (more = further apart)
+const appleMinDist       = 6;   // keep a fresh apple at least this far from other apples
 const playerHue = .34;          // player snake hue (green)
 const aiHue     = .57;          // AI snake hue (cyan-blue)
 
 let versus;             // false = classic 1P, true = vs AI race
 let snakes;             // array of snake objects (player is always index 0)
 let player, ai;         // convenience refs (ai is null in classic)
-let food;
+let foods;              // array of live apples: {pos, spawn} (spawn = grow-in timer)
+let appleTarget;        // how many apples to keep on the board
+let appleStagger;       // delay before topping up to appleTarget
+let appleSpawnTimer;    // countdown to the next staggered apple
 let bonus, bonusTimer, bonusLifeMax; // classic-only time-limited fruit (cell or 0)
 let score;              // classic player score — drives bestScore + HUD pop
 let roundOver;          // round finished (both modes); freezes the board
@@ -68,8 +75,8 @@ let particles;       // array of {pos, vel, life, lifeMax, size, color}
 let foodPulseTimer;  // ticks up from 0; used to pulse food size
 let scorePopTimer;   // brief score-bump animation
 let deathFreezeTimer;// counts down after a round ends before the menu surfaces
-let foodSpawnTimer;  // small grow-in animation when food appears
-// per-snake flash + grow-pulse timers live on the snake object (see makeSnake)
+// per-apple grow-in lives on each apple (.spawn); per-snake flash + grow-pulse
+// timers live on the snake object (see makeSnake)
 
 // sounds (created in gameInit so user-gesture audio is happy)
 let sEat, sBonus, sDie, sStep;
@@ -111,24 +118,39 @@ function cellOnAnySnake(c)
     return false;
 }
 
-function randEmptyCell()
+function cellOnAnyApple(c)
+{
+    for (const f of foods)
+        if (cellEquals(f.pos, c)) return true;
+    return false;
+}
+
+// minDist (optional) keeps the chosen cell away from existing apples; it is
+// relaxed in the deterministic fallback so a crowded board never deadlocks.
+function randEmptyCell(minDist = 0)
 {
     for (let i=0; i<200; ++i)
     {
         const c = vec2(randInt(gridW), randInt(gridH));
-        if (cellOnAnySnake(c)) continue;
-        if (food && cellEquals(c, food)) continue;
+        if (cellOnAnySnake(c) || cellOnAnyApple(c)) continue;
         if (bonus && cellEquals(c, bonus)) continue;
+        if (minDist > 0 && foods.some(f => f.pos.distance(c) < minDist)) continue;
         return c;
     }
     for (let y=0; y<gridH; ++y)
     for (let x=0; x<gridW; ++x)
     {
         const c = vec2(x,y);
-        if (!cellOnAnySnake(c) && (!food || !cellEquals(c, food)) && (!bonus || !cellEquals(c, bonus)))
+        if (!cellOnAnySnake(c) && !cellOnAnyApple(c) && (!bonus || !cellEquals(c, bonus)))
             return c;
     }
     return vec2(0,0);
+}
+
+// a fresh apple with a small grow-in pop, spaced away from other apples
+function spawnApple()
+{
+    return {pos: randEmptyCell(appleMinDist), spawn: .25};
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -160,8 +182,8 @@ function resetGame()
     if (versus)
     {
         // mirrored spawns: player on the left heading right, AI on the right heading left
-        player = makeSnake(vec2((gridW/2|0) - 4, cy), vec2( 1,0), playerHue, false);
-        ai     = makeSnake(vec2((gridW/2|0) + 4, cy), vec2(-1,0), aiHue,     true);
+        player = makeSnake(vec2((gridW/2|0) - versusSpawnOffset, cy), vec2( 1,0), playerHue, false);
+        ai     = makeSnake(vec2((gridW/2|0) + versusSpawnOffset, cy), vec2(-1,0), aiHue,     true);
         snakes = [player, ai];
     }
     else
@@ -178,7 +200,13 @@ function resetGame()
     stepInterval = versus ? versusStepInterval : stepIntervalStart;
     stepTimer = stepInterval;
 
-    food = randEmptyCell();
+    // apples: one on the board immediately, the rest stagger in
+    appleTarget  = versus ? versusApples : 1;
+    appleStagger = versus ? versusAppleStagger : 0;
+    foods = [];                     // must exist before spawnApple() reads it
+    foods.push(spawnApple());
+    appleSpawnTimer = appleStagger;
+
     bonus = 0;
     bonusTimer = 0;
     bonusLifeMax = bonusLifeTime;
@@ -187,7 +215,6 @@ function resetGame()
     foodPulseTimer = 0;
     scorePopTimer = 0;
     deathFreezeTimer = 0;
-    foodSpawnTimer = .25;
 }
 
 function spawnParticles(worldPos, color, count, speedMin, speedMax, life=.6)
@@ -263,18 +290,17 @@ function killSnake(s)
     s.flashTimer = .4;
 }
 
-function eatFood(s)
+function eatFood(s, cell)
 {
     s.apples++;
     s.grow++;
     sEat && sEat.play();
 
     // juice — particles for either snake so you see who grabbed it; shake only for you
-    const fp = cellToWorld(food);
+    const fp = cellToWorld(cell);
     spawnParticles(fp, hsl(.12, 1, .6), 14, 3, 8, .5);
     spawnParticles(fp, hsl(.04, 1, .6),  4, 2, 5, .4);
     s.growPulse = .25;
-    foodSpawnTimer = .25;
     if (!s.isAI)
     {
         score++;
@@ -287,7 +313,10 @@ function eatFood(s)
     if (!versus)
         stepInterval = max(stepIntervalMin, stepIntervalStart - score * stepSpeedup);
 
-    food = randEmptyCell();
+    // remove the eaten apple; a replacement staggers back in via gameUpdate
+    const i = foods.findIndex(f => cellEquals(f.pos, cell));
+    if (i >= 0) foods.splice(i, 1);
+    appleSpawnTimer = appleStagger;
 
     // classic-only: chance to spawn a time-limited bonus fruit once warmed up
     if (!versus && !bonus && score >= bonusMinScore && randInt(100) < bonusChance)
@@ -337,7 +366,7 @@ function tick()
         s.dir = clampDir(s.nextDir, s);
         const newHead  = s.body[0].add(s.dir);
         const inBounds = isCellInBounds(newHead);
-        const ate      = inBounds && cellEquals(newHead, food);
+        const ate      = inBounds && cellOnAnyApple(newHead);
         const ateBonus = inBounds && !versus && bonus && cellEquals(newHead, bonus);
         const keepTail = s.grow > 0 || ate || ateBonus;
         return {s, newHead, inBounds, ate, ateBonus, keepTail, dead:false, stationary:false};
@@ -410,7 +439,7 @@ function tick()
         }
 
         s.body.unshift(it.newHead);
-        if (it.ate)           eatFood(s);
+        if (it.ate)           eatFood(s, it.newHead);
         else if (it.ateBonus) eatBonus(s);
         else                  sStep && sStep.play();
 
@@ -570,27 +599,37 @@ function aiChooseDir()
     if (!ai.alive) return;
     const blocked = buildBlockedGrid();
     const head = ai.body[0];
+    const isFood = c => cellOnAnyApple(c);
 
     const legal = d =>
     {
         if (d.x === -ai.dir.x && d.y === -ai.dir.y) return false; // no reversing
         const n = vec2(head.x + d.x, head.y + d.y);
         if (!isCellInBounds(n)) return false;
-        if (blocked[n.x][n.y] && !cellEquals(n, food)) return false;
+        if (blocked[n.x][n.y] && !isFood(n)) return false;
         return true;
     };
 
-    // 1) head straight for the apple if a safe path exists
-    let chosen = bfsStep(head, food, blocked);
-    if (!legal(chosen))
+    // 1) head for the closest apple that has a safe path (try nearest first)
+    let chosen = null;
+    const targets = foods.slice().sort((a,b) =>
+        (Math.abs(a.pos.x-head.x) + Math.abs(a.pos.y-head.y)) -
+        (Math.abs(b.pos.x-head.x) + Math.abs(b.pos.y-head.y)));
+    for (const t of targets)
     {
-        // 2) cornered: take the legal move that keeps the most room (slight apple bias)
+        const step = bfsStep(head, t.pos, blocked);
+        if (legal(step)) { chosen = step; break; }
+    }
+
+    // 2) no safe path to any apple: take the legal move that keeps the most room
+    if (!chosen)
+    {
         let best = null, bestArea = -1;
         for (const d of DIRS)
         {
             if (!legal(d)) continue;
             const n = vec2(head.x + d.x, head.y + d.y);
-            const area = floodArea(n, blocked) + (cellEquals(n, food) ? 1000 : 0);
+            const area = floodArea(n, blocked) + (isFood(n) ? 1000 : 0);
             if (area > bestArea) { bestArea = area; best = d; }
         }
         chosen = best;
@@ -760,8 +799,9 @@ function gameUpdate()
 
     // animation timers
     foodPulseTimer += timeDelta;
-    if (foodSpawnTimer > 0) foodSpawnTimer -= timeDelta;
-    if (scorePopTimer  > 0) scorePopTimer  -= timeDelta;
+    if (scorePopTimer > 0) scorePopTimer -= timeDelta;
+    for (const f of foods)
+        if (f.spawn > 0) f.spawn -= timeDelta;
     for (const s of snakes)
     {
         if (s.growPulse  > 0) s.growPulse  -= timeDelta;
@@ -769,6 +809,17 @@ function gameUpdate()
     }
 
     updateParticles(timeDelta);
+
+    // keep the board topped up to appleTarget, staggering each new apple in
+    if (!roundOver && foods.length < appleTarget)
+    {
+        appleSpawnTimer -= timeDelta;
+        if (appleSpawnTimer <= 0)
+        {
+            foods.push(spawnApple());
+            appleSpawnTimer = appleStagger;
+        }
+    }
 
     // tick down the time-limited bonus fruit (classic only); puff away if it expires
     if (!roundOver && bonus)
@@ -835,11 +886,12 @@ function gameRender()
             drawLine(vec2(-halfW,y+fieldOffsetY), vec2(halfW,y+fieldOffsetY), .03, col);
     }
 
-    // food — cute red apple with grow-in + gentle pulse, highlight and leaf
+    // food — cute red apples with grow-in + gentle pulse, highlight and leaf
+    for (const f of foods)
     {
-        const p = cellToWorld(food);
+        const p = cellToWorld(f.pos);
         const pulse  = .72 + Math.sin(foodPulseTimer * 6) * .05;
-        const growIn = foodSpawnTimer > 0 ? clamp(1 - foodSpawnTimer/.25, 0, 1) : 1;
+        const growIn = f.spawn > 0 ? clamp(1 - f.spawn/.25, 0, 1) : 1;
         const size   = pulse * (.45 + .55*growIn);
         drawTile(p, vec2(size + .22), icons.glow, hsl(.99, .8, .55, .18));                  // soft glow
         drawTile(p, vec2(size),       icons.circle, hsl(.99, .75, .57));                    // apple body
