@@ -2349,7 +2349,7 @@ button.ljs-grid-cell { cursor: pointer; }
 @keyframes ljsfx-gold{ from{background-position:0 0;} to{background-position:250% 0;} }
 .fx-outline{
     color:transparent; -webkit-text-fill-color:transparent;
-    -webkit-text-stroke:2px var(--fx-color,var(--menu-accent));
+    -webkit-text-stroke:2px var(--fx-color,var(--menu-accent,#6cf));
     text-shadow:0 0 12px var(--fx-color,rgba(102,204,255,.4));
 }
 .fx-hardshadow{ color:var(--fx-color,#fff); text-shadow:4px 4px 0 #e23,8px 8px 0 rgba(0,0,0,.35); }
@@ -2364,9 +2364,12 @@ button.ljs-grid-cell { cursor: pointer; }
     95%{ text-shadow:-4px 0 #f0f,4px 0 #0ff; transform:translate(2px,-1px); }
     97%{ text-shadow:2px 0 #f0f,-2px 0 #0ff; transform:translate(-1px,0); }
 }
-.fx-crt{ color:#7fffb0; text-shadow:0 0 6px #2f8; position:relative; animation:ljsfx-crt calc(3s / var(--fx-speed,1)) steps(40) infinite; }
-.fx-crt::after{ content:""; position:absolute; inset:-6px; pointer-events:none;
-    background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.35) 2px 4px); }
+/* CRT: scanlines modulate the TEXT's own alpha via a mask (cuts into the
+   glyphs over any background) instead of laying black bars on top. */
+.fx-crt{ color:#7fffb0; text-shadow:0 0 6px #2f8;
+    -webkit-mask:repeating-linear-gradient(0deg,#000 0 2px,rgba(0,0,0,.3) 2px 3px);
+    mask:repeating-linear-gradient(0deg,#000 0 2px,rgba(0,0,0,.3) 2px 3px);
+    animation:ljsfx-crt calc(3s / var(--fx-speed,1)) steps(40) infinite; }
 @keyframes ljsfx-crt{ 0%,97%,100%{opacity:1;} 98%{opacity:.7;} 99%{opacity:.95;} }
 
 /* MOTION channel (outer wrapper, animates transform) ---------- */
