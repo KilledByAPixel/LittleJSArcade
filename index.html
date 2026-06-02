@@ -1000,6 +1000,12 @@ const hasGamepad = g => GAMEPAD_GAMES.has(g.file);
 
 // Display name, emoji, and accent color (referencing CSS vars) per category.
 // Used for row headers, filter chips, and tile color stripes.
+// Master switch for the off-site Frank Force Games section. Set to false to hide
+// it everywhere (sidebar, welcome rows, filter chip) — even in debug mode. Flip to
+// true to surface it once the off-site embeds are working. The game entries stay
+// in GAMES regardless; this just controls whether they're shown.
+const SHOW_FRANKFORCE = false;
+
 const CATEGORIES = [
     { key:'arcade',  label:'Arcade',  emoji:'🕹️', color:'var(--cat-arcade)',  colorBg:'var(--cat-arcade-bg)'  },
     { key:'shooter', label:'Shooter', emoji:'💥', color:'var(--cat-shooter)', colorBg:'var(--cat-shooter-bg)' },
@@ -1166,6 +1172,8 @@ function renderList() {
     const construction = [];
     for (const g of GAMES) {
         if (activeCategory !== 'all' && g.category !== activeCategory) continue;
+        // Frank Force section is hidden unless its master switch is on.
+        if (g.category === 'frankforce' && !SHOW_FRANKFORCE) continue;
         if (q) {
             // Gamepad-supporting games are searchable by "gamepad"/"controller"
             // without per-game tags — folded in from the GAMEPAD_GAMES set.
@@ -1232,7 +1240,8 @@ function renderList() {
 function buildFilterChips() {
     // Skip 'construction' — those games already have their own pinned section
     // at the bottom of the list, so filtering by it would be redundant.
-    const all = [{ key:'all', label:'All' }, ...CATEGORIES.filter(c => c.key !== 'construction')];
+    const all = [{ key:'all', label:'All' }, ...CATEGORIES.filter(c =>
+        c.key !== 'construction' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
     for (const c of all) {
         const btn = document.createElement('button');
         btn.className = 'chip-filter' + (c.key === 'all' ? ' active' : '');
@@ -1393,6 +1402,7 @@ function buildWelcome() {
 
     // Category rows — each row tints its bar + emoji in the category color.
     for (const cat of CATEGORIES) {
+        if (cat.key === 'frankforce' && !SHOW_FRANKFORCE) continue;   // off-site section toggle
         const games = GAMES.filter(g => g.category === cat.key);
         if (games.length) welcomeEl.appendChild(buildRow(cat.label, cat.emoji, games, false, cat));
     }
