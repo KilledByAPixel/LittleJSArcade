@@ -195,6 +195,9 @@
 // ============================================================================
 const MENU_FX_FILL = ['neon','rainbow','shine','fire','gold','outline','hardshadow','3d','glitch','crt'];
 const MENU_FX_MOTION = ['wave','heartbeat','jelly','float'];
+// NOTE: every motion uses an outer `.m-<name>` wrapper EXCEPT `wave`, which is
+// per-letter and applied as `.fx-wave` on the heading itself — applyMenuFx
+// special-cases it.
 const MENU_FX_CHANNEL = {};
 for (const n of MENU_FX_FILL) MENU_FX_CHANNEL[n] = 'fill';
 for (const n of MENU_FX_MOTION) MENU_FX_CHANNEL[n] = 'motion';
@@ -2224,6 +2227,8 @@ button.ljs-grid-cell { cursor: pointer; }
 
 /* OVERLAY channel -------------------------------------------- */
 .ov-sparkle{ position:relative; }
+/* .9s is intentionally fixed (not --fx-speed scaled) — it is coupled to the
+   JS particle lifetime in applyMenuFx (spawn/remove timers). */
 .ljs-fx-spark{ position:absolute; width:6px; height:6px; pointer-events:none;
     background:radial-gradient(circle,#fff 0%,#ffd34d 50%,transparent 70%); border-radius:50%;
     animation:ljsfx-spark .9s ease-out forwards; }
