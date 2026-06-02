@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <!-- meta tags for social media -->
-<meta name='twitter:title'       content='LittleJS Games Browser'>
-<meta property='og:title'        content='LittleJS Games Browser'>
+<meta name='twitter:title'       content='LittleJS Arcade'>
+<meta property='og:title'        content='LittleJS Arcade'>
 <meta name='description'         content='A collection of retro arcade games with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.'>
 <meta name='twitter:description' content='A collection of retro arcade games with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.'>
 <meta property='og:description'  content='A collection of retro arcade games with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.'>
@@ -18,7 +18,7 @@
 <meta property='og:url'          content='https://killedbyapixel.github.io/LittleJSArcade/'>
 <meta property='og:type'         content='website'>
 
-<title>LittleJS Games</title>
+<title>The LittleJS Arcade</title>
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon.png">
 <link rel="apple-touch-icon" href="images/logo.png">
 <link rel="manifest" href="manifest.json">
@@ -26,7 +26,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="LittleJS">
+<meta name="apple-mobile-web-app-title" content="LittleJS Arcade">
 <script>
     // Apply the saved light/dark theme before first paint so there's no flash
     // of the wrong theme on reload. The toggle wiring lives in the main script.
@@ -844,7 +844,7 @@
     <div id="sidebar-header">
         <div id="sidebar-logo-wrap" title="Back to library">
             <img id="sidebar-logo" src="images/logo.png" alt="LittleJS">
-            <div id="sidebar-logo-title">LittleJS Mini Arcade</div>
+            <div id="sidebar-logo-title">The LittleJS Arcade</div>
         </div>
         <input id="search" type="text" placeholder="Search..." autocomplete="off" spellcheck="false">
         <div id="filter-chips"></div>
@@ -1575,7 +1575,7 @@ function showWelcome(pushHistory = true) {
     sourceBtn.href = MAIN_REPO;
     sourceBtn.title = 'View the LittleJSArcade repo on GitHub';
     fullscreenBtn.title = 'Fullscreen the whole page';
-    shareBtn.title = 'Share the LittleJS Mini Arcade';
+    shareBtn.title = 'Share the LittleJS Arcade';
     // Push a history entry only on user-driven game→library transitions,
     // so the browser back button can return to the previously played game.
     const clean = location.pathname + location.search;
@@ -1732,8 +1732,8 @@ fullscreenBtn.addEventListener('click', () => {
 shareBtn.addEventListener('click', async () => {
     const url = location.href;
     const title = currentFile
-        ? (infoByFile[currentFile].name + ' · LittleJS Mini Arcade')
-        : 'LittleJS Mini Arcade';
+        ? (infoByFile[currentFile].name + ' · LittleJS Arcade')
+        : 'LittleJS Arcade';
     if (navigator.share) {
         try { await navigator.share({ title, url }); return; }
         catch (e) { if (e && e.name === 'AbortError') return; /* else fall through */ }
