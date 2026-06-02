@@ -57,6 +57,7 @@
         --cat-shooter: #ff7eb6;   --cat-shooter-bg: rgba(255,126,182,.18);
         --cat-puzzle:  #bb86fc;   --cat-puzzle-bg:  rgba(187,134,252,.18);
         --cat-board:   #f7c948;   --cat-board-bg:   rgba(247,201,72,.18);
+        --cat-strategy:#2dd4bf;   --cat-strategy-bg:rgba(45,212,191,.18);
         --cat-sports:  #4ade80;   --cat-sports-bg:  rgba(74,222,128,.18);
         --cat-construction: #ff9744; --cat-construction-bg: rgba(255,151,68,.18);
         --cat-frankforce: #22d3ee; --cat-frankforce-bg: rgba(34,211,238,.18);
@@ -933,7 +934,7 @@ const GAMES = [
     { file:'missileDefense.html', name:'Missile Defense', emoji:'🏙️', category:'arcade',      desc:'Shoot down the missiles.',        scoreKey:'missileCommand.bestScore',  tags:['defense','aim'],              keywords:['missile command','nuke defense','abm','cold war'], top:1 },
     { file:'moonbuggy.html',     name:'Moonbuggy',       emoji:'🌔',  category:'construction', desc:'Hop craters and shoot aliens.',    scoreKey:'moonPatrol.bestScore',      tags:['scrolling','runner'],             keywords:['moon patrol','moon buggy','rover'] },
     { file:'mrDrill.html',      name:'Drillman',       emoji:'⛏️', category:'construction',       desc:'Dig down for air.',      scoreKey:'mrDriller.bestScore',       tags:['action','digging'],               keywords:['mr driller','dig dug','drilling'] },
-    { file:'orbitswarm.html',     name:'OrbitSwarm',      emoji:'🪐',  category:'arcade',      desc:'Build ships, conquer the galaxy.',         tags:['space','strategy'],                keywords:['gravitar','strategy','geometry wars'] },
+    { file:'orbitswarm.html',     name:'OrbitSwarm',      emoji:'🪐',  category:'strategy',      desc:'Build ships, conquer the galaxy.',         tags:['space','strategy'],                keywords:['gravitar','strategy','geometry wars'] },
     { file:'reversi.html',        name:'Reversi',         emoji:'⚪',  category:'board',        desc:'Flank stones to flip them.',              tags:['strategy','2-player'],            keywords:['othello','reversi'] },
     { file:'pucMan.html',         name:'Maze Munch',         emoji:'👻',  category:'arcade',       desc:'Eat dots, dodge the ghosts.',             scoreKey:'pacman.bestScore',          tags:['maze','retro'],                   keywords:['pac-man','pacman','ms pacman','ghosts','maze chase'] },
     { file:'pegball.html',         name:'Pegball',         emoji:'🟢',  category:'arcade',       desc:'Aim, drop, clear every peg.',             scoreKey:'peggle.bestScore',          tags:['physics','aim'],                  keywords:['peggle','pachinko','peg shooter'] },
@@ -1012,6 +1013,7 @@ const CATEGORIES = [
     { key:'shooter', label:'Shooter', emoji:'💥', color:'var(--cat-shooter)', colorBg:'var(--cat-shooter-bg)' },
     { key:'puzzle',  label:'Puzzle',  emoji:'🧩', color:'var(--cat-puzzle)',  colorBg:'var(--cat-puzzle-bg)'  },
     { key:'board',   label:'Board',   emoji:'🎲', color:'var(--cat-board)',   colorBg:'var(--cat-board-bg)'   },
+    { key:'strategy',label:'Strategy',emoji:'🧠', color:'var(--cat-strategy)',colorBg:'var(--cat-strategy-bg)'},
     { key:'sports',  label:'Sports',  emoji:'⚽', color:'var(--cat-sports)',  colorBg:'var(--cat-sports-bg)'  },
     { key:'frankforce', label:'Frank Force Games', emoji:'🟥', color:'var(--cat-frankforce)', colorBg:'var(--cat-frankforce-bg)' },
     { key:'construction', label:'Under Construction', emoji:'🚧', color:'var(--cat-construction)', colorBg:'var(--cat-construction-bg)' },
