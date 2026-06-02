@@ -82,6 +82,27 @@ function newGame() {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// SOUNDS (gameFx.js SoundGenerator)
+const sndKey   = new SoundGenerator({frequency: 480, release: .04, volume: .3, shape: 5});
+const sndError = new SoundGenerator({frequency: 130, release: .25, volume: .4, shape: 2, noise: .1});
+const sndType  = new SoundGenerator({frequency: 660, release: .03, volume: .25, shape: 5});
+
+function showMessage(text) { message = text; messageTimer.set(1.2); }
+
+// Handle one logical key action ('A'..'Z', 'ENTER', 'BACK').
+function pressKey(key) {
+    if (finished) return;
+    if (key === 'ENTER') { submitGuess(); return; }
+    if (key === 'BACK') { if (current.length) { current = current.slice(0, -1); sndType.play(); } return; }
+    if (/^[A-Z]$/.test(key) && current.length < COLS) { current += key; sndType.play(); }
+}
+
+function submitGuess() {
+    if (current.length < COLS) { showMessage('NOT ENOUGH LETTERS'); sndError.play(); return; }
+    // full evaluation added in a later task
+}
+
+///////////////////////////////////////////////////////////////////////////////
 function gameInit() {
     canvasClearColor = palette().bg;
     setSoundVolume(.6);
@@ -113,7 +134,22 @@ function fitCamera() {
     cameraPos = vec2(0, CAM_Y);
 }
 
-function gameUpdate() {}
+function gameUpdate() {
+    if (!isPlaying()) return;
+
+    // physical keyboard: A..Z
+    for (let i = 0; i < 26; i++) {
+        const letter = String.fromCharCode(65 + i);
+        if (keyWasPressed('Key' + letter)) pressKey(letter);
+    }
+    if (keyWasPressed('Enter')) pressKey('ENTER');
+    if (keyWasPressed('Backspace')) pressKey('BACK');
+
+    // on-screen keyboard: click / tap
+    if (mouseWasPressed(0))
+        for (const k of KEYS)
+            if (isOverlapping(k.pos, k.size, mousePos, vec2(0))) { pressKey(k.key); break; }
+}
 function gameUpdatePost() {}
 
 // Draw a single tile with letter. A non-null `border` draws a ring (outer
