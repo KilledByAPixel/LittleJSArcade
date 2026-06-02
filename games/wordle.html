@@ -85,6 +85,7 @@ function newGame() {
     answer = WORDLE_ANSWERS[randInt(WORDLE_ANSWERS.length)];
     guesses = []; evals = []; current = '';
     keyState = {}; finished = false; message = '';
+    rowRevealTime = -9; popCol = -1; popTime = -9; shakeTime = -9; winTime = -9;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -268,7 +269,8 @@ function drawGrid() {
                     } else { fill = pal[evals[r][c]]; border = null; }
                 } else { fill = pal[evals[r][c]]; border = null; }
                 if (winTime > 0 && r === submittedRow) {
-                    const b = time - winTime - c * 0.06;
+                    const revealDone = (COLS - 1) * STAGGER + FLIP;
+                    const b = time - winTime - revealDone - c * 0.06;
                     if (b > 0 && b < 0.6) p = p.add(vec2(0, Math.sin(b / 0.6 * PI) * 0.5));
                 }
             } else if (r === guesses.length && !finished && c < current.length) {
