@@ -192,6 +192,7 @@ function finishGame(won) {
     if (dailyMode) {
         const b = getSaveData();
         const today = dayNumber();
+        const prevStreak = currentDailyStreak();   // effective streak BEFORE this game
         const newStreak = won
             ? ((b.lastDailyDay === today - 1 && b.lastDailyWon) ? (b.dailyStreak || 0) + 1 : 1)
             : 0;
@@ -202,7 +203,8 @@ function finishGame(won) {
         const num = today - LAUNCH_DAY + 1;
         const lines = won
             ? ['Daily #' + num, 'Solved in ' + n + '/6', 'DAILY STREAK ' + newStreak]
-            : ['Daily #' + num, 'The word was ' + answer, 'DAILY STREAK ' + newStreak];
+            : ['Daily #' + num, 'The word was ' + answer];
+        if (!won && prevStreak > 0) lines.push('STREAK BROKEN (' + prevStreak + ')');
         showGameOverDialog({ won, customMessage: lines.join('\n'),
             submitBest: false, onContinue: () => quitToTitle() });
     } else {
