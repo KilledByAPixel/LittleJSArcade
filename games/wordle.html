@@ -199,6 +199,37 @@ function gameInit() {
         ],
     });
 
+    createOptionsMenu({
+        showResetBest: true,
+        resetBestMessage: 'Reset your best streak?',
+        extraItems: [
+            {type:'separator'},
+            {type:'checkbox', id:'contrast', label:'HIGH CONTRAST', value:false,
+                persist:'contrast', onChange: v => { highContrast = v; }},
+        ],
+    });
+
+    createHelpMenu({
+        id: 'about',
+        title: 'ABOUT',
+        text: 'Guess the hidden 5-letter word in 6 tries. ' +
+            'Green = right letter, right spot. Yellow = in the word, wrong spot. ' +
+            'Gray = not in the word. Type with your keyboard or tap the on-screen keys. ' +
+            'Win in a row to build your streak.',
+    });
+
+    createMenu({
+        id: 'pause',
+        title: 'PAUSED',
+        initialItemId: 'resume',
+        items: [
+            {type:'button', id:'resume',  label:'RESUME',        onClick: () => hideMenu('pause')},
+            {type:'button', id:'options', label:'OPTIONS',       onClick: () => pushMenu('options')},
+            {type:'button', id:'quit',    label:'QUIT TO TITLE', onClick: () =>
+                showConfirmDialog({ message: 'Quit to title?', onYes: () => { newGame(); quitToTitle(); } })},
+        ],
+    });
+
     installDefaultToolbar();
     showMenu('title');
 }
@@ -209,6 +240,7 @@ function fitCamera() {
 }
 
 function gameUpdate() {
+    if (bindPauseKey({ when: () => isPlaying() && !finished })) return;
     if (!isPlaying()) return;
 
     // physical keyboard: A..Z
