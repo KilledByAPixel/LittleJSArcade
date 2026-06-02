@@ -58,6 +58,18 @@
 //                  canReveal}) wraps createMenu + a PLAY button +
 //                  attachClickToReveal in one call for the standard title
 //                  pattern. Auto-wires PLAY's onClick to gamepad Start.
+// Title FX:        titleFx on createMenu / createTitleMenu (and the dialog
+//                  helpers) juices a heading. String = one effect by name
+//                  ('neon', 'float', 'sparkle'); object composes channels:
+//                  {fill, motion, sparkle, hue, invert, speed, color}.
+//                  Fills: neon rainbow shine fire gold outline hardshadow 3d
+//                  glitch crt. Motion: wave heartbeat jelly float. Tweaks:
+//                  hue(deg) invert speed(x) color. Effects auto-tear-down on
+//                  hide so sparkle timers never leak. showGameOverDialog
+//                  defaults to gold (win) / red glow (loss); override with
+//                  titleFx, disable with titleFx:null. Menu label/text items
+//                  accept the same spec via `fx:`. Powered by applyMenuFx(el,
+//                  spec) which any consumer can call on its own element.
 // Pause hotkey:    bindPauseKey({menuId, when}) — call from gameUpdate each
 //                  frame. Surfaces 'pause' menu on Esc / gamepad Start,
 //                  plays the activate sound, clears the press. Returns true
