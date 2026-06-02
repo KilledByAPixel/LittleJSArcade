@@ -61,6 +61,17 @@ document.getElementById('leakBtn').onclick=()=>{
         host.remove();
     }, 1000);
 };
+
+// Live createMenu titles with titleFx (string + object forms)
+createMenu({ id:'fxTitleA', title:'NEON', titleFx:'neon',
+    items:[{type:'button',label:'CLOSE',onClick:()=>hideMenu('fxTitleA')}] });
+createMenu({ id:'fxTitleB', title:'COMBO', titleFx:{fill:'gold',motion:'float',sparkle:true},
+    items:[{type:'button',label:'CLOSE',onClick:()=>hideMenu('fxTitleB')}] });
+const bar=document.createElement('div'); bar.style.marginTop='16px'; document.body.appendChild(bar);
+['fxTitleA','fxTitleB'].forEach(id=>{
+    const b=document.createElement('button'); b.textContent='show '+id;
+    b.onclick=()=>showMenu(id); bar.appendChild(b); bar.appendChild(document.createTextNode(' '));
+});
 </script>
 </body>
 </html>

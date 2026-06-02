@@ -327,6 +327,7 @@ function createMenu(config)
 
     const cfg = Object.assign({
         id:            null,
+        titleFx:       null,    // string | {fill,motion,sparkle,hue,invert,speed,color}
         title:         null,
         backdrop:      true,
         dismissable:   true,
@@ -384,6 +385,7 @@ function createMenu(config)
         // menu is visible and this item isn't setVisible(false). Useful
         // for live-counting labels, animated custom elements, etc.
         if (item.onUpdate) built.onUpdate = item.onUpdate;
+        if (item.fx) built.fx = item.fx;   // FX spec applied on show, torn down on hide
         panel.appendChild(built.el);
         itemList.push(built);
         if (item.id) itemHandles[item.id] = built.handle;
@@ -394,6 +396,14 @@ function createMenu(config)
     }
 
     let visible = false;
+    // FX teardowns for the title + any item with `fx:`. Applied on show,
+    // reversed on hide so sparkle timers never run while a menu is hidden.
+    const fxTeardowns = [];
+    const applyFx = () => {
+        if (titleEl && cfg.titleFx) fxTeardowns.push(applyMenuFx(titleEl, cfg.titleFx));
+        for (const it of itemList) if (it.fx) fxTeardowns.push(applyMenuFx(it.el, it.fx));
+    };
+    const teardownFx = () => { while (fxTeardowns.length) fxTeardowns.pop()(); };
     const handle = {
         id: cfg.id,
         show()
@@ -402,6 +412,7 @@ function createMenu(config)
             visible = true;
             if (cfg.backdrop) backdrop.classList.add('visible');
             panel.classList.add('visible');
+            if (!fxTeardowns.length) applyFx();
             allMenus.push(handle);
             // Auto-select on show only when the user is actively in keyboard
             // or gamepad mode. Pointer mode opens with no selection so the
@@ -432,6 +443,7 @@ function createMenu(config)
             clearSelected();    // Clear outline when menu closes
             backdrop.classList.remove('visible');
             panel.classList.remove('visible');
+            teardownFx();
             const i = allMenus.indexOf(handle);
             if (i >= 0) allMenus.splice(i, 1);
             if (cfg.onHide) cfg.onHide(reason || 'dismiss');
