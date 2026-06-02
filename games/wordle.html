@@ -270,7 +270,7 @@ function gameUpdatePost() {}
 // Draw a single tile with letter. A non-null `border` draws a ring (outer
 // border rect + inset fill rect); otherwise a solid fill. All WebGL (default)
 // so letters drawn afterward layer correctly on top.
-function drawTile(pos, size, fill, border, letter, textCol) {
+function drawCell(pos, size, fill, border, letter, textCol) {
     if (border) {
         drawRect(pos, size, border);
         drawRect(pos, size.subtract(vec2(.14)), fill);
@@ -318,7 +318,7 @@ function drawGrid() {
                 if (s > 0 && s < 0.4) p = p.add(vec2(Math.sin(s * 50) * 0.18 * (1 - s / 0.4), 0));
             }
 
-            drawTile(p, size, fill, border, letter, textCol);
+            drawCell(p, size, fill, border, letter, textCol);
         }
 }
 
