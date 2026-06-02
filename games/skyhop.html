@@ -54,6 +54,9 @@ const SCORE_SCALE = 10;          // height -> score multiplier
 const SKY_TOP    = hsl(.62, .55, .10);
 const SKY_BOT    = hsl(.57, .55, .26);
 const COLUMN_COL = hsl(.57, .5, .5, .10);
+const WALL_TOP   = hsl(.64, .45, .05);   // dark side walls framing the play column
+const WALL_BOT   = hsl(.60, .45, .11);
+const WALL_EDGE  = hsl(.55, .7, .65, .28);   // glowing seam on the wrap boundary
 const PLAT_COL   = hsl(.33, .7, .5);
 const PLAT_GLOW  = hsl(.33, .85, .6, .30);
 const PLAYER_COL = hsl(.10, .9, .55);
@@ -270,6 +273,24 @@ function drawPlayer()
     if (player.pos.x < -edge) drawPlayerAt(player.pos.x + ARENA_W);
 }
 
+// On wide screens the visible area is wider than the wrap column, so the wrap
+// ghost (and bounce particles) can poke into the side margins. Cover each margin
+// with a dark wall on top of everything — this both masks anything outside the
+// column and frames the play area so the wrap edge reads as a clear boundary.
+function drawSideMasks()
+{
+    const view = getCameraSize();
+    const marginW = view.x/2 - ARENA_W/2;
+    if (marginW <= 0) return;                 // arena fills the screen (portrait)
+    const w = marginW + 6;                    // extend past the screen edge
+    const inner = ARENA_W/2;                  // inner edge sits exactly on the wrap boundary
+    drawRectGradient(vec2( inner + w/2, cameraPos.y), vec2(w, view.y), WALL_TOP, WALL_BOT);
+    drawRectGradient(vec2(-inner - w/2, cameraPos.y), vec2(w, view.y), WALL_TOP, WALL_BOT);
+    // glowing seam on the wrap boundary so the edge is obvious
+    drawRect(vec2( inner, cameraPos.y), vec2(.15, view.y), WALL_EDGE);
+    drawRect(vec2(-inner, cameraPos.y), vec2(.15, view.y), WALL_EDGE);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 async function gameInit()
 {
@@ -370,6 +391,7 @@ function gameRender()
 
 function gameRenderPost()
 {
+    drawSideMasks();
     if (isPlaying())
         drawTextScreen(String(getScore()), vec2(mainCanvasSize.x/2, 70),
             70, WHITE, 6, BLACK);
