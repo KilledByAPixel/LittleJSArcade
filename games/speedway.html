@@ -55,11 +55,6 @@ let icons = null;
 let carBodyTile = null;
 let carDetailTile = null;
 
-// a mountain peak baked into tile 13 (replaces 'droplet'). The built-in
-// 'triangle' icon leaves empty space below its base, which floats the mountains;
-// this peak's base is flush with the tile's bottom edge so it sits on the horizon.
-let mountainTile = null;
-
 const MAX_SPEED       = 0.90;  // world segments per frame
 const ACCEL           = 0.012;
 const BRAKE           = 0.020;
@@ -187,8 +182,9 @@ function gameInit()
     // otherwise reintroduce the dark icon halo); [14,15] keeps the car colors.
     carBodyTile   = drawToTexture(15, paintCarBody,   'race car body (tinted)');
     carDetailTile = drawToTexture(14, paintCarDetail, 'race car wheels / wing / cockpit / helmet');
-    mountainTile  = drawToTexture(13, paintMountain,  'distant mountain peak');
-    whitenAtlasAlpha([13, 14, 15]);
+    // ignore ONLY the car tiles (they carry real dark colors); whiten everything
+    // else so the tinted icons (incl. the triangle mountains) have no dark halo.
+    whitenAtlasAlpha([14, 15]);
 
     // gamepad: on-screen touch pad with an analog left stick (steer) and one
     // face-button area used as buttons for gas/brake on touch devices.
@@ -566,20 +562,6 @@ function drawSign(x, yGround, size, seed)
     fillRectS(x - boardW*0.42, yGround - postH - boardH*0.62, boardW*0.84, max(2, boardH*0.18), hsl(0,0,1,.85));
 }
 
-// White mountain peak that FILLS the tile — apex at top, base flush along the
-// bottom edge — so a drawn tile sits its base exactly on the horizon (the
-// built-in triangle icon leaves a gap below its base). Tints to the haze color.
-function paintMountain(ctx)
-{
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.moveTo(232,   6);   // apex (slightly off-center so peaks aren't perfectly even)
-    ctx.lineTo(500, 500);   // bottom-right corner
-    ctx.lineTo(  0, 500);   // bottom-left corner
-    ctx.closePath();
-    ctx.fill();
-}
-
 // Distant parallax backdrop (sun + mountain ranges) along the horizon. Each
 // layer scrolls horizontally by bgScroll at its own rate — farther = slower —
 // so the scene rotates around you as you go through bends. All instanced tiles.
@@ -603,22 +585,32 @@ function drawBackground(v)
     }
 
     // two mountain ranges: far (lighter/hazier/slower) behind near (darker/faster).
-    const drawRange = (rate, color, peakH, span, yBase)=>
+    // Built from the 'triangle' icon: an equilateral peak with its apex at the
+    // tile's top-center and its base at ~0.75 of the tile height. We deliberately
+    // SINK the base below the horizon by a fraction of the peak height (SINK), so
+    // the bases (and the gaps between peaks) tuck under the ground — taller peaks
+    // sink proportionally more, so the near range doesn't float. The road, drawn
+    // afterward, covers everything below the horizon.
+    const SINK = 0.14; // base sits SINK*peakHeight below the horizon
+    const drawRange = (rate, color, peakH, span, horizon)=>
     {
         const scroll = -bgScroll * w * rate;
         const k0 = Math.floor((-span - scroll)/span);
         const k1 = Math.ceil((w + span - scroll)/span);
         for (let k = k0; k <= k1; ++k)
         {
-            const px = k*span + scroll;
-            const hgt = peakH * (0.6 + hash01(k*1.7 + rate)*0.85);
-            const pw  = span * (1.6 + hash01(k*2.3)*0.7); // wide enough to overlap into a ridge
-            drawTile(vec2(px, yBase - hgt/2), vec2(pw, hgt), mountainTile,
+            const px  = k*span + scroll;
+            const visH = peakH * (0.6 + hash01(k*1.7 + rate)*0.85); // apex->base height
+            const H = visH / 0.75;                       // triangle base is 75% down the tile
+            const pw = span * (1.9 + hash01(k*2.3)*0.8); // wide (base is ~87% of tile) -> ridge
+            // base lands at horizon + SINK*H  ->  tile center = base - 0.25*H
+            const cy = horizon + (SINK - 0.25)*H;
+            drawTile(vec2(px, cy), vec2(pw, H), icons.triangle,
                 color, 0, undefined, undefined, glEnable, true);
         }
     };
-    drawRange(2.0, hsl(.62, .28, .60), horizonY*0.46, w*0.26, horizonY+3); // far
-    drawRange(3.3, hsl(.66, .34, .44), horizonY*0.66, w*0.20, horizonY+6); // near
+    drawRange(2.0, hsl(.62, .28, .60), horizonY*0.46, w*0.26, horizonY); // far
+    drawRange(3.3, hsl(.66, .34, .44), horizonY*0.66, w*0.20, horizonY); // near
 }
 
 function renderRoadAndCars()
@@ -638,8 +630,12 @@ function renderRoadAndCars()
     // haze softens their bases into the horizon.
     drawBackground(v);
 
-    // distant haze
-    fillRectS(0, horizonY-18, w, 36, hsl(.58, .25, .90, .25));
+    // horizon fog: a soft white haze densest at the horizon, fading to clear
+    // going up, so the mountain bases melt into the distance. colorBottom (at the
+    // horizon) is white; colorTop fades to fully transparent.
+    const fogH = horizonY * 0.40;
+    drawRectGradient(vec2(w/2, horizonY - fogH/2), vec2(w, fogH),
+        hsl(0,0,1,0), hsl(.58, .10, .97, .55), 0, glEnable, true);
 
     // precompute visible road
     const baseIndex = trackPos|0;
