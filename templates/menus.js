@@ -184,6 +184,22 @@
 // instead of the engine's canvas overlay. Same `medalsInit('SaveName')`
 // call, same `medals[id]` map — just a different display path.
 
+// ============================================================================
+// Title / heading FX (titleFx). See applyMenuFx below. Channel model:
+//   fill    one of MENU_FX_FILL   (color/shadow/gradient look)
+//   motion  one of MENU_FX_MOTION (transform; wrapped or per-letter for wave)
+//   sparkle boolean overlay (particle layer)
+//   tweaks  hue (deg), invert (bool), speed (multiplier), color (override)
+// A bare string is shorthand for its channel: 'neon' -> {fill:'neon'},
+// 'float' -> {motion:'float'}, 'sparkle' -> {sparkle:true}.
+// ============================================================================
+const MENU_FX_FILL = ['neon','rainbow','shine','fire','gold','outline','hardshadow','3d','glitch','crt'];
+const MENU_FX_MOTION = ['wave','heartbeat','jelly','float'];
+const MENU_FX_CHANNEL = {};
+for (const n of MENU_FX_FILL) MENU_FX_CHANNEL[n] = 'fill';
+for (const n of MENU_FX_MOTION) MENU_FX_CHANNEL[n] = 'motion';
+MENU_FX_CHANNEL['sparkle'] = 'overlay';
+
 function createMenu(config)
 {
     initMenuSystem();
@@ -2134,6 +2150,95 @@ button.ljs-grid-cell { cursor: pointer; }
 @keyframes ljs-orient-rotate {
     0%, 100% { transform: rotate(-12deg); }
     50%      { transform: rotate(78deg); }
+}
+
+/* ============================================================
+   Title / heading FX (titleFx) — composable juice effects.
+   Each effect class lives on ONE channel; durations divide by
+   --fx-speed (default 1), tintable fills read --fx-color
+   (default per-effect) so games recolor without new CSS.
+   ============================================================ */
+
+/* FILL channel ------------------------------------------------ */
+.fx-neon{ color:#fff; animation:ljsfx-neon calc(1.8s / var(--fx-speed,1)) ease-in-out infinite; }
+@keyframes ljsfx-neon{
+    0%,100%{ text-shadow:0 0 4px var(--fx-color,#6cf),0 0 10px var(--fx-color,#6cf),0 0 20px var(--fx-color,#09f),0 0 40px var(--fx-color,#06f); }
+    50%{ text-shadow:0 0 6px var(--fx-color,#6cf),0 0 18px var(--fx-color,#6cf),0 0 36px var(--fx-color,#09f),0 0 72px var(--fx-color,#06f); }
+}
+.fx-rainbow{
+    background:linear-gradient(90deg,#f0f,#0ff,#0f0,#ff0,#f80,#f0f); background-size:300% 100%;
+    -webkit-background-clip:text; background-clip:text; color:transparent; -webkit-text-fill-color:transparent;
+    animation:ljsfx-hue calc(4s / var(--fx-speed,1)) linear infinite;
+}
+@keyframes ljsfx-hue{ from{background-position:0 0;} to{background-position:300% 0;} }
+.fx-shine{
+    color:#3a4660; background:linear-gradient(110deg,#3a4660 0%,#3a4660 40%,#fff 50%,#3a4660 60%,#3a4660 100%);
+    background-size:250% 100%; -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    animation:ljsfx-shine calc(2.6s / var(--fx-speed,1)) linear infinite;
+}
+@keyframes ljsfx-shine{ from{background-position:140% 0;} to{background-position:-40% 0;} }
+.fx-fire{
+    background:linear-gradient(0deg,#ff3 0%,#f80 40%,#e22 80%,#a00 100%);
+    -webkit-background-clip:text; background-clip:text; color:transparent; -webkit-text-fill-color:transparent;
+    filter:drop-shadow(0 0 6px #f60); animation:ljsfx-fire calc(.12s / var(--fx-speed,1)) steps(2) infinite;
+}
+@keyframes ljsfx-fire{ 0%{filter:drop-shadow(0 0 6px #f60);} 100%{filter:drop-shadow(0 -2px 10px #f93);} }
+.fx-gold{
+    background:linear-gradient(100deg,#a67c00 0%,#fde98c 25%,#fff7d6 38%,#fde98c 50%,#a67c00 75%,#fde98c 100%);
+    background-size:250% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; -webkit-text-fill-color:transparent;
+    animation:ljsfx-gold calc(3.2s / var(--fx-speed,1)) linear infinite;
+}
+@keyframes ljsfx-gold{ from{background-position:0 0;} to{background-position:250% 0;} }
+.fx-outline{
+    color:transparent; -webkit-text-fill-color:transparent;
+    -webkit-text-stroke:2px var(--fx-color,var(--menu-accent));
+    text-shadow:0 0 12px var(--fx-color,rgba(102,204,255,.4));
+}
+.fx-hardshadow{ color:var(--fx-color,#fff); text-shadow:4px 4px 0 #e23,8px 8px 0 rgba(0,0,0,.35); }
+.fx-3d{
+    color:#ffd34d;
+    text-shadow:1px 1px 0 #b9860b,2px 2px 0 #b9860b,3px 3px 0 #936c09,4px 4px 0 #6e5107,5px 5px 0 #4c3805,6px 6px 8px rgba(0,0,0,.6);
+}
+.fx-glitch{ color:var(--fx-color,#fff); animation:ljsfx-glitch calc(2.4s / var(--fx-speed,1)) steps(2) infinite; }
+@keyframes ljsfx-glitch{
+    0%,92%,100%{ text-shadow:1px 0 #f0f,-1px 0 #0ff; transform:translate(0); }
+    93%{ text-shadow:3px 0 #f0f,-3px 0 #0ff; transform:translate(-2px,1px); }
+    95%{ text-shadow:-4px 0 #f0f,4px 0 #0ff; transform:translate(2px,-1px); }
+    97%{ text-shadow:2px 0 #f0f,-2px 0 #0ff; transform:translate(-1px,0); }
+}
+.fx-crt{ color:#7fffb0; text-shadow:0 0 6px #2f8; position:relative; animation:ljsfx-crt calc(3s / var(--fx-speed,1)) steps(40) infinite; }
+.fx-crt::after{ content:""; position:absolute; inset:-6px; pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.35) 2px 4px); }
+@keyframes ljsfx-crt{ 0%,97%,100%{opacity:1;} 98%{opacity:.7;} 99%{opacity:.95;} }
+
+/* MOTION channel (outer wrapper, animates transform) ---------- */
+.m-float{ display:inline-block; animation:ljsfx-float calc(3s / var(--fx-speed,1)) ease-in-out infinite; }
+@keyframes ljsfx-float{ 0%,100%{transform:translateY(-5px);} 50%{transform:translateY(5px);} }
+.m-heartbeat{ display:inline-block; animation:ljsfx-beat calc(1.3s / var(--fx-speed,1)) ease-in-out infinite; }
+@keyframes ljsfx-beat{ 0%,100%{transform:scale(1);} 15%{transform:scale(1.12);} 30%{transform:scale(1);} }
+.m-jelly{ display:inline-block; animation:ljsfx-jelly calc(1.6s / var(--fx-speed,1)) ease-in-out infinite; }
+@keyframes ljsfx-jelly{ 0%,100%{transform:scale(1,1);} 25%{transform:scale(1.1,.85);} 50%{transform:scale(.9,1.1);} 75%{transform:scale(1.05,.95);} }
+/* wave is per-letter, applied to the fill element's letter spans */
+.fx-wave span{ display:inline-block; animation:ljsfx-wave calc(1.4s / var(--fx-speed,1)) ease-in-out infinite; }
+@keyframes ljsfx-wave{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-12px);} }
+
+/* OVERLAY channel -------------------------------------------- */
+.ov-sparkle{ position:relative; }
+.ljs-fx-spark{ position:absolute; width:6px; height:6px; pointer-events:none;
+    background:radial-gradient(circle,#fff 0%,#ffd34d 50%,transparent 70%); border-radius:50%;
+    animation:ljsfx-spark .9s ease-out forwards; }
+@keyframes ljsfx-spark{
+    0%{transform:scale(0) rotate(0);opacity:0;}
+    30%{transform:scale(1.4) rotate(90deg);opacity:1;}
+    100%{transform:scale(0) rotate(180deg) translateY(-18px);opacity:0;}
+}
+
+/* reduced motion --------------------------------------------- */
+@media (prefers-reduced-motion: reduce){
+    .fx-neon,.fx-rainbow,.fx-shine,.fx-fire,.fx-gold,.fx-glitch,.fx-crt,
+    .m-float,.m-heartbeat,.m-jelly,.fx-wave span{ animation:none !important; }
+    .m-float,.m-heartbeat,.m-jelly,.fx-wave span{ transform:none !important; }
+    .ljs-fx-spark{ display:none !important; }
 }
 `;
     const style = document.createElement('style');
