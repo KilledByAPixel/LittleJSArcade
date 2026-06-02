@@ -314,10 +314,11 @@ function candidateMask(i)
 }
 
 // one-shot: fill every empty cell's pencil marks with its legal candidates,
-// which then become normal editable notes (disabled on hard, like hints)
+// which then become normal editable notes (just bookkeeping — allowed on all
+// difficulties; only HINT is gated on hard)
 function autoPencil()
 {
-    if (solved || difficulty === 'hard') return;
+    if (solved) return;
     for (let i = 0; i < 81; i++)
         notes[i] = val[i] ? 0 : candidateMask(i);
     sNote.play();
@@ -530,8 +531,8 @@ async function gameInit()
             'repeats. Click a cell (or use arrow keys), then type 1-9 or tap the number ' +
             'pad. NOTES lets you pencil in your own candidates; AUTO fills every empty cell ' +
             'with its legal candidates at once, which you can then refine by hand. Conflicts ' +
-            'glow red; selecting a number highlights its matches. HINT reveals one cell. AUTO ' +
-            'and HINT are not available on Hard. Your game saves automatically.',
+            'glow red; selecting a number highlights its matches. HINT reveals one cell ' +
+            '(not available on Hard). Your game saves automatically.',
         extraItems: [{type: 'text', text: '1-9 place · 0/Bksp erase · N notes · A auto · H hint · R new'}],
     });
 
@@ -698,7 +699,7 @@ function gameRender()
     {
         for (const b of getPad())
         {
-            const disabled = (b.kind === 'hint' || b.kind === 'auto') && difficulty === 'hard';
+            const disabled = b.kind === 'hint' && difficulty === 'hard';
             const active = b.kind === 'notes' && notesMode;
             const hover = !disabled && isOverlapping(mousePos, vec2(0.01), b.pos, b.size) && !solved;
             drawRect(b.pos, b.size, hsl(0, 0, 0.18));
