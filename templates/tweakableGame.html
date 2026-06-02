@@ -16,8 +16,6 @@ paused = false;
 
 // engine settings, customize if necessary
 gravity = vec2(0, -.01);
-cameraPos = vec2(0, 0);
-cameraScale = 32;
 
 ///////////////////////////////////////////////////////////////////////////////
 // TWEAKABLES TEMPLATE
@@ -93,6 +91,14 @@ function gameUpdate()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+function gameUpdatePost()
+{
+    // setup camera and prepare for render
+    const viewSize = vec2(30,18)
+    cameraFit(vec2(0, 0), viewSize);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 function gameRender()
 {
     drawRectGradient(cameraPos, getCameraSize(),
@@ -127,6 +133,6 @@ function gameRenderPost()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-engineInit(gameInit, gameUpdate, () => {}, gameRender, gameRenderPost);
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
 
 </script>
