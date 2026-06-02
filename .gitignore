@@ -18,6 +18,9 @@ docs/
 # playwright-mcp scratch dir
 .playwright-mcp/
 
+# brainstorming visual-companion scratch dir
+.superpowers/
+
 # debug screenshots / data dumps at repo root
 /*.png
 /*_data.txt
