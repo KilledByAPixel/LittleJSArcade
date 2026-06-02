@@ -410,6 +410,15 @@ function showAtlas(visible = true)
 //   4 triangle   5 diamond   6 pentagon   7 hexagon
 //   8 spark      9 star     10 burst     11 plus
 //  12 heart     13 droplet  14 bolt      15 arrow
+//
+// Geometry note: the polygon icons (triangle, diamond, pentagon, hexagon, and
+// the star shapes) are inscribed in a circle of radius = half the tile, CENTERED
+// on the tile center — NOT scaled to fill the tile's bounding box, so a shape can
+// leave empty margins inside its tile. The triangle is an equilateral triangle
+// with its apex at the tile's top-center (y~=0) and its base at ~0.75 of the tile
+// height, so the bottom quarter of the tile is empty. If you need a shape's edge
+// flush to a tile edge (e.g. a mountain base sitting on a horizon), account for
+// this offset when placing/sizing the tile, or paint a custom tile.
 
 const DEFAULT_ICON_NAMES = [
     'circle', 'glow',  'ring', 'roundSquare',
