@@ -2385,7 +2385,10 @@ button.ljs-grid-cell { cursor: pointer; }
 @keyframes ljsfx-wave{ 0%,100%{transform:translateY(0);} 50%{transform:translateY(-12px);} }
 
 /* OVERLAY channel -------------------------------------------- */
-.ov-sparkle{ position:relative; }
+/* Shrink the sparkle host to its text so particles only cover the title
+   glyphs, not the full panel width. align-self centers it in the flex menu
+   column; the fit-content + margin-inline:auto pair covers non-flex hosts. */
+.ov-sparkle{ position:relative; width:-moz-fit-content; width:fit-content; max-width:100%; margin-inline:auto; align-self:center; }
 /* .9s is intentionally fixed (not --fx-speed scaled) — it is coupled to the
    JS particle lifetime in applyMenuFx (spawn/remove timers). */
 .ljs-fx-spark{ position:absolute; width:6px; height:6px; pointer-events:none;
