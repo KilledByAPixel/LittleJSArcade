@@ -223,6 +223,7 @@ async function gameInit()
     createTitleMenu({
         id: 'title',
         title: 'KLONDIKE',
+        titleFx: {fill:'hardshadow', color:'#2a8'},
         onPlay: playFromTitle,
         canReveal: () => !isPlaying(),
         revealOnClick: false,

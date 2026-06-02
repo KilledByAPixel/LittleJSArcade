@@ -752,6 +752,7 @@ function buildMenus()
     const fmtBest = t => t > 0 ? `Best: ${t.toFixed(2)}s` : 'Best: —';
     createTitleMenu({
         title: 'MICRO RACER',
+        titleFx: {fill:'neon', color:'#f33', speed:1.4},
         subtitle: '',
         itemsBefore: [{type:'label', id:'bestLabel', text: fmtBest(bestTime)}],
         onShow: () => {

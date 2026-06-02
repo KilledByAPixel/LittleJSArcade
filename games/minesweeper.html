@@ -466,6 +466,7 @@ async function gameInit()
     const titleMenu = createMenu({
         id: 'title',
         title: 'MINESWEEPER',
+        titleFx: {fill:'hardshadow', color:'#39f'},
         dismissable: false,
         items: [
             {type:'button', id:'easyBtn',   label:'EASY',   onClick: () => startDifficulty('easy',   9,  9, 10)},

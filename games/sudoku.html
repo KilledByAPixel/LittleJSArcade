@@ -509,6 +509,7 @@ async function gameInit()
     const titleMenu = createMenu({
         id: 'title',
         title: 'SUDOKU',
+        titleFx: {fill:'outline', color:'#8af'},
         dismissable: false,
         onStart: () => newGame('medium'),
         items: [

@@ -198,6 +198,7 @@ async function gameInit()
     createTitleMenu({
         id: 'title',
         title: 'FREECELL',
+        titleFx: {fill:'shine', color:'#3c6'},
         onPlay: playFromTitle,
         canReveal: () => !isPlaying(),
         revealOnClick: false,

@@ -779,6 +779,7 @@ async function gameInit()
 
     createTitleMenu({
         title: 'DOMINOES',
+        titleFx: {fill:'shine', color:'#fff'},
         subtitle: 'Block · vs AI',
         onPlay: () => { newGame(); setPlaying(true); },
         canReveal: () => !isPlaying(),

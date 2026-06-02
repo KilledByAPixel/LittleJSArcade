@@ -633,6 +633,7 @@ async function gameInit()
     createTitleMenu({
         id: 'title',
         title: 'BRICKOUT',
+        titleFx: {fill:'shine'},
         subtitle: 'Clear all 5 levels, then loop with rising speed',
         revealOnClick: false,
         canReveal: () => !isPlaying(),
