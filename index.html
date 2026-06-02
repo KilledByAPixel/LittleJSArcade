@@ -59,6 +59,7 @@
         --cat-board:   #f7c948;   --cat-board-bg:   rgba(247,201,72,.18);
         --cat-strategy:#2dd4bf;   --cat-strategy-bg:rgba(45,212,191,.18);
         --cat-sports:  #4ade80;   --cat-sports-bg:  rgba(74,222,128,.18);
+        --cat-physics: #fb7185;   --cat-physics-bg: rgba(251,113,133,.18);
         --cat-construction: #ff9744; --cat-construction-bg: rgba(255,151,68,.18);
         --cat-frankforce: #22d3ee; --cat-frankforce-bg: rgba(34,211,238,.18);
     }
@@ -929,7 +930,7 @@ const GAMES = [
     { file:'jumpman.html',          name:'Jumpman',         emoji:'🍄',  category:'construction', desc:'Run, jump, and stomp.',           tags:['platformer','side-scroll'],                     keywords:['super mario bros','mario','platformer','brick blocks','goomba'] },
     { file:'matchThree.html',         name:'Match Three',     emoji:'💠',  category:'puzzle',       desc:'Swap gems to match three.',               scoreKey:'match3.bestScore',          tags:['grid','matching'],                keywords:['bejeweled','candy crush','match 3','gems'] },
     { file:'microRacer.html',     name:'Micro Racer',     emoji:'🏎️', category:'construction', desc:'Race tiny cars on tight tracks.',         scoreKey:'microRacer.bestTime',       tags:['racing','top-down'],              keywords:['micro machines','rc pro am','top down racing'] },
-    { file:'minesweeper.html',    name:'Minesweeper',     emoji:'🚩',  category:'puzzle',       desc:'Flag the mines.',        scoreKey:'minesweeper.bestTimes.hard',tags:['grid','classic'],                 keywords:['mines','windows minesweeper'] },
+    { file:'minesweeper.html',    name:'Minesweeper',     emoji:'🚩',  category:'strategy',       desc:'Flag the mines.',        scoreKey:'minesweeper.bestTimes.hard',tags:['grid','classic'],                 keywords:['mines','windows minesweeper'] },
     { file:'miniGolf.html',       name:'Mini Golf',       emoji:'⛳',  category:'sports',       desc:'Putt across tricky little courses.',      scoreKey:'miniGolf.bestScore',        tags:['physics','aim'],                  keywords:['golf','putt putt','crazy golf'] },
     { file:'missileDefense.html', name:'Missile Defense', emoji:'🏙️', category:'arcade',      desc:'Shoot down the missiles.',        scoreKey:'missileCommand.bestScore',  tags:['defense','aim'],              keywords:['missile command','nuke defense','abm','cold war'], top:1 },
     { file:'moonbuggy.html',     name:'Moonbuggy',       emoji:'🌔',  category:'construction', desc:'Hop craters and shoot aliens.',    scoreKey:'moonPatrol.bestScore',      tags:['scrolling','runner'],             keywords:['moon patrol','moon buggy','rover'] },
@@ -937,9 +938,9 @@ const GAMES = [
     { file:'orbitswarm.html',     name:'OrbitSwarm',      emoji:'🪐',  category:'strategy',      desc:'Build ships, conquer the galaxy.',         tags:['space','strategy'],                keywords:['gravitar','strategy','geometry wars'] },
     { file:'reversi.html',        name:'Reversi',         emoji:'⚪',  category:'board',        desc:'Flank stones to flip them.',              tags:['strategy','2-player'],            keywords:['othello','reversi'] },
     { file:'pucMan.html',         name:'Maze Munch',         emoji:'👻',  category:'arcade',       desc:'Eat dots, dodge the ghosts.',             scoreKey:'pacman.bestScore',          tags:['maze','retro'],                   keywords:['pac-man','pacman','ms pacman','ghosts','maze chase'] },
-    { file:'pegball.html',         name:'Pegball',         emoji:'🟢',  category:'arcade',       desc:'Aim, drop, clear every peg.',             scoreKey:'peggle.bestScore',          tags:['physics','aim'],                  keywords:['peggle','pachinko','peg shooter'] },
+    { file:'pegball.html',         name:'Pegball',         emoji:'🟢',  category:'physics',      desc:'Aim, drop, clear every peg.',             scoreKey:'peggle.bestScore',          tags:['physics','aim'],                  keywords:['peggle','pachinko','peg shooter'] },
     { file:'pinball.html',        name:'Pinball',         emoji:'⚪',  category:'construction', desc:'Launch, flip, and bounce.',          scoreKey:'pinball.bestScore',         tags:['physics','retro'],                keywords:['pinball','flippers','silverball'] },
-    { file:'plinko.html',         name:'Plinker',         emoji:'🔵',  category:'arcade',       desc:'Drop chips down the pegs.',               scoreKey:'plinko.bestScore',          tags:['physics','luck'],                 keywords:['plinko','price is right','pachinko'] },
+    { file:'plinko.html',         name:'Plinker',         emoji:'🔵',  category:'physics',      desc:'Drop chips down the pegs.',               scoreKey:'plinko.bestScore',          tags:['physics','luck'],                 keywords:['plinko','price is right','pachinko'] },
     { file:'speedway.html',   name:'Speedway',        emoji:'🏁',  category:'construction', desc:'Hug the curves, beat the clock.',         scoreKey:'polePosition.bestScore',    tags:['racing','retro','3d'],                 keywords:['pole position','outrun','f1','arcade racer'] },
     { file:'pong.html',           name:'Pong',            emoji:'🏓',  category:'sports',       desc:'Two paddles, one bouncing ball.',         tags:['paddle','retro'],                 keywords:['pong','tennis','table tennis'] },
     { file:'pool.html',           name:'Pool',            emoji:'🎱',  category:'sports',       desc:'Cue up and sink them all.',               scoreKey:'pool.bestShots',            tags:['physics','aim'],                  keywords:['pool','billiards','snooker','cue sports','8-ball','9-ball'], top:3 },
@@ -950,7 +951,7 @@ const GAMES = [
     { file:'skiing.html',         name:'Skiing',          emoji:'⛷️', category:'construction', desc:'Carve downhill through the gates.',       scoreKey:'skiing.bestScore',          tags:['racing','retro'],                 keywords:['ski free','slalom','snow','alpine'] },
     { file:'snake.html',          name:'Snake',           emoji:'🐍',  category:'arcade',       desc:'Eat, grow, and don’t crash.',             scoreKey:'snake.bestScore',           tags:['grid','classic'],                 keywords:['snake','nokia snake','tron'] },
     { file:'bobblePop.html',          name:'Bobble Pop',      emoji:'🎈',  category:'puzzle',       desc:'Aim and pop matching bubbles.',           scoreKey:'snood.bestScore',           tags:['physics','aim'],                  keywords:['snood','bust a move','puzzle bobble','bubble shooter'] },
-    { file:'sokoban.html',        name:'Sokoban',         emoji:'📦',  category:'puzzle',       desc:'Push every box onto its target.',         scoreKey:'sokoban.bestLevel',         tags:['grid','classic'],                 keywords:['sokoban','warehouse','box push'] },
+    { file:'sokoban.html',        name:'Sokoban',         emoji:'📦',  category:'strategy',       desc:'Push every box onto its target.',         scoreKey:'sokoban.bestLevel',         tags:['grid','classic'],                 keywords:['sokoban','warehouse','box push'] },
     { file:'spaceIntruders.html',  name:'Space Intruders', emoji:'👾',  category:'shooter',      desc:'Shoot the marching aliens.',          scoreKey:'spaceInvaders.bestScore',   tags:['retro','space'],                 keywords:['space invaders','galaga','galaxian','aliens'], top:7 },
     { file:'sudoku.html',         name:'Sudoku',          emoji:'9️⃣',  category:'construction', desc:'Fill the grid with 1-9.',                 scoreKey:'sudoku.bestTimes.hard',     tags:['grid','logic'],                   keywords:['sudoku','number puzzle','logic puzzle','9x9'] },
     { file:'spyDriver.html',      name:'Spy Driver',      emoji:'🕵️', category:'construction', desc:'Drive and shoot.',              scoreKey:'spyhunter.bestScore',       tags:['driving','top-down'],             keywords:['spy hunter','car combat','vehicular combat','road rash'] },
@@ -1015,6 +1016,7 @@ const CATEGORIES = [
     { key:'board',   label:'Board',   emoji:'🎲', color:'var(--cat-board)',   colorBg:'var(--cat-board-bg)'   },
     { key:'strategy',label:'Strategy',emoji:'🧠', color:'var(--cat-strategy)',colorBg:'var(--cat-strategy-bg)'},
     { key:'sports',  label:'Sports',  emoji:'⚽', color:'var(--cat-sports)',  colorBg:'var(--cat-sports-bg)'  },
+    { key:'physics', label:'Physics', emoji:'🎯', color:'var(--cat-physics)', colorBg:'var(--cat-physics-bg)' },
     { key:'frankforce', label:'Frank Force Games', emoji:'🟥', color:'var(--cat-frankforce)', colorBg:'var(--cat-frankforce-bg)' },
     { key:'construction', label:'Under Construction', emoji:'🚧', color:'var(--cat-construction)', colorBg:'var(--cat-construction-bg)' },
 ];
