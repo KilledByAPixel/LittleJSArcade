@@ -1,0 +1,734 @@
+<!DOCTYPE html><head>
+<title>LittleJS Sudoku</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<script src="../templates/engineLoader.js?1780355054005"></script>
+<script src="../templates/gameFx.js?1780355054005"></script>
+<script src="../templates/menus.js?1780355054005"></script>
+<script>
+'use strict';
+
+// engine settings, do not remove
+paused = false;
+
+// engine settings, customize if necessary
+gravity = vec2(0, 0);
+cameraPos = vec2(0, 0);
+cameraScale = 60;
+canvasFixedSize = vec2(700, 1080); // portrait
+
+///////////////////////////////////////////////////////////////////////////////
+// Sudoku — classic 9x9. Generate a full solution by randomized backtracking,
+// then dig cells away while a solution-counter guarantees the puzzle stays
+// uniquely solvable. Keyboard (1-9 / arrows / N notes / H hint) + an on-screen
+// number pad. Assists: conflict + same-number highlighting, hint, auto-win.
+
+// monotonic seconds (some engine builds don't expose a global `time`)
+const nowTime = () => performance.now() * 0.001;
+
+// ---- layout (world units) -------------------------------------------------
+const CS = 1;             // cell size
+const GRID_Y = 1.2;       // grid center y
+const PAD_Y1 = GRID_Y - 5.4;   // number row
+const PAD_Y2 = PAD_Y1 - 1.35;  // notes / erase / hint row
+
+// clue-count targets per difficulty (more clues = easier)
+const CLUES = {easy: 42, medium: 34, hard: 27};
+
+// ---- game state -----------------------------------------------------------
+let solution = new Uint8Array(81); // the answer
+let val      = new Uint8Array(81); // current displayed value (0 = empty)
+let fixed    = new Uint8Array(81); // 1 = given clue (locked)
+let notes    = new Uint16Array(81);// candidate bitmask, bit d set => note d
+let selected = -1;
+let difficulty = 'medium';
+let notesMode = false;
+
+let mistakes = 0;
+let hintsUsed = 0;
+let startTime = 0, endTime = 0;
+let solved = false;
+let pendingWin = false, winAt = 0;
+let flashT = -9;
+let saveDirty = false;  // set by mutating actions, flushed once/frame in gameUpdatePost
+
+// options (persisted via the options menu checkboxes)
+let showConflicts = true;
+let showHighlights = true;
+
+// sounds
+let sPlace, sNote, sErase, sConflict, sWin, sSelect;
+
+///////////////////////////////////////////////////////////////////////////////
+// CELL HELPERS
+
+const rowOf = i => (i / 9) | 0;
+const colOf = i => i % 9;
+const cellCenter = i => vec2((colOf(i) - 4) * CS, GRID_Y + (4 - rowOf(i)) * CS);
+
+function cellFromWorld(p)
+{
+    const col = Math.floor((p.x + 4.5 * CS) / CS);
+    const row = Math.floor((GRID_Y + 4.5 * CS - p.y) / CS);
+    if (col < 0 || col > 8 || row < 0 || row > 8) return -1;
+    return row * 9 + col;
+}
+
+// are i and j peers (same row, column, or 3x3 box) — excludes i===j
+function arePeers(i, j)
+{
+    if (i === j) return false;
+    if (rowOf(i) === rowOf(j)) return true;
+    if (colOf(i) === colOf(j)) return true;
+    const bi = (rowOf(i) / 3 | 0) * 3 + (colOf(i) / 3 | 0);
+    const bj = (rowOf(j) / 3 | 0) * 3 + (colOf(j) / 3 | 0);
+    return bi === bj;
+}
+
+// would value d at index i duplicate an existing same value in its row/col/box?
+function valid(a, i, d)
+{
+    const r = rowOf(i), c = colOf(i);
+    for (let k = 0; k < 9; k++)
+    {
+        if (a[r * 9 + k] === d) return false;
+        if (a[k * 9 + c] === d) return false;
+    }
+    const br = 3 * (r / 3 | 0), bc = 3 * (c / 3 | 0);
+    for (let y = 0; y < 3; y++)
+    for (let x = 0; x < 3; x++)
+        if (a[(br + y) * 9 + bc + x] === d) return false;
+    return true;
+}
+
+// is the filled cell i in conflict with a peer holding the same value?
+function isConflict(i)
+{
+    const v = val[i];
+    if (!v) return false;
+    for (let j = 0; j < 81; j++)
+        if (j !== i && val[j] === v && arePeers(i, j)) return true;
+    return false;
+}
+
+function clearPeerNotes(i, d)
+{
+    const bit = 1 << d;
+    for (let j = 0; j < 81; j++)
+        if (arePeers(i, j)) notes[j] &= ~bit;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// PUZZLE GENERATION
+
+function shuffle(a)
+{
+    for (let i = a.length - 1; i > 0; i--)
+    {
+        const j = randInt(i + 1);
+        const t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+}
+
+// fill an empty grid with a random complete valid solution
+function fillGrid(a)
+{
+    const i = a.indexOf(0);
+    if (i < 0) return true;
+    for (const d of shuffle([1, 2, 3, 4, 5, 6, 7, 8, 9]))
+        if (valid(a, i, d))
+        {
+            a[i] = d;
+            if (fillGrid(a)) return true;
+            a[i] = 0;
+        }
+    return false;
+}
+
+// count solutions of a (partial) grid, bailing as soon as 2 are found
+function countSolutions(a)
+{
+    const i = a.indexOf(0);
+    if (i < 0) return 1;
+    let cnt = 0;
+    for (let d = 1; d <= 9; d++)
+        if (valid(a, i, d))
+        {
+            a[i] = d;
+            cnt += countSolutions(a);
+            a[i] = 0;
+            if (cnt >= 2) return cnt;
+        }
+    return cnt;
+}
+
+// produce {solution, puzzle}; puzzle is dug down toward `target` clues while
+// every removal is verified to keep the solution unique
+function generatePuzzle(target)
+{
+    const sol = new Uint8Array(81);
+    fillGrid(sol);
+    const puzzle = sol.slice();
+    let clues = 81;
+    for (const p of shuffle([...Array(81).keys()]))
+    {
+        if (clues <= target) break;
+        const s = puzzle[p];
+        if (!s) continue;
+        puzzle[p] = 0;
+        const work = puzzle.slice();
+        if (countSolutions(work) !== 1)
+            puzzle[p] = s;     // removal made it ambiguous — put it back
+        else
+            clues--;
+    }
+    return {solution: sol, puzzle};
+}
+
+// build a fresh board for a difficulty (does not start the clock / playing)
+function buildGame(diff)
+{
+    difficulty = diff;
+    const {solution: sol, puzzle} = generatePuzzle(CLUES[diff]);
+    solution = sol;
+    val = puzzle.slice();
+    fixed = new Uint8Array(81);
+    notes = new Uint16Array(81);
+    for (let i = 0; i < 81; i++) fixed[i] = puzzle[i] ? 1 : 0;
+    selected = -1;
+    mistakes = 0;
+    hintsUsed = 0;
+    solved = false;
+    pendingWin = false;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// GAME FLOW
+
+function newGame(diff)
+{
+    buildGame(diff);
+    notesMode = false;
+    startTime = nowTime();
+    endTime = startTime;
+    saveDirty = true;   // persist the fresh board on the next frame
+    setPlaying(true);
+    hideMenu('title');
+}
+
+// a half-solved board to sit behind the title menu (CLAUDE.md: never a black
+// canvas behind the title). Fills a chunk of correct answers so it reads as a
+// game in progress.
+function buildAttract()
+{
+    buildGame('medium');
+    const empties = shuffle([...Array(81).keys()].filter(i => !fixed[i]));
+    const reveal = (empties.length / 2) | 0;
+    for (let k = 0; k < reveal; k++) val[empties[k]] = solution[empties[k]];
+    selected = -1;
+}
+
+function goToTitle()
+{
+    clearSubmenuStack();
+    hideAllMenus();
+    setPlaying(false);
+    clearSavedGame();
+    buildAttract();
+    showMenu('title');
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// INPUT ACTIONS
+
+function inputDigit(d)
+{
+    if (solved || selected < 0 || fixed[selected]) return;
+
+    if (notesMode)
+    {
+        if (val[selected]) return;     // can't pencil into a filled cell
+        notes[selected] ^= (1 << d);
+        sNote.play();
+        saveDirty = true;
+        return;
+    }
+
+    val[selected] = d;
+    notes[selected] = 0;
+    clearPeerNotes(selected, d);
+
+    if (isConflict(selected))
+    {
+        mistakes++;
+        sConflict.play();
+        if (isScreenShakeEnabled()) addScreenShake(0.15, 0.2);
+    }
+    else
+        sPlace.play();
+
+    saveDirty = true;
+    checkSolved();
+}
+
+function doErase()
+{
+    if (solved || selected < 0 || fixed[selected]) return;
+    if (val[selected]) val[selected] = 0;
+    else if (notes[selected]) notes[selected] = 0;
+    else return;
+    sErase.play();
+    saveDirty = true;
+}
+
+function doHint()
+{
+    if (solved) return;
+    let t = selected;
+    if (t < 0 || fixed[t] || val[t] !== 0)
+    {
+        const empties = [];
+        for (let i = 0; i < 81; i++) if (!val[i]) empties.push(i);
+        if (!empties.length) return;
+        t = empties[randInt(empties.length)];
+        selected = t;
+    }
+    val[t] = solution[t];
+    notes[t] = 0;
+    clearPeerNotes(t, val[t]);
+    hintsUsed++;
+    sPlace.play();
+    saveDirty = true;
+    checkSolved();
+}
+
+// fill every empty cell's pencil marks with its currently-legal candidates
+function autoPencil()
+{
+    if (solved) return;
+    for (let i = 0; i < 81; i++)
+    {
+        if (val[i]) { notes[i] = 0; continue; }
+        let mask = 0;
+        for (let d = 1; d <= 9; d++)
+            if (valid(val, i, d)) mask |= (1 << d);
+        notes[i] = mask;
+    }
+    sNote.play();
+    saveDirty = true;
+}
+
+function moveSel(dx, dy)
+{
+    if (selected < 0) { selected = 40; return; }
+    const c = clamp(colOf(selected) + dx, 0, 8);
+    const r = clamp(rowOf(selected) + dy, 0, 8);
+    selected = r * 9 + c;
+    sSelect.play();
+    saveDirty = true;
+}
+
+function checkSolved()
+{
+    for (let i = 0; i < 81; i++)
+        if (val[i] !== solution[i]) return;
+    // fully correct
+    solved = true;
+    endTime = nowTime();
+    sWin.play();
+    if (isScreenShakeEnabled()) addScreenShake(0.5, 0.6);
+    flashT = nowTime();
+    pendingWin = true;
+    winAt = nowTime() + 1.0;   // let the flash play before the dialog
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// BEST TIMES (per difficulty, stored in the save blob's bestTimes map)
+
+function getBestTime(d)
+{
+    const v = +((getSaveData().bestTimes || {})[d]);
+    return v > 0 ? v : 0;
+}
+function setBestTime(d, seconds)
+{
+    const bestTimes = {...(getSaveData().bestTimes || {})};
+    bestTimes[d] = seconds | 0;
+    saveData({bestTimes});
+}
+
+function fmtTime(s)
+{
+    s = Math.floor(s);
+    const m = (s / 60) | 0;
+    const sec = s % 60;
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// IN-PROGRESS SAVE / RESUME
+// The live round lives under the save blob's `game` key (sibling to bestTimes).
+// It exists only while a round is unfinished; solve / quit clear it so a reload
+// returns to the title. Typed arrays JSON-serialize as objects, so store plain
+// arrays via Array.from and rehydrate on load.
+
+function saveGame()
+{
+    if (!isPlaying() || solved) return;
+    saveData({game: {
+        difficulty,
+        solution: Array.from(solution),
+        val:      Array.from(val),
+        fixed:    Array.from(fixed),
+        notes:    Array.from(notes),
+        mistakes, hintsUsed, notesMode, selected,
+        elapsed:  nowTime() - startTime,
+    }});
+}
+
+function clearSavedGame() { saveData({game: null}); }
+
+function loadSavedGame()
+{
+    const g = getSaveData().game;
+    if (!g || !Array.isArray(g.val) || g.val.length !== 81 || !CLUES[g.difficulty])
+        return false;
+    difficulty = g.difficulty;
+    solution = Uint8Array.from(g.solution);
+    val      = Uint8Array.from(g.val);
+    fixed    = Uint8Array.from(g.fixed);
+    notes    = Uint16Array.from(g.notes);
+    mistakes  = g.mistakes | 0;
+    hintsUsed = g.hintsUsed | 0;
+    notesMode = !!g.notesMode;
+    selected  = Number.isInteger(g.selected) ? g.selected : -1;
+    solved = false;
+    pendingWin = false;
+    startTime = nowTime() - (+g.elapsed || 0);
+    endTime = startTime;
+    return true;
+}
+
+function showWinDialog()
+{
+    const seconds = Math.ceil(endTime - startTime);
+    const prev = getBestTime(difficulty);
+    const isNew = !prev || seconds < prev;
+    if (isNew) setBestTime(difficulty, seconds);
+
+    const extra = [
+        isNew ? 'NEW BEST!' : 'BEST ' + fmtTime(getBestTime(difficulty)),
+        mistakes ? 'MISTAKES ' + mistakes : 'NO MISTAKES',
+    ];
+    if (hintsUsed) extra.push('HINTS ' + hintsUsed);
+
+    showGameOverDialog({
+        won: true,
+        submitBest: false, // per-difficulty best handled above
+        customMessage: 'SOLVED ' + difficulty.toUpperCase() + ' IN ' + fmtTime(seconds),
+        extraLines: extra,
+        onContinue: goToTitle,
+    });
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// NUMBER PAD (also used for hit-testing)
+
+function getPad()
+{
+    const b = [];
+    for (let d = 1; d <= 9; d++)
+        b.push({pos: vec2((d - 5) * CS, PAD_Y1), size: vec2(0.92), kind: 'num', value: d, label: '' + d});
+    b.push({pos: vec2(-3.45, PAD_Y2), size: vec2(2.0, 1.0), kind: 'notes', label: 'NOTES'});
+    b.push({pos: vec2(-1.15, PAD_Y2), size: vec2(2.0, 1.0), kind: 'erase', label: 'ERASE'});
+    b.push({pos: vec2(1.15,  PAD_Y2), size: vec2(2.0, 1.0), kind: 'hint',  label: 'HINT'});
+    b.push({pos: vec2(3.45,  PAD_Y2), size: vec2(2.0, 1.0), kind: 'auto',  label: 'AUTO'});
+    return b;
+}
+
+function doPad(b)
+{
+    if (b.kind === 'num')   inputDigit(b.value);
+    else if (b.kind === 'notes') notesMode = !notesMode;
+    else if (b.kind === 'erase') doErase();
+    else if (b.kind === 'hint')  doHint();
+    else if (b.kind === 'auto')  autoPencil();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// SELF TESTS (logs only)
+
+function runSelfTests()
+{
+    const {solution: sol, puzzle} = generatePuzzle(CLUES.medium);
+    const filled = sol.indexOf(0) < 0;
+    if (!filled) console.error('TEST FAIL: solution not fully filled');
+    const work = puzzle.slice();
+    if (countSolutions(work) !== 1) console.error('TEST FAIL: puzzle not uniquely solvable');
+    // peers sanity
+    if (!arePeers(0, 1) || !arePeers(0, 9) || !arePeers(0, 10) || arePeers(0, 80))
+        console.error('TEST FAIL: arePeers logic');
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// INIT
+
+async function gameInit()
+{
+    saveDataInit('sudoku');
+
+    sPlace    = new SoundGenerator({frequency: 460, release: .05, volume: .5});
+    sNote     = new SoundGenerator({frequency: 620, release: .04, volume: .35, shapeCurve: 0});
+    sErase    = new SoundGenerator({frequency: 240, release: .06, volume: .4, shapeCurve: 2});
+    sConflict = new SoundGenerator({frequency: 140, release: .2, noise: .3, slide: -.5, volume: .7});
+    sWin      = new SoundGenerator({frequency: 520, release: .35, slide: .5, volume: .9});
+    sSelect   = new SoundGenerator({frequency: 360, release: .03, volume: .25});
+
+    runSelfTests();
+
+    // one callback pauses the engine for every menu/dialog
+    setMenuVisibilityCallback(v => paused = v);
+    setMenuSounds({
+        select:   () => sSelect.play(),
+        activate: () => sPlace.play(),
+    });
+
+    // ----- title with difficulty buttons + per-difficulty best times -----
+    const diffLabel = (name, d) =>
+    {
+        const best = getBestTime(d);
+        return best ? name + '   BEST ' + fmtTime(best) : name;
+    };
+    const titleMenu = createMenu({
+        id: 'title',
+        title: 'SUDOKU',
+        dismissable: false,
+        onStart: () => newGame('medium'),
+        items: [
+            {type: 'button', id: 'easy',   label: 'EASY',   onClick: () => newGame('easy')},
+            {type: 'button', id: 'medium', label: 'MEDIUM', onClick: () => newGame('medium')},
+            {type: 'button', id: 'hard',   label: 'HARD',   onClick: () => newGame('hard')},
+            {type: 'separator'},
+            {type: 'button', label: 'HOW TO PLAY', onClick: () => pushMenu('help')},
+        ],
+        onShow: () =>
+        {
+            titleMenu.getItem('easy')  ?.setLabel(diffLabel('EASY',   'easy'));
+            titleMenu.getItem('medium')?.setLabel(diffLabel('MEDIUM', 'medium'));
+            titleMenu.getItem('hard')  ?.setLabel(diffLabel('HARD',   'hard'));
+        },
+    });
+
+    createHelpMenu({
+        text: 'Fill the grid so every row, column, and 3x3 box contains 1-9 with no ' +
+            'repeats. Click a cell (or use arrow keys), then type 1-9 or tap the number ' +
+            'pad. NOTES toggles small pencil marks; AUTO fills every empty cell with its ' +
+            'legal candidates. Conflicts glow red; selecting a number highlights its ' +
+            'matches. HINT reveals one cell. Your game saves automatically.',
+        extraItems: [{type: 'text', text: '1-9 place · 0/Bksp erase · N notes · A auto · H hint · R new'}],
+    });
+
+    createOptionsMenu({
+        extraItems: [
+            {type: 'separator'},
+            {type: 'checkbox', label: 'HIGHLIGHTS', value: true, persist: 'highlights',
+                onChange: v => showHighlights = v},
+            {type: 'checkbox', label: 'SHOW CONFLICTS', value: true, persist: 'conflicts',
+                onChange: v => showConflicts = v},
+            {type: 'checkbox', label: 'SCREEN SHAKE', value: true, persist: 'shake',
+                onChange: v => setScreenShakeEnabled(v)},
+        ],
+    });
+
+    createPauseMenu({
+        onRestart: () => newGame(difficulty),
+        restartLabel: 'NEW PUZZLE',
+        extraItems: [{type: 'button', label: 'OPTIONS', onClick: () => pushMenu('options')}],
+        onQuit: goToTitle,
+    });
+
+    installDefaultToolbar({landscapeStack: true});
+
+    // persist the live round when the tab is hidden/closed so a reload resumes
+    document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+    window.addEventListener('pagehide', saveGame);
+
+    buildAttract();
+    setPlaying(false);
+
+    // resume an unfinished round if one was saved, else show the title
+    if (loadSavedGame())
+        setPlaying(true);
+    else
+        showMenu('title');
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdate()
+{
+    if (bindPauseKey({when: () => isPlaying() && !solved})) return;
+    if (!isPlaying()) return;
+
+    if (pendingWin)
+    {
+        if (nowTime() >= winAt) { pendingWin = false; showWinDialog(); }
+        return;
+    }
+    if (solved) return;
+
+    if (keyWasPressed('KeyR')) { newGame(difficulty); return; }
+    if (keyWasPressed('KeyN')) notesMode = !notesMode;
+    if (keyWasPressed('KeyH')) doHint();
+    if (keyWasPressed('KeyA')) autoPencil();
+
+    if (keyWasPressed('ArrowUp'))    moveSel(0, -1);
+    if (keyWasPressed('ArrowDown'))  moveSel(0,  1);
+    if (keyWasPressed('ArrowLeft'))  moveSel(-1, 0);
+    if (keyWasPressed('ArrowRight')) moveSel( 1, 0);
+
+    for (let d = 1; d <= 9; d++)
+        if (keyWasPressed('Digit' + d) || keyWasPressed('Numpad' + d))
+            inputDigit(d);
+    if (keyWasPressed('Backspace') || keyWasPressed('Delete') ||
+        keyWasPressed('Digit0') || keyWasPressed('Numpad0'))
+        doErase();
+
+    // mouse / touch
+    if (mouseWasPressed(0))
+    {
+        const p = mousePos;
+        for (const b of getPad())
+            if (isOverlapping(p, vec2(0.01), b.pos, b.size)) { doPad(b); return; }
+        const cell = cellFromWorld(p);
+        if (cell >= 0) { selected = cell; sSelect.play(); saveDirty = true; }
+    }
+}
+
+function gameUpdatePost()
+{
+    // flush save once per frame after all mutations settle; clear it on a
+    // finished round so a reload returns to the title
+    if (saveDirty)
+    {
+        saveDirty = false;
+        if (solved) clearSavedGame();
+        else saveGame();
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRender()
+{
+    // fit the whole layout (grid + pad) into view every frame
+    cameraPos = vec2(0, -0.15);
+    const margin = 70;
+    const contentW = 9.4, contentH = 12.2;
+    cameraScale = max(20, min((mainCanvasSize.x - margin) / contentW,
+                              (mainCanvasSize.y - margin) / contentH));
+
+    drawRect(cameraPos, getCameraSize(), hsl(0, 0, 0.1));
+
+    const gridC = vec2(0, GRID_Y);
+    drawRect(gridC, vec2(9.3), hsl(0, 0, 0.28)); // board frame
+
+    const selVal = selected >= 0 ? val[selected] : 0;
+
+    // cell backgrounds + highlights
+    for (let i = 0; i < 81; i++)
+    {
+        const pos = cellCenter(i);
+        let bg = fixed[i] ? hsl(0, 0, 0.2) : hsl(0, 0, 0.14);
+        if (showHighlights && selVal && val[i] === selVal)
+            bg = hsl(0.12, 0.6, 0.32);   // same-number
+        drawRect(pos, vec2(0.97), bg);
+
+        if (showHighlights && selected >= 0 && arePeers(i, selected))
+            drawRect(pos, vec2(0.97), hsl(0.58, 0.4, 0.6, 0.1)); // peer tint
+    }
+
+    // selection (pulsing)
+    if (selected >= 0)
+    {
+        const pulse = 0.35 + 0.15 * Math.sin(nowTime() * 6);
+        drawRect(cellCenter(selected), vec2(0.97), hsl(0.58, 0.7, 0.5, pulse));
+    }
+
+    // grid lines (thick every 3)
+    for (let k = 0; k <= 9; k++)
+    {
+        const th = (k % 3 === 0) ? 0.09 : 0.03;
+        const col = (k % 3 === 0) ? hsl(0, 0, 0.55) : hsl(0, 0, 0.34);
+        const o = -4.5 + k;
+        drawLine(vec2(o, GRID_Y - 4.5), vec2(o, GRID_Y + 4.5), th, col);
+        drawLine(vec2(-4.5, GRID_Y + o), vec2(4.5, GRID_Y + o), th, col);
+    }
+
+    // numbers + notes
+    for (let i = 0; i < 81; i++)
+    {
+        const pos = cellCenter(i);
+        if (val[i])
+        {
+            const conflict = showConflicts && isConflict(i);
+            const col = conflict ? hsl(0, 0.85, 0.62)
+                : fixed[i] ? hsl(0, 0, 0.95) : hsl(0.57, 0.85, 0.72);
+            drawText('' + val[i], pos, 0.8, col, fixed[i] ? 0.14 : 0.07, hsl(0, 0, 0, 0.55));
+        }
+        else if (notes[i])
+        {
+            for (let d = 1; d <= 9; d++)
+                if (notes[i] & (1 << d))
+                {
+                    const sc = (d - 1) % 3, sr = (d - 1) / 3 | 0;
+                    drawText('' + d, pos.add(vec2((sc - 1) * 0.28, (1 - sr) * 0.28)),
+                        0.24, hsl(0, 0, 0.6));
+                }
+        }
+    }
+
+    // number pad (only while playing)
+    if (isPlaying())
+    {
+        for (const b of getPad())
+        {
+            const active = b.kind === 'notes' && notesMode;
+            const hover = isOverlapping(mousePos, vec2(0.01), b.pos, b.size) && !solved;
+            drawRect(b.pos, b.size, hsl(0, 0, 0.18));
+            drawRect(b.pos, b.size.scale(0.9),
+                active ? hsl(0.58, 0.5, 0.45) : hover ? hsl(0, 0, 0.4) : hsl(0, 0, 0.3));
+            drawText(b.label, b.pos, b.kind === 'num' ? 0.66 : 0.38,
+                active ? hsl(0, 0, 1) : hsl(0, 0, 0.95));
+        }
+    }
+
+    // solve flash
+    const ft = nowTime() - flashT;
+    if (ft >= 0 && ft < 0.5)
+        drawRect(cameraPos, getCameraSize(), hsl(0, 0, 1, (0.5 - ft) / 0.5 * 0.6));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRenderPost()
+{
+    if (!isPlaying()) return;
+
+    const t = (solved ? endTime : nowTime()) - startTime;
+    const line = difficulty.toUpperCase() + '    ' + fmtTime(t) +
+        (mistakes ? '    X ' + mistakes : '');
+    drawTextScreen(line, vec2(mainCanvasSize.x / 2, 46), 32, hsl(0, 0, 1), 5, hsl(0, 0, 0));
+
+    if (notesMode)
+        drawTextScreen('NOTES ON', vec2(mainCanvasSize.x / 2, 84), 24,
+            hsl(0.58, 0.7, 0.7), 4, hsl(0, 0, 0));
+
+    drawTextScreen('1-9 PLACE   N NOTES   H HINT   R NEW',
+        vec2(mainCanvasSize.x / 2, mainCanvasSize.y - 28), 20, hsl(0, 0, 0.6), 3, hsl(0, 0, 0));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+
+</script>
+</body></html>
