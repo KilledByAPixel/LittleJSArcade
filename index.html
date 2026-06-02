@@ -1256,9 +1256,10 @@ function buildFilterChips() {
             btn.style.setProperty('--cat-bg', c.colorBg);
         }
         btn.addEventListener('click', () => {
-            activeCategory = c.key;
+            // Clicking the already-active category toggles it back off (to 'All').
+            activeCategory = (c.key !== 'all' && activeCategory === c.key) ? 'all' : c.key;
             for (const el of filterChipsEl.children) {
-                el.classList.toggle('active', el.dataset.cat === c.key);
+                el.classList.toggle('active', el.dataset.cat === activeCategory);
             }
             renderList();
         });
