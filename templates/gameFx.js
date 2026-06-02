@@ -239,6 +239,9 @@ function _padSides(p)
 
 function cameraFit(center, size, options = {})
 {
+    ASSERT(isVector2(center), 'center must be a vec2');
+    ASSERT(isVector2(size), 'size must be a vec2');
+
     const m = _padSides(options.margin);
     const i = _padSides(options.inset);
 
