@@ -228,8 +228,22 @@ function applyMenuFx(element, spec)
     const target = element;   // fill classes / tweaks / sparkle land here
 
     // ---- tweaks: speed + color custom props, hue/invert as a filter ----
-    if (typeof spec.speed === 'number') target.style.setProperty('--fx-speed', spec.speed);
-    if (spec.color) target.style.setProperty('--fx-color', spec.color);
+    if (typeof spec.speed === 'number')
+    {
+        const prevSpeed = target.style.getPropertyValue('--fx-speed');
+        target.style.setProperty('--fx-speed', spec.speed);
+        teardowns.push(() => prevSpeed
+            ? target.style.setProperty('--fx-speed', prevSpeed)
+            : target.style.removeProperty('--fx-speed'));
+    }
+    if (spec.color)
+    {
+        const prevColor = target.style.getPropertyValue('--fx-color');
+        target.style.setProperty('--fx-color', spec.color);
+        teardowns.push(() => prevColor
+            ? target.style.setProperty('--fx-color', prevColor)
+            : target.style.removeProperty('--fx-color'));
+    }
     const filters = [];
     if (typeof spec.hue === 'number') filters.push('hue-rotate(' + spec.hue + 'deg)');
     if (spec.invert) filters.push('invert(1)');
@@ -282,6 +296,7 @@ function applyMenuFx(element, spec)
                 if (wrap.parentNode) { wrap.parentNode.insertBefore(element, wrap); wrap.remove(); }
             });
         }
+        else console.warn('applyMenuFx: element not in DOM; "' + motion + '" motion skipped');
     }
 
     // ---- sparkle overlay ----
