@@ -74,6 +74,12 @@ let current = '';        // row being typed
 let keyState = {};       // letter -> best state
 let finished = false;    // win or lose: stop input
 let message = '', messageTimer = new Timer();
+let rowRevealTime = -9;   // engine time when the latest row was submitted
+let popCol = -1, popTime = -9;   // last typed tile (entry pop)
+let shakeTime = -9;       // invalid-row shake start
+let winTime = -9;         // win bounce start
+const FLIP = 0.28;        // seconds per-tile flip
+const STAGGER = 0.18;     // delay between tiles in a revealing row
 
 function newGame() {
     answer = WORDLE_ANSWERS[randInt(WORDLE_ANSWERS.length)];
@@ -119,15 +125,16 @@ function pressKey(key) {
     if (finished) return;
     if (key === 'ENTER') { submitGuess(); return; }
     if (key === 'BACK') { if (current.length) { current = current.slice(0, -1); sndType.play(); } return; }
-    if (/^[A-Z]$/.test(key) && current.length < COLS) { current += key; sndType.play(); }
+    if (/^[A-Z]$/.test(key) && current.length < COLS) { current += key; popCol = current.length - 1; popTime = time; sndType.play(); }
 }
 
 function submitGuess() {
-    if (current.length < COLS) { showMessage('NOT ENOUGH LETTERS'); sndError.play(); return; }
-    if (!VALID_SET.has(current)) { showMessage('NOT IN WORD LIST'); sndError.play(); return; }
+    if (current.length < COLS) { showMessage('NOT ENOUGH LETTERS'); sndError.play(); shakeTime = time; return; }
+    if (!VALID_SET.has(current)) { showMessage('NOT IN WORD LIST'); sndError.play(); shakeTime = time; return; }
 
     const result = evaluate(current, answer);
     guesses.push(current);
+    rowRevealTime = time;
     evals.push(result);
     for (let i = 0; i < COLS; i++)
         keyState[current[i]] = mergeKeyState(keyState[current[i]], result[i]);
@@ -142,6 +149,7 @@ function submitGuess() {
 
 function onWin() {
     sndWin.play();
+    winTime = time;
     const n = guesses.length;
     const streak = (getSaveData().streak || 0) + 1;
     saveData({ streak });
@@ -214,6 +222,15 @@ function gameUpdate() {
     if (mouseWasPressed(0))
         for (const k of KEYS)
             if (isOverlapping(k.pos, k.size, mousePos, vec2(0))) { pressKey(k.key); break; }
+
+    // reveal blips: fire once as each tile in the revealing row passes its flip midpoint
+    if (guesses.length && time - rowRevealTime >= 0) {
+        const r = guesses.length - 1;
+        for (let c = 0; c < COLS; c++) {
+            const mid = rowRevealTime + c * STAGGER + FLIP / 2;
+            if (time >= mid && time - timeDelta < mid) sndType.play();
+        }
+    }
 }
 function gameUpdatePost() {}
 
@@ -232,17 +249,42 @@ function drawTile(pos, size, fill, border, letter, textCol) {
 
 function drawGrid() {
     const pal = palette();
+    const submittedRow = guesses.length - 1;
     for (let r = 0; r < ROWS; r++)
         for (let c = 0; c < COLS; c++) {
-            const p = tilePos(r, c);
+            let p = tilePos(r, c);
+            let size = vec2(TILE);
             let letter = '', fill = pal.tile, border = pal.border, textCol = pal.text;
+
             if (r < guesses.length) {
                 letter = guesses[r][c];
-                fill = pal[evals[r][c]]; border = null;
+                if (r === submittedRow) {
+                    const t = time - rowRevealTime - c * STAGGER;
+                    if (t < 0) { fill = pal.tile; border = pal.border; }
+                    else if (t < FLIP) {
+                        size = vec2(TILE, TILE * Math.abs(1 - t / FLIP * 2 % 2));
+                        if (t < FLIP / 2) { fill = pal.tile; border = pal.border; }
+                        else { fill = pal[evals[r][c]]; border = null; }
+                    } else { fill = pal[evals[r][c]]; border = null; }
+                } else { fill = pal[evals[r][c]]; border = null; }
+                if (winTime > 0 && r === submittedRow) {
+                    const b = time - winTime - c * 0.06;
+                    if (b > 0 && b < 0.6) p = p.add(vec2(0, Math.sin(b / 0.6 * PI) * 0.5));
+                }
             } else if (r === guesses.length && !finished && c < current.length) {
                 letter = current[c]; border = pal.border;
+                if (c === popCol) {
+                    const t = (time - popTime) / 0.12;
+                    if (t < 1) size = vec2(TILE * (1 + 0.18 * (1 - t)));
+                }
             }
-            drawTile(p, vec2(TILE), fill, border, letter, textCol);
+
+            if (r === guesses.length && !finished) {
+                const s = time - shakeTime;
+                if (s > 0 && s < 0.4) p = p.add(vec2(Math.sin(s * 50) * 0.18 * (1 - s / 0.4), 0));
+            }
+
+            drawTile(p, size, fill, border, letter, textCol);
         }
 }
 
