@@ -304,16 +304,6 @@
         margin: 2px 0 4px;
     }
 
-    /* "Best Scores" row — tiles show the score number prominently instead of
-          a description, since the whole point of this row is the number. */
-    .tile.score-tile .score-big {
-        font-size: 18px;
-        font-weight: 700;
-        color: #f7c948;
-        margin-top: 2px;
-        letter-spacing: .3px;
-    }
-
     /* Subtle divider that separates "main" games from under-construction ones
           at the bottom of the sidebar list. */
     .list-divider {
@@ -1379,28 +1369,11 @@ function buildWelcome() {
         welcomeEl.appendChild(buildRow('Top Picks', '⭐', topGames, true, null));
     }
 
-    // Best Scores — only renders if at least one game has a stored high score.
-    // Sorted by recency: most-recently-played first, then non-recent games at
-    // the bottom (alphabetical for stable ordering).
-    const recentFiles = getRecent();
-    const scoreEntries = GAMES
-        .map(g => ({ game: g, score: getHighScore(g) }))
-        .filter(x => x.score != null)
-        .sort((a, b) => {
-            const ai = recentFiles.indexOf(a.game.file);
-            const bi = recentFiles.indexOf(b.game.file);
-            if (ai === -1 && bi === -1) return a.game.name.localeCompare(b.game.name);
-            if (ai === -1) return 1;
-            if (bi === -1) return -1;
-            return ai - bi;
-        });
-    if (scoreEntries.length) {
-        welcomeEl.appendChild(buildScoreRow(scoreEntries));
-    }
-
     // Recently Played — only renders once the user has launched at least one
-    // game. Sits right under Top Picks (and Best Scores) so it's the first
-    // personal section.
+    // game. Sits right under Top Picks so it's the first personal section.
+    // (Per-game best scores still show as a badge on each regular tile; there's
+    // no longer a separate "Best Scores" row.)
+    const recentFiles = getRecent();
     const recentGames = recentFiles.map(f => gameByFile[f]).filter(Boolean);
     if (recentGames.length) {
         welcomeEl.appendChild(buildRow('Recently Played', '🕘', recentGames, false, null));
@@ -1428,39 +1401,6 @@ function buildWelcome() {
     welcomeEl.appendChild(about);
 }
 
-// Variant of makeTile that swaps the description for a big score number.
-// Used only in the "Best Scores" row.
-function makeScoreTile(g, score, index) {
-    const tile = document.createElement('div');
-    tile.className = 'tile score-tile';
-    tile.innerHTML =
-        '<div class="emoji"></div>' +
-        '<div class="info">' +
-            '<div class="name"></div>' +
-            '<div class="score-big"></div>' +
-        '</div>';
-    const tileEmoji = tile.querySelector('.emoji');
-    tileEmoji.textContent = g.emoji || '';
-    if (g.emojiStyle) tileEmoji.style.cssText += g.emojiStyle;
-    tile.querySelector('.name').textContent = g.name;
-    tile.querySelector('.score-big').textContent = scoreEmoji(g) + ' ' + formatScore(g, score);
-    const cat = catByKey[g.category];
-    if (cat) tile.style.setProperty('--cat-color', cat.color);
-    if (index != null) tile.style.setProperty('--i', Math.min(index, 12));
-    tile.addEventListener('click', () => selectGame(g.file));
-    return tile;
-}
-
-// Wraps buildRow's structure for the score-tile content, since the standard
-// makeTile draws desc + chips rather than a big score line.
-function buildScoreRow(entries) {
-    // Reuse buildRow by passing a placeholder; we'll replace its tiles below.
-    const row = buildRow('Best Scores', '🏆', entries.map(e => e.game), false, null);
-    const tiles = row.querySelector('.tiles');
-    tiles.innerHTML = '';
-    entries.forEach((e, i) => tiles.appendChild(makeScoreTile(e.game, e.score, i)));
-    return row;
-}
 
 function buildRow(label, rowEmoji, games, isTop, cat) {
     const row = document.createElement('section');
