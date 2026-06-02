@@ -2367,8 +2367,8 @@ button.ljs-grid-cell { cursor: pointer; }
 /* CRT: scanlines modulate the TEXT's own alpha via a mask (cuts into the
    glyphs over any background) instead of laying black bars on top. */
 .fx-crt{ color:#7fffb0; text-shadow:0 0 6px #2f8;
-    -webkit-mask:repeating-linear-gradient(0deg,#000 0 2px,rgba(0,0,0,.3) 2px 3px);
-    mask:repeating-linear-gradient(0deg,#000 0 2px,rgba(0,0,0,.3) 2px 3px);
+    -webkit-mask:repeating-linear-gradient(0deg,#000 0 2px,rgba(0,0,0,.3) 2px 4px);
+    mask:repeating-linear-gradient(0deg,#000 0 2px,rgba(0,0,0,.3) 2px 4px);
     animation:ljsfx-crt calc(3s / var(--fx-speed,1)) steps(40) infinite; }
 @keyframes ljsfx-crt{ 0%,97%,100%{opacity:1;} 98%{opacity:.7;} 99%{opacity:.95;} }
 
