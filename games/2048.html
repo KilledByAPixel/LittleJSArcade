@@ -586,11 +586,8 @@ function gameUpdatePost()
             saveGame();
     }
 
-    cameraPos = vec2(0, .5);
-    const s = boardWorldSize();
-    const margin = .5;
-    const viewPixels = min(mainCanvasSize.x, mainCanvasSize.y * 0.78);
-    cameraScale = viewPixels / (s + margin * 2);
+    // setup camera leaving space for hud
+    cameraFit(vec2(0, 0), vec2(boardWorldSize()), { margin: 0, inset: { top: 100 } });
 }
 
 ///////////////////////////////////////////////////////////////////////////////

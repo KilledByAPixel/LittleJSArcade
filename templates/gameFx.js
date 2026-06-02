@@ -193,6 +193,76 @@ function _shakeUpdate()
 }
 
 // ============================================================================
+// cameraFit — frame a world-space rectangle into the visible canvas.
+//
+// Sets cameraPos and cameraScale so the content rect (center, size) is fully
+// visible (letterbox fit, never cropped), with optional world-unit padding
+// around it and optional screen-pixel insets reserved on each edge (e.g. for a
+// HUD band). Reserved insets also recenter the content into the space that's
+// left, so a top inset pushes the content down automatically.
+//
+//   cameraFit(center, size, options) -> the cameraScale it applied
+//
+//   center   Vector2  world-space center of the content to frame
+//   size     Vector2  world-space (width, height) of the content
+//   options.margin  world UNITS of padding around the content (default 0)
+//   options.inset   screen PIXELS reserved per edge, e.g. HUD (default 0)
+//
+// margin and inset each accept three forms, "top" = +y world side / top of
+// screen (they align):
+//   number   -> uniform on all four sides
+//   Vector2  -> x = left & right, y = top & bottom
+//   object   -> {top, right, bottom, left}, any omitted side is 0
+//
+// Call it every frame (e.g. in gameUpdatePost) to re-fit on canvas resize, or
+// once if the canvas never changes. Assumes cameraAngle === 0 (no support for
+// a rotated camera). Bails without touching the camera if the content or the
+// post-inset viewport is degenerate.
+//
+//   // frame a board, reserving the top ~22% of the screen for a score HUD:
+//   cameraFit(vec2(0, 0), vec2(boardSize), { inset: { top: mainCanvasSize.y * .22 } });
+// ============================================================================
+
+function _padSides(p)
+{
+    // normalize a padding option to {top, right, bottom, left}
+    if (p === undefined) return { top: 0, right: 0, bottom: 0, left: 0 };
+    if (typeof p === 'number') return { top: p, right: p, bottom: p, left: p };
+    if (isVector2(p)) return { top: p.y, right: p.x, bottom: p.y, left: p.x };
+    return {
+        top:    p.top    || 0,
+        right:  p.right  || 0,
+        bottom: p.bottom || 0,
+        left:   p.left   || 0,
+    };
+}
+
+function cameraFit(center, size, options = {})
+{
+    const m = _padSides(options.margin);
+    const i = _padSides(options.inset);
+
+    const worldW = size.x + m.left + m.right;
+    const worldH = size.y + m.top  + m.bottom;
+    const viewW  = mainCanvasSize.x - i.left - i.right;
+    const viewH  = mainCanvasSize.y - i.top  - i.bottom;
+
+    // bail on a degenerate rect or viewport rather than NaN/Infinity the camera
+    if (!(worldW > 0) || !(worldH > 0) || !(viewW > 0) || !(viewH > 0))
+        return cameraScale;
+
+    const scale = min(viewW / worldW, viewH / worldH);
+    const rectCx = center.x + (m.right - m.left) / 2;
+    const rectCy = center.y + (m.top - m.bottom) / 2;
+
+    cameraScale = scale;
+    cameraPos = vec2(
+        rectCx - (i.left - i.right) / (2 * scale),
+        rectCy + (i.top  - i.bottom) / (2 * scale));
+    return scale;
+}
+
+// ============================================================================
 // Active input device — mouse vs keyboard vs gamepad, "most recently used".
 //
 // LittleJS tracks isUsingGamepad, but it flips to false on ANY mouse-click OR
