@@ -74,6 +74,7 @@ let current = '';        // row being typed
 let keyState = {};       // letter -> best state
 let finished = false;    // win or lose: stop input
 let dailyMode = false;   // true while playing the daily puzzle
+let reviewMode = false, reviewArmed = false;  // viewing a finished daily (read-only)
 let message = '', messageTimer = new Timer();
 let rowRevealTime = -9;   // engine time when the latest row was submitted
 let popCol = -1, popTime = -9;   // last typed tile (entry pop)
@@ -96,7 +97,7 @@ function newGame(daily = false) {
     dailyMode = daily;
     answer = daily ? dailyWord() : WORDLE_ANSWERS[randInt(WORDLE_ANSWERS.length)];
     guesses = []; evals = []; current = '';
-    keyState = {}; finished = false; message = '';
+    keyState = {}; finished = false; message = ''; reviewMode = false;
     rowRevealTime = -9; popCol = -1; popTime = -9; shakeTime = -9; winTime = -9;
 }
 
@@ -112,7 +113,7 @@ function resumeGame(slot, daily) {
         for (let i = 0; i < COLS; i++)
             keyState[g[i]] = mergeKeyState(keyState[g[i]], evals[r][i]);
     });
-    current = ''; finished = false; message = '';
+    current = ''; finished = false; message = ''; reviewMode = false;
     rowRevealTime = -9; popCol = -1; popTime = -9; shakeTime = -9; winTime = -9;
 }
 
@@ -197,8 +198,9 @@ function finishGame(won) {
             ? ((b.lastDailyDay === today - 1 && b.lastDailyWon) ? (b.dailyStreak || 0) + 1 : 1)
             : 0;
         saveData({
-            dailyStreak: newStreak, lastDailyDay: today,
-            lastDailyWon: won, lastDailyGuesses: n, dailyProgress: null,
+            dailyStreak: newStreak, lastDailyDay: today, lastDailyWon: won, lastDailyGuesses: n,
+            // keep the full finished board so the player can re-open and review it
+            dailyProgress: { day: today, answer, guesses: guesses.slice() },
         });
         const num = today - LAUNCH_DAY + 1;
         const lines = won
@@ -235,8 +237,8 @@ function refreshTitle() {
 
     const daily = t.getItem('daily');
     if (b.lastDailyDay === today) {
-        daily.setDisabled(true);
-        daily.setLabel('DAILY ' + (b.lastDailyWon ? '✓ ' + b.lastDailyGuesses + '/6' : '✗ X/6'));
+        daily.setDisabled(false);   // clickable to review the finished board
+        daily.setLabel('DAILY ' + (b.lastDailyWon ? '✓ ' + b.lastDailyGuesses + '/6' : '✗ X/6') + ' — VIEW');
     } else if (b.dailyProgress && b.dailyProgress.day === today) {
         daily.setDisabled(false);
         daily.setLabel('DAILY (CONTINUE)');
@@ -275,7 +277,14 @@ function gameInit() {
             }},
             {type:'button', id:'daily', label:'DAILY', onClick: () => {
                 const b = getSaveData(), today = dayNumber();
-                if (b.lastDailyDay === today) return;          // already done today
+                if (b.lastDailyDay === today) {                 // already done -> review saved board
+                    if (b.dailyProgress && b.dailyProgress.day === today) {
+                        resumeGame(b.dailyProgress, true);
+                        finished = true; reviewMode = true; reviewArmed = false;
+                        setPlaying(true); hideMenu('title');
+                    }
+                    return;
+                }
                 if (b.dailyProgress && b.dailyProgress.day === today)
                     resumeGame(b.dailyProgress, true);
                 else
@@ -329,6 +338,15 @@ function fitCamera() {
 }
 
 function gameUpdate() {
+    if (reviewMode) {
+        // read-only review of a finished daily; ignore the opening click (one armed
+        // frame), then any key / tap returns to the title.
+        if (!reviewArmed) { reviewArmed = true; return; }
+        if (keyWasPressed('Escape') || keyWasPressed('Enter') || mouseWasPressed(0)) {
+            reviewMode = false; quitToTitle();
+        }
+        return;
+    }
     if (bindPauseKey({ when: () => isPlaying() && !finished })) return;
     if (!isPlaying()) return;
 
@@ -437,6 +455,9 @@ function gameRenderPost() {
     if (message && !messageTimer.elapsed())
         drawTextScreen(message, vec2(mainCanvasSize.x/2, mainCanvasSize.y*.10),
             36, hsl(0,0,1), 5, hsl(0,0,0));
+    if (reviewMode)
+        drawTextScreen('tap or ESC to exit', vec2(mainCanvasSize.x/2, mainCanvasSize.y*.94),
+            26, hsl(0,0,.9), 4, hsl(0,0,0));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
