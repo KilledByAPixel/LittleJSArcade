@@ -515,13 +515,15 @@ function drawTree(x, yGround, size, seed)
     const canopyR = size * 0.32;
 
     const hJit = (hash01(seed+9) - .5) * size * 0.12;
-    const hue = .30 + (hash01(seed+2)-.5) * .06;
+    // deeper, cooler green than the (warm, yellowish) grass so trees read as
+    // distinct shapes instead of blending into the ground.
+    const hue = .40 + (hash01(seed+2)-.5) * .06;
 
     // trunk
-    fillRectS(x - trunkW/2, yGround - trunkH + hJit, trunkW, trunkH, hsl(.08, .45, .28));
+    fillRectS(x - trunkW/2, yGround - trunkH + hJit, trunkW, trunkH, hsl(.08, .50, .24));
 
     // canopy (3 overlapping blobs, same opaque color so they read as one)
-    const canopy = hsl(hue, .70, .30);
+    const canopy = hsl(hue, .60, .19);
     const cY = yGround - trunkH + hJit;
     const r1 = canopyR * (0.85 + hash01(seed+3)*0.25);
     const r2 = canopyR * (0.75 + hash01(seed+4)*0.30);
@@ -529,6 +531,9 @@ function drawTree(x, yGround, size, seed)
     fillCircleS(x,                cY - canopyR*0.55, r1, canopy);
     fillCircleS(x - canopyR*0.55, cY - canopyR*0.20, r2, canopy);
     fillCircleS(x + canopyR*0.55, cY - canopyR*0.15, r3, canopy);
+
+    // sunlit highlight on the upper-left so the canopy reads as a 3D mass
+    fillCircleS(x - canopyR*0.30, cY - canopyR*0.80, r1*0.55, hsl(hue-.02, .55, .33));
 }
 
 function drawSign(x, yGround, size, seed)
@@ -556,11 +561,14 @@ function renderRoadAndCars()
     const h = v.h;
     const horizonY = v.horizonY;
 
-    // sky
-    fillRectS(0, 0, w, horizonY, hsl(.58, .55, .75));
+    // sky: a true vertical gradient (deep blue up top -> pale at the horizon)
+    // in one draw via the engine's drawRectGradient — colorTop is the screen
+    // top, colorBottom the horizon edge.
+    drawRectGradient(vec2(w/2, horizonY/2), vec2(w, horizonY),
+        hsl(.60, .60, .52), hsl(.56, .45, .88), 0, glEnable, true);
 
     // distant haze
-    fillRectS(0, horizonY-18, w, 36, hsl(.58, .25, .85, .25));
+    fillRectS(0, horizonY-18, w, 36, hsl(.58, .25, .90, .25));
 
     // precompute visible road
     const baseIndex = trackPos|0;
@@ -830,9 +838,19 @@ function paintCarDetail(ctx)
     ctx.fill();
 }
 
-// Draw a car: tinted body first, fixed-color detail on top. Both instanced.
+// Draw a car: soft contact shadow, tinted body, fixed-color detail on top.
+// All instanced. centerPos is the tile center; the car's wheels sit on
+// centerPos.y + size.y/2.
 function drawCar(centerPos, size, bodyColor)
 {
+    // soft oval shadow under the wheels — a squashed 'glow' tile (radial
+    // falloff) tinted black, drawn wider than the car and peeking just below
+    // it so the car looks planted instead of floating.
+    const groundY = centerPos.y + size.y/2;
+    const shW = size.x * 1.15, shH = size.y * 0.13;
+    drawTile(vec2(centerPos.x, groundY - shH*0.15), vec2(shW, shH), icons.glow,
+        hsl(0,0,0,.5), 0, undefined, undefined, glEnable, true);
+
     drawTile(centerPos, size, carBodyTile,   bodyColor, 0, undefined, undefined, glEnable, true);
     drawTile(centerPos, size, carDetailTile, WHITE,     0, undefined, undefined, glEnable, true);
 }
@@ -843,10 +861,6 @@ function drawAICar(cx, groundY, W, H, colorH)
     // ~1.15*W wide (tire overhang), ~H tall, wheels on groundY.
     const tileW = W * 1.15;
     const tileH = H * 1.05;
-
-    // soft contact shadow so it doesn't look like it floats
-    fillRectS(cx - tileW*0.5, groundY - max(1, tileH*0.03), tileW, max(2, tileH*0.06), hsl(0,0,0,.35));
-
     drawCar(vec2(cx, groundY - tileH/2), vec2(tileW, tileH), hsl(colorH, .7, .55));
 }
 
@@ -862,9 +876,6 @@ function drawPlayerCar(x, y, s=1)
     const flash = crashTimer > 0 && (frame&3) < 2;
     const color = flash ? hsl(0,0,1) : hsl(.01, .85, .52);
 
-    // contact shadow
-    fillRectS(x - tileW*0.42, y - max(1, tileH*0.025), tileW*0.84, max(2, tileH*0.05), hsl(0,0,0,.4));
-
     drawCar(vec2(x, y - tileH/2), vec2(tileW, tileH), color);
 }
 
@@ -879,7 +890,9 @@ function gameRender()
         const v = computeView(); // reuse the in-game car scale so sizes match
         const w = v.w;
         const h = v.h;
-        fillRectS(0, 0, w, h, hsl(.58, .55, .75));
+        // same sky gradient as in-game, fading to the horizon at the grass line
+        drawRectGradient(vec2(w/2, h*0.275), vec2(w, h*0.55),
+            hsl(.60, .60, .52), hsl(.56, .45, .88), 0, glEnable, true);
         fillRectS(0, h*0.55, w, h*0.45, hsl(.33, .85, .25));
 
         // tiny fake road — a stack of horizontal rects (instanced) widening
