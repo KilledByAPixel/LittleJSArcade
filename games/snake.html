@@ -321,11 +321,11 @@ function eatBonus(s)
 }
 
 // Advance every snake one cell on a shared clock, resolving collisions
-// simultaneously so neither snake gets a turn-order advantage. Each snake's
-// post-move occupied cells (its tail vacates unless it grows/eats) form the
-// hazard set; a head that lands out of bounds or in any hazard cell dies.
+// simultaneously so neither snake gets a turn-order advantage.
 function tick()
 {
+    const cellKey = c => c.x + ',' + c.y;
+
     // snapshot positions for smooth glide rendering
     for (const s of snakes)
         if (s.alive) s.old = s.body.map(c => c.copy());
@@ -335,46 +335,79 @@ function tick()
     {
         if (!s.alive) return null;
         s.dir = clampDir(s.nextDir, s);
-        const newHead   = s.body[0].add(s.dir);
-        const inBounds  = isCellInBounds(newHead);
-        const ate       = inBounds && cellEquals(newHead, food);
-        const ateBonus  = inBounds && !versus && bonus && cellEquals(newHead, bonus);
-        const keepTail  = s.grow > 0 || ate || ateBonus;
-        // cells this snake will occupy after moving (head + body, minus vacated tail)
-        const future = [newHead];
-        const lastIdx = s.body.length - 1;
-        for (let i=0; i<s.body.length; ++i)
-        {
-            if (!keepTail && i === lastIdx) break;
-            future.push(s.body[i]);
-        }
-        return {s, newHead, inBounds, ate, ateBonus, future, dead:false};
+        const newHead  = s.body[0].add(s.dir);
+        const inBounds = isCellInBounds(newHead);
+        const ate      = inBounds && cellEquals(newHead, food);
+        const ateBonus = inBounds && !versus && bonus && cellEquals(newHead, bonus);
+        const keepTail = s.grow > 0 || ate || ateBonus;
+        return {s, newHead, inBounds, ate, ateBonus, keepTail, dead:false, stationary:false};
     });
 
-    // 2) detect deaths against the union of every snake's future body
+    // a snake that can't complete its move stays put and dies in place
+    const halt = it => { it.dead = true; it.stationary = true; };
+
+    // 2) out of bounds: dies against the wall, doesn't advance
     for (const it of intents)
+        if (it && !it.inBounds) halt(it);
+
+    // 3) head-to-head: snakes aiming at the SAME empty cell all crash — it's a
+    //    mutual draw. They still glide INTO the shared cell (advance + die) so
+    //    they meet head-on instead of freezing a cell short of the gap.
+    const byTarget = {};
+    for (const it of intents)
+        if (it && !it.dead) (byTarget[cellKey(it.newHead)] ||= []).push(it);
+    for (const k in byTarget)
     {
-        if (!it) continue;
-        if (!it.inBounds) { it.dead = true; continue; }
-        for (const other of intents)
+        const group = byTarget[k];
+        if (group.length < 2) continue;
+        for (const it of group) { it.dead = true; it.advance = true; }
+    }
+
+    // 4) cells each snake occupies after this step: a halted snake keeps its
+    //    whole body (it never moved); a mover is head + body minus vacated tail.
+    const occupied = intents.map(it =>
+    {
+        if (!it) return null;
+        if (it.stationary) return it.s.body;
+        const cells = [it.newHead];
+        const lastIdx = it.s.body.length - 1;
+        for (let i=0; i<it.s.body.length; ++i)
         {
-            if (!other) continue;
-            const sameSnake = other.s === it.s;
-            for (let k=0; k<other.future.length; ++k)
+            if (!it.keepTail && i === lastIdx) break;
+            cells.push(it.s.body[i]);
+        }
+        return cells;
+    });
+
+    // 5) body collisions for snakes still trying to move
+    for (let a=0; a<intents.length; ++a)
+    {
+        const it = intents[a];
+        if (!it || it.dead) continue;
+        for (let b=0; b<intents.length && !it.dead; ++b)
+        {
+            const cells = occupied[b];
+            if (!cells) continue;
+            for (let c=0; c<cells.length; ++c)
             {
-                if (sameSnake && k === 0) continue; // don't compare a head with itself
-                if (cellEquals(it.newHead, other.future[k])) { it.dead = true; break; }
+                if (b === a && c === 0) continue; // skip a snake's own new head
+                if (cellEquals(it.newHead, cells[c])) { it.dead = true; break; }
             }
-            if (it.dead) break;
         }
     }
 
-    // 3) apply: kill the doomed, advance the survivors
+    // 6) apply: kill the doomed, advance the survivors
     for (const it of intents)
     {
         if (!it) continue;
         const s = it.s;
-        if (it.dead) { killSnake(s); continue; }
+        if (it.dead)
+        {
+            // head-to-head losers glide into the shared cell before dying
+            if (it.advance) { s.body.unshift(it.newHead); s.body.pop(); }
+            killSnake(s);
+            continue;
+        }
 
         s.body.unshift(it.newHead);
         if (it.ate)           eatFood(s);
