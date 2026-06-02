@@ -180,36 +180,47 @@ function submitGuess() {
     const guess = current;
     current = '';
 
-    if (guess === answer) { finished = true; onWin(); }
-    else if (guesses.length >= ROWS) { finished = true; onLose(); }
+    if (guess === answer) { finished = true; finishGame(true); }
+    else if (guesses.length >= ROWS) { finished = true; finishGame(false); }
+    else saveProgress();
 }
 
-function onWin() {
-    sndWin.play();
-    winTime = time;
+function finishGame(won) {
+    if (won) { sndWin.play(); winTime = time; } else sndLose.play();
     const n = guesses.length;
-    const streak = (getSaveData().streak || 0) + 1;
-    saveData({ streak });
-    const isBest = submitBestScore(streak);
-    const lines = ['Solved in ' + n + (n === 1 ? ' guess!' : ' guesses!'), 'STREAK ' + streak];
-    if (isBest) lines.push('NEW BEST!');
-    showGameOverDialog({
-        won: true,
-        customMessage: lines.join('\n'),
-        submitBest: false,
-        onContinue: () => quitToTitle(),
-    });
-}
 
-function onLose() {
-    sndLose.play();
-    saveData({ streak: 0 });
-    showGameOverDialog({
-        won: false,
-        customMessage: 'The word was ' + answer,
-        submitBest: false,
-        onContinue: () => quitToTitle(),
-    });
+    if (dailyMode) {
+        const b = getSaveData();
+        const today = dayNumber();
+        const newStreak = won
+            ? ((b.lastDailyDay === today - 1 && b.lastDailyWon) ? (b.dailyStreak || 0) + 1 : 1)
+            : 0;
+        saveData({
+            dailyStreak: newStreak, lastDailyDay: today,
+            lastDailyWon: won, lastDailyGuesses: n, dailyProgress: null,
+        });
+        const num = today - LAUNCH_DAY + 1;
+        const lines = won
+            ? ['Daily #' + num, 'Solved in ' + n + '/6', 'DAILY STREAK ' + newStreak]
+            : ['Daily #' + num, 'The word was ' + answer, 'DAILY STREAK ' + newStreak];
+        showGameOverDialog({ won, customMessage: lines.join('\n'),
+            submitBest: false, onContinue: () => quitToTitle() });
+    } else {
+        saveData({ endlessProgress: null });
+        if (won) {
+            const streak = (getSaveData().streak || 0) + 1;
+            saveData({ streak });
+            const isBest = submitBestScore(streak);
+            const lines = ['Solved in ' + n + (n === 1 ? ' guess!' : ' guesses!'), 'STREAK ' + streak];
+            if (isBest) lines.push('NEW BEST!');
+            showGameOverDialog({ won: true, customMessage: lines.join('\n'),
+                submitBest: false, onContinue: () => quitToTitle() });
+        } else {
+            saveData({ streak: 0 });
+            showGameOverDialog({ won: false, customMessage: 'The word was ' + answer,
+                submitBest: false, onContinue: () => quitToTitle() });
+        }
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
