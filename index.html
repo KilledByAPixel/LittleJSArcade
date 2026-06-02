@@ -893,7 +893,10 @@
 //           Plain literal keys (for unmigrated games) also work.
 const GAMES = [
     // ---- Frank Force Games (off-site) — load from external URLs via `url`. ----
-    { file:'js13k2025',           name:'JS13K 2025',      emoji:'🎮',  category:'frankforce',   desc:'My JS13K 2025 entry — hosted off-site.',  url:'https://itch.io/embed-upload/16167549?color=1b1b1b', tags:['js13k','off-site'],            keywords:['js13k','frank force','killedbyapixel'] },
+    { file:'DrivenWild',           name:'Driven Wild',      emoji:'🚗',  category:'frankforce', source:'https://github.com/js13kGames/dr1v3n-wild',   desc:'Retro Arcade Driving.',  url:'https://itch.io/embed-upload/15345755?color=000000', tags:['driving','js13k','3d'],            keywords:['outrun','race'] },
+    { file:'L1ttl3Paws',           name:'L1ttl3 Paws',      emoji:'🐈',  category:'frankforce', source:'https://github.com/KilledByAPixel/JS13K2025',   desc:'Hill sliding with colorful art.',  url:'https://itch.io/embed-upload/16167549?color=000000', tags:['cats','js13k'],            keywords:['tinywings'] },
+    { file:'EggTimeRewind',           name:'Egg Time Rewind',      emoji:'🥚',  category:'frankforce', source:'https://github.com/js13kGames/egg-time-rewind',   desc:'Time REWINDS when you die.',  url:'https://itch.io/embed-upload/7314694?color=000000', tags:['js13k'],            keywords:['shooter'] },
+    { file:'Bogus Roads',           name:'BogusRoads',      emoji:'🔶',  category:'frankforce',  desc:'Hit the road before the road hits you!',  url:'https://itch.io/embed-upload/4719204?color=180023', tags:['driving','3d'],            keywords:['lowres','race'] },
 
     // ---- Local URLs. ----
     { file:'2048.html',           name:'2048',            emoji:'🔢',  category:'puzzle',       desc:'Slide tiles, combine the numbers.',       scoreKey:'2048.bestScore',            tags:['grid','merge'],                           keywords:['threes','merge','numbers'] },
@@ -936,7 +939,7 @@ const GAMES = [
     { file:'pegball.html',         name:'Pegball',         emoji:'🟢',  category:'puzzle',       desc:'Aim, drop, clear every peg.',             scoreKey:'peggle.bestScore',          tags:['physics','aim'],                  keywords:['peggle','pachinko','peg shooter'] },
     { file:'pinball.html',        name:'Pinball',         emoji:'⚪',  category:'construction', desc:'Launch, flip, and bounce.',          scoreKey:'pinball.bestScore',         tags:['physics','retro'],                keywords:['pinball','flippers','silverball'] },
     { file:'plinko.html',         name:'Plinker',         emoji:'🔵',  category:'puzzle',       desc:'Drop chips down the pegs.',               scoreKey:'plinko.bestScore',          tags:['physics','luck'],                 keywords:['plinko','price is right','pachinko'] },
-    { file:'speedway.html',   name:'Speedway',        emoji:'🏁',  category:'construction', desc:'Hug the curves, beat the clock.',         scoreKey:'polePosition.bestScore',    tags:['racing','retro'],                 keywords:['pole position','outrun','f1','arcade racer'] },
+    { file:'speedway.html',   name:'Speedway',        emoji:'🏁',  category:'construction', desc:'Hug the curves, beat the clock.',         scoreKey:'polePosition.bestScore',    tags:['racing','retro','3d'],                 keywords:['pole position','outrun','f1','arcade racer'] },
     { file:'pong.html',           name:'Pong',            emoji:'🏓',  category:'arcade',       desc:'Two paddles, one bouncing ball.',         tags:['paddle','retro'],                 keywords:['pong','tennis','table tennis'] },
     { file:'pool.html',           name:'Pool',            emoji:'🎱',  category:'sports',       desc:'Cue up and sink them all.',               scoreKey:'pool.bestShots',            tags:['physics','aim'],                  keywords:['pool','billiards','snooker','cue sports','8-ball','9-ball'], top:3 },
     { file:'gemFighter.html',  name:'Gem Fighter',     emoji:'💢',  category:'construction', desc:'Stack gems, chain big combos.',           tags:['falling','matching'],               keywords:['puzzle fighter','super puzzle fighter','street fighter puzzle'] },
@@ -950,7 +953,7 @@ const GAMES = [
     { file:'spaceIntruders.html',  name:'Space Intruders', emoji:'👾',  category:'shooter',      desc:'Shoot the marching aliens.',          scoreKey:'spaceInvaders.bestScore',   tags:['retro','space'],                 keywords:['space invaders','galaga','galaxian','aliens'], top:7 },
     { file:'spyDriver.html',      name:'Spy Driver',      emoji:'🕵️', category:'construction', desc:'Drive and shoot.',              scoreKey:'spyhunter.bestScore',       tags:['driving','top-down'],             keywords:['spy hunter','car combat','vehicular combat','road rash'] },
     { file:'tetrix.html',         name:'Tetrix',          emoji:'🟪',  category:'puzzle',       desc:'Stack the blocks to clear lines.',      scoreKey:'tetris.bestScore',          tags:['falling','classic'],              keywords:['tetris','tetrimino','blocks'], top:6 },
-    { file:'wulfstein.html',    name:'Wulfstein',       emoji:'🐺',  category:'construction', desc:'Shoot your way out.',       tags:['first-person','maze'],         keywords:['wolfenstein','wolf','doom','fps','3d shooter','raycaster'] },
+    { file:'wulfstein.html',    name:'Wulfstein',       emoji:'🐺',  category:'construction', desc:'Shoot your way out.',       tags:['first-person','maze','3d'],         keywords:['wolfenstein','wolf','doom','fps','3d shooter','raycaster'] },
     { file:'zoomi.html',           name:'Zoomi',           emoji:'🔮',  category:'construction', desc:'Shoot marbles, match three to pop.',      scoreKey:'zuma.bestScore',            tags:['matching','aim'],                 keywords:['zuma','luxor','marble shooter','chain pop'] },
 ];
 
