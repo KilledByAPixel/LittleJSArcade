@@ -591,11 +591,8 @@ function setState(s)
 {
     if (state === s) return;
     state = s;
-    if (s === 'win') { sfxWin.play(); level++; }
-    if (s === 'gameover') sfxLose.play();
-    if (s === 'win' || s === 'gameover') {
-        submitBestScore(score);
-    }
+    if (s === 'win') { sfxWin.play(); level++; submitBestScore(score); }
+    if (s === 'gameover') { sfxLose.play(); showGameOverMenu(); }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -607,6 +604,38 @@ function startGame()
     setPlaying(true);
     clearSubmenuStack();
     hideAllMenus();
+}
+
+// Game-over menu: shows the final score (+ best / new best) with RETRY
+// and QUIT buttons. Rebuilt each death so the score text is always fresh.
+function showGameOverMenu()
+{
+    const newBest = submitBestScore(score);
+    if (typeof createMenu !== 'function') return;
+
+    const existing = getMenu('gameover');
+    if (existing) existing.destroy();
+
+    const lines = ['Score: ' + score, 'Best: ' + getBestScore()];
+    if (newBest) lines.push('NEW BEST!');
+
+    const iconEl = document.createElement('div');
+    iconEl.className = 'ljs-dialog-icon';
+    iconEl.textContent = '💥';
+
+    createMenu({
+        id: 'gameover',
+        title: 'GAME OVER',
+        dismissable: false,
+        initialItemId: 'retry',
+        items: [
+            {type:'custom', el: iconEl},
+            {type:'text',   text: lines.join('\n')},
+            {type:'button', id:'retry', label:'RETRY',         onClick: () => startGame()},
+            {type:'button',             label:'QUIT TO TITLE', onClick: () => quitToTitle()},
+        ],
+    });
+    showMenu('gameover');
 }
 
 function buildMenus()
@@ -869,11 +898,6 @@ function gameRenderPost()
     {
         drawTextScreen('STAGE CLEAR!', vec2(centerX, mainCanvasSize.y/2 - 30), 64, hsl(0.35,0.9,0.6), 6, hsl(0,0,0));
         drawTextScreen('Press R for next level', vec2(centerX, mainCanvasSize.y/2 + 30), 22, hsl(0,0,1), 3, hsl(0,0,0));
-    }
-    else if (state === 'gameover')
-    {
-        drawTextScreen('GAME OVER', vec2(centerX, mainCanvasSize.y/2 - 30), 64, hsl(0,0.8,0.6), 6, hsl(0,0,0));
-        drawTextScreen('Press R to retry', vec2(centerX, mainCanvasSize.y/2 + 30), 22, hsl(0,0,1), 3, hsl(0,0,0));
     }
 }
 
