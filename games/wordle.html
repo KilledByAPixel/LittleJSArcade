@@ -86,6 +86,31 @@ function newGame() {
 const sndKey   = new SoundGenerator({frequency: 480, release: .04, volume: .3, shape: 5});
 const sndError = new SoundGenerator({frequency: 130, release: .25, volume: .4, shape: 2, noise: .1});
 const sndType  = new SoundGenerator({frequency: 660, release: .03, volume: .25, shape: 5});
+const sndSubmit = new SoundGenerator({frequency: 300, release: .12, volume: .4, shape: 1, slide: 2});
+const sndWin    = new SoundGenerator({frequency: 523, release: .3, volume: .5, shape: 1, pitchJump: 400, pitchJumpTime: .12});
+const sndLose   = new SoundGenerator({frequency: 200, release: .5, volume: .5, shape: 2, slide: -1});
+
+// Duplicate-safe scoring (verified against Wordle rules).
+function evaluate(guess, answer) {
+    const result = new Array(5).fill('absent');
+    const counts = {};
+    for (const ch of answer) counts[ch] = (counts[ch] || 0) + 1;
+    for (let i = 0; i < 5; i++)
+        if (guess[i] === answer[i]) { result[i] = 'correct'; counts[guess[i]]--; }
+    for (let i = 0; i < 5; i++) {
+        if (result[i] === 'correct') continue;
+        const ch = guess[i];
+        if (counts[ch] > 0) { result[i] = 'present'; counts[ch]--; }
+    }
+    return result;
+}
+const KEY_RANK = { absent: 1, present: 2, correct: 3 };
+function mergeKeyState(cur, next) {
+    if (!cur) return next;
+    return KEY_RANK[next] > KEY_RANK[cur] ? next : cur;
+}
+
+const VALID_SET = new Set(WORDLE_VALID);
 
 function showMessage(text) { message = text; messageTimer.set(1.2); }
 
@@ -99,7 +124,47 @@ function pressKey(key) {
 
 function submitGuess() {
     if (current.length < COLS) { showMessage('NOT ENOUGH LETTERS'); sndError.play(); return; }
-    // full evaluation added in a later task
+    if (!VALID_SET.has(current)) { showMessage('NOT IN WORD LIST'); sndError.play(); return; }
+
+    const result = evaluate(current, answer);
+    guesses.push(current);
+    evals.push(result);
+    for (let i = 0; i < COLS; i++)
+        keyState[current[i]] = mergeKeyState(keyState[current[i]], result[i]);
+    sndSubmit.play();
+
+    const guess = current;
+    current = '';
+
+    if (guess === answer) { finished = true; onWin(); }
+    else if (guesses.length >= ROWS) { finished = true; onLose(); }
+}
+
+function onWin() {
+    sndWin.play();
+    const n = guesses.length;
+    const streak = (getSaveData().streak || 0) + 1;
+    saveData({ streak });
+    const isBest = submitBestScore(streak);
+    const lines = ['Solved in ' + n + (n === 1 ? ' guess!' : ' guesses!'), 'STREAK ' + streak];
+    if (isBest) lines.push('NEW BEST!');
+    showGameOverDialog({
+        won: true,
+        customMessage: lines.join('\n'),
+        submitBest: false,
+        onContinue: () => quitToTitle(),
+    });
+}
+
+function onLose() {
+    sndLose.play();
+    saveData({ streak: 0 });
+    showGameOverDialog({
+        won: false,
+        customMessage: 'The word was ' + answer,
+        submitBest: false,
+        onContinue: () => quitToTitle(),
+    });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
