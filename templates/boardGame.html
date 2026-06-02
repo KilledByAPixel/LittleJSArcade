@@ -11,12 +11,8 @@
 <script>
 'use strict';
 
-// engine settings, do not remove
-paused = false;
-
-// engine settings, customize if necessary
-cameraScale = 46;
-canvasFixedSize = vec2(700, 1080);
+// engine settings
+canvasMaxSize = vec2(2048);
 
 ///////////////////////////////////////////////////////////////////////////////
 // BOARD GAME TEMPLATE
@@ -256,6 +252,10 @@ function gameUpdate()
 
 function gameUpdatePost()
 {
+    const boardWorldSize = BOARD_SIZE * CELL_SIZE;
+
+    // setup camera leaving space for hud
+    cameraFit(vec2(0, 0), vec2(boardWorldSize), { margin: .5, inset: { top: 100 } });
 }
 
 function gameRender()
@@ -304,8 +304,9 @@ function gameRenderPost()
 {
     if (isPlaying())
     {
-        drawTextScreen('R: Restart',
-            vec2(mainCanvasSize.x / 2, mainCanvasSize.y - 50), 42,
+        const text = 'PLAYER ' + currentPlayer;
+        drawTextScreen(text,
+            vec2(mainCanvasSize.x / 2, 70), 70,
             rgb(0.7, 0.7, 0.7), 2, BLACK);
     }
 }
