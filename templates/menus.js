@@ -2363,7 +2363,7 @@ button.ljs-grid-cell { cursor: pointer; }
     -webkit-text-stroke:2px var(--fx-color,var(--menu-accent,#6cf));
     text-shadow:0 0 12px var(--fx-color,rgba(102,204,255,.4));
 }
-.fx-hardshadow{ color:var(--fx-color,#fff); text-shadow:4px 4px 0 var(--fx-color2,#e23),8px 8px 0 rgba(0,0,0,.35); }
+.fx-hardshadow{ color:var(--fx-color,#fff); text-shadow:4px 4px 0 var(--fx-color2,#aaa),8px 8px 0 rgba(0,0,0,.35); }
 .fx-3d{
     color:#ffd34d;
     text-shadow:1px 1px 0 #b9860b,2px 2px 0 #b9860b,3px 3px 0 #936c09,4px 4px 0 #6e5107,5px 5px 0 #4c3805,6px 6px 8px rgba(0,0,0,.6);
