@@ -31,6 +31,8 @@ const playMax = levelSize;
 const playerY = 3;
 const barrierY = 8;
 
+const INITIAL_ALIEN_COUNT = 55; // 11 cols x 5 rows — drives speed/fire scaling
+
 // ------------------------------------------------------------
 // Global game state
 
@@ -59,7 +61,7 @@ let inputMode = 'mouse'; // 'mouse' or 'keyboard'
 let titleTimer = 0;
 
 let invaderDir = 1;
-let invaderSpeed = .08;        // world units per frame (20% slower)
+let invaderSpeed = .12;        // wu/frame; recomputed each frame from alien count
 let invaderDrop = 1.0;         // world units
 let invaderAnimTick = 0;
 
@@ -317,15 +319,13 @@ function goToTitleScreen()
     initTitleScreen();
 }
 
-function resetInvaderState(resetSpeed = true)
+function resetInvaderState()
 {
-    // Reset invader movement direction
+    // Reset invader movement direction. March speed itself is derived from the
+    // live alien count every frame in updateInvaders, so there's nothing to
+    // reset here — a respawn automatically keeps the faster pace earned by kills.
     invaderDir = 1;
-    
-    // Only reset speed on new level, not on respawn
-    if (resetSpeed)
-        invaderSpeed = .06 + (currentLevel - 1) * .01;
-    
+
     // Reset shooting timers (doubled for slower firing)
     const levelShootBonus = (currentLevel - 1) * 2;
     alienShootMin = max(6, 12 - levelShootBonus);
@@ -999,8 +999,9 @@ function gameUpdate()
         startLevel();
     }
     
-    // Debug: hold X to kill enemies quickly for testing
-    if (keyIsDown('KeyX') && aliens.length > 0 && frame % 5 === 0)
+    // Debug: hold X to kill enemies quickly for testing (only when the debug
+    // overlay is enabled — press ` / ~ to toggle it on).
+    if (debug && keyIsDown('KeyX') && aliens.length > 0 && frame % 5 === 0)
     {
         const a = aliens[0];
         spawnSpriteExplosion(a.pos, a.currentBitmap, SPRITE_PIXEL, a.color);
@@ -1271,12 +1272,29 @@ function updateInvaders()
         minY = min(minY, a.pos.y - a.size.y/2);
     }
 
-    const nextMinX = minX + invaderDir * invaderSpeed;
-    const nextMaxX = maxX + invaderDir * invaderSpeed;
+    // Horizontal speed is driven PURELY by how few aliens remain (classic
+    // Space Invaders feel) — so it ramps the same whether the formation has
+    // descended or you pick them off quickly. The normalized inverse-count
+    // term `t` stays near 0 for most of the formation, then climbs steeply,
+    // so the final few aliens get faster and faster (not a linear ramp).
+    const aliveCount = aliens.length;
+    const t = (1/aliveCount - 1/INITIAL_ALIEN_COUNT) / (1 - 1/INITIAL_ALIEN_COUNT); // 0..1
+    const baseSpeed = .12 + (currentLevel - 1) * .015;
+    const topSpeed  = .9 + (currentLevel - 1) * .1;
+    invaderSpeed = baseSpeed + (topSpeed - baseSpeed) * t;
+
+    // Predict with the REAL step and only test the wall we're moving toward.
+    // The old code predicted with a smaller step than it actually moved, so a
+    // fast (few-alien) formation overshot the wall and then re-triggered
+    // hitEdge every frame — dropping 1 unit per frame straight to the bottom
+    // (the "teleport" bug). Matching the prediction to the move kills the trap.
+    const step = invaderDir * invaderSpeed;
+    const nextMinX = minX + step;
+    const nextMaxX = maxX + step;
 
     let hitEdge = false;
-    if (nextMinX < playMin.x + 1.2) hitEdge = true;
-    if (nextMaxX > playMax.x - 1.2) hitEdge = true;
+    if (invaderDir > 0 && nextMaxX > playMax.x - 1.2) hitEdge = true;
+    if (invaderDir < 0 && nextMinX < playMin.x + 1.2) hitEdge = true;
 
     if (hitEdge)
     {
@@ -1284,19 +1302,15 @@ function updateInvaders()
         for (const a of aliens)
             a.pos.y -= invaderDrop;
 
-        // speed up as they descend
-        invaderSpeed = min(invaderSpeed + .02, .5);
+        // Descent no longer affects march speed (count does), but it still
+        // tightens the fire rate so a low formation is more dangerous.
         alienShootMin = max(alienShootMin - 1, 3);
         alienShootMax = max(alienShootMax - 2, 8);
     }
     else
     {
-        // Speed scales inversely with remaining aliens (like original)
-        // Uses fourth root so speed increase is more gradual
-        const aliveCount = aliens.length;
-        const speedMultiplier = Math.pow(55 / aliveCount, 0.25); // max ~2.7x at 1 alien
         for (const a of aliens)
-            a.pos.x += invaderDir * invaderSpeed * speedMultiplier;
+            a.pos.x += step;
     }
 
     // lose if invaders reach the player line
@@ -1543,7 +1557,7 @@ function doRespawn()
             a.pos = a.originalPos.copy();
     }
     
-    resetInvaderState(false); // Keep current speed based on aliens killed
+    resetInvaderState(); // speed is count-driven, so it stays fast automatically
     
     // Respawn player at center
     player.pos = vec2(levelSize.x/2, playerY);
