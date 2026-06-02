@@ -415,9 +415,14 @@ function drawKeyboard() {
     const pal = palette();
     for (const k of KEYS) {
         const st = keyState[k.key];
-        const fill = st ? pal[st] : hsl(0,0,.22);
+        // Untried keys are a clear medium gray (available); correct/present take
+        // their state color; absent keys (letters proven NOT in the word) go
+        // distinctly dark with dimmed text so eliminated letters visibly recede.
+        let fill = hsl(0,0,.34), textCol = pal.text;
+        if (st === 'absent') { fill = hsl(0,0,.12); textCol = hsl(0,0,.4); }
+        else if (st) fill = pal[st];
         drawRect(k.pos, k.size, fill);
-        drawText(k.label, k.pos, k.size.y * .5, pal.text);
+        drawText(k.label, k.pos, k.size.y * .5, textCol);
     }
 }
 
