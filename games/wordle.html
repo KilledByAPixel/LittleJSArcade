@@ -225,6 +225,29 @@ function finishGame(won) {
     }
 }
 
+// Refresh CONTINUE visibility, DAILY button state/label, and the daily streak line.
+function refreshTitle() {
+    const t = getMenu('title');
+    if (!t) return;
+    const b = getSaveData(), today = dayNumber();
+
+    t.getItem('continue').setVisible(!!b.endlessProgress);
+
+    const daily = t.getItem('daily');
+    if (b.lastDailyDay === today) {
+        daily.setDisabled(true);
+        daily.setLabel('DAILY ' + (b.lastDailyWon ? '✓ ' + b.lastDailyGuesses + '/6' : '✗ X/6'));
+    } else if (b.dailyProgress && b.dailyProgress.day === today) {
+        daily.setDisabled(false);
+        daily.setLabel('DAILY (CONTINUE)');
+    } else {
+        daily.setDisabled(false);
+        daily.setLabel('DAILY');
+    }
+
+    t.getItem('dailyStreak').setLabel('DAILY STREAK ' + currentDailyStreak());
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 function gameInit() {
     canvasClearColor = palette().bg;
@@ -241,8 +264,25 @@ function gameInit() {
         formatBest: n => 'BEST STREAK ' + n,
         canReveal: () => !isPlaying(),
         revealOnClick: false,
-        onPlay: () => { newGame(); setPlaying(true); },
+        // PLAY always starts a FRESH endless word, discarding any in-progress board.
+        onPlay: () => { newGame(false); saveData({ endlessProgress: null }); setPlaying(true); },
+        onShow: refreshTitle,
         items: [
+            {type:'button', id:'continue', label:'CONTINUE', onClick: () => {
+                const slot = getSaveData().endlessProgress;
+                if (!slot) return;
+                resumeGame(slot, false); setPlaying(true); hideMenu('title');
+            }},
+            {type:'button', id:'daily', label:'DAILY', onClick: () => {
+                const b = getSaveData(), today = dayNumber();
+                if (b.lastDailyDay === today) return;          // already done today
+                if (b.dailyProgress && b.dailyProgress.day === today)
+                    resumeGame(b.dailyProgress, true);
+                else
+                    newGame(true);
+                setPlaying(true); hideMenu('title');
+            }},
+            {type:'label', id:'dailyStreak', text:'DAILY STREAK 0'},
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
             {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
         ],
