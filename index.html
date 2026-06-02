@@ -59,6 +59,7 @@
         --cat-board:   #f7c948;   --cat-board-bg:   rgba(247,201,72,.18);
         --cat-sports:  #4ade80;   --cat-sports-bg:  rgba(74,222,128,.18);
         --cat-construction: #ff9744; --cat-construction-bg: rgba(255,151,68,.18);
+        --cat-frankforce: #22d3ee; --cat-frankforce-bg: rgba(34,211,238,.18);
     }
     /* Light theme — overrides the surface/text palette only; the bright
           category + accent hues carry over (they read fine on light too). */
@@ -864,6 +865,17 @@
 <script>
 'use strict';
 
+// file:     unique id for the entry. For local games it's the .html filename in
+//           games/ that gets loaded into the iframe. For off-site games it's
+//           just a slug id (no .html) — `url` below supplies the real source.
+// url:      OPTIONAL full external URL. When set, the game loads from here in the
+//           iframe instead of games/<file>, and the entry is marked "↗ off-site".
+//           Cross-ORIGIN games can't share the launcher's localStorage, so their
+//           scoreKey won't resolve (leave it unset). Same-origin works (every repo
+//           under one *.github.io user shares an origin). The host must allow
+//           framing (no X-Frame-Options: DENY).
+// source:   OPTIONAL "Source ↗" target for off-site games (their own repo). When
+//           omitted on an off-site entry the Source button points at `url`.
 // category: row grouping in the welcome screen (one per game).
 // emoji:    single grapheme used as "boxart" on tiles + sidebar cards.
 // emojiStyle: optional inline-CSS string applied to that emoji's element on
@@ -880,6 +892,10 @@
 //           reads the 'tetris' save and returns its .bestScore field.
 //           Plain literal keys (for unmigrated games) also work.
 const GAMES = [
+    // ---- Frank Force Games (off-site) — load from external URLs via `url`. ----
+    { file:'js13k2025',           name:'JS13K 2025',      emoji:'🎮',  category:'frankforce',   desc:'My JS13K 2025 entry — hosted off-site.',  url:'https://itch.io/embed-upload/16167549?color=1b1b1b', tags:['js13k','off-site'],            keywords:['js13k','frank force','killedbyapixel'] },
+
+    // ---- Local URLs. ----
     { file:'2048.html',           name:'2048',            emoji:'🔢',  category:'puzzle',       desc:'Slide tiles, combine the numbers.',       scoreKey:'2048.bestScore',            tags:['grid','merge'],                           keywords:['threes','merge','numbers'] },
     { file:'asterblast.html',      name:'Asterblast',      emoji:'🌑',  category:'shooter',      desc:'Thrust and blast the rocks.',    scoreKey:'asteroids.bestScore',       tags:['retro','space'],                 keywords:['asteroids','rocks','vector shooter'], top:10 },
     { file:'homerDerby.html',       name:'Homer Derby',     emoji:'⚾',  category:'sports',       desc:'Swing for the fences.',                   tags:['one-button','timing'],                     keywords:['baseball','home run derby','bat'] },
@@ -982,6 +998,7 @@ const hasGamepad = g => GAMEPAD_GAMES.has(g.file);
 // Display name, emoji, and accent color (referencing CSS vars) per category.
 // Used for row headers, filter chips, and tile color stripes.
 const CATEGORIES = [
+    { key:'frankforce', label:'Frank Force Games', emoji:'⭐', color:'var(--cat-frankforce)', colorBg:'var(--cat-frankforce-bg)' },
     { key:'arcade',  label:'Arcade',  emoji:'🕹️', color:'var(--cat-arcade)',  colorBg:'var(--cat-arcade-bg)'  },
     { key:'shooter', label:'Shooter', emoji:'💥', color:'var(--cat-shooter)', colorBg:'var(--cat-shooter-bg)' },
     { key:'puzzle',  label:'Puzzle',  emoji:'🧩', color:'var(--cat-puzzle)',  colorBg:'var(--cat-puzzle-bg)'  },
@@ -1124,6 +1141,13 @@ function makeCard(g) {
         chip.title = 'Gamepad supported';
         chipsEl.appendChild(chip);
     }
+    if (g.url) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = '↗ off-site';
+        chip.title = 'Loads from an external site';
+        chipsEl.appendChild(chip);
+    }
     card.addEventListener('click', () => selectGame(g.file));
     return card;
 }
@@ -1239,6 +1263,13 @@ function makeTile(g, index) {
         chip.className = 'chip';
         chip.textContent = '🎮';
         chip.title = 'Gamepad supported';
+        chipsEl.appendChild(chip);
+    }
+    if (g.url) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = '↗ off-site';
+        chip.title = 'Loads from an external site';
         chipsEl.appendChild(chip);
     }
     // Color the left stripe + hover border by category.
@@ -1510,6 +1541,7 @@ function showWelcome(pushHistory = true) {
     welcomeEl.scrollTop = 0;
     // Source + Fullscreen stay enabled on the welcome screen — Source links to
     // the repo, Fullscreen fullscreens the entire page (sidebar + welcome).
+    sourceBtn.classList.remove('disabled');     // re-enable after an off-site game
     sourceBtn.href = MAIN_REPO;
     sourceBtn.title = 'View the LittleJSArcade repo on GitHub';
     fullscreenBtn.title = 'Fullscreen the whole page';
@@ -1531,6 +1563,7 @@ function selectGame(file, pushHistory = true) {
     const g = infoByFile[file];
     if (!g) return;
     const tmpl = isTemplate(file);
+    const external = !!g.url;       // off-site game — load from g.url, not games/
     const dir = tmpl ? TEMPLATES_DIR : GAMES_DIR;
     const wasLibrary = currentFile === null;
     currentFile = file;
@@ -1538,12 +1571,23 @@ function selectGame(file, pushHistory = true) {
     document.title = g.name + ' · ' + BASE_TITLE;
     // Templates are a dev-only browsing aid — keep them out of recent / continue.
     if (!tmpl) pushRecent(file);
-    // Cache-bust so edits to a game show up without manual reload.
-    loadIframe(dir + file + '?t=' + Date.now());
+    // Local games get a cache-bust so edits show without reload; for off-site URLs
+    // we don't control caching and a stray query can confuse the host, so load as-is.
+    loadIframe(external ? g.url : dir + file + '?t=' + Date.now());
     frameEl.style.display = 'block';
     welcomeEl.style.display = 'none';
-    sourceBtn.href = SOURCE_BASE + dir + file;
-    sourceBtn.title = tmpl ? "View this template's source on GitHub" : "View this game's source on GitHub";
+    // Source button: local games/templates always have a repo source; off-site
+    // games only if they declare `source`. With no source, gray the button out.
+    const sourceHref = external ? g.source : SOURCE_BASE + dir + file;
+    sourceBtn.classList.toggle('disabled', !sourceHref);
+    if (sourceHref) {
+        sourceBtn.href = sourceHref;
+        sourceBtn.title = external ? "View this game's source"
+            : tmpl ? "View this template's source on GitHub" : "View this game's source on GitHub";
+    } else {
+        sourceBtn.removeAttribute('href');
+        sourceBtn.title = 'No source available for this game';
+    }
     fullscreenBtn.title = 'Play this game fullscreen';
     shareBtn.title = 'Share a link to this game';
     if (!tmpl) localStorage.setItem(LAST_GAME_KEY, file);
