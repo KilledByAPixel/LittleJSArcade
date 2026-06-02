@@ -73,6 +73,7 @@ let evals = [];          // arrays of 'correct'|'present'|'absent'
 let current = '';        // row being typed
 let keyState = {};       // letter -> best state
 let finished = false;    // win or lose: stop input
+let dailyMode = false;   // true while playing the daily puzzle
 let message = '', messageTimer = new Timer();
 let rowRevealTime = -9;   // engine time when the latest row was submitted
 let popCol = -1, popTime = -9;   // last typed tile (entry pop)
@@ -81,10 +82,37 @@ let winTime = -9;         // win bounce start
 const FLIP = 0.28;        // seconds per-tile flip
 const STAGGER = 0.18;     // delay between tiles in a revealing row
 
-function newGame() {
-    answer = WORDLE_ANSWERS[randInt(WORDLE_ANSWERS.length)];
+// ---- daily puzzle helpers (UTC day) ----
+const LAUNCH_DAY = Math.floor(Date.UTC(2026, 5, 1) / 864e5);   // Jun 1 2026 UTC = Daily #1
+function dayNumber() { return Math.floor(Date.now() / 864e5); }
+function dailyWord() { return WORDLE_ANSWERS[dayNumber() % WORDLE_ANSWERS.length]; }
+function currentDailyStreak() {
+    const b = getSaveData();
+    const last = (b.lastDailyDay ?? -1);
+    return (last >= dayNumber() - 1) ? (b.dailyStreak || 0) : 0;
+}
+
+function newGame(daily = false) {
+    dailyMode = daily;
+    answer = daily ? dailyWord() : WORDLE_ANSWERS[randInt(WORDLE_ANSWERS.length)];
     guesses = []; evals = []; current = '';
     keyState = {}; finished = false; message = '';
+    rowRevealTime = -9; popCol = -1; popTime = -9; shakeTime = -9; winTime = -9;
+}
+
+// Rebuild an in-progress board from a saved slot {answer, guesses[]}.
+// evals + keyState are recomputed, never stored.
+function resumeGame(slot, daily) {
+    dailyMode = daily;
+    answer = slot.answer;
+    guesses = slot.guesses.slice();
+    evals = guesses.map(g => evaluate(g, answer));
+    keyState = {};
+    guesses.forEach((g, r) => {
+        for (let i = 0; i < COLS; i++)
+            keyState[g[i]] = mergeKeyState(keyState[g[i]], evals[r][i]);
+    });
+    current = ''; finished = false; message = '';
     rowRevealTime = -9; popCol = -1; popTime = -9; shakeTime = -9; winTime = -9;
 }
 
@@ -127,6 +155,14 @@ function pressKey(key) {
     if (key === 'ENTER') { submitGuess(); return; }
     if (key === 'BACK') { if (current.length) { current = current.slice(0, -1); sndType.play(); } return; }
     if (/^[A-Z]$/.test(key) && current.length < COLS) { current += key; popCol = current.length - 1; popTime = time; sndType.play(); }
+}
+
+// Persist the in-progress board to the correct slot (per submitted guess).
+function saveProgress() {
+    if (dailyMode)
+        saveData({ dailyProgress: { day: dayNumber(), answer, guesses: guesses.slice() } });
+    else
+        saveData({ endlessProgress: { answer, guesses: guesses.slice() } });
 }
 
 function submitGuess() {
