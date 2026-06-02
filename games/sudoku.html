@@ -285,7 +285,7 @@ function doErase()
 
 function doHint()
 {
-    if (solved) return;
+    if (solved || difficulty === 'hard') return; // no hints on hard — pure logic
     let t = selected;
     if (t < 0 || fixed[t] || val[t] !== 0)
     {
@@ -304,18 +304,22 @@ function doHint()
     checkSolved();
 }
 
-// fill every empty cell's pencil marks with its currently-legal candidates
+// legal-candidate bitmask for an empty cell given the current grid
+function candidateMask(i)
+{
+    let mask = 0;
+    for (let d = 1; d <= 9; d++)
+        if (valid(val, i, d)) mask |= (1 << d);
+    return mask;
+}
+
+// one-shot: fill every empty cell's pencil marks with its legal candidates,
+// which then become normal editable notes (disabled on hard, like hints)
 function autoPencil()
 {
-    if (solved) return;
+    if (solved || difficulty === 'hard') return;
     for (let i = 0; i < 81; i++)
-    {
-        if (val[i]) { notes[i] = 0; continue; }
-        let mask = 0;
-        for (let d = 1; d <= 9; d++)
-            if (valid(val, i, d)) mask |= (1 << d);
-        notes[i] = mask;
-    }
+        notes[i] = val[i] ? 0 : candidateMask(i);
     sNote.play();
     saveDirty = true;
 }
@@ -524,9 +528,10 @@ async function gameInit()
     createHelpMenu({
         text: 'Fill the grid so every row, column, and 3x3 box contains 1-9 with no ' +
             'repeats. Click a cell (or use arrow keys), then type 1-9 or tap the number ' +
-            'pad. NOTES toggles small pencil marks; AUTO fills every empty cell with its ' +
-            'legal candidates. Conflicts glow red; selecting a number highlights its ' +
-            'matches. HINT reveals one cell. Your game saves automatically.',
+            'pad. NOTES lets you pencil in your own candidates; AUTO fills every empty cell ' +
+            'with its legal candidates at once, which you can then refine by hand. Conflicts ' +
+            'glow red; selecting a number highlights its matches. HINT reveals one cell. AUTO ' +
+            'and HINT are not available on Hard. Your game saves automatically.',
         extraItems: [{type: 'text', text: '1-9 place · 0/Bksp erase · N notes · A auto · H hint · R new'}],
     });
 
@@ -693,13 +698,15 @@ function gameRender()
     {
         for (const b of getPad())
         {
+            const disabled = (b.kind === 'hint' || b.kind === 'auto') && difficulty === 'hard';
             const active = b.kind === 'notes' && notesMode;
-            const hover = isOverlapping(mousePos, vec2(0.01), b.pos, b.size) && !solved;
+            const hover = !disabled && isOverlapping(mousePos, vec2(0.01), b.pos, b.size) && !solved;
             drawRect(b.pos, b.size, hsl(0, 0, 0.18));
             drawRect(b.pos, b.size.scale(0.9),
-                active ? hsl(0.58, 0.5, 0.45) : hover ? hsl(0, 0, 0.4) : hsl(0, 0, 0.3));
+                disabled ? hsl(0, 0, 0.2) : active ? hsl(0.58, 0.5, 0.45) :
+                hover ? hsl(0, 0, 0.4) : hsl(0, 0, 0.3));
             drawText(b.label, b.pos, b.kind === 'num' ? 0.66 : 0.38,
-                active ? hsl(0, 0, 1) : hsl(0, 0, 0.95));
+                disabled ? hsl(0, 0, 0.45) : active ? hsl(0, 0, 1) : hsl(0, 0, 0.95));
         }
     }
 
