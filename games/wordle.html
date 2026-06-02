@@ -1,0 +1,173 @@
+<!DOCTYPE html><head>
+<title>Word Guess</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<script src="../templates/engineLoader.js?1780355054005"></script>
+<script src="../templates/gameFx.js?1780355054005"></script>
+<script src="../templates/words.js"></script>
+<script src="../templates/menus.js?1780355054005"></script>
+<script>
+'use strict';
+
+// engine settings
+tilesPixelated = false;
+paused = false;
+gravity = vec2(0, 0);
+canvasMaxSize = vec2(2048);
+
+///////////////////////////////////////////////////////////////////////////////
+// LAYOUT (world space, y-up)
+const ROWS = 6, COLS = 5;
+const TILE = 1.5, GAP = 0.18, STEP = TILE + GAP;
+const GRID_TOP = 9.2;                       // y of top row of tiles
+const KB_ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+const KEY_W = 1.0, KEY_H = 1.4, KEY_GAP = 0.14, KEY_STEP = KEY_W + KEY_GAP;
+const WIDE = KEY_W * 1.6;                    // ENTER / BACK width
+const KB_TOP = -3.6, KB_ROW_STEP = KEY_H + 0.22;
+const ARENA = vec2(12.5, 19);               // world box the camera fits to
+const CAM_Y = 1.25;
+
+function tilePos(row, col) {
+    return vec2((col - (COLS - 1) / 2) * STEP, GRID_TOP - row * STEP);
+}
+
+// Build keyboard key descriptors: {label, key, pos, size}
+function buildKeys() {
+    const keys = [];
+    KB_ROWS.forEach((rowStr, r) => {
+        const y = KB_TOP - r * KB_ROW_STEP;
+        const chars = rowStr.split('');
+        const cells = (r === 2)
+            ? [{key:'ENTER', label:'⏎', w:WIDE}, ...chars.map(c => ({key:c, label:c, w:KEY_W})), {key:'BACK', label:'⌫', w:WIDE}]
+            : chars.map(c => ({key:c, label:c, w:KEY_W}));
+        const totalW = cells.reduce((s, c) => s + c.w, 0) + (cells.length - 1) * KEY_GAP;
+        let x = -totalW / 2;
+        for (const c of cells) {
+            keys.push({key:c.key, label:c.label, pos:vec2(x + c.w / 2, y), size:vec2(c.w, KEY_H)});
+            x += c.w + KEY_GAP;
+        }
+    });
+    return keys;
+}
+const KEYS = buildKeys();
+
+///////////////////////////////////////////////////////////////////////////////
+// COLORS
+let highContrast = false;
+function palette() {
+    return highContrast
+        ? {correct: new Color().setHex('#f5793a'), present: new Color().setHex('#85c0f9'),
+           absent: hsl(0,0,.28), tile: hsl(0,0,.10), border: hsl(0,0,.32),
+           text: hsl(0,0,1), bg: hsl(0,0,.06)}
+        : {correct: new Color().setHex('#538d4e'), present: new Color().setHex('#b59f3b'),
+           absent: hsl(0,0,.28), tile: hsl(0,0,.10), border: hsl(0,0,.32),
+           text: hsl(0,0,1), bg: hsl(0,0,.06)};
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// STATE
+let answer = '';
+let guesses = [];        // submitted guess strings
+let evals = [];          // arrays of 'correct'|'present'|'absent'
+let current = '';        // row being typed
+let keyState = {};       // letter -> best state
+let finished = false;    // win or lose: stop input
+let message = '', messageTimer = new Timer();
+
+function newGame() {
+    answer = WORDLE_ANSWERS[randInt(WORDLE_ANSWERS.length)];
+    guesses = []; evals = []; current = '';
+    keyState = {}; finished = false; message = '';
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameInit() {
+    canvasClearColor = palette().bg;
+    setSoundVolume(.6);
+    saveDataInit('WordGuess');
+    setMenuVisibilityCallback(v => paused = v);
+
+    newGame();
+
+    createTitleMenu({
+        title: 'WORD GUESS',
+        subtitle: 'Guess the 5-letter word in 6 tries',
+        showBest: true,
+        formatBest: n => 'BEST STREAK ' + n,
+        canReveal: () => !isPlaying(),
+        revealOnClick: false,
+        onPlay: () => { newGame(); },
+        items: [
+            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
+            {type:'button', label:'ABOUT',   onClick: () => pushMenu('about')},
+        ],
+    });
+
+    installDefaultToolbar();
+    showMenu('title');
+}
+
+function fitCamera() {
+    cameraScale = min(mainCanvasSize.x / ARENA.x, mainCanvasSize.y / ARENA.y);
+    cameraPos = vec2(0, CAM_Y);
+}
+
+function gameUpdate() {}
+function gameUpdatePost() {}
+
+// Draw a single tile with letter. A non-null `border` draws a ring (outer
+// border rect + inset fill rect); otherwise a solid fill. All WebGL (default)
+// so letters drawn afterward layer correctly on top.
+function drawTile(pos, size, fill, border, letter, textCol) {
+    if (border) {
+        drawRect(pos, size, border);
+        drawRect(pos, size.subtract(vec2(.14)), fill);
+    } else {
+        drawRect(pos, size, fill);
+    }
+    if (letter) drawText(letter, pos, size.y * .7, textCol);
+}
+
+function drawGrid() {
+    const pal = palette();
+    for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++) {
+            const p = tilePos(r, c);
+            let letter = '', fill = pal.tile, border = pal.border, textCol = pal.text;
+            if (r < guesses.length) {
+                letter = guesses[r][c];
+                fill = pal[evals[r][c]]; border = null;
+            } else if (r === guesses.length && !finished && c < current.length) {
+                letter = current[c]; border = pal.border;
+            }
+            drawTile(p, vec2(TILE), fill, border, letter, textCol);
+        }
+}
+
+function drawKeyboard() {
+    const pal = palette();
+    for (const k of KEYS) {
+        const st = keyState[k.key];
+        const fill = st ? pal[st] : hsl(0,0,.22);
+        drawRect(k.pos, k.size, fill);
+        drawText(k.label, k.pos, k.size.y * .5, pal.text);
+    }
+}
+
+function gameRender() {
+    fitCamera();
+    canvasClearColor = palette().bg;
+    drawGrid();
+    drawKeyboard();
+}
+
+function gameRenderPost() {
+    if (message && !messageTimer.elapsed())
+        drawTextScreen(message, vec2(mainCanvasSize.x/2, mainCanvasSize.y*.10),
+            36, hsl(0,0,1), 5, hsl(0,0,0));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+</script></body></html>
