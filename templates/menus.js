@@ -291,7 +291,16 @@ function applyMenuFx(element, spec)
     // ---- motion ----
     const motion = (spec.motion && MENU_FX_CHANNEL[spec.motion] === 'motion') ? spec.motion : null;
     if (spec.motion && !motion) console.warn('applyMenuFx: unknown motion "' + spec.motion + '"');
-    if (motion === 'wave')
+    const fillIsGradient = fill && ['gold','rainbow','shine','fire'].includes(fill);
+    if (motion === 'wave' && fillIsGradient)
+    {
+        // wave splits the title into per-letter spans, which breaks a gradient
+        // (background-clip:text) fill — the parent keeps the gradient but loses
+        // its text, so nothing renders. Keep the fill, skip the wave, and point
+        // the developer at a wrapper motion that moves the title as one piece.
+        console.warn('applyMenuFx: "wave" cannot combine with gradient fill "' + fill + '" (the title would vanish) — use motion float/heartbeat/jelly instead. Skipping wave.');
+    }
+    else if (motion === 'wave')
     {
         // per-letter on the fill element
         target.classList.add('fx-wave');
