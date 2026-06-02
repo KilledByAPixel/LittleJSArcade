@@ -48,6 +48,13 @@ let view = {};
 // (tree canopies, helmets) draw as the tinted 'circle' tile — instanced, fast.
 let icons = null;
 
+// the rear-view race car, split across two atlas tiles so the body tints per
+// car while the wheels/wing/cockpit/helmet keep fixed colors:
+//   tile 15 = body   (grayscale -> tinted the car's hue)
+//   tile 14 = detail (real colors -> drawn untinted on top)
+let carBodyTile = null;
+let carDetailTile = null;
+
 const MAX_SPEED       = 0.90;  // world segments per frame
 const ACCEL           = 0.012;
 const BRAKE           = 0.020;
@@ -166,6 +173,14 @@ function gameInit()
     // bake the built-in icon atlas (tiles 0-15); we use the 'circle' tile for
     // the round bits (tree canopies, helmets) via fillCircleS.
     icons = initDefaultAtlas();
+
+    // overwrite two unused tiles with the race car: 15='arrow' -> tinted body,
+    // 14='bolt' -> fixed-color detail (wheels/wing/cockpit/helmet). Re-whiten the
+    // other icon tiles afterwards (drawToTexture re-uploads the canvas and would
+    // otherwise reintroduce the dark icon halo); [14,15] keeps the car colors.
+    carBodyTile   = drawToTexture(15, paintCarBody,   'race car body (tinted)');
+    carDetailTile = drawToTexture(14, paintCarDetail, 'race car wheels / wing / cockpit / helmet');
+    whitenAtlasAlpha([14, 15]);
 
     // gamepad: on-screen touch pad with an analog left stick (steer) and one
     // face-button area used as buttons for gas/brake on touch devices.
@@ -395,8 +410,10 @@ function gameUpdate()
         if (c.z >= trackLen)
             c.z -= trackLen;
 
-        // collision when very close in Z
+        // distance the car is AHEAD of the player along the loop (0..trackLen)
         const dz = (c.z - trackPos + trackLen) % trackLen;
+
+        // collision when very close ahead
         if (dz < 1.2 && dz > 0)
         {
             if (abs(playerX - c.offset) < .22 && crashTimer <= 0 && speed > .10)
@@ -408,9 +425,19 @@ function gameUpdate()
             }
         }
 
-        // keep AI from lingering right on player forever
-        if (dz < .25)
-            c.z = (c.z + 12) % trackLen;
+        // Once a car falls just behind the player it's off-screen (we only draw
+        // cars ahead), so recycle it as fresh traffic far up the road. This lets
+        // you actually OVERTAKE cars and keeps a steady stream ahead — the old
+        // code teleported a car +12 ahead the instant you caught it (dz<.25),
+        // which read as the car "popping" in front of you and made passing
+        // impossible.
+        if (dz > trackLen - 6)
+        {
+            c.z = (trackPos + 180 + rand(60)) % trackLen; // distant, near the horizon
+            c.offset = rand(0.9, -0.9);
+            c.speed = rand(0.35, 0.55);
+            c.colorH = rand();
+        }
     }
 
 }
@@ -458,21 +485,10 @@ function projectPoint(z, x, v)
     return { screenX, screenY, scale, roadW, rumbleW };
 }
 
-// screen-space draw helpers routed through LittleJS WebGL (replace raw ctx fills).
-// Each screen-pixel point is converted to world space so it round-trips exactly
-// back to the same pixel when the engine renders the gl scene.
-const spt = (x, y)=> screenToWorld(vec2(x, y));
-
-// fillQuad is the ONLY poly-mode draw left (used by the car trapezoids). Every
-// drawPoly runs ear-clipping triangulation + per-point allocation on the CPU
-// (see glPolyStrip), which is the real cost on mobile — so the road and all the
-// flat shapes go through the instanced path (drawRect/drawTile) instead.
-function fillQuad(x1,y1, x2,y2, x3,y3, x4,y4, color)
-{
-    // drawPoly triangulates via glPolyStrip and auto-corrects winding
-    drawPoly([spt(x1,y1), spt(x2,y2), spt(x3,y3), spt(x4,y4)], color);
-}
-
+// Screen-space draw helpers routed through LittleJS WebGL. Everything draws via
+// the instanced path (drawRect/drawTile) — no drawPoly anywhere — so the whole
+// scene batches without the per-quad ear-clipping triangulation + allocation
+// that drawPoly costs on the CPU (the real mobile bottleneck; see glPolyStrip).
 function fillRectS(x, y, w, h, color) // top-left origin, like ctx.fillRect
 {
     // instanced draw — just writes a few floats, no triangulation or allocation
@@ -485,11 +501,6 @@ function fillCircleS(x, y, r, color)
     // the road rects (no poly-mode triangulation). The atlas always bakes in
     // gameInit, so no fallback path is needed.
     drawTile(vec2(x, y), vec2(r*2), icons.circle, color, 0, undefined, undefined, glEnable, true);
-}
-
-function fillEllipseS(x, y, rx, ry, color)
-{
-    drawEllipse(vec2(x, y), vec2(rx*2, ry*2), color, 0, 0, BLACK, glEnable, true);
 }
 
 // deterministic tiny hash for scenery variation
@@ -738,136 +749,123 @@ function renderRoadAndCars()
     fillRectS(0, h-12, w, 12, hsl(0,0,0,.18));
 }
 
+// The rear-view F1 car is painted across two atlas tiles (canvas 2D, 500x500
+// space) so the body can be tinted per car while the structural parts keep
+// fixed colors. Both tiles share the same coordinate space and draw rect, so
+// stacking carDetailTile over carBodyTile composites them into one car.
+//
+// BODY tile (tinted): painted GRAYSCALE so drawTile's color arg multiplies it
+// to the car's hue. Fills the tile so the draw rect == the car footprint.
+function paintCarBody(ctx)
+{
+    const S = 500, cx = S/2;
+
+    // body trapezoid (white -> takes the car color)
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(cx-150, 492);
+    ctx.lineTo(cx- 52,  70);
+    ctx.lineTo(cx+ 52,  70);
+    ctx.lineTo(cx+150, 492);
+    ctx.closePath();
+    ctx.fill();
+
+    // body side shading (darker -> a shaded edge of the hue)
+    ctx.fillStyle = '#c2c2c2';
+    ctx.beginPath();
+    ctx.moveTo(cx-150, 492); ctx.lineTo(cx-52, 70); ctx.lineTo(cx-30, 70); ctx.lineTo(cx-110, 492);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx+150, 492); ctx.lineTo(cx+52, 70); ctx.lineTo(cx+30, 70); ctx.lineTo(cx+110, 492);
+    ctx.closePath(); ctx.fill();
+}
+
+// DETAIL tile (NOT tinted — drawn white over the body): the wheels, wing,
+// cockpit, helmet, visor and stripe, in their real fixed colors so they look
+// the same on every car regardless of body hue.
+function paintCarDetail(ctx)
+{
+    const S = 500, cx = S/2;
+
+    // rear tires (out to the side edges)
+    ctx.fillStyle = '#1c1c1c';
+    ctx.fillRect(  4, 210,  96, 280);
+    ctx.fillRect(400, 210,  96, 280);
+    ctx.fillStyle = '#3a3a3a';            // lighter tops so they read as round
+    ctx.fillRect(  4, 210,  96, 46);
+    ctx.fillRect(400, 210,  96, 46);
+
+    // rear wing: dark plate + endplates
+    ctx.fillStyle = '#202020';
+    ctx.fillRect( 30, 120, 440, 46);
+    ctx.fillRect( 30,  74,  34, 92);
+    ctx.fillRect(436,  74,  34, 92);
+
+    // cockpit opening (dark)
+    ctx.fillStyle = '#101010';
+    ctx.beginPath();
+    ctx.moveTo(cx-58, 360);
+    ctx.lineTo(cx-34, 165);
+    ctx.lineTo(cx+34, 165);
+    ctx.lineTo(cx+58, 360);
+    ctx.closePath();
+    ctx.fill();
+
+    // driver helmet (stays white) + dark visor band
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cx, 250, 40, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = '#33384f';
+    ctx.fillRect(cx-34, 238, 68, 24);
+
+    // nose centerline stripe (stays white)
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(cx-16, 492);
+    ctx.lineTo(cx- 7,  80);
+    ctx.lineTo(cx+ 7,  80);
+    ctx.lineTo(cx+16, 492);
+    ctx.closePath();
+    ctx.fill();
+}
+
+// Draw a car: tinted body first, fixed-color detail on top. Both instanced.
+function drawCar(centerPos, size, bodyColor)
+{
+    drawTile(centerPos, size, carBodyTile,   bodyColor, 0, undefined, undefined, glEnable, true);
+    drawTile(centerPos, size, carDetailTile, WHITE,     0, undefined, undefined, glEnable, true);
+}
+
 function drawAICar(cx, groundY, W, H, colorH)
 {
-    // Compact F1 silhouette: trapezoid body, exposed rear tires,
-    // tiny rear wing. Helmet only on cars big enough to read it.
-    const body = hsl(colorH, .75, .55);
-    const tire = hsl(0,0,.10);
+    // two instanced tiles — no poly. Footprint matches the old silhouette:
+    // ~1.15*W wide (tire overhang), ~H tall, wheels on groundY.
+    const tileW = W * 1.15;
+    const tileH = H * 1.05;
 
-    // soft shadow
-    fillRectS(cx - W*0.55, groundY - max(1, H*0.04), W*1.10, max(2, H*0.08), hsl(0,0,0,.4));
+    // soft contact shadow so it doesn't look like it floats
+    fillRectS(cx - tileW*0.5, groundY - max(1, tileH*0.03), tileW, max(2, tileH*0.06), hsl(0,0,0,.35));
 
-    // rear tires (sticking outside the body)
-    const rtW = W*0.22, rtH = H*0.44;
-    fillRectS(cx - W*0.50,       groundY - rtH, rtW, rtH, tire);
-    fillRectS(cx + W*0.50 - rtW, groundY - rtH, rtW, rtH, tire);
-
-    // body trapezoid
-    const botY = groundY - H*0.20;
-    const topY = groundY - H*0.95;
-    const botW = W*0.60;
-    const topW = W*0.22;
-    fillQuad(
-        cx - botW/2, botY,
-        cx - topW/2, topY,
-        cx + topW/2, topY,
-        cx + botW/2, botY, body);
-
-    // rear wing - thin dark band behind/above the rear tires
-    fillRectS(cx - W*0.42, groundY - H*0.56, W*0.84, max(1, H*0.07), hsl(0,0,.12));
-
-    // cockpit opening
-    const ckBotW = W*0.22, ckTopW = W*0.13;
-    fillQuad(
-        cx - ckBotW/2, groundY - H*0.34,
-        cx - ckTopW/2, groundY - H*0.68,
-        cx + ckTopW/2, groundY - H*0.68,
-        cx + ckBotW/2, groundY - H*0.34, hsl(0,0,.08));
-
-    // driver helmet (skip on tiny far cars to avoid noise)
-    if (H > 18)
-        fillCircleS(cx, groundY - H*0.55, max(1, H*0.10), hsl(0,0,.95));
+    drawCar(vec2(cx, groundY - tileH/2), vec2(tileW, tileH), hsl(colorH, .7, .55));
 }
 
 function drawPlayerCar(x, y, s=1)
 {
-    // F1 silhouette from behind: tapered body, exposed wheels,
-    // driver's helmet and a rear wing element behind the rear axle.
-    const W = 110*s;
-    const H = 68*s;
+    // Same baked car tile as the AI cars, just tinted red (white on a crash
+    // flash). Instanced — no poly. Drawn at the AI cars' ~1.32 height:width
+    // aspect so it reads as the identical car, only bigger and in the
+    // foreground; wheels sit on the ground line y.
+    const tileW = 130 * s;
+    const tileH = 172 * s;
 
-    const flash = crashTimer>0 && (frame&3)<2;
-    const red      = flash ? hsl(0,0,1)   : hsl(.01, .85, .52);
-    const redDark  = flash ? hsl(0,0,.78) : hsl(.01, .85, .34);
-    const tire     = hsl(0,0,.08);
-    const tireTop  = hsl(0,0,.22);
+    const flash = crashTimer > 0 && (frame&3) < 2;
+    const color = flash ? hsl(0,0,1) : hsl(.01, .85, .52);
 
-    // ground shadow
-    fillEllipseS(x, y + H*0.04, W*0.62, H*0.10, hsl(0,0,0,.45));
+    // contact shadow
+    fillRectS(x - tileW*0.42, y - max(1, tileH*0.025), tileW*0.84, max(2, tileH*0.05), hsl(0,0,0,.4));
 
-    // rear tires (largest, closest to camera) - poking out wider than body
-    const rtW = W*0.22, rtH = H*0.46;
-    const rtY = y - rtH;
-    const rtxL = x - W*0.50;
-    const rtxR = x + W*0.50 - rtW;
-    fillRectS(rtxL, rtY, rtW, rtH, tire);
-    fillRectS(rtxR, rtY, rtW, rtH, tire);
-    fillRectS(rtxL, rtY, rtW, rtH*0.16, tireTop);
-    fillRectS(rtxR, rtY, rtW, rtH*0.16, tireTop);
-
-    // rear wing - black plate spanning behind the body, with endplates
-    const wingY  = y - H*0.52;
-    const wingH  = H*0.08;
-    const wingW  = W*0.96;
-    fillRectS(x - wingW/2, wingY, wingW, wingH, hsl(0,0,.12));
-    fillRectS(x - wingW/2,             wingY - wingH*1.6, wingH*0.5, wingH*2.2, redDark);
-    fillRectS(x + wingW/2 - wingH*0.5, wingY - wingH*1.6, wingH*0.5, wingH*2.2, redDark);
-
-    // main body - trapezoid: wide at rear, narrow toward nose
-    const bodyBotW = W*0.58;
-    const bodyTopW = W*0.18;
-    const bodyTopY = y - H*0.98;
-    const bodyBotY = y - H*0.18;
-    fillQuad(
-        x - bodyBotW/2, bodyBotY,
-        x - bodyTopW/2, bodyTopY,
-        x + bodyTopW/2, bodyTopY,
-        x + bodyBotW/2, bodyBotY, red);
-
-    // body side-shading for depth (left + right slivers)
-    fillQuad(
-        x - bodyBotW/2,           bodyBotY,
-        x - bodyTopW/2,           bodyTopY,
-        x - bodyTopW/2 + W*0.025, bodyTopY,
-        x - bodyBotW/2 + W*0.07,  bodyBotY, redDark);
-    fillQuad(
-        x + bodyBotW/2 - W*0.07,  bodyBotY,
-        x + bodyTopW/2 - W*0.025, bodyTopY,
-        x + bodyTopW/2,           bodyTopY,
-        x + bodyBotW/2,           bodyBotY, redDark);
-
-    // white centerline stripe down the nose
-    const strBotW = W*0.08;
-    const strTopW = W*0.03;
-    fillQuad(
-        x - strBotW/2, bodyBotY,
-        x - strTopW/2, bodyTopY,
-        x + strTopW/2, bodyTopY,
-        x + strBotW/2, bodyBotY, hsl(0,0,.95));
-
-    // front tires - smaller, peek above the body line near the front
-    const ftW = W*0.13, ftH = H*0.20;
-    const ftY = y - H*0.78;
-    fillRectS(x - W*0.34, ftY, ftW, ftH, tire);
-    fillRectS(x + W*0.34 - ftW, ftY, ftW, ftH, tire);
-
-    // cockpit opening - dark trapezoid set into the body
-    const ckBotW = W*0.26;
-    const ckTopW = W*0.15;
-    const ckBotY = y - H*0.32;
-    const ckTopY = y - H*0.70;
-    fillQuad(
-        x - ckBotW/2, ckBotY,
-        x - ckTopW/2, ckTopY,
-        x + ckTopW/2, ckTopY,
-        x + ckBotW/2, ckBotY, hsl(0,0,.08));
-
-    // driver helmet - white sphere with a dark visor band
-    const helmR = H*0.13;
-    const helmY = y - H*0.55;
-    fillCircleS(x, helmY, helmR, hsl(0,0,.95));
-    fillRectS(x - helmR*0.85, helmY - helmR*0.18, helmR*1.7, helmR*0.55, hsl(.6, .4, .12));
+    drawCar(vec2(x, y - tileH/2), vec2(tileW, tileH), color);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -884,8 +882,16 @@ function gameRender()
         fillRectS(0, 0, w, h, hsl(.58, .55, .75));
         fillRectS(0, h*0.55, w, h*0.45, hsl(.33, .85, .25));
 
-        // tiny fake road
-        fillQuad(w*.40, h, w*.46, h*.58, w*.54, h*.58, w*.60, h, hsl(0,0,.2));
+        // tiny fake road — a stack of horizontal rects (instanced) widening
+        // toward the bottom, so the title screen needs no poly draw either.
+        const roadTopY = h*0.58, roadColor = hsl(0,0,.2);
+        for (let yb = h; yb > roadTopY; yb -= 3)
+        {
+            const yTop = max(yb - 3, roadTopY);
+            const t = (h - (yb+yTop)/2) / (h - roadTopY); // 0 at bottom -> 1 at horizon
+            const halfW = lerp(w*.10, w*.04, t);          // .20w wide at bottom, .08w at top
+            fillRectS(w*.50 - halfW, yTop, halfW*2, yb - yTop, roadColor);
+        }
 
         // parked car
         drawPlayerCar(w*0.5, h*0.82, v.viewScale);
