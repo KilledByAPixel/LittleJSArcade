@@ -55,6 +55,11 @@ let icons = null;
 let carBodyTile = null;
 let carDetailTile = null;
 
+// a mountain peak baked into tile 13 (replaces 'droplet'). The built-in
+// 'triangle' icon leaves empty space below its base, which floats the mountains;
+// this peak's base is flush with the tile's bottom edge so it sits on the horizon.
+let mountainTile = null;
+
 const MAX_SPEED       = 0.90;  // world segments per frame
 const ACCEL           = 0.012;
 const BRAKE           = 0.020;
@@ -84,6 +89,7 @@ let score = 0;
 let lap = 0;
 let timeLeftFrames = 60 * 60; // 60 seconds at 60 fps
 let crashTimer = 0;
+let bgScroll = 0;   // accumulated heading (curve*speed) -> distant parallax offset
 let inputSteer = 0; // -1..1, combined keyboard + mouse, shared with render
 let steerMode = 'mouse';   // active steering device: 'mouse' | 'key' (most-recent wins)
 let lastMouseScreenX = -1; // for detecting mouse movement (-1 = uninitialized)
@@ -148,6 +154,7 @@ function resetGame()
     lap = 0;
     timeLeftFrames = 60 * 60;
     crashTimer = 0;
+    bgScroll = 0;
 
     // spawn some simple AI cars ahead
     aiCars = [];
@@ -180,7 +187,8 @@ function gameInit()
     // otherwise reintroduce the dark icon halo); [14,15] keeps the car colors.
     carBodyTile   = drawToTexture(15, paintCarBody,   'race car body (tinted)');
     carDetailTile = drawToTexture(14, paintCarDetail, 'race car wheels / wing / cockpit / helmet');
-    whitenAtlasAlpha([14, 15]);
+    mountainTile  = drawToTexture(13, paintMountain,  'distant mountain peak');
+    whitenAtlasAlpha([13, 14, 15]);
 
     // gamepad: on-screen touch pad with an analog left stick (steer) and one
     // face-button area used as buttons for gas/brake on touch devices.
@@ -347,6 +355,10 @@ function gameUpdate()
     const baseIndex = trackPos|0;
     const curve = segments[baseIndex % trackLen].curve;
     playerVX -= curve * speed * CENTRIFUGAL;
+
+    // distant-background parallax tracks your changing heading: integrate
+    // curve*speed so the sun/mountains scroll while you're going THROUGH a bend.
+    bgScroll += curve * speed;
 
     // damp + clamp lateral velocity, then integrate
     playerVX *= STEER_DAMP;
@@ -554,6 +566,61 @@ function drawSign(x, yGround, size, seed)
     fillRectS(x - boardW*0.42, yGround - postH - boardH*0.62, boardW*0.84, max(2, boardH*0.18), hsl(0,0,1,.85));
 }
 
+// White mountain peak that FILLS the tile — apex at top, base flush along the
+// bottom edge — so a drawn tile sits its base exactly on the horizon (the
+// built-in triangle icon leaves a gap below its base). Tints to the haze color.
+function paintMountain(ctx)
+{
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(232,   6);   // apex (slightly off-center so peaks aren't perfectly even)
+    ctx.lineTo(500, 500);   // bottom-right corner
+    ctx.lineTo(  0, 500);   // bottom-left corner
+    ctx.closePath();
+    ctx.fill();
+}
+
+// Distant parallax backdrop (sun + mountain ranges) along the horizon. Each
+// layer scrolls horizontally by bgScroll at its own rate — farther = slower —
+// so the scene rotates around you as you go through bends. All instanced tiles.
+function drawBackground(v)
+{
+    const w = v.w, horizonY = v.horizonY;
+
+    // sun: soft glow + bright disc, high in the sky, slowest parallax. Wrap it
+    // over a period a bit wider than the screen so it drifts off and re-enters.
+    const sunY = horizonY * 0.42;
+    const sunPeriod = w * 1.8;
+    const sunBaseX = w*0.62 - bgScroll * w * 1.2;
+    for (let s = -1; s <= 1; ++s) // a couple of copies cover the wrap seam
+    {
+        const sx = mod(sunBaseX, sunPeriod) + s*sunPeriod;
+        if (sx < -w*0.3 || sx > w*1.3) continue;
+        drawTile(vec2(sx, sunY), vec2(horizonY*1.4), icons.glow,
+            hsl(.09, .85, .62, .55), 0, undefined, undefined, glEnable, true);
+        drawTile(vec2(sx, sunY), vec2(horizonY*0.42), icons.circle,
+            hsl(.13, .70, .92), 0, undefined, undefined, glEnable, true);
+    }
+
+    // two mountain ranges: far (lighter/hazier/slower) behind near (darker/faster).
+    const drawRange = (rate, color, peakH, span, yBase)=>
+    {
+        const scroll = -bgScroll * w * rate;
+        const k0 = Math.floor((-span - scroll)/span);
+        const k1 = Math.ceil((w + span - scroll)/span);
+        for (let k = k0; k <= k1; ++k)
+        {
+            const px = k*span + scroll;
+            const hgt = peakH * (0.6 + hash01(k*1.7 + rate)*0.85);
+            const pw  = span * (1.6 + hash01(k*2.3)*0.7); // wide enough to overlap into a ridge
+            drawTile(vec2(px, yBase - hgt/2), vec2(pw, hgt), mountainTile,
+                color, 0, undefined, undefined, glEnable, true);
+        }
+    };
+    drawRange(2.0, hsl(.62, .28, .60), horizonY*0.46, w*0.26, horizonY+3); // far
+    drawRange(3.3, hsl(.66, .34, .44), horizonY*0.66, w*0.20, horizonY+6); // near
+}
+
 function renderRoadAndCars()
 {
     const v = computeView();
@@ -566,6 +633,10 @@ function renderRoadAndCars()
     // top, colorBottom the horizon edge.
     drawRectGradient(vec2(w/2, horizonY/2), vec2(w, horizonY),
         hsl(.60, .60, .52), hsl(.56, .45, .88), 0, glEnable, true);
+
+    // distant parallax backdrop (sun + mountains) — drawn before the haze so the
+    // haze softens their bases into the horizon.
+    drawBackground(v);
 
     // distant haze
     fillRectS(0, horizonY-18, w, 36, hsl(.58, .25, .90, .25));
