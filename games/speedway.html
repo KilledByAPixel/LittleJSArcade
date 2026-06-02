@@ -44,8 +44,8 @@ const REF_NEAR_ROAD_HALF =
 // viewScale (1 at the reference, used to size the screen-fixed cars/sprites).
 let view = {};
 
-// default texture atlas (name->TileInfo), baked in gameInit. Circles are drawn
-// as the tinted 'circle' tile instead of gl polygons (see fillCircleS).
+// default texture atlas (name->TileInfo), baked once in gameInit. The round bits
+// (tree canopies, helmets) draw as the tinted 'circle' tile — instanced, fast.
 let icons = null;
 
 const MAX_SPEED       = 0.90;  // world segments per frame
@@ -164,9 +164,8 @@ function gameInit()
     buildTrack();
 
     // bake the built-in icon atlas (tiles 0-15); we use the 'circle' tile for
-    // all the round bits (tree canopies, driver helmets) via fillCircleS.
-    if (typeof initDefaultAtlas === 'function')
-        icons = initDefaultAtlas();
+    // the round bits (tree canopies, helmets) via fillCircleS.
+    icons = initDefaultAtlas();
 
     // gamepad: on-screen touch pad with an analog left stick (steer) and one
     // face-button area used as buttons for gas/brake on touch devices.
@@ -464,6 +463,10 @@ function projectPoint(z, x, v)
 // back to the same pixel when the engine renders the gl scene.
 const spt = (x, y)=> screenToWorld(vec2(x, y));
 
+// fillQuad is the ONLY poly-mode draw left (used by the car trapezoids). Every
+// drawPoly runs ear-clipping triangulation + per-point allocation on the CPU
+// (see glPolyStrip), which is the real cost on mobile — so the road and all the
+// flat shapes go through the instanced path (drawRect/drawTile) instead.
 function fillQuad(x1,y1, x2,y2, x3,y3, x4,y4, color)
 {
     // drawPoly triangulates via glPolyStrip and auto-corrects winding
@@ -472,18 +475,16 @@ function fillQuad(x1,y1, x2,y2, x3,y3, x4,y4, color)
 
 function fillRectS(x, y, w, h, color) // top-left origin, like ctx.fillRect
 {
+    // instanced draw — just writes a few floats, no triangulation or allocation
     drawRect(vec2(x + w/2, y + h/2), vec2(w, h), color, 0, glEnable, true);
 }
 
 function fillCircleS(x, y, r, color)
 {
-    // Draw the baked 'circle' atlas tile (tinted) instead of a gl polygon. The
-    // icon now fills its tile, so a tile of diameter r*2 matches drawCircle.
-    // Fall back to drawCircle if the atlas didn't load.
-    if (icons)
-        drawTile(vec2(x, y), vec2(r*2), icons.circle, color, 0, undefined, undefined, glEnable, true);
-    else
-        drawCircle(vec2(x, y), r*2, color, 0, BLACK, glEnable, true);
+    // tinted 'circle' atlas tile — instanced, so it stays in the fast batch with
+    // the road rects (no poly-mode triangulation). The atlas always bakes in
+    // gameInit, so no fallback path is needed.
+    drawTile(vec2(x, y), vec2(r*2), icons.circle, color, 0, undefined, undefined, glEnable, true);
 }
 
 function fillEllipseS(x, y, rx, ry, color)
@@ -573,158 +574,100 @@ function renderRoadAndCars()
         const p = projectPoint(z, x, v);
         p.i = i;
         p.curve = seg.curve;
-        p.grassAlt = (((baseIndex + i) / 12)|0) & 1;
-        p.rumbleAlt = (((baseIndex + i) / 6)|0) & 1;
+        p.xWorld = x; // accumulated lateral curve offset, sampled per scanline
         proj[i] = p;
     }
-
-    // grass base under horizon
-    fillRectS(0, horizonY, w, h-horizonY, hsl(.33, .85, .25));
 
     // dash pattern settings (in world segments)
     const dashPeriod = 8;
     const dashOn = 4;
     const dashIsOn = (worldPos)=> ((worldPos % dashPeriod + dashPeriod) % dashPeriod) < dashOn;
 
-    // sprites (trees, signs, AI cars) queued during the road pass and drawn
-    // far->near AFTER the road. Sort key is "proj-index depth": for a tree at
-    // proj[i] that's just `i`; for a car at world-distance dz it's
-    // `dz + offset - 1` (the same value used to lerp its projection). Sorting
-    // by this means a tree at i=8 correctly occludes a car at idx=8.3.
+    // --- road as a stack of horizontal rects (instanced drawRect, no poly) -----
+    // We rasterize the road one thin horizontal band at a time. Each band samples
+    // the road's center-x, width and stripe colors at its OWN depth, so stacking
+    // the bands approximates the curved, tapering trapezoid without a single
+    // poly draw. Bands are a fixed pixel height, which automatically lays down
+    // MANY rects across the tall near-road (smooth) and few across the squashed
+    // far-road (cheap) — exactly "more up close, less far away". No near-cap
+    // special case is needed: bands below proj[0] just solve z straight from y.
+    const BAND_H = 2;                                  // band height in px (quality vs cost)
+    const projHCH = CAMERA_DEPTH * CAMERA_HEIGHT * v.projH; // z = projHCH / (y - horizonY)
+    // constant band colors, hoisted so we don't allocate a Color per band
+    const GRASS_A = hsl(.33,.85,.22), GRASS_B = hsl(.33,.80,.28);
+    const RUMBLE_LIGHT = hsl(0,0,1), RUMBLE_RED = hsl(0,1,.45);
+    const ROAD_LIGHT = hsl(0,0,.23), ROAD_DARK = hsl(0,0,.18);
+    const LINE_COLOR = hsl(0,0,.92,.9);
+    for (let yb = h; yb > horizonY; yb -= BAND_H)
+    {
+        const yTop = max(yb - BAND_H, horizonY);
+        const yMid = (yb + yTop) / 2;
+        const z = projHCH / max(1, yMid - horizonY);   // depth at this band
+        const scale = CAMERA_DEPTH / z;
+
+        // continuous segment position at this depth (inverse of z = i+1-offset),
+        // used to look up the accumulated curve offset and the stripe parity.
+        const s = z - 1 + offset;
+        const si = clamp(s|0, 0, DRAW_DIST);
+        const a = proj[si], b = proj[si+1] || a;
+        const xWorld = lerp(a.xWorld, b.xWorld, clamp(s - si, 0, 1));
+
+        const centerX = v.cx + scale * (xWorld - playerX) * v.projW;
+        const roadW = scale * ROAD_W * v.projW;
+        const rumbleW = roadW * RUMBLE_W;
+
+        const segWorld = baseIndex + si;
+        const grassAlt = ((segWorld / 12)|0) & 1;
+        const rumbleAlt = ((segWorld / 6)|0) & 1;
+        const bh = yb - yTop;
+
+        // grass (full width) -> rumble -> road -> dashed center line
+        fillRectS(0, yTop, w, bh, grassAlt ? GRASS_A : GRASS_B);
+        fillRectS(centerX - rumbleW, yTop, rumbleW*2, bh, rumbleAlt ? RUMBLE_LIGHT : RUMBLE_RED);
+        fillRectS(centerX - roadW,   yTop, roadW*2,   bh, rumbleAlt ? ROAD_LIGHT : ROAD_DARK);
+        if (dashIsOn(baseIndex + s + offset))
+        {
+            const lineW = max(1, roadW * .03);
+            fillRectS(centerX - lineW, yTop, lineW*2, bh, LINE_COLOR);
+        }
+    }
+
+    // sprites (trees, signs, AI cars) queued here and drawn far->near AFTER the
+    // road. Sort key is "proj-index depth": for a tree at proj[i] that's just
+    // `i`; for a car at world-distance dz it's `dz + offset - 1` (the same value
+    // used to lerp its projection). Sorting by this means a tree at i=8 correctly
+    // occludes a car at idx=8.3.
     const sprites = [];
 
-    // draw from far -> near
-    let prev = proj[DRAW_DIST];
+    // queue roadside scenery (trees + signs) from the per-segment projection
     for (let i=DRAW_DIST-1; i>=0; --i)
     {
         const cur = proj[i];
-        // snap to integer scanlines to avoid cracks between segments
-        let yFar = clamp(prev.screenY, 0, h);
-        let yNear = clamp(cur.screenY, 0, h);
-        yFar = clamp(Math.floor(yFar), 0, h);
-        yNear = clamp(Math.ceil(yNear) + 1, 0, h); // +1px overlap prevents hairline gaps
-        if (yNear <= yFar)
-        {
-            prev = cur;
+        const yNear = clamp(Math.ceil(cur.screenY) + 1, 0, h); // ground y at this segment
+        if (!(cur.scale > 0.003 && yNear > horizonY + 6))
             continue;
-        }
 
-        // grass stripes
-        fillRectS(0, yFar, w, yNear - yFar, cur.grassAlt ? hsl(.33,.85,.22) : hsl(.33,.80,.28));
+        const segIndex = (baseIndex + i) % trackLen;
+        const baseSize = clamp(cur.scale * v.projH * 1.15, 14, 230);
 
-        // rumble strips
-        const farL = prev.screenX - prev.rumbleW;
-        const farR = prev.screenX + prev.rumbleW;
-        const nearL = cur.screenX - cur.rumbleW;
-        const nearR = cur.screenX + cur.rumbleW;
-
-        fillQuad(nearL, yNear, farL, yFar, farR, yFar, nearR, yNear,
-            cur.rumbleAlt ? hsl(0,0,1) : hsl(0,1,.45));
-
-        // road
-        const farRL = prev.screenX - prev.roadW;
-        const farRR = prev.screenX + prev.roadW;
-        const nearRL = cur.screenX - cur.roadW;
-        const nearRR = cur.screenX + cur.roadW;
-
-        fillQuad(nearRL, yNear, farRL, yFar, farRR, yFar, nearRR, yNear,
-            cur.rumbleAlt ? hsl(0,0,.23) : hsl(0,0,.18));
-
-        // center line (dashed, locked to world so it scrolls correctly)
-        const worldPos = baseIndex + i + offset;
-        if (dashIsOn(worldPos))
+        if ((segIndex % 7) === 0)
         {
-            const farC = prev.screenX;
-            const nearC = cur.screenX;
-            const lineWFar = max(1, prev.roadW * .03);
-            const lineWNear = max(1, cur.roadW * .03);
-            fillQuad(
-                nearC-lineWNear, yNear, farC-lineWFar, yFar,
-                farC+lineWFar, yFar, nearC+lineWNear, yNear, hsl(0,0,.92,.9));
+            const xTreeL = cur.screenX - (cur.rumbleW + cur.roadW*0.85);
+            const seed = segIndex*3 + 1;
+            sprites.push({ depth: i, draw: ()=> drawTree(xTreeL, yNear, baseSize, seed) });
         }
-
-        // roadside scenery (trees + signs) — queue for the depth-sorted pass
-        // so AI cars at the same depth correctly occlude / are occluded.
-        if (cur.scale > 0.003 && yNear > horizonY + 6)
+        if ((segIndex % 11) === 0)
         {
-            const segIndex = (baseIndex + i) % trackLen;
-            const baseSize = clamp(cur.scale * v.projH * 1.15, 14, 230);
-
-            if ((segIndex % 7) === 0)
-            {
-                const xTreeL = cur.screenX - (cur.rumbleW + cur.roadW*0.85);
-                const seed = segIndex*3 + 1;
-                sprites.push({ depth: i, draw: ()=> drawTree(xTreeL, yNear, baseSize, seed) });
-            }
-            if ((segIndex % 11) === 0)
-            {
-                const xTreeR = cur.screenX + (cur.rumbleW + cur.roadW*0.85);
-                const seed = segIndex*3 + 2;
-                sprites.push({ depth: i, draw: ()=> drawTree(xTreeR, yNear, baseSize, seed) });
-            }
-            if ((segIndex % 13) === 0)
-            {
-                const side = (segIndex & 1) ? -1 : 1;
-                const xSign = cur.screenX + side * (cur.rumbleW + cur.roadW*0.55);
-                const seed = segIndex*5 + 7;
-                sprites.push({ depth: i, draw: ()=> drawSign(xSign, yNear, baseSize*0.85, seed) });
-            }
+            const xTreeR = cur.screenX + (cur.rumbleW + cur.roadW*0.85);
+            const seed = segIndex*3 + 2;
+            sprites.push({ depth: i, draw: ()=> drawTree(xTreeR, yNear, baseSize, seed) });
         }
-
-        prev = cur;
-    }
-
-    // near cap: extend the road from proj[0] (locked at the z=1.2 near plane)
-    // down to the bottom of the screen. The bottom corners use a real near
-    // plane projection (z chosen so screenY = yBottom) — that way the bottom
-    // edge swings laterally with playerX at the correct perspective rate,
-    // instead of being pinned to proj[0]'s screenX like the original fixed-
-    // bottomScale version. The old version made the road look tilted at the
-    // bottom when you steered; just removing the clamp made it splay outward.
-    {
-        const p = proj[0];
-        if (p)
+        if ((segIndex % 13) === 0)
         {
-            const yTop = clamp(Math.floor(p.screenY), 0, h);
-            if (yTop < h)
-            {
-                const yBottom = h + 2; // small overshoot to avoid edge cracks
-                // invert screenY = horizonY + scale*CAMERA_HEIGHT*projH with scale=CAMERA_DEPTH/z
-                const zNear = CAMERA_DEPTH * CAMERA_HEIGHT * v.projH / (yBottom - horizonY);
-                const scNear = CAMERA_DEPTH / zNear;
-                const nearScreenX = v.cx + scNear * (0 - playerX) * v.projW;
-                const nearRoadW = scNear * ROAD_W * v.projW;
-                const nearRumbleW = nearRoadW * RUMBLE_W;
-
-                // rumble
-                fillQuad(
-                    nearScreenX - nearRumbleW, yBottom,
-                    p.screenX   - p.rumbleW,   yTop,
-                    p.screenX   + p.rumbleW,   yTop,
-                    nearScreenX + nearRumbleW, yBottom,
-                    p.rumbleAlt ? hsl(0,0,1) : hsl(0,1,.45));
-
-                // road
-                fillQuad(
-                    nearScreenX - nearRoadW, yBottom,
-                    p.screenX   - p.roadW,   yTop,
-                    p.screenX   + p.roadW,   yTop,
-                    nearScreenX + nearRoadW, yBottom,
-                    p.rumbleAlt ? hsl(0,0,.23) : hsl(0,0,.18));
-
-                // dashed center line
-                const capWorldPos = baseIndex + offset;
-                if (dashIsOn(capWorldPos))
-                {
-                    const lineWTop = max(1, p.roadW * .03);
-                    const lineWBot = max(1, nearRoadW * .03);
-                    fillQuad(
-                        nearScreenX - lineWBot, yBottom,
-                        p.screenX   - lineWTop, yTop,
-                        p.screenX   + lineWTop, yTop,
-                        nearScreenX + lineWBot, yBottom, hsl(0,0,.92,.9));
-                }
-            }
+            const side = (segIndex & 1) ? -1 : 1;
+            const xSign = cur.screenX + side * (cur.rumbleW + cur.roadW*0.55);
+            const seed = segIndex*5 + 7;
+            sprites.push({ depth: i, draw: ()=> drawSign(xSign, yNear, baseSize*0.85, seed) });
         }
     }
 
@@ -737,8 +680,8 @@ function renderRoadAndCars()
     //
     // For dz < 3 we project directly. This both bypasses the clamp (which
     // would snap close cars onto proj[0]'s z=1.2 plane and make them jitter
-    // as offset cycles 0->1) and uses the same x=0 road-x approximation as
-    // the near cap above, so a car sitting close to the player tracks the
+    // as offset cycles 0->1) and uses the same x=0 road-x approximation the
+    // near road bands use, so a car sitting close to the player tracks the
     // road accurately. Curve drift is sub-pixel at this range, so the
     // visual transition at dz=3 is seamless.
     const DIRECT_DZ = 3;
