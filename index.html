@@ -1001,12 +1001,12 @@ const hasGamepad = g => GAMEPAD_GAMES.has(g.file);
 // Display name, emoji, and accent color (referencing CSS vars) per category.
 // Used for row headers, filter chips, and tile color stripes.
 const CATEGORIES = [
-    { key:'frankforce', label:'Frank Force Games', emoji:'⭐', color:'var(--cat-frankforce)', colorBg:'var(--cat-frankforce-bg)' },
     { key:'arcade',  label:'Arcade',  emoji:'🕹️', color:'var(--cat-arcade)',  colorBg:'var(--cat-arcade-bg)'  },
     { key:'shooter', label:'Shooter', emoji:'💥', color:'var(--cat-shooter)', colorBg:'var(--cat-shooter-bg)' },
     { key:'puzzle',  label:'Puzzle',  emoji:'🧩', color:'var(--cat-puzzle)',  colorBg:'var(--cat-puzzle-bg)'  },
     { key:'board',   label:'Board',   emoji:'🎲', color:'var(--cat-board)',   colorBg:'var(--cat-board-bg)'   },
     { key:'sports',  label:'Sports',  emoji:'⚽', color:'var(--cat-sports)',  colorBg:'var(--cat-sports-bg)'  },
+    { key:'frankforce', label:'Frank Force Games', emoji:'🟥', color:'var(--cat-frankforce)', colorBg:'var(--cat-frankforce-bg)' },
     { key:'construction', label:'Under Construction', emoji:'🚧', color:'var(--cat-construction)', colorBg:'var(--cat-construction-bg)' },
 ];
 const catByKey = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
@@ -1158,9 +1158,11 @@ function makeCard(g) {
 function renderList() {
     listEl.innerHTML = '';
     const q = searchEl.value.trim().toLowerCase();
-    // Two buckets — render regular alphabetically, then a divider, then the
-    // under-construction games so they sink to the bottom of the list.
+    // Three buckets — regular games alphabetically, then the pinned Frank Force
+    // section, then under-construction games, each sinking to the bottom under
+    // its own divider.
     const regular = [];
+    const frankforce = [];
     const construction = [];
     for (const g of GAMES) {
         if (activeCategory !== 'all' && g.category !== activeCategory) continue;
@@ -1171,21 +1173,36 @@ function renderList() {
             const hay = (g.name + ' ' + g.desc + ' ' + g.category + ' ' + g.tags.join(' ') + ' ' + (g.keywords||[]).join(' ') + gp).toLowerCase();
             if (!hay.includes(q)) continue;
         }
-        (g.category === 'construction' ? construction : regular).push(g);
+        (g.category === 'construction' ? construction
+            : g.category === 'frankforce' ? frankforce : regular).push(g);
     }
     const appendCard = g => {
         const card = makeCard(g);
         if (g.file === currentFile) card.classList.add('selected');
         listEl.appendChild(card);
     };
+    const addDivider = (label, color) => {
+        const d = document.createElement('div');
+        d.className = 'list-divider';
+        d.textContent = label;
+        if (color) d.style.color = color;
+        listEl.appendChild(d);
+    };
+    // Render each section under its own divider; the divider only appears when
+    // there's content above it to separate from (so a category filter that
+    // isolates one section shows just its cards, no orphan header).
+    let rendered = regular.length;
     for (const g of regular) appendCard(g);
-    if (regular.length && construction.length) {
-        const divider = document.createElement('div');
-        divider.className = 'list-divider';
-        divider.textContent = '🚧 Under Construction';
-        listEl.appendChild(divider);
+    if (frankforce.length) {
+        if (rendered) addDivider('🟥 Frank Force Games', 'var(--cat-frankforce)');
+        for (const g of frankforce) appendCard(g);
+        rendered += frankforce.length;
     }
-    for (const g of construction) appendCard(g);
+    if (construction.length) {
+        if (rendered) addDivider('🚧 Under Construction', 'var(--cat-construction)');
+        for (const g of construction) appendCard(g);
+        rendered += construction.length;
+    }
 
     // Debug-only Templates bucket — starter projects from templates/, shown below
     // the construction divider only when the debug build is active. Filtered by
@@ -1202,7 +1219,7 @@ function renderList() {
         for (const t of templates) appendCard(t);
     }
 
-    if (regular.length + construction.length + templates.length === 0) {
+    if (regular.length + frankforce.length + construction.length + templates.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty';
         empty.textContent = 'No games match.';
