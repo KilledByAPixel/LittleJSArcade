@@ -203,6 +203,109 @@ for (const n of MENU_FX_FILL) MENU_FX_CHANNEL[n] = 'fill';
 for (const n of MENU_FX_MOTION) MENU_FX_CHANNEL[n] = 'motion';
 MENU_FX_CHANNEL['sparkle'] = 'overlay';
 
+function normalizeFxSpec(spec)
+{
+    if (!spec) return null;
+    if (typeof spec === 'string')
+    {
+        const ch = MENU_FX_CHANNEL[spec];
+        if (!ch) { console.warn('applyMenuFx: unknown effect "' + spec + '"'); return null; }
+        if (ch === 'overlay') return { sparkle: true };
+        const out = {}; out[ch] = spec; return out;
+    }
+    return spec;
+}
+
+// Apply a (normalized or string) FX spec to a DOM text element. Returns an
+// idempotent teardown fn that fully reverses every change (classes, wrapper,
+// letter-split, sparkle timer, inline styles). Safe to call teardown twice.
+function applyMenuFx(element, spec)
+{
+    spec = normalizeFxSpec(spec);
+    if (!element || !spec) return () => {};
+
+    const teardowns = [];
+    const target = element;   // fill classes / tweaks / sparkle land here
+
+    // ---- tweaks: speed + color custom props, hue/invert as a filter ----
+    if (typeof spec.speed === 'number') target.style.setProperty('--fx-speed', spec.speed);
+    if (spec.color) target.style.setProperty('--fx-color', spec.color);
+    const filters = [];
+    if (typeof spec.hue === 'number') filters.push('hue-rotate(' + spec.hue + 'deg)');
+    if (spec.invert) filters.push('invert(1)');
+    if (filters.length)
+    {
+        const prevFilter = target.style.filter;
+        target.style.filter = (prevFilter ? prevFilter + ' ' : '') + filters.join(' ');
+        teardowns.push(() => { target.style.filter = prevFilter; });
+    }
+
+    // ---- fill ----
+    const fill = (spec.fill && MENU_FX_CHANNEL[spec.fill] === 'fill') ? spec.fill : null;
+    if (spec.fill && !fill) console.warn('applyMenuFx: unknown fill "' + spec.fill + '"');
+    if (fill)
+    {
+        const cls = 'fx-' + fill;
+        target.classList.add(cls);
+        teardowns.push(() => target.classList.remove(cls));
+    }
+
+    // ---- motion ----
+    const motion = (spec.motion && MENU_FX_CHANNEL[spec.motion] === 'motion') ? spec.motion : null;
+    if (spec.motion && !motion) console.warn('applyMenuFx: unknown motion "' + spec.motion + '"');
+    if (motion === 'wave')
+    {
+        // per-letter on the fill element
+        target.classList.add('fx-wave');
+        const original = target.textContent;
+        const frag = document.createDocumentFragment();
+        [...original].forEach((ch, i) => {
+            const s = document.createElement('span');
+            s.textContent = ch;
+            s.style.animationDelay = (i * 0.09) + 's';
+            frag.appendChild(s);
+        });
+        target.textContent = '';
+        target.appendChild(frag);
+        teardowns.push(() => { target.classList.remove('fx-wave'); target.textContent = original; });
+    }
+    else if (motion)
+    {
+        // wrap in an outer transform element (takes the element's place)
+        const wrap = document.createElement('div');
+        wrap.className = 'm-' + motion;
+        if (element.parentNode)
+        {
+            element.parentNode.insertBefore(wrap, element);
+            wrap.appendChild(element);
+            teardowns.push(() => {
+                if (wrap.parentNode) { wrap.parentNode.insertBefore(element, wrap); wrap.remove(); }
+            });
+        }
+    }
+
+    // ---- sparkle overlay ----
+    if (spec.sparkle)
+    {
+        target.classList.add('ov-sparkle');
+        const timer = setInterval(() => {
+            const s = document.createElement('span');
+            s.className = 'ljs-fx-spark';
+            s.style.left = (Math.random() * 100) + '%';
+            s.style.top = (Math.random() * 100) + '%';
+            target.appendChild(s);
+            setTimeout(() => s.remove(), 900);
+        }, 160);
+        teardowns.push(() => {
+            clearInterval(timer);
+            target.classList.remove('ov-sparkle');
+            target.querySelectorAll('.ljs-fx-spark').forEach(s => s.remove());
+        });
+    }
+
+    return () => { while (teardowns.length) teardowns.pop()(); };
+}
+
 function createMenu(config)
 {
     initMenuSystem();

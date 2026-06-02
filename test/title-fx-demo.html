@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Title FX Demo</title>
+<style>
+    html,body{margin:0;background:#07090d;color:#cdd6e0;font-family:monospace;}
+    body{padding:20px 20px 80px;}
+    h2{color:#6cf;font-size:15px;letter-spacing:.1em;margin:24px 0 8px;}
+    .row{display:flex;flex-wrap:wrap;gap:18px;}
+    .cell{background:#0d1118;border:1px solid #1d2430;border-radius:10px;
+        padding:30px 16px 12px;min-width:200px;position:relative;}
+    .cap{position:absolute;top:6px;left:10px;font-size:10px;color:#5c6675;letter-spacing:.06em;}
+    .t{font-size:30px;font-weight:bold;text-align:center;color:#6cf;white-space:nowrap;}
+    #littlejs-menus{ --menu-accent:#6cf; }
+    #log{margin-top:20px;font-size:12px;color:#8b94a2;}
+</style>
+</head>
+<body>
+<canvas id="c" width="2" height="2" style="display:none"></canvas>
+<h2>FILL</h2><div class="row" id="fills"></div>
+<h2>MOTION</h2><div class="row" id="motions"></div>
+<h2>OVERLAY + COMBOS + TWEAKS</h2><div class="row" id="combos"></div>
+<h2>LEAK TEST</h2>
+<button id="leakBtn">apply+teardown sparkle x50</button>
+<span id="log"></span>
+
+<script src="../dist/littlejs.js"></script>
+<script src="../templates/gameFx.js"></script>
+<script src="../templates/menus.js"></script>
+<script>
+function cell(parent, cap, spec){
+    const d=document.createElement('div'); d.className='cell';
+    const c=document.createElement('div'); c.className='cap'; c.textContent=cap;
+    const t=document.createElement('div'); t.className='t'; t.textContent='ARCADE';
+    d.appendChild(c); d.appendChild(t); parent.appendChild(d);
+    applyMenuFx(t, spec);
+}
+const fills=['neon','rainbow','shine','fire','gold','outline','hardshadow','3d','glitch','crt'];
+fills.forEach(f=>cell(document.getElementById('fills'), f, f));
+['wave','heartbeat','jelly','float'].forEach(m=>cell(document.getElementById('motions'), m, {motion:m, fill:'neon'}));
+cell(document.getElementById('combos'),'sparkle (string)','sparkle');
+cell(document.getElementById('combos'),'neon+float+sparkle',{fill:'neon',motion:'float',sparkle:true});
+cell(document.getElementById('combos'),'gold+heartbeat',{fill:'gold',motion:'heartbeat'});
+cell(document.getElementById('combos'),'outline+wave',{fill:'outline',motion:'wave'});
+cell(document.getElementById('combos'),'neon hue+120',{fill:'neon',hue:120});
+cell(document.getElementById('combos'),'neon color #f0a',{fill:'neon',color:'#f0a'});
+cell(document.getElementById('combos'),'gold speed 3x',{fill:'gold',speed:3});
+cell(document.getElementById('combos'),'unknownName (warns)','bogusEffect');
+
+// leak test: a sparkle DOM node count should return to ~0 after teardown
+document.getElementById('leakBtn').onclick=()=>{
+    const host=document.createElement('div'); document.body.appendChild(host);
+    const t=document.createElement('div'); t.textContent='X'; host.appendChild(t);
+    for(let i=0;i<50;i++){ const td=applyMenuFx(t,{sparkle:true}); td(); }
+    setTimeout(()=>{
+        document.getElementById('log').textContent =
+            'spark nodes left: '+document.querySelectorAll('.ljs-fx-spark').length+
+            ' (expect 0); active intervals cleared.';
+        host.remove();
+    }, 1000);
+};
+</script>
+</body>
+</html>
