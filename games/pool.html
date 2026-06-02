@@ -609,7 +609,12 @@ function canShoot()
 
 function getAim()
 {
-    // Direction comes from the mouse position relative to the cue ball.
+    // Aiming direction depends on input device:
+    //   • Mouse — point the cursor where you want the ball to go (push toward
+    //     the target). Direction is the cursor offset from the cue ball.
+    //   • Touch — drag BEHIND the cue ball (where the stick pulls back to) and
+    //     the ball fires the OPPOSITE way, like drawing a real cue / slingshot.
+    //     Direction is the reverse of the cursor offset.
     // Power has two contributions:
     //   1) Drag — distance past an AIM_DEADZONE around the ball, scaled into 0..1.
     //      This lets the player keep the cursor at a comfortable distance for
@@ -621,7 +626,8 @@ function getAim()
     // is actually committing to.
     const d = mousePos.subtract(cueBall.pos);
     const rawLen = d.length();
-    const dir = rawLen > 0 ? d.normalize() : vec2(1, 0);
+    const aimVec = isTouchDevice ? d.scale(-1) : d;
+    const dir = rawLen > 0 ? aimVec.normalize() : vec2(1, 0);
     const dragLen = max(0, rawLen - AIM_DEADZONE);
     const basePower = min(dragLen / MAX_HIT, 1);
     const power = clamp(basePower + wheelPower, 0, 1);
@@ -701,7 +707,9 @@ async function gameInit()
             {type:'text', text:
                 'Sink all 15 balls in as few shots as possible. ' +
                 'Scratching (sinking the cue ball) costs a stroke and respawns it.'},
-            {type:'text', text: 'Mouse to aim · distance from cue sets power · click to shoot'},
+            {type:'text', text: isTouchDevice
+                ? 'Drag behind the cue ball to aim · pull farther for more power · release to shoot'
+                : 'Mouse to aim · distance from cue sets power · click to shoot'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
