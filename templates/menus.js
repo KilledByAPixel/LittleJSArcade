@@ -240,7 +240,7 @@ function applyMenuFx(element, spec)
     const target = element;   // fill classes / tweaks / sparkle land here
 
     // ---- tweaks: speed + color custom props, hue/invert as a filter ----
-    if (typeof spec.speed === 'number')
+    if (typeof spec.speed === 'number' && spec.speed > 0)
     {
         const prevSpeed = target.style.getPropertyValue('--fx-speed');
         target.style.setProperty('--fx-speed', spec.speed);
@@ -248,6 +248,8 @@ function applyMenuFx(element, spec)
             ? target.style.setProperty('--fx-speed', prevSpeed)
             : target.style.removeProperty('--fx-speed'));
     }
+    else if (typeof spec.speed === 'number')
+        console.warn('applyMenuFx: speed must be > 0 (got ' + spec.speed + '); ignoring.');
     if (spec.color)
     {
         const prevColor = target.style.getPropertyValue('--fx-color');
