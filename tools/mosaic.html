@@ -82,9 +82,11 @@ const GAMES = [
     'froggit.html',         // top 9
     'freecell.html',        // top 9
     'asterblast.html',      // top 10
-    'checkers.html',        // top 10
+   // 'checkers.html',        // top 10
     'centibug.html',        // extra — marching centipede, constant motion
-    'geometryJump.html',    // extra — auto-runner, constant motion
+    //'geometryJump.html',    // extra — auto-runner, constant motion
+    'wulfstein.html',
+    'brickout.html', 
 ];
 
 const gridEl = document.getElementById('grid');
@@ -101,6 +103,14 @@ const HIDE_MENUS_CSS = '#littlejs-menus{display:none!important;}';
 function clickPlay(doc) {
     const btn = doc.querySelector('#littlejs-menus .ljs-menu-item[data-item-id="play"]');
     if (btn) { btn.click(); return true; }
+    else
+    {
+        const btn = doc.querySelector('#littlejs-menus .ljs-menu-item[data-item-id="classic"]');
+        if (btn) 
+        { 
+            btn.click(); return true; 
+        }
+    }
     return false;
 }
 
@@ -130,9 +140,13 @@ const frames = GAMES.map(file => {
 });
 
 // Watchdog: every couple seconds, make sure every game is actually playing.
-// - menus.js games expose isPlaying(): if it returns false (title or game-over
-//   dialog up), clear any menu and re-click PLAY to (re)start the game.
-// - games without isPlaying() get a single best-effort PLAY click.
+// The reliable "needs starting" signal is whether a menu/dialog is up
+// (isMenuVisible) — NOT isPlaying(), which some games (e.g. Space Invaders)
+// never set even while running, so polling it restarts them every tick.
+// - menus.js games: if a menu is visible (title or game-over dialog), clear it
+//   and click PLAY to (re)start; if no menu is up, the game is running — leave
+//   it alone.
+// - games without menus.js get a single best-effort PLAY click.
 function tick() {
     for (const frame of frames) {
         let win, doc;
@@ -141,15 +155,17 @@ function tick() {
         if (!doc) continue;
 
         try {
-            const playing = (typeof win.isPlaying === 'function') ? win.isPlaying() : null;
-            if (playing === false) {
-                // Title screen or game-over dialog is up — clear it and restart.
+            const menuUp = (typeof win.isMenuVisible === 'function')
+                ? win.isMenuVisible() : null;
+            if (menuUp === true) {
+                // Title or game-over dialog is showing — clear it and (re)start.
                 if (typeof win.hideAllMenus === 'function') win.hideAllMenus();
                 clickPlay(doc);
-            } else if (playing === null && !frame.started) {
-                // Game doesn't use menus.js game-flow helpers — try once.
+            } else if (menuUp === null && !frame.started) {
+                // Game doesn't use menus.js — best-effort single PLAY click.
                 if (clickPlay(doc)) frame.started = true;
             }
+            // menuUp === false: a menus.js game is running — leave it alone.
         } catch (e) { /* game still initializing — try again next tick */ }
     }
 }
