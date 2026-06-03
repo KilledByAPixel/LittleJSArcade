@@ -586,6 +586,15 @@ function createMenu(config)
         // displays; a JS-driven path that sets el.style each frame stays
         // smooth (same pattern works fine for custom-item onUpdate).
         getTitleEl() { return titleEl; },
+        // Live-swap the title FX (e.g. the menu designer). Updates cfg so the
+        // new spec persists across show/hide, and re-applies immediately if
+        // the menu is currently visible.
+        setTitleFx(spec)
+        {
+            cfg.titleFx = spec;
+            if (visible) { teardownFx(); applyFx(); }
+        },
+        getTitleFx() { return cfg.titleFx; },
         destroy()
         {
             if (cfg.id && menusById[cfg.id] === handle) delete menusById[cfg.id];
