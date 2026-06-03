@@ -504,6 +504,7 @@ async function gameInit()
     sound_click = new SoundGenerator({frequency: 750, attack: 0,    release: .05, shapeCurve: 1, volume: .4});
     sound_lose  = new SoundGenerator({frequency: 180, attack: 0,    release: .8,  shapeCurve: 1, slide: -2,  noise: .1,  volume: .9});
 
+    setMenuTheme({accent:'#00ffaa', borderWidth:3});
     createTitleMenu({
         title: 'ZOOMI',
         titleFx: {fill:'neon', color:'#0fa', motion:'jelly'},

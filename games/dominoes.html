@@ -777,6 +777,7 @@ async function gameInit()
     sfxWin   = new SoundGenerator({frequency: 660, release: 0.3, pitchJump: 220, pitchJumpTime: 0.1, volume: 0.6});
     sfxLose  = new SoundGenerator({frequency: 220, release: 0.35, slide: -0.5, volume: 0.5});
 
+    setMenuTheme({accent:'#3fbf6f'});
     createTitleMenu({
         title: 'DOMINOES',
         titleFx: {fill:'shine', color:'#5af'},

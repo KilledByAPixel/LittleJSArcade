@@ -869,6 +869,7 @@ async function gameInit()
     // onStart wires gamepad Start to launch "play" directly without the
     // player having to navigate to the PLAY item first.
     const playFromTitle = () => { titleMenu.hide(); startRun(); };
+    setMenuTheme({accent:'#ff9b1e'});
     const titleMenu = createMenu({
         id: 'title',
         title: 'JETDASH',

@@ -854,6 +854,7 @@ function buildMenus()
 {
     if (typeof createMenu !== 'function') return; // menus.js not loaded — fail gracefully
 
+    setMenuTheme({accent:'#34e0ff'});
     createTitleMenu({
         title: 'ASTERBLAST',
         titleFx: {fill:'neon', motion:'float'},

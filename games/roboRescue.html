@@ -2392,6 +2392,7 @@ function buildMenus()
     if (typeof createMenu !== 'function') return; // menus.js not loaded — fail gracefully
 
     // Title menu — title is drawn on the canvas (fancy effect) so we suppress the DOM title here
+    setMenuTheme({accent:'#ff3333'});
     createTitleMenu({
         title: '',
         onPlay: startGame,

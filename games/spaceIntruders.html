@@ -835,6 +835,7 @@ function buildMenus()
 
     // Title is canvas-drawn (LITTLEJS / INVADERS with glow). Suppress the DOM
     // title so the menu panel doesn't double up on the heading.
+    setMenuTheme({accent:'#46d846', radius:0});
     createTitleMenu({
         title: '',
         onPlay: startGame,

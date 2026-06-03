@@ -506,6 +506,7 @@ async function gameInit()
         const best = getBestTime(d);
         return best ? name + '   BEST ' + fmtTime(best) : name;
     };
+    setMenuTheme({accent:'#88aaff'});
     const titleMenu = createMenu({
         id: 'title',
         title: 'SUDOKU',

@@ -527,6 +527,7 @@ window.nextLevel = nextLevel;
 function buildMenus() {
     if (typeof createMenu !== 'function') return;
 
+    setMenuTheme({accent:'#66ff66'});
     createTitleMenu({
         title: 'FROGGIT',
         titleFx: {fill:'neon', color:'#6f6', motion:'jelly'},
