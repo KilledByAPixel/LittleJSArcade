@@ -230,6 +230,90 @@ function isLegalMove(b, row, col, player, koHash)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// ===== FAST GO ENGINE (flat Int8Array) — used by MCTS + scoring =====
+// Stone values reuse STONE_EMPTY/BLACK/WHITE (0/1/2). State shape:
+//   { s: Int8Array(81), toMove, ko (point index or -1), passes }
+
+const N  = BOARD_SIZE;       // 9
+const NN = N * N;            // 81
+const GO_KOMI = 7;           // komi for White (area scoring)
+const PASS = -1;             // move value meaning "pass"
+
+// Precomputed orthogonal + diagonal neighbor index lists per point.
+const NEIGHBORS = [];
+const DIAGONALS = [];
+for (let i = 0; i < NN; i++) {
+    const r = (i / N) | 0, c = i % N;
+    const orth = [], diag = [];
+    if (r > 0)     orth.push(i - N);
+    if (r < N - 1) orth.push(i + N);
+    if (c > 0)     orth.push(i - 1);
+    if (c < N - 1) orth.push(i + 1);
+    if (r > 0 && c > 0)         diag.push(i - N - 1);
+    if (r > 0 && c < N - 1)     diag.push(i - N + 1);
+    if (r < N - 1 && c > 0)     diag.push(i + N - 1);
+    if (r < N - 1 && c < N - 1) diag.push(i + N + 1);
+    NEIGHBORS.push(orth);
+    DIAGONALS.push(diag);
+}
+
+function otherColor(color) { return color === STONE_BLACK ? STONE_WHITE : STONE_BLACK; }
+
+// Flood-fill the group at point i; return {stones:[idx...], libs:int}.
+function groupInfo(s, i) {
+    const color = s[i];
+    const stones = [i];
+    const seen = new Uint8Array(NN); seen[i] = 1;
+    const libSeen = new Uint8Array(NN);
+    let libs = 0;
+    const stack = [i];
+    while (stack.length) {
+        const p = stack.pop();
+        for (const nb of NEIGHBORS[p]) {
+            const v = s[nb];
+            if (v === STONE_EMPTY) { if (!libSeen[nb]) { libSeen[nb] = 1; libs++; } }
+            else if (v === color && !seen[nb]) { seen[nb] = 1; stones.push(nb); stack.push(nb); }
+        }
+    }
+    return { stones, libs };
+}
+
+// Is placing `color` at empty point i legal (ignoring eye policy)? ko = forbidden point.
+function isLegal(s, i, color, ko) {
+    if (s[i] !== STONE_EMPTY || i === ko) return false;
+    const opp = otherColor(color);
+    for (const nb of NEIGHBORS[i]) if (s[nb] === STONE_EMPTY) return true;       // has a liberty
+    for (const nb of NEIGHBORS[i]) if (s[nb] === color && groupInfo(s, nb).libs > 1) return true; // connects, keeps a liberty
+    for (const nb of NEIGHBORS[i]) if (s[nb] === opp && groupInfo(s, nb).libs === 1) return true; // captures
+    return false; // suicide
+}
+
+// Place `color` at i on board s IN PLACE, resolving captures. Returns the ko
+// point (index) if exactly one stone was captured into a single-stone atari, else -1.
+function applyInPlace(s, i, color) {
+    s[i] = color;
+    const opp = otherColor(color);
+    let captured = 0, lastCap = -1;
+    for (const nb of NEIGHBORS[i]) {
+        if (s[nb] !== opp) continue;
+        const g = groupInfo(s, nb);
+        if (g.libs === 0) for (const st of g.stones) { s[st] = STONE_EMPTY; captured++; lastCap = st; }
+    }
+    if (captured === 1) {
+        const g = groupInfo(s, i);
+        if (g.stones.length === 1 && g.libs === 1) return lastCap;
+    }
+    return -1;
+}
+
+// All legal stone moves for the side to move (no pass, no eye policy).
+function flatLegalMoves(state) {
+    const out = [];
+    for (let i = 0; i < NN; i++) if (isLegal(state.s, i, state.toMove, state.ko)) out.push(i);
+    return out;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // AI ADAPTER
 
 function getCurrentState()
