@@ -50,6 +50,10 @@ let winner    = null;
 let lastMove  = null;   // {row, col}
 let blackCaptures = 0;  // stones black has captured (white stones removed)
 let whiteCaptures = 0;  // stones white has captured (black stones removed)
+let consecutivePasses = 0; // two in a row ends the game
+let deadStones = [];       // [idx...] removed at scoring (for render fade)
+let ownerMap = null;       // Int8Array(81) territory owner at game end (for shading)
+let finalScore = null;     // { black, white, margin } once scored
 
 // Ko: store the board hash (JSON string) BEFORE the previous player's last
 // move so we can reject moves that recreate it.
@@ -575,57 +579,54 @@ function makeMove(row, col)
     if (gameOver || !isPlaying()) return false;
     if (!isInBounds(row, col)) return false;
 
-    const { newBoard, captured } = applyMoveAndCaptures(
-        board, row, col, currentPlayer, previousBoardHash
-    );
+    const { newBoard, captured } = applyMoveAndCaptures(board, row, col, currentPlayer, previousBoardHash);
     if (newBoard === null) return false; // illegal
 
-    // The ko hash for the NEXT player to use is the current board state
-    // BEFORE this move (i.e. what we don't want them to recreate).
     const newKoHash = boardHash(board);
-
-    // Commit.
-    board         = newBoard;
+    board = newBoard;
     previousBoardHash = newKoHash;
-    lastMove      = { row, col };
+    lastMove = { row, col };
 
-    // Update capture counts.
-    if (currentPlayer === STONE_BLACK)
-        blackCaptures += captured;
-    else
-        whiteCaptures += captured;
+    if (currentPlayer === STONE_BLACK) blackCaptures += captured;
+    else                               whiteCaptures += captured;
 
-    // Start placement pop animation.
     placingStone = { row, col, progress: 0 };
-
     sfxPlace && sfxPlace.play();
 
-    // Win check — any capture ends the game immediately.
-    if (captured > 0)
-    {
-        gameOver = true;
-        winner   = currentPlayer;
-        if (gameMode === 'pvp')
-        {
-            sfxWin  && sfxWin.play();
-        }
-        else if (gameMode === 'ai')
-        {
-            if (winner === PLAYER_HUMAN)
-                sfxWin  && sfxWin.play();
-            else
-                sfxLose && sfxLose.play();
-        }
-        else if (gameMode === 'aivai')
-        {
-            sfxSelect && sfxSelect.play();
-        }
-        return true;
-    }
-
-    // Switch player.
+    consecutivePasses = 0;
     currentPlayer = getOpponent(currentPlayer);
     return true;
+}
+
+function passMove()
+{
+    if (gameOver || !isPlaying()) return;
+    lastMove = null;            // a pass has no board marker
+    consecutivePasses++;
+    sfxPlace && sfxPlace.play();
+    if (consecutivePasses >= 2) { endGameAndScore(); return; }
+    currentPlayer = getOpponent(currentPlayer);
+}
+
+function endGameAndScore()
+{
+    const s = new Int8Array(NN);
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) s[r*N + c] = board[r][c];
+    const result = scoreWithDeadStones(s, currentPlayer, { playouts: 200 });
+    finalScore = result.score;
+    ownerMap = result.owner;
+    deadStones = result.dead;
+    gameOver = true;
+    winner = result.score.margin > 0 ? STONE_BLACK
+           : result.score.margin < 0 ? STONE_WHITE : null;
+
+    // Sounds mirror captureGo's game-over handling.
+    if (gameMode === 'ai') {
+        if (winner === PLAYER_HUMAN) sfxWin && sfxWin.play();
+        else sfxLose && sfxLose.play();
+    } else {
+        sfxSelect && sfxSelect.play();
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -985,7 +986,10 @@ function gameUpdate()
                 }
             }).then(move => {
                 if (myGen !== aiGeneration) { aiSearching = false; aiProgress = ''; return; }
-                if (move) makeMove(move.row, move.col);
+                if (move) {
+                    if (move.pass) passMove();
+                    else makeMove(move.row, move.col);
+                }
                 aiSearching = false;
                 aiProgress = '';
                 aiThinkTimer = 0;
