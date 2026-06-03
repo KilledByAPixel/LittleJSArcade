@@ -214,10 +214,13 @@ function _shakeUpdate()
 //   Vector2  -> x = left & right, y = top & bottom
 //   object   -> {top, right, bottom, left}, any omitted side is 0
 //
-// Call it every frame (e.g. in gameUpdatePost) to re-fit on canvas resize, or
-// once if the canvas never changes. Assumes cameraAngle === 0 (no support for
-// a rotated camera). Bails without touching the camera if the content or the
-// post-inset viewport is degenerate.
+// Call it every frame from gameUpdatePost to re-fit on canvas resize (or once
+// if the canvas never changes). gameUpdatePost is the proper call site: the
+// engine runs it even while paused and before gameRender, so the camera stays
+// correct for a paused menu/title backdrop too — gameRender works but reframes
+// one frame late on resize. Assumes cameraAngle === 0 (no support for a rotated
+// camera). Bails without touching the camera if the content or the post-inset
+// viewport is degenerate.
 //
 //   // frame a board, reserving the top ~22% of the screen for a score HUD:
 //   cameraFit(vec2(0, 0), vec2(boardSize), { inset: { top: mainCanvasSize.y * .22 } });
