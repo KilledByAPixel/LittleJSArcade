@@ -428,7 +428,7 @@ function uctSelectChild(node) {
 // Returns the most-visited root child's move (point index or PASS).
 async function mctsSearch(rootState, options = {}) {
     const maxTimeMs = options.maxTimeMs || 1000;
-    const maxPlayouts = options.maxPlayouts || Infinity;
+    const maxPlayouts = options.maxPlayouts != null ? options.maxPlayouts : Infinity;
     const onProgress = options.onProgress || null;
     const root = mctsNode(null, null, rootState);
     if (root.untried.length === 1) return root.untried[0]; // only PASS available
@@ -464,7 +464,7 @@ async function mctsSearch(rootState, options = {}) {
         if (now - lastYield >= 16) {
             await new Promise(r => setTimeout(r, 0));
             lastYield = performance.now();
-            if (onProgress) onProgress(now - start, maxTimeMs);
+            if (onProgress) onProgress(lastYield - start, maxTimeMs);
         }
     }
 
