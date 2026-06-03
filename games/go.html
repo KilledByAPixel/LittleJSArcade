@@ -552,6 +552,7 @@ function liveKoPoint(s) {
 
 // Run the AI for difficulty `d`. Returns a flat move (point index or PASS).
 async function goAIMove(flatState, d, opts = {}) {
+    // easy is capped by playouts (fast + weak); maxTimeMs here is only a hang-safety ceiling, never the real limit.
     if (d === 'easy')   return mctsSearch(flatState, { maxPlayouts: GO_EASY_PLAYOUTS, maxTimeMs: 5000, ...opts });
     if (d === 'medium') return mctsSearch(flatState, { maxTimeMs: GO_MEDIUM_MS, ...opts });
     return mctsSearch(flatState, { maxTimeMs: GO_HARD_MS, ...opts });
