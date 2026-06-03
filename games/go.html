@@ -524,159 +524,46 @@ function scoreWithDeadStones(s0, toMove, options = {}) {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// AI ADAPTER
+// AI ADAPTER — MCTS over the flat engine
 
-function getCurrentState()
-{
-    return {
-        board: board.map(row => [...row]),
-        currentPlayer: currentPlayer,
-        gameOver: gameOver,
-        previousBoardHash: previousBoardHash,
-    };
+// Time/playout budgets per difficulty.
+const GO_EASY_PLAYOUTS = 300;
+const GO_MEDIUM_MS = 1000;
+const GO_HARD_MS   = 3500;
+
+// Convert the live row/col board to a flat search state for `toMove`.
+function liveToFlatState(toMove) {
+    const s = new Int8Array(NN);
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) s[r*N + c] = board[r][c];
+    return { s, toMove, ko: liveKoPoint(s), passes: 0 };
 }
 
-// Heuristic eval for Capture Go (non-terminal positions).
-// Returns a score that is positive when player has the advantage.
-// Dominant signal: atari detection (group with 1 liberty is about to be captured).
-function evalCaptureGo(b, player)
-{
-    const opponent = player === STONE_BLACK ? STONE_WHITE : STONE_BLACK;
-    let score = 0;
-
-    const seen = new Set();
-    for (let row = 0; row < BOARD_SIZE; row++)
-    {
-        for (let col = 0; col < BOARD_SIZE; col++)
-        {
-            const stone = b[row][col];
-            if (stone === STONE_EMPTY) continue;
-            const key = row + ',' + col;
-            if (seen.has(key)) continue;
-            const group = getGroupAndLiberties(b, row, col);
-            for (const s of group.stones) seen.add(s.row + ',' + s.col);
-
-            // sign: +1 if this group belongs to player, -1 if opponent
-            const sign = (stone === player) ? 1 : -1;
-
-            // Liberty term: more liberties = harder to capture.
-            score += sign * group.liberties;
-
-            // Atari penalty/bonus: group with exactly 1 liberty is in immediate danger.
-            // Own group in atari is very bad; opponent group in atari is very good.
-            if (group.liberties === 1)
-                score += sign * -50;
-        }
-    }
-    return score;
+// Derive the ko point from the live board + lastMove: if the last move left a
+// lone stone in atari (single liberty), that liberty is the forbidden ko point.
+function liveKoPoint(s) {
+    if (!lastMove) return -1;
+    const i = lastMove.row * N + lastMove.col;
+    if (s[i] === STONE_EMPTY) return -1;
+    const g = groupInfo(s, i);
+    if (g.stones.length === 1 && g.libs === 1)
+        for (const nb of NEIGHBORS[i]) if (s[nb] === STONE_EMPTY) return nb;
+    return -1;
 }
 
-// Pure-functional adapter for gameAI.js search.
-// State shape: { board, currentPlayer, gameOver, previousBoardHash }
-const captureGoGame = {
-    getOpponent: (player) => player === STONE_BLACK ? STONE_WHITE : STONE_BLACK,
-    getCurrentPlayer: (state) => state.currentPlayer,
-    isTerminal: (state) => state.gameOver,
-
-    getLegalMoves(state, player)
-    {
-        // Collect candidates with move-ordering scores, then sort.
-        // Score weights: moves adjacent to enemy stones are tactically critical
-        // (capture/atari potential), moves adjacent to own stones extend or
-        // defend, and central cells get a small bias. Cells far from any
-        // existing stone score lowest — alpha-beta will try them last and
-        // prune most of them.
-        const candidates = [];
-        const opponent = player === STONE_BLACK ? STONE_WHITE : STONE_BLACK;
-        const center = (BOARD_SIZE - 1) / 2;
-
-        for (let row = 0; row < BOARD_SIZE; row++)
-        {
-            for (let col = 0; col < BOARD_SIZE; col++)
-            {
-                if (state.board[row][col] !== STONE_EMPTY) continue;
-
-                // Scan the 4 orthogonal neighbors for legality info AND
-                // ordering info in one pass.
-                let hasEmptyNeighbor = false;
-                let enemyNeighbors = 0;
-                let ownNeighbors = 0;
-                for (const [dr, dc] of [[-1,0],[1,0],[0,-1],[0,1]])
-                {
-                    const nr = row + dr, nc = col + dc;
-                    if (nr < 0 || nr >= BOARD_SIZE || nc < 0 || nc >= BOARD_SIZE) continue;
-                    const v = state.board[nr][nc];
-                    if (v === STONE_EMPTY) hasEmptyNeighbor = true;
-                    else if (v === opponent) enemyNeighbors++;
-                    else if (v === player) ownNeighbors++;
-                }
-
-                // Fast path: an empty cell with an empty neighbor AND no enemy
-                // neighbor has a liberty, captures nothing, can't violate ko.
-                // Slow path (full simulation) only when capture/ko/suicide is
-                // possible (enemy neighbors, or fully surrounded).
-                const isLegal = (hasEmptyNeighbor && enemyNeighbors === 0)
-                    ? true
-                    : isLegalMoveForState(state.board, row, col, player, state.previousBoardHash);
-                if (!isLegal) continue;
-
-                // Higher score = tried first by alpha-beta.
-                const distFromCenter = Math.abs(row - center) + Math.abs(col - center);
-                const score = enemyNeighbors * 100 + ownNeighbors * 30 - distFromCenter;
-                candidates.push({row, col, _score: score});
-            }
-        }
-        // Sort high-to-low by score, then strip the score field so move
-        // objects stay equality-compatible with TT/killer-move comparisons
-        // (gameAI.js uses JSON.stringify for move equality).
-        candidates.sort((a, b) => b._score - a._score);
-        return candidates.map(c => ({row: c.row, col: c.col}));
-    },
-
-    applyMove(state, move, player)
-    {
-        const result = applyMoveAndCapturesForState(state.board, move.row, move.col, player, state.previousBoardHash);
-        // result.newBoard should always be non-null here (getLegalMoves only returns legal moves)
-        const opponent = player === STONE_BLACK ? STONE_WHITE : STONE_BLACK;
-        return {
-            board: result.newBoard,
-            currentPlayer: opponent,
-            gameOver: result.captured > 0,
-            previousBoardHash: JSON.stringify(state.board), // board state BEFORE this move
-        };
-    },
-
-    evaluate(state, player)
-    {
-        // Terminal: by the time isTerminal is true, the player who just moved won.
-        // state.currentPlayer is whoever moves next — the loser.
-        // So if gameOver and state.currentPlayer === player, player LOST.
-        if (state.gameOver)
-            return state.currentPlayer === player ? -10000 : 10000;
-        return evalCaptureGo(state.board, player);
-    },
-};
-
-function strategyForDifficulty(d)
-{
-    if (d === 'easy')   return (game, state, opts) => randomAI(game, state);
-    if (d === 'medium') return (game, state, opts) => greedyAI(game, state);
-    // HARD: adaptive depth based on board fill. Branching shrinks as the
-    // board fills, so we can afford deeper search later in the game.
-    return (game, state, opts) =>
-    {
-        let empties = 0;
-        for (let r = 0; r < BOARD_SIZE; r++)
-            for (let c = 0; c < BOARD_SIZE; c++)
-                if (state.board[r][c] === STONE_EMPTY) empties++;
-        const depth = empties > 60 ? 4 : empties > 30 ? 5 : 6;
-        return alphaBetaAI(game, state, depth, opts);
-    };
+// Run the AI for difficulty `d`. Returns a flat move (point index or PASS).
+async function goAIMove(flatState, d, opts = {}) {
+    if (d === 'easy')   return mctsSearch(flatState, { maxPlayouts: GO_EASY_PLAYOUTS, maxTimeMs: 5000, ...opts });
+    if (d === 'medium') return mctsSearch(flatState, { maxTimeMs: GO_MEDIUM_MS, ...opts });
+    return mctsSearch(flatState, { maxTimeMs: GO_HARD_MS, ...opts });
 }
 
-function findBestAIMove(opts = {})
-{
-    return Promise.resolve(strategyForDifficulty(difficulty)(captureGoGame, getCurrentState(), opts));
+// Find the AI's move for the current live position. Returns {row,col} or {pass:true}.
+function findBestAIMove(opts = {}) {
+    const flat = liveToFlatState(currentPlayer);
+    return goAIMove(flat, difficulty, opts).then(move => {
+        if (move === PASS) return { pass: true };
+        return { row: (move / N) | 0, col: move % N };
+    });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
