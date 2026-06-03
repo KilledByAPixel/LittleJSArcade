@@ -476,6 +476,54 @@ async function mctsSearch(rootState, options = {}) {
     return best ? best.move : PASS;
 }
 
+// Determine dead stones via Monte Carlo ownership, then area-score the cleaned
+// board. `s0` = final Int8Array, `toMove` = side to move at game end.
+// Returns { score:{black,white,margin}, dead:[idx...], owner:Int8Array(81) }
+// where owner[i] is STONE_BLACK / STONE_WHITE / STONE_EMPTY (neutral).
+function scoreWithDeadStones(s0, toMove, options = {}) {
+    const playouts = options.playouts || 200;
+    const ownB = new Int32Array(NN), ownW = new Int32Array(NN);
+    for (let p = 0; p < playouts; p++) {
+        const s = Int8Array.from(s0);
+        randomPlayoutFrom({ s, toMove, ko: -1, passes: 0 });
+        // Count area ownership per cell (stones + territory) using flood-fill.
+        const seen = new Uint8Array(NN);
+        for (let i = 0; i < NN; i++) {
+            if (s[i] === STONE_BLACK) { ownB[i]++; continue; }
+            if (s[i] === STONE_WHITE) { ownW[i]++; continue; }
+            if (seen[i]) continue;
+            // Flood-fill empty region to determine territory color.
+            const region = [i]; seen[i] = 1; const stack = [i];
+            let touchB = false, touchW = false;
+            while (stack.length) {
+                const p = stack.pop();
+                for (const nb of NEIGHBORS[p]) {
+                    if (s[nb] === STONE_EMPTY) {
+                        if (!seen[nb]) { seen[nb] = 1; region.push(nb); stack.push(nb); }
+                    } else if (s[nb] === STONE_BLACK) touchB = true;
+                    else if (s[nb] === STONE_WHITE) touchW = true;
+                }
+            }
+            if (touchB && !touchW) for (const r of region) ownB[r]++;
+            else if (touchW && !touchB) for (const r of region) ownW[r]++;
+        }
+    }
+    const owner = new Int8Array(NN);
+    for (let i = 0; i < NN; i++)
+        owner[i] = ownB[i] > ownW[i] ? STONE_BLACK : ownW[i] > ownB[i] ? STONE_WHITE : STONE_EMPTY;
+
+    // A stone whose point is owned by the opponent is dead → remove it.
+    const cleaned = Int8Array.from(s0);
+    const dead = [];
+    for (let i = 0; i < NN; i++) {
+        if (s0[i] !== STONE_EMPTY && owner[i] !== STONE_EMPTY && owner[i] !== s0[i]) {
+            cleaned[i] = STONE_EMPTY;
+            dead.push(i);
+        }
+    }
+    return { score: scoreArea(cleaned, GO_KOMI), dead, owner };
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // AI ADAPTER
 
