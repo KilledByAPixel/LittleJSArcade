@@ -16,6 +16,8 @@ paused = false;
 gravity = vec2(0, 0);
 canvasMaxSize = vec2(2048);
 
+const testMode = false;
+
 ///////////////////////////////////////////////////////////////////////////////
 // LAYOUT (world space, y-up)
 const ROWS = 6, COLS = 5;
@@ -167,8 +169,8 @@ function saveProgress() {
 }
 
 function submitGuess() {
-    if (current.length < COLS) { showMessage('NOT ENOUGH LETTERS'); sndError.play(); shakeTime = time; return; }
-    if (!VALID_SET.has(current)) { showMessage('NOT IN WORD LIST'); sndError.play(); shakeTime = time; return; }
+    if (!testMode && current.length < COLS) { showMessage('NOT ENOUGH LETTERS'); sndError.play(); shakeTime = time; return; }
+    if (!testMode && !VALID_SET.has(current)) { showMessage('NOT IN WORD LIST'); sndError.play(); shakeTime = time; return; }
 
     const result = evaluate(current, answer);
     guesses.push(current);
@@ -333,11 +335,6 @@ function gameInit() {
     showMenu('title');
 }
 
-function fitCamera() {
-    cameraScale = min(mainCanvasSize.x / ARENA.x, mainCanvasSize.y / ARENA.y);
-    cameraPos = vec2(0, CAM_Y);
-}
-
 function gameUpdate() {
     if (reviewMode) {
         // read-only review of a finished daily; ignore the opening click (one armed
@@ -373,7 +370,10 @@ function gameUpdate() {
         }
     }
 }
-function gameUpdatePost() {}
+function gameUpdatePost()
+{
+    cameraFit(vec2(0, CAM_Y), ARENA);
+}
 
 // Draw a single tile with letter. A non-null `border` draws a ring (outer
 // border rect + inset fill rect); otherwise a solid fill. All WebGL (default)
@@ -446,10 +446,16 @@ function drawKeyboard() {
 }
 
 function gameRender() {
-    fitCamera();
     canvasClearColor = palette().bg;
     drawGrid();
     drawKeyboard();
+
+    // Reviewing a finished daily you DIDN'T solve: reveal the answer in the gap
+    // between the board and the keyboard.
+    if (reviewMode && !guesses.includes(answer)) {
+        drawText('THE WORD WAS', vec2(0, -0.85), 0.7, hsl(0,0,.85));
+        drawText(answer, vec2(0, -2), 1.4, palette().correct);
+    }
 }
 
 function gameRenderPost() {
