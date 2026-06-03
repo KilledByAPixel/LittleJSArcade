@@ -2152,7 +2152,9 @@ function injectStyles()
     background: var(--menu-backdrop);
     display: none;
 }
-.ljs-menu-backdrop.visible { display: block; animation: ljs-menu-fade var(--menu-anim-time, .18s) ease-out; }
+/* Backdrop appears instantly (no fade) — fading it lags a frame behind the
+   panel and you glimpse the undimmed scene. Only the panel animates in. */
+.ljs-menu-backdrop.visible { display: block; }
 .ljs-menu-panel {
     position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
     z-index: 1000;
@@ -2176,7 +2178,6 @@ function injectStyles()
     from { opacity: 0; transform: translate(-50%, -50%) scale(.94); }
     to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
 }
-@keyframes ljs-menu-fade { from { opacity: 0; } to { opacity: 1; } }
 .ljs-menu-title {
     font-size: var(--menu-title-size); font-weight: bold; text-align: center;
     color: var(--menu-accent); margin-bottom: 0.5em;
@@ -2549,7 +2550,7 @@ button.ljs-menu-item.ljs-glow {
     .m-float,.m-heartbeat,.m-jelly,.fx-wave span{ animation:none !important; }
     .m-float,.m-heartbeat,.m-jelly,.fx-wave span{ transform:none !important; }
     .ljs-fx-spark{ display:none !important; }
-    .ljs-menu-panel.visible,.ljs-menu-backdrop.visible{ animation:none !important; }
+    .ljs-menu-panel.visible{ animation:none !important; }
     button.ljs-menu-item.ljs-glow{ animation:none !important; }
 }
 `;
