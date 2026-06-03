@@ -373,6 +373,109 @@ function randomPlayoutFrom(state) {
     return scoreArea(s, GO_KOMI).margin;
 }
 
+// MCTS node. `toMove` is the side to move AT this node. `blackWins` accumulates
+// the playout result from BLACK's perspective (1 win, 0.5 tie) so a node's value
+// for whoever is choosing is derived by flipping when the chooser is white.
+function mctsNode(move, parent, state) {
+    return {
+        move, parent,
+        children: [],
+        untried: shuffleInt(flatLegalMovesWithPass(state)),
+        visits: 0, blackWins: 0,
+        toMove: state.toMove,
+    };
+}
+
+// Legal moves plus PASS (so the tree can choose to end the game).
+function flatLegalMovesWithPass(state) {
+    const m = flatLegalMoves(state);
+    m.push(PASS);
+    return m;
+}
+
+// Fisher-Yates on a plain array of ints (gives move-order variety).
+function shuffleInt(a) {
+    for (let i = a.length - 1; i > 0; i--) { const j = (Math.random()*(i+1))|0; const t=a[i]; a[i]=a[j]; a[j]=t; }
+    return a;
+}
+
+// Apply a move (point index or PASS) to a flat state IN PLACE.
+function applyMoveInPlace(state, move) {
+    if (move === PASS) { state.passes = (state.passes|0) + 1; state.ko = -1; }
+    else { state.ko = applyInPlace(state.s, move, state.toMove); state.passes = 0; }
+    state.toMove = otherColor(state.toMove);
+}
+
+function flatClone(state) {
+    return { s: Int8Array.from(state.s), toMove: state.toMove, ko: state.ko, passes: state.passes|0 };
+}
+
+const UCT_C = 1.4;
+function uctSelectChild(node) {
+    const logN = Math.log(node.visits);
+    const blackChooses = node.toMove === STONE_BLACK;
+    let best = null, bestVal = -Infinity;
+    for (const ch of node.children) {
+        const winRate = ch.blackWins / ch.visits;            // from black's view
+        const exploit = blackChooses ? winRate : 1 - winRate; // value to the chooser
+        const val = exploit + UCT_C * Math.sqrt(logN / ch.visits);
+        if (val > bestVal) { bestVal = val; best = ch; }
+    }
+    return best;
+}
+
+// Run MCTS from rootState. options: { maxTimeMs, maxPlayouts?, onProgress? }.
+// Returns the most-visited root child's move (point index or PASS).
+async function mctsSearch(rootState, options = {}) {
+    const maxTimeMs = options.maxTimeMs || 1000;
+    const maxPlayouts = options.maxPlayouts || Infinity;
+    const onProgress = options.onProgress || null;
+    const root = mctsNode(null, null, rootState);
+    if (root.untried.length === 1) return root.untried[0]; // only PASS available
+    const start = performance.now();
+    let lastYield = start, count = 0;
+
+    while (true) {
+        const now = performance.now();
+        if (now - start >= maxTimeMs || count >= maxPlayouts) break;
+
+        let node = root;
+        const state = flatClone(rootState);
+        // Select
+        while (node.untried.length === 0 && node.children.length > 0) {
+            node = uctSelectChild(node);
+            applyMoveInPlace(state, node.move);
+        }
+        // Expand
+        if (node.untried.length > 0) {
+            const move = node.untried.pop();
+            applyMoveInPlace(state, move);
+            const child = mctsNode(move, node, state);
+            node.children.push(child);
+            node = child;
+        }
+        // Simulate (state is owned; randomPlayoutFrom mutates it)
+        const margin = randomPlayoutFrom(state);
+        const blackResult = margin > 0 ? 1 : margin < 0 ? 0 : 0.5;
+        // Backpropagate
+        for (let n = node; n; n = n.parent) { n.visits++; n.blackWins += blackResult; }
+        count++;
+
+        if (now - lastYield >= 16) {
+            await new Promise(r => setTimeout(r, 0));
+            lastYield = performance.now();
+            if (onProgress) onProgress(now - start, maxTimeMs);
+        }
+    }
+
+    // Choose the most-visited child (robust); break ties by first encountered.
+    let best = null, bestVisits = -1;
+    for (const ch of root.children) {
+        if (ch.visits > bestVisits) { bestVisits = ch.visits; best = ch; }
+    }
+    return best ? best.move : PASS;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // AI ADAPTER
 
