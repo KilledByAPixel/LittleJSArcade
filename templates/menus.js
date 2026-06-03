@@ -73,11 +73,17 @@
 //                  Powered by applyMenuFx(el, spec) which any consumer can
 //                  call on its own element.
 // Theme:           setMenuTheme({bg, fg, accent, border, itemBg, itemHoverBg,
-//                  backdrop, disabled, borderWidth, radius, font}) sets the
-//                  matching --menu-* CSS vars on #littlejs-menus from JS (no
-//                  <style> block). Only passed keys change; numbers for
-//                  borderWidth/radius get px. Call once per game; safe before
-//                  any menu exists.
+//                  backdrop, disabled, subtitleColor, borderWidth, radius,
+//                  font}) sets the matching --menu-* CSS vars on
+//                  #littlejs-menus from JS (no <style> block). Only passed
+//                  keys change; numbers for borderWidth/radius get px. Or pass
+//                  a preset NAME + optional overrides: setMenuTheme('neon',
+//                  {accent:'#f0a'}) — presets: neon casino felt retro arcade
+//                  mono. Call once per game; safe before any menu exists.
+// Entrance anim:   menus fade+scale in on show (~.18s). setMenuAnimations(b)
+//                  toggles it (options checkbox); off under reduced-motion.
+// PLAY/btn glow:   createTitleMenu({playGlow:true}) pulses the PLAY button in
+//                  the accent; any button item takes glow:true.
 // Pause hotkey:    bindPauseKey({menuId, when}) — call from gameUpdate each
 //                  frame. Surfaces 'pause' menu on Esc / gamepad Start,
 //                  plays the activate sound, clears the press. Returns true
@@ -392,24 +398,53 @@ const MENU_THEME_VARS = {
     itemHoverBg: '--menu-item-hover-bg',
     backdrop:    '--menu-backdrop',
     disabled:    '--menu-disabled',
+    subtitleColor: '--menu-subtitle-color',
     borderWidth: '--menu-border-width',
     radius:      '--menu-radius',
     font:        '--menu-font',
 };
 const MENU_THEME_PX = { borderWidth: 1, radius: 1 };   // keys whose numbers get 'px'
 
-function setMenuTheme(theme)
+// Named presets — pass the name as the first arg, optionally with an override
+// object: setMenuTheme('neon', {accent:'#f0a'}). Presets are a tuned starting
+// point; the override object wins.
+const MENU_THEME_PRESETS = {
+    neon:   { accent:'#33e0ff', bg:'rgba(8,10,20,.9)',  borderWidth:3, radius:10 },
+    casino: { accent:'#ffd700', bg:'rgba(22,8,0,.93)',  borderWidth:2, radius:6 },
+    felt:   { accent:'#33cc66', bg:'rgba(8,22,14,.93)', borderWidth:2, radius:8 },
+    retro:  { accent:'#46d846', bg:'rgba(0,0,0,.9)',    borderWidth:2, radius:0, font:'monospace' },
+    arcade: { accent:'#ff2aa8', bg:'rgba(10,6,18,.92)', borderWidth:3, radius:8 },
+    mono:   { accent:'#cccccc', bg:'rgba(0,0,0,.85)',   borderWidth:2, radius:4 },
+};
+
+function setMenuTheme(theme, overrides)
 {
+    // String first arg = preset name; merge with any override object.
+    if (typeof theme === 'string')
+    {
+        const preset = MENU_THEME_PRESETS[theme];
+        if (!preset) { console.warn('setMenuTheme: unknown preset "' + theme + '"'); return; }
+        theme = Object.assign({}, preset, overrides);
+    }
     if (!theme) return;
     initMenuSystem();
     for (const key in theme)
     {
+        if (theme[key] === undefined) continue;
         const cssVar = MENU_THEME_VARS[key];
         if (!cssVar) { console.warn('setMenuTheme: unknown key "' + key + '"'); continue; }
         let value = theme[key];
         if (typeof value === 'number') value = value + (MENU_THEME_PX[key] ? 'px' : '');
         menuSystemRoot.style.setProperty(cssVar, value);
     }
+}
+
+// Toggle the menu entrance fade/scale globally (e.g. an options checkbox).
+function setMenuAnimations(on)
+{
+    initMenuSystem();
+    if (on === false) menuSystemRoot.style.setProperty('--menu-anim-time', '0s');
+    else menuSystemRoot.style.removeProperty('--menu-anim-time');
 }
 
 function createMenu(config)
@@ -477,6 +512,7 @@ function createMenu(config)
         // for live-counting labels, animated custom elements, etc.
         if (item.onUpdate) built.onUpdate = item.onUpdate;
         if (item.fx) built.fx = item.fx;   // FX spec applied on show, torn down on hide
+        if (item.glow) built.el.classList.add('ljs-glow');   // pulsing accent highlight
         panel.appendChild(built.el);
         itemList.push(built);
         if (item.id) itemHandles[item.id] = built.handle;
@@ -616,6 +652,7 @@ function createTitleMenu(config)
         titleFx:       null,
         onPlay:        null,
         playLabel:     'PLAY',
+        playGlow:      false,    // pulse the PLAY button with an accent glow
         itemsBefore:   [],
         items:         [],
         revealOnClick: true,
@@ -662,7 +699,7 @@ function createTitleMenu(config)
         onHide:       cfg.onHide,
         items: [
             ...itemsBefore,
-            {type:'button', id:'play', label: cfg.playLabel, onClick: playFn},
+            {type:'button', id:'play', label: cfg.playLabel, onClick: playFn, glow: cfg.playGlow},
             ...cfg.items,
         ],
     });
@@ -2059,6 +2096,7 @@ function injectStyles()
     --menu-border-width: 2px;
     --menu-title-size:   1.75em;
     --menu-item-size:    1.125em;
+    --menu-anim-time:    0.18s;   /* menu entrance fade/scale; setMenuAnimations(false) -> 0s */
 
     /* button fill */
     --menu-item-bg:       rgba(255, 255, 255, 0.06);
@@ -2105,7 +2143,7 @@ function injectStyles()
     background: var(--menu-backdrop);
     display: none;
 }
-.ljs-menu-backdrop.visible { display: block; }
+.ljs-menu-backdrop.visible { display: block; animation: ljs-menu-fade var(--menu-anim-time, .18s) ease-out; }
 .ljs-menu-panel {
     position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
     z-index: 1000;
@@ -2121,14 +2159,22 @@ function injectStyles()
     display: none; flex-direction: column; gap: var(--menu-item-gap);
     box-sizing: border-box;
 }
-.ljs-menu-panel.visible { display: flex; }
+.ljs-menu-panel.visible { display: flex; animation: ljs-menu-in var(--menu-anim-time, .18s) ease-out; }
+/* Entrance: fade + slight scale-up. The transform keeps the -50%,-50%
+   centering so the panel grows from its center. setMenuAnimations(false)
+   sets --menu-anim-time to 0s; prefers-reduced-motion disables it too. */
+@keyframes ljs-menu-in {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(.94); }
+    to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+@keyframes ljs-menu-fade { from { opacity: 0; } to { opacity: 1; } }
 .ljs-menu-title {
     font-size: var(--menu-title-size); font-weight: bold; text-align: center;
     color: var(--menu-accent); margin-bottom: 0.5em;
 }
 .ljs-menu-subtitle {
     font-size: 0.875em; font-weight: bold; text-align: center;
-    letter-spacing: 0.15em; color: var(--menu-fg); opacity: 0.85;
+    letter-spacing: 0.15em; color: var(--menu-subtitle-color, var(--menu-fg)); opacity: 0.85;
     /* Pull tight under the title (cancels the title's margin-bottom plus
        the panel's flex gap). Tune via your own CSS override per menu. */
     margin-top: -1.5em; margin-bottom: -.5em;
@@ -2478,11 +2524,24 @@ button.ljs-grid-cell { cursor: pointer; }
 }
 
 /* reduced motion --------------------------------------------- */
+/* Primary-button glow — opt-in via item glow:true (or createTitleMenu
+   playGlow:true on PLAY). A gentle accent pulse to draw the eye. */
+@keyframes ljs-menu-glow-pulse {
+    0%,100% { box-shadow: 0 0 2px transparent; }
+    50%     { box-shadow: 0 0 14px var(--menu-accent); }
+}
+button.ljs-menu-item.ljs-glow {
+    animation: ljs-menu-glow-pulse 1.6s ease-in-out infinite;
+    border-color: var(--menu-accent);
+}
+
 @media (prefers-reduced-motion: reduce){
     .fx-neon,.fx-rainbow,.fx-shine,.fx-fire,.fx-gold,.fx-glitch,.fx-crt,
     .m-float,.m-heartbeat,.m-jelly,.fx-wave span{ animation:none !important; }
     .m-float,.m-heartbeat,.m-jelly,.fx-wave span{ transform:none !important; }
     .ljs-fx-spark{ display:none !important; }
+    .ljs-menu-panel.visible,.ljs-menu-backdrop.visible{ animation:none !important; }
+    button.ljs-menu-item.ljs-glow{ animation:none !important; }
 }
 `;
     const style = document.createElement('style');

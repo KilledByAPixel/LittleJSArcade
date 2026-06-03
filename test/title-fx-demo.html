@@ -90,6 +90,22 @@ b7.onclick=()=>setMenuTheme({accent:'#f0a', bg:'rgba(25,0,35,.94)', radius:16, b
 const b8=document.createElement('button'); b8.textContent='setMenuTheme (reset cyan)';
 b8.onclick=()=>setMenuTheme({accent:'#6cf', bg:'rgba(0,0,0,.85)', radius:12, borderWidth:2});
 [b6,b7,b8].forEach(b=>{document.body.appendChild(b);document.body.appendChild(document.createTextNode(' '));});
+
+// presets, PLAY glow, entrance-animation toggle
+createTitleMenu({ id:'fxTitleE', title:'GLOW', titleFx:{fill:'neon'}, playGlow:true,
+    revealOnClick:false, onPlay:()=>hideMenu('fxTitleE') });
+const bp=document.createElement('div'); bp.style.marginTop='10px'; document.body.appendChild(bp);
+['neon','casino','felt','retro','arcade','mono'].forEach(name=>{
+    const b=document.createElement('button'); b.textContent='preset:'+name;
+    b.onclick=()=>{ setMenuTheme(name); showMenu('fxTitleE'); };
+    bp.appendChild(b); bp.appendChild(document.createTextNode(' '));
+});
+const bg1=document.createElement('button'); bg1.textContent='show PLAY glow';
+bg1.onclick=()=>showMenu('fxTitleE');
+let anim=true;
+const ba=document.createElement('button'); ba.textContent='toggle entrance anim';
+ba.onclick=()=>{ anim=!anim; setMenuAnimations(anim); ba.textContent='entrance anim: '+(anim?'on':'off'); };
+[bg1,ba].forEach(b=>{bp.appendChild(b);bp.appendChild(document.createTextNode(' '));});
 </script>
 </body>
 </html>
