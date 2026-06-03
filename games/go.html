@@ -114,6 +114,14 @@ function getOpponent(player)
     return player === STONE_BLACK ? STONE_WHITE : STONE_BLACK;
 }
 
+// True when the local human controls the side to move: PvP (either side), or the
+// human's side in PvAI. Always false in AI-vs-AI. Gates input, the PASS button,
+// and the hover-ghost preview so none of them appear during an AI turn.
+function isHumanTurn()
+{
+    return gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN);
+}
+
 function isInBounds(row, col)
 {
     return row >= 0 && row < BOARD_SIZE && col >= 0 && col < BOARD_SIZE;
@@ -615,8 +623,7 @@ function passMove()
 function humanPass()
 {
     if (gameOver || !isPlaying()) return;
-    const humanTurn = gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN);
-    if (!humanTurn) return;
+    if (!isHumanTurn()) return;
     passMove();
     aiThinkTimer = 0;
 }
@@ -735,8 +742,9 @@ function drawBoard()
         drawTile(pos, vec2(ringR), icons.circle, hsl(0.12, 0.9, 0.55, 0.55));
     }
 
-    // Hover ghost stone (semi-transparent, only when legal).
-    if (isPlaying() && !gameOver && hoverIntersection)
+    // Hover ghost stone (semi-transparent, only when legal AND it's the human's
+    // turn — no placement preview during an AI turn or in AI-vs-AI).
+    if (isPlaying() && !gameOver && hoverIntersection && isHumanTurn())
     {
         const { row, col } = hoverIntersection;
         if (board[row][col] === STONE_EMPTY
@@ -1008,8 +1016,7 @@ function gameUpdate()
     if (keyWasPressed('KeyP')) humanPass();
 
     // PASS button visibility — update every frame regardless of gameOver.
-    const humanCanPass = !gameOver && (gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN));
-    getToolbar('hud')?.getItem('pass')?.setVisible(humanCanPass);
+    getToolbar('hud')?.getItem('pass')?.setVisible(!gameOver && isHumanTurn());
 
     if (gameOver) return;
 
@@ -1045,8 +1052,7 @@ function gameUpdate()
     }
 
     // Human input — PvP always, or PvAI when it's the human's turn. Never in aivai.
-    const isHumanTurn = gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN);
-    if (isHumanTurn && mouseWasPressed(0) && hoverIntersection)
+    if (isHumanTurn() && mouseWasPressed(0) && hoverIntersection)
     {
         const { row, col } = hoverIntersection;
         if (isLegalMove(board, row, col, currentPlayer, previousBoardHash))
