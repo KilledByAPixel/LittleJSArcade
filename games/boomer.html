@@ -12,8 +12,6 @@
     --menu-radius:       10px;
 }
 #littlejs-menus .ljs-menu-panel[data-menu-id="title"] .ljs-menu-title {
-    color: #ff4444;
-    text-shadow: 0 0 14px #ff4444aa, 0 0 4px #000;
     letter-spacing: 0.18em;
 }
 </style>
@@ -199,7 +197,7 @@ function spawnBomb() {
         type,
     };
     if (type === 'fast') {
-        b.vel.y = -fall * 1.7;                          // noticeably quicker drop
+        b.vel.y = -fall * 1.5;                          // noticeably quicker drop
     } else if (type === 'drift') {
         b.vel.x = (rand() < 0.5 ? -1 : 1) * (2.5 + (wave - 3) * 0.4);  // sideways
     } else if (type === 'wavy') {
