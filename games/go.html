@@ -103,6 +103,10 @@ function initBoard()
     aiGeneration++;
     aiSearching = false;
     aiProgress = '';
+    consecutivePasses = 0;
+    deadStones = [];
+    ownerMap = null;
+    finalScore = null;
 }
 
 function getOpponent(player)
@@ -608,6 +612,15 @@ function passMove()
     currentPlayer = getOpponent(currentPlayer);
 }
 
+function humanPass()
+{
+    if (gameOver || !isPlaying()) return;
+    const humanTurn = gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN);
+    if (!humanTurn) return;
+    passMove();
+    aiThinkTimer = 0;
+}
+
 function endGameAndScore()
 {
     const s = new Int8Array(NN);
@@ -759,6 +772,30 @@ function drawBoard()
             }
         }
     }
+
+    // Territory shading + dead-stone markers at game end.
+    if (gameOver && ownerMap)
+    {
+        for (let i = 0; i < NN; i++)
+        {
+            const r = (i / N) | 0, c = i % N;
+            const pos = getIntersectionWorldPos(r, c);
+            if (board[r][c] === STONE_EMPTY)
+            {
+                // Shade owned empty points (territory).
+                if (ownerMap[i] === STONE_BLACK)
+                    drawTile(pos, vec2(0.34), icons.circle, rgb(0, 0, 0, 0.55));
+                else if (ownerMap[i] === STONE_WHITE)
+                    drawTile(pos, vec2(0.34), icons.circle, rgb(1, 1, 1, 0.7));
+            }
+        }
+        // Dead stones: a faint red ring over removed stones (still drawn on board).
+        for (const i of deadStones)
+        {
+            const pos = getIntersectionWorldPos((i / N) | 0, i % N);
+            drawTile(pos, vec2(STONE_RADIUS * 1.1), icons.circle, rgb(1, 0.2, 0.2, 0.4));
+        }
+    }
 }
 
 function drawUI()
@@ -766,9 +803,10 @@ function drawUI()
     const sw = mainCanvasSize.x;
     const sh = mainCanvasSize.y;
 
-    // Capture counts.
-    drawTextScreen(`Black captures: ${blackCaptures}`, vec2(20, 30), 28, WHITE, 4, BLACK, 'left');
-    drawTextScreen(`White captures: ${whiteCaptures}`, vec2(20, 66), 28, WHITE, 4, BLACK, 'left');
+    // Stones captured so far (informational).
+    drawTextScreen(`Captures  B ${blackCaptures} · W ${whiteCaptures}`, vec2(20, 30), 24, WHITE, 4, BLACK, 'left');
+    if (consecutivePasses > 0 && !gameOver)
+        drawTextScreen(`Pass (${consecutivePasses}/2)`, vec2(20, 60), 24, hsl(0.1, 0.9, 0.6), 4, BLACK, 'left');
 
     // Current player indicator.
     if (!gameOver)
@@ -798,33 +836,28 @@ function drawUI()
     if (gameOver)
     {
         const cx = sw / 2, cy = sh / 2;
-        drawTextScreen('GO', vec2(cx, cy - 60), 64, hsl(0.1, 0.9, 0.55), 6, BLACK);
+        drawTextScreen('GO', vec2(cx, cy - 90), 64, hsl(0.1, 0.9, 0.55), 6, BLACK);
         let resultText, resultColor;
-        if (gameMode === 'ai')
-        {
-            resultText  = winner === PLAYER_HUMAN ? 'You Win!' : 'AI Wins!';
-            resultColor = winner === PLAYER_HUMAN ? rgb(0, 1, 0.3) : rgb(1, 0.3, 0.3);
+        if (gameMode === 'ai') {
+            const humanWon = winner === PLAYER_HUMAN;
+            resultText  = winner === null ? 'Draw' : humanWon ? 'You Win!' : 'AI Wins!';
+            resultColor = winner === null ? WHITE : humanWon ? rgb(0,1,0.3) : rgb(1,0.3,0.3);
+        } else {
+            resultText  = winner === null ? 'Draw' : winner === STONE_BLACK ? 'Black Wins!' : 'White Wins!';
+            resultColor = WHITE;
         }
-        else if (gameMode === 'aivai')
-        {
-            resultText  = winner === STONE_BLACK ? 'AI Black Wins!' : 'AI White Wins!';
-            resultColor = winner === STONE_BLACK ? rgb(0.8, 0.8, 0.8) : rgb(1, 1, 1);
-        }
-        else
-        {
-            resultText  = winner === STONE_BLACK ? 'Black Wins!' : 'White Wins!';
-            resultColor = winner === STONE_BLACK ? rgb(0.8, 0.8, 0.8) : rgb(1, 1, 1);
-        }
-        drawTextScreen(resultText, vec2(cx, cy), 52, resultColor, 5, BLACK);
-        drawTextScreen('Press R to restart or ESC to pause',
-            vec2(cx, cy + 60), 24, WHITE, 3, BLACK);
+        drawTextScreen(resultText, vec2(cx, cy - 30), 52, resultColor, 5, BLACK);
+        if (finalScore)
+            drawTextScreen(`Black ${finalScore.black}  ·  White ${finalScore.white}  (komi ${GO_KOMI})`,
+                vec2(cx, cy + 24), 30, WHITE, 4, BLACK);
+        drawTextScreen('Press R to restart or ESC to pause', vec2(cx, cy + 72), 22, WHITE, 3, BLACK);
     }
 
     // Hint.
     if (!gameOver)
     {
-        drawTextScreen('R: Restart | ESC: Pause',
-            vec2(sw / 2, sh - 28), 20, rgb(0.6, 0.6, 0.6), 2, BLACK);
+        drawTextScreen('Click to place · P: Pass · R: Restart · ESC: Pause',
+            vec2(sw / 2, sh - 28), 18, rgb(0.6, 0.6, 0.6), 2, BLACK);
     }
 }
 
@@ -943,7 +976,12 @@ async function gameInit()
     });
 
     // ----- HUD toolbar -----
-    installDefaultToolbar({landscapeStack:true});
+    installDefaultToolbar({
+        landscapeStack: true,
+        extraItemsBefore: [
+            {type:'button', id:'pass', label:'PASS', title:'Pass your turn (two passes end the game)', onClick: () => humanPass()},
+        ],
+    });
 
     initBoard();
     setPlaying(false);
@@ -967,6 +1005,11 @@ function gameUpdate()
     // Restart hotkey.
     if (keyWasPressed('KeyR'))
         initBoard();
+    if (keyWasPressed('KeyP')) humanPass();
+
+    // PASS button visibility — update every frame regardless of gameOver.
+    const humanCanPass = !gameOver && (gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN));
+    getToolbar('hud')?.getItem('pass')?.setVisible(humanCanPass);
 
     if (gameOver) return;
 
