@@ -277,6 +277,7 @@ function gameInit() {
         formatBest: n => 'BEST STREAK ' + n,
         canReveal: () => !isPlaying(),
         revealOnClick: false,
+        playLabel: 'PLAY RANDOM',
         // PLAY always starts a FRESH endless word, discarding any in-progress board.
         onPlay: () => { newGame(false); saveData({ endlessProgress: null }); setPlaying(true); },
         onShow: refreshTitle,
