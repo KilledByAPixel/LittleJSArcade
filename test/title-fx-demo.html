@@ -107,6 +107,13 @@ let anim=true;
 const ba=document.createElement('button'); ba.textContent='toggle entrance anim';
 ba.onclick=()=>{ anim=!anim; setMenuAnimations(anim); ba.textContent='entrance anim: '+(anim?'on':'off'); };
 [bg1,ba].forEach(b=>{bp.appendChild(b);bp.appendChild(document.createTextNode(' '));});
+
+// A real id:'title' menu so the 🎨 Menu Designer (bottom-left) can drive it live.
+createTitleMenu({ title:'DESIGN ME', titleFx:{fill:'gold', spacing:0.05},
+    revealOnClick:false, onPlay:()=>hideMenu('title') });
+const bd=document.createElement('button'); bd.textContent="show 'title' (designer target)";
+bd.onclick=()=>showMenu('title');
+bp.appendChild(bd);
 </script>
 </body>
 </html>
