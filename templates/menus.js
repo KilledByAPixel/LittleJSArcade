@@ -65,12 +65,19 @@
 //                  Fills: neon rainbow shine fire gold outline hardshadow 3d
 //                  glitch crt. Motion: wave heartbeat jelly float. Tweaks:
 //                  hue(deg) invert speed(x) color shadow(hardshadow offset
-//                  color). Effects auto-tear-down on
-//                  hide so sparkle timers never leak. showGameOverDialog
-//                  defaults to gold (win) / red glow (loss); override with
-//                  titleFx, disable with titleFx:null. Menu label/text items
-//                  accept the same spec via `fx:`. Powered by applyMenuFx(el,
-//                  spec) which any consumer can call on its own element.
+//                  color) size(em) spacing(letter-spacing em). Effects
+//                  auto-tear-down on hide so sparkle timers never leak.
+//                  showGameOverDialog defaults to gold (win) / red glow
+//                  (loss); override with titleFx, disable with titleFx:null.
+//                  Menu label/text items accept the same spec via `fx:`.
+//                  Powered by applyMenuFx(el, spec) which any consumer can
+//                  call on its own element.
+// Theme:           setMenuTheme({bg, fg, accent, border, itemBg, itemHoverBg,
+//                  backdrop, disabled, borderWidth, radius, font}) sets the
+//                  matching --menu-* CSS vars on #littlejs-menus from JS (no
+//                  <style> block). Only passed keys change; numbers for
+//                  borderWidth/radius get px. Call once per game; safe before
+//                  any menu exists.
 // Pause hotkey:    bindPauseKey({menuId, when}) — call from gameUpdate each
 //                  frame. Surfaces 'pause' menu on Esc / gamepad Start,
 //                  plays the activate sound, clears the press. Returns true
@@ -268,6 +275,20 @@ function applyMenuFx(element, spec)
             ? target.style.setProperty('--fx-color2', prevShadow)
             : target.style.removeProperty('--fx-color2'));
     }
+    // Typography: size (font-size) and spacing (letter-spacing). A number is
+    // treated as em; pass a string for explicit units.
+    if (spec.size != null)
+    {
+        const prevSize = target.style.fontSize;
+        target.style.fontSize = (typeof spec.size === 'number') ? spec.size + 'em' : spec.size;
+        teardowns.push(() => { target.style.fontSize = prevSize; });
+    }
+    if (spec.spacing != null)
+    {
+        const prevSpacing = target.style.letterSpacing;
+        target.style.letterSpacing = (typeof spec.spacing === 'number') ? spec.spacing + 'em' : spec.spacing;
+        teardowns.push(() => { target.style.letterSpacing = prevSpacing; });
+    }
     const filters = [];
     if (typeof spec.hue === 'number') filters.push('hue-rotate(' + spec.hue + 'deg)');
     if (spec.invert) filters.push('invert(1)');
@@ -352,6 +373,43 @@ function applyMenuFx(element, spec)
     }
 
     return () => { while (teardowns.length) teardowns.pop()(); };
+}
+
+// ============================================================================
+// Theme helper — set the menu skin from JS instead of a CSS <style> block.
+// Each friendly key maps to a --menu-* custom property on #littlejs-menus.
+// Only the keys you pass change; everything else keeps its default. Numbers
+// for borderWidth/radius get 'px' appended; pass a string for other units.
+// Safe to call before any menu exists (it inits the root). Global per game.
+//   setMenuTheme({ bg:'#102', accent:'#f0a', radius:16, borderWidth:3 });
+// ============================================================================
+const MENU_THEME_VARS = {
+    bg:          '--menu-bg',
+    fg:          '--menu-fg',
+    accent:      '--menu-accent',
+    border:      '--menu-border-color',
+    itemBg:      '--menu-item-bg',
+    itemHoverBg: '--menu-item-hover-bg',
+    backdrop:    '--menu-backdrop',
+    disabled:    '--menu-disabled',
+    borderWidth: '--menu-border-width',
+    radius:      '--menu-radius',
+    font:        '--menu-font',
+};
+const MENU_THEME_PX = { borderWidth: 1, radius: 1 };   // keys whose numbers get 'px'
+
+function setMenuTheme(theme)
+{
+    if (!theme) return;
+    initMenuSystem();
+    for (const key in theme)
+    {
+        const cssVar = MENU_THEME_VARS[key];
+        if (!cssVar) { console.warn('setMenuTheme: unknown key "' + key + '"'); continue; }
+        let value = theme[key];
+        if (typeof value === 'number') value = value + (MENU_THEME_PX[key] ? 'px' : '');
+        menuSystemRoot.style.setProperty(cssVar, value);
+    }
 }
 
 function createMenu(config)

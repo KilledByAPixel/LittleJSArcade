@@ -79,6 +79,17 @@ b4.onclick=()=>showGameOverDialog({won:false, score:42});
 const b5=document.createElement('button'); b5.textContent='loss, fx disabled';
 b5.onclick=()=>showGameOverDialog({won:false, score:42, titleFx:null});
 [b3,b4,b5].forEach(b=>{document.body.appendChild(b);document.body.appendChild(document.createTextNode(' '));});
+
+// size + spacing tweaks on a live title, and setMenuTheme retheme
+createMenu({ id:'fxTitleD', title:'BIG WIDE', titleFx:{fill:'shine', size:2.6, spacing:0.18},
+    items:[{type:'button',label:'CLOSE',onClick:()=>hideMenu('fxTitleD')}] });
+const b6=document.createElement('button'); b6.textContent='show size+spacing';
+b6.onclick=()=>showMenu('fxTitleD');
+const b7=document.createElement('button'); b7.textContent='setMenuTheme (pink/round)';
+b7.onclick=()=>setMenuTheme({accent:'#f0a', bg:'rgba(25,0,35,.94)', radius:16, borderWidth:3});
+const b8=document.createElement('button'); b8.textContent='setMenuTheme (reset cyan)';
+b8.onclick=()=>setMenuTheme({accent:'#6cf', bg:'rgba(0,0,0,.85)', radius:12, borderWidth:2});
+[b6,b7,b8].forEach(b=>{document.body.appendChild(b);document.body.appendChild(document.createTextNode(' '));});
 </script>
 </body>
 </html>
