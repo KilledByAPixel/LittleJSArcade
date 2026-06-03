@@ -104,6 +104,11 @@
     button { font: inherit; color: inherit; cursor: pointer; }
 
     /* ===================== Sidebar ===================== */
+    /* Sidebar = the in-game game-switcher, hidden on the welcome floor.
+          NON-TOUCH: a persistent side panel that appears beside the game in-game
+          (the game fills the remaining space) — no overlay, no dim, no toggle.
+          TOUCH: an overlay drawer slid in by the game's Library button, dimming
+          the rest of the screen (the original mobile behavior). */
     #sidebar {
         width: 300px;
         flex: 0 0 300px;
@@ -112,14 +117,22 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        transition: margin-left .25s ease-out;
     }
-    /* Desktop: the library toggle collapses the panel by sliding it off-screen
-          left; the stage reflows to fill the space. (On mobile the panel is a
-          fixed overlay driven by .open in the media query below instead.) */
-    @media (min-width: 721px) {
-        #sidebar.closed { margin-left: -300px; }
+    /* Non-touch: no sidebar on the welcome floor (the base rule shows it in-game). */
+    body:not(.touch):not(.in-game) #sidebar { display: none; }
+    /* Touch: overlay drawer at all widths, hidden off-screen until opened. */
+    body.touch #sidebar {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: 320px;
+        max-width: 85vw;
+        flex: none;
+        z-index: 60;
+        transform: translateX(-100%);
+        transition: transform .25s ease-out;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, .5);
     }
+    body.touch #sidebar.open { transform: translateX(0); }
     #sidebar-header { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); }
 
     /* Sidebar logo — clickable "home" button */
@@ -687,8 +700,11 @@
         background: var(--text);
         border-radius: 2px;
     }
+    /* Backdrop dims the screen behind the TOUCH drawer (it only covers the side,
+          so we dim the rest) and catches an outside tap to close. Touch-only —
+          the non-touch side panel is in-flow and never overlays the game. */
     #backdrop {
-        display: none;             /* shown only via mobile media query */
+        display: none;
         position: fixed;
         inset: 0;
         background: rgba(0, 0, 0, .55);
@@ -697,6 +713,7 @@
         pointer-events: none;
         transition: opacity .22s;
     }
+    body.touch #backdrop { display: block; }
     #backdrop.show { opacity: 1; pointer-events: auto; }
 
     /* ===================== Polish: stagger + wiggle + dice + sparkle ===================== */
@@ -762,26 +779,10 @@
 
     /* ===================== Mobile / narrow viewport ===================== */
     @media (max-width: 720px) {
-        /* Sidebar becomes an overlay drawer — hidden offscreen by default,
-              slid in by the hamburger button. */
-        #sidebar {
-            position: fixed;
-            top: 0; left: 0; bottom: 0;
-            width: 320px;
-            max-width: 85vw;
-            flex: none;
-            z-index: 60;
-            transform: translateX(-100%);
-            transition: transform .25s ease-out;
-            box-shadow: 4px 0 24px rgba(0, 0, 0, .5);
-        }
-        #sidebar.open { transform: translateX(0); }
-        #backdrop  { display: block; }
+        /* Sidebar drawer behavior is handled by the touch rules above (not by
+              width), so there are no sidebar/backdrop overrides here. */
 
-        /* Stage takes the whole width once the sidebar is fixed-positioned. */
-        #stage { width: 100%; }
-
-        /* Welcome screen tweaks — extra top padding so the hamburger doesn't
+        /* Welcome screen tweaks — extra top padding so the top buttons don't
               overlap the logo, smaller side padding for more content width. */
         #welcome { padding: 60px 16px 40px; }
         #welcome-hero { margin-bottom: 24px; }
@@ -838,7 +839,10 @@
         transition: background .15s, border-color .15s, transform .15s;
     }
     #about-btn:hover { border-color: var(--accent); transform: scale(1.08); }
-    #hamburger { right: 118px; }                    /* shove left to make room for ? */
+    /* The launcher's own library toggle is retired — each game's top-right
+          toolbar now carries the Library button (on touch AND desktop, via the
+          menus.js handshake), so there's nothing for this to do. */
+    #hamburger { display: none; }
     body.in-game #about-btn { display: none; }
     @media (orientation: portrait) { html.ios-topbar #about-btn { top: 48px; } }
 
@@ -914,12 +918,6 @@
     .floor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 14px; padding-bottom: 36px; }
     /* Reuse the existing .tile look, but let it flex to the grid cell width. */
     .floor-grid .tile { width: auto; min-height: 104px; }
-    /* ★ marker on the front-loaded Top Picks */
-    .floor-grid .tile.featured::after {
-        content: '★'; position: absolute; top: 6px; right: 9px;
-        font-size: 13px; color: var(--cat-board);
-        text-shadow: 0 0 8px rgba(247,201,72,.7); pointer-events: none;
-    }
     /* Full-width divider before the Under Construction section (mirrors sidebar). */
     .floor-grid .floor-divider {
         grid-column: 1 / -1;
@@ -1614,6 +1612,7 @@ function floorGames() {
 }
 
 let floorCat = 'all';
+let floorQuery = '';
 
 function buildFloorControls() {
     const wrap = document.createElement('div');
@@ -1628,8 +1627,16 @@ function buildFloorControls() {
     const tools = document.createElement('div');
     tools.className = 'floor-tools';
 
-    // No search box here — the sidebar owns search ("find a title"); the floor
-    // is for browsing (hero + chips + the wall). One search, no duplication.
+    // Floor search — the welcome's own search (the sidebar, which has its own
+    // search, isn't shown here; it's the in-game switcher). They never coexist,
+    // so there's no duplication.
+    const search = document.createElement('input');
+    search.className = 'floor-search';
+    search.type = 'text';
+    search.placeholder = 'Search games…';
+    search.value = floorQuery;
+    search.addEventListener('input', () => { floorQuery = search.value.trim().toLowerCase(); buildFloorGrid(); });
+    tools.appendChild(search);
 
     const chips = document.createElement('div');
     chips.className = 'floor-chips';
@@ -1657,7 +1664,7 @@ function buildFloorControls() {
     return wrap;
 }
 
-// Render the grid: ★ Top Picks first (by rank), then the rest shuffled, then a
+// Render the grid: Top Picks first (shuffled), then the rest shuffled, then a
 // separate "Under Construction" section at the bottom (not mixed in).
 function buildFloorGrid() {
     const grid = document.getElementById('floor-grid');
@@ -1666,14 +1673,12 @@ function buildFloorGrid() {
 
     let games = floorGames();
     if (floorCat !== 'all') games = games.filter(g => g.category === floorCat);
-    // Text filter comes from the sidebar search — one box drives both the
-    // sidebar list and this grid.
-    const q = searchEl.value.trim().toLowerCase();
-    if (q) {
+    // Text filter comes from the floor's own search box.
+    if (floorQuery) {
         games = games.filter(g => {
             const gp = hasGamepad(g) ? ' gamepad controller' : '';
             const hay = (g.name + ' ' + g.desc + ' ' + g.category + ' ' + g.tags.join(' ') + ' ' + (g.keywords || []).join(' ') + gp).toLowerCase();
-            return hay.includes(q);
+            return hay.includes(floorQuery);
         });
     }
 
@@ -1682,8 +1687,9 @@ function buildFloorGrid() {
     const construction = games.filter(g => g.category === 'construction');
     const regular = games.filter(g => g.category !== 'construction');
 
-    // Finished games: ★ Top Picks first (by rank), then the rest shuffled.
-    const featured = regular.filter(g => g.top != null).sort((a, b) => a.top - b.top);
+    // Finished games: Top Picks lead, but shuffled among themselves (not by
+    // rank), then the rest shuffled too — best stuff first, never the same order.
+    const featured = shuffledCopy(regular.filter(g => g.top != null), mulberry32(floorSeed() + 7));
     const rest = shuffledCopy(regular.filter(g => g.top == null), mulberry32(floorSeed()));
     const ordered = [...featured, ...rest];
 
@@ -1699,11 +1705,7 @@ function buildFloorGrid() {
     }
 
     let i = 0;
-    for (const g of ordered) {
-        const tile = makeTile(g, i++);
-        if (g.top != null) tile.classList.add('featured');
-        grid.appendChild(tile);
-    }
+    for (const g of ordered) grid.appendChild(makeTile(g, i++));
 
     // Bottom section — kept in natural (A–Z) order like the sidebar's WIP shelf.
     if (construction.length) {
@@ -1739,7 +1741,7 @@ function buildWelcome() {
         welcomeEl.appendChild(buildRow('Recently Played', '🕘', recentGames, false, null));
     }
 
-    // 3) All Games — controls + one responsive grid (★ picks first, rest shuffled).
+    // 3) All Games — controls + one responsive grid (top picks first, all shuffled).
     const section = document.createElement('div');
     section.className = 'floor-section';
     section.appendChild(buildFloorControls());
@@ -1874,6 +1876,7 @@ function showWelcome(pushHistory = true) {
     const wasGame = currentFile !== null;
     currentFile = null;
     document.body.classList.remove('in-game');
+    setDrawer(false);   // never leave the drawer open over the welcome floor
     document.title = BASE_TITLE;
     loadIframe('about:blank');
     frameEl.style.display = 'none';
@@ -2017,9 +2020,9 @@ window.littlejsDebug = (on = true) => littlejsBuild(on ? 'debug' : 'release');
 // ===================== Wire-up =====================
 
 sidebarLogoWrap.addEventListener('click', showWelcome);
-// One search drives both views: the sidebar list and the welcome floor grid.
-// buildFloorGrid no-ops when the grid isn't mounted (i.e. while in a game).
-searchEl.addEventListener('input', () => { renderList(); buildFloorGrid(); });
+// The sidebar search filters the sidebar list (the in-game switcher). The floor
+// has its own search; the two are never on screen together.
+searchEl.addEventListener('input', renderList);
 window.addEventListener('hashchange', loadFromHash);
 
 // While the sidebar list is scrolling, disable hover effects so cards
@@ -2068,24 +2071,27 @@ const sidebarEl = document.getElementById('sidebar');
 const hamburgerBtn = document.getElementById('hamburger');
 const backdropEl = document.getElementById('backdrop');
 const isMobile = () => matchMedia('(max-width: 720px)').matches;
+// Touch detection (matches menus.js) selects the sidebar mode: non-touch gets a
+// persistent in-game side panel (shown via body.in-game in CSS); touch gets an
+// overlay drawer opened by the game's Library button.
+const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if (isTouch) document.body.classList.add('touch');
 
-// Panel starts open on desktop, closed on mobile. The class pair is
-// dual-purpose: .open drives the mobile overlay drawer, .closed collapses the
-// desktop panel — only one matters per breakpoint, so both are set together.
-let sidebarOpen = !isMobile();
+// The touch drawer starts closed (the non-touch side panel is shown by CSS).
+let sidebarOpen = false;
 
 function setDrawer(open) {
     sidebarOpen = open;
     sidebarEl.classList.toggle('open', open);
-    sidebarEl.classList.toggle('closed', !open);
     backdropEl.classList.toggle('show', open);
 }
 hamburgerBtn.addEventListener('click', () => setDrawer(!sidebarOpen));
 backdropEl.addEventListener('click', () => setDrawer(false));
-// On mobile only, picking a game or hitting the home logo closes the drawer so
-// the user lands cleanly on their pick. On desktop the panel stays put.
-listEl.addEventListener('click', e => { if (e.target.closest('.card') && isMobile()) setDrawer(false); });
-sidebarLogoWrap.addEventListener('click', () => { if (isMobile()) setDrawer(false); });
+// Touch: picking a game from the drawer closes it so you land on the game.
+// (Non-touch's side panel is persistent — nothing to close on pick.)
+listEl.addEventListener('click', e => { if (isTouch && e.target.closest('.card')) setDrawer(false); });
+// Home logo closes the touch drawer and returns to the floor.
+sidebarLogoWrap.addEventListener('click', () => setDrawer(false));
 
 // ===================== In-game Library button (iframe handshake) =====================
 // Games running inside this iframe show a Library button in their toolbar to
@@ -2107,7 +2113,10 @@ window.addEventListener('message', e => {
 });
 
 document.addEventListener('keydown', e => {
-    if (document.activeElement === searchEl && e.key !== 'Escape') return;
+    // Don't hijack keys while typing in either search box (sidebar or floor).
+    const ae = document.activeElement;
+    const inSearch = ae === searchEl || (ae && ae.classList && ae.classList.contains('floor-search'));
+    if (inSearch && e.key !== 'Escape') return;
     const cards = Array.from(listEl.querySelectorAll('.card'));
     if (e.key === 'ArrowDown' && cards.length) {
         e.preventDefault();
@@ -2127,15 +2136,18 @@ document.addEventListener('keydown', e => {
         const prev = cards[newIdx];
         selectGame(prev.dataset.file);
         prev.scrollIntoView({ block:'nearest' });
-    } else if (e.key === '/' && document.activeElement !== searchEl) {
+    } else if (e.key === '/') {
         e.preventDefault();
-        searchEl.focus();
-        searchEl.select();
-    } else if (e.key === 'Escape' && document.activeElement === searchEl) {
-        searchEl.value = '';
-        renderList();
-        buildFloorGrid();
-        searchEl.blur();
+        // Focus whichever search is visible: floor search on the welcome,
+        // sidebar search while in a game.
+        const fs = !currentFile && document.querySelector('.floor-search');
+        (fs || searchEl).focus();
+        (fs || searchEl).select();
+    } else if (e.key === 'Escape' && inSearch) {
+        ae.value = '';
+        if (ae === searchEl) renderList();
+        else { floorQuery = ''; buildFloorGrid(); }
+        ae.blur();
     }
 });
 
