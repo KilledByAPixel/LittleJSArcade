@@ -120,6 +120,24 @@ function minimaxValue(game, state, depth, maxPlayer)
 //   3. Killer-move heuristic: two killer slots per ply updated on beta
 //      cutoffs; tried after the TT best-move in move ordering.
 
+// Thrown by the yielder to abort a search that has blown its time budget. The
+// partially-searched iteration is discarded and the best move from the last
+// fully-completed iteration is returned. Caught only inside alphaBetaAI.
+const SEARCH_TIMEOUT = {searchTimeout: true};
+
+// Fisher-Yates in-place shuffle. Used to randomize root-move order when the
+// caller opts in (options.rootRandom) so equally-good moves are chosen at
+// random — gives game-to-game variety without weakening play.
+function shuffleInPlace(arr)
+{
+    for (let i = arr.length - 1; i > 0; i--)
+    {
+        const j = Math.floor(Math.random() * (i + 1));
+        const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+    return arr;
+}
+
 async function alphaBetaAI(game, state, depth, options = {})
 {
     const player = game.getCurrentPlayer(state);
@@ -132,12 +150,27 @@ async function alphaBetaAI(game, state, depth, options = {})
     // fires after each root-move's subtree completes during every iterative-
     // deepening iteration. Lets the consumer show fine-grained progress.
     const onRootProgress = options.onRootProgress || null;
+    // Optional wall-clock budget (ms). When set, iterative deepening keeps going
+    // until the budget is spent, then returns the best move from the last fully-
+    // completed depth. Guarantees the AI always moves in bounded time regardless
+    // of position. 0/undefined = no budget (search the full requested depth).
+    const maxTimeMs = options.maxTimeMs || 0;
+    // Randomize root move order so equal-scored moves vary between games.
+    const rootRandom = !!options.rootRandom;
+    const searchStart = performance.now();
+    // Hard wall-clock deadline, armed from the start so even the first iteration
+    // (including its quiescence search) is bounded. When an iteration is aborted
+    // mid-flight, the root salvages the best fully-searched move so far, so we
+    // never return null. Infinity = no budget (search the full requested depth).
+    const deadline = maxTimeMs ? searchStart + maxTimeMs : Infinity;
     let lastYieldTime = performance.now();
     const yielder = async () => {
         const now = performance.now();
+        if (now >= deadline) throw SEARCH_TIMEOUT;
         if (now - lastYieldTime >= yieldEveryMs) {
             await new Promise(r => setTimeout(r, 0));
             lastYieldTime = performance.now();
+            if (performance.now() >= deadline) throw SEARCH_TIMEOUT;
         }
     };
 
@@ -160,13 +193,26 @@ async function alphaBetaAI(game, state, depth, options = {})
         const rootCb = onRootProgress
             ? (rootIdx, rootTotal) => onRootProgress(rootIdx, rootTotal, d, depth)
             : null;
-        const result = await alphaBetaSearch(game, state, d, -Infinity, Infinity, player, 0, tt, killers, yielder, rootCb);
+        let result;
+        try {
+            result = await alphaBetaSearch(game, state, d, -Infinity, Infinity, player, 0, tt, killers, yielder, rootCb, rootRandom);
+        } catch (e) {
+            // The root salvages timeouts (returning a move with timedOut:true), so
+            // reaching here means we ran out of time before searching even one root
+            // move — keep the best move from the previous completed depth and stop.
+            if (e === SEARCH_TIMEOUT) break;
+            throw e;
+        }
         if (result.move !== null)
             bestMove = result.move;
         if (onProgress) onProgress(d, depth);
         // Yield unconditionally between iterations so the progress callback's UI update gets a chance to render.
         await new Promise(r => setTimeout(r, 0));
         lastYieldTime = performance.now();
+        // A time-truncated (partial) iteration: stop deepening — we already took its
+        // best-so-far move above. Also stop if the budget is spent.
+        if (result.timedOut) break;
+        if (maxTimeMs && performance.now() >= deadline) break;
     }
 
     return bestMove;
@@ -175,7 +221,7 @@ async function alphaBetaAI(game, state, depth, options = {})
 // alphaBetaSearch — recursive negamax-style alpha-beta with TT and killers.
 // Returns {score, move}. `onRootProgress` fires only at ply 0, after each
 // root move's subtree completes.
-async function alphaBetaSearch(game, state, depth, alpha, beta, maxPlayer, ply, tt, killers, yielder, onRootProgress)
+async function alphaBetaSearch(game, state, depth, alpha, beta, maxPlayer, ply, tt, killers, yielder, onRootProgress, rootRandom)
 {
     // Capture alpha before any TT adjustment — required for correct flag.
     const alphaOrig = alpha;
@@ -219,6 +265,12 @@ async function alphaBetaSearch(game, state, depth, alpha, beta, maxPlayer, ply, 
     if (!moves.length)
         return {score: game.evaluate(state, maxPlayer), move: null};
 
+    // Randomize root move order (opt-in) so ties between equally-good moves are
+    // broken differently each game. Done before orderMoves so the TT/killer best
+    // moves still float to the front for pruning — only the tail (and thus tie
+    // resolution) is randomized; a uniquely-best move is unaffected.
+    if (ply === 0 && rootRandom) shuffleInPlace(moves);
+
     // Move ordering: TT best-move first, then killers, then the rest.
     orderMoves(moves, ttEntry, killers[ply]);
 
@@ -230,8 +282,18 @@ async function alphaBetaSearch(game, state, depth, alpha, beta, maxPlayer, ply, 
     {
         const move = moves[i];
         const next = game.applyMove(state, move, player);
-        const childResult = await alphaBetaSearch(
-            game, next, depth - 1, alpha, beta, maxPlayer, ply + 1, tt, killers, yielder, null);
+        let childResult;
+        try {
+            childResult = await alphaBetaSearch(
+                game, next, depth - 1, alpha, beta, maxPlayer, ply + 1, tt, killers, yielder, null, false);
+        } catch (e) {
+            // Out of time. At the root, salvage the best fully-searched move so far
+            // (bestMove defaults to moves[0], so it is always a legal move). Deeper
+            // nodes re-throw so the abort unwinds all the way up to the root.
+            if (e === SEARCH_TIMEOUT && ply === 0)
+                return {score: bestScore, move: bestMove, timedOut: true};
+            throw e;
+        }
         const score = childResult.score;
 
         if (isMax)

@@ -88,6 +88,12 @@ let moveHistory = []; // stack of pre-move states for undo
 const AI_THINK_DELAY = 0.6;
 const AI_VS_AI_DELAY = 0.8;
 
+// HARD difficulty: time-budgeted iterative deepening. Search keeps deepening
+// until HARD_TIME_MS is spent (keeping the best move from the last fully-
+// completed depth), capped at HARD_MAX_DEPTH so trivial positions don't spin.
+const HARD_TIME_MS = 1500;
+const HARD_MAX_DEPTH = 6;
+
 // Sounds
 let sfxMove, sfxCapture, sfxCheck, sfxWin, sfxLose, sfxSelect;
 
@@ -394,7 +400,15 @@ function applyMoveOnState(state, move)
     // Halfmove clock: reset on pawn move or capture, else increment
     const newHalfmove = (piece.type === PIECE_PAWN || move.captured) ? 0 : state.halfmoveClock + 1;
 
-    // Build new state
+    // Build new state. NOTE: positionHistory is intentionally NOT maintained here.
+    // This function is on the hottest path in the engine — it runs for every
+    // legal-move check (king-safety test) AND every search node. Slicing and
+    // JSON-stringifying a position-history array that GROWS with each real move
+    // played was the dominant per-node cost and the source of the move-over-move
+    // slowdown. The live game maintains positionHistory itself in makeMove(), and
+    // threefold repetition is detected on the live state in detectGameEnd(). The
+    // AI search therefore does not see repetition draws — acceptable, since the
+    // live game still ends correctly on threefold.
     const newState = {
         board: nb,
         currentPlayer: o,
@@ -402,14 +416,10 @@ function applyMoveOnState(state, move)
         enPassantTarget: newEnPassant,
         halfmoveClock: newHalfmove,
         fullmoveNumber: state.fullmoveNumber + (piece.color === COLOR_BLACK ? 1 : 0),
-        positionHistory: state.positionHistory.slice(),
         gameOver: false,
         result: null,
         winner: null,
     };
-    newState.positionHistory.push(JSON.stringify({
-        b: nb, p: o, c: newRights, e: newEnPassant,
-    }));
     return newState;
 }
 
@@ -670,8 +680,13 @@ const chessGame = {
 
     getCaptureMoves(state, color)
     {
-        // Subset of legalMovesForState containing only captures (including en passant).
-        const all = legalMovesForState(state, color);
+        // Subset of legal moves containing only captures (including en passant).
+        // Reuse the cache applyMove populated for this side when available —
+        // quiescence calls this at every node, so recomputing the full legal-move
+        // list here (board clones + check tests for every move) was pure waste.
+        const all = (state._legalMovesForCurrent && state.currentPlayer === color)
+            ? state._legalMovesForCurrent
+            : legalMovesForState(state, color);
         return all.filter(m => m.captured);
     },
 
@@ -696,13 +711,9 @@ const chessGame = {
             next.gameOver = true; next.result = 'draw-50'; next.winner = null;
         } else if (hasInsufficientMaterial(next.board)) {
             next.gameOver = true; next.result = 'draw-material'; next.winner = null;
-        } else {
-            // Threefold check
-            const lastHash = next.positionHistory[next.positionHistory.length - 1];
-            let count = 0;
-            for (const h of next.positionHistory) if (h === lastHash) count++;
-            if (count >= 3) { next.gameOver = true; next.result = 'draw-3fold'; next.winner = null; }
         }
+        // Threefold repetition is intentionally NOT detected inside the search —
+        // the search state no longer carries positionHistory (see applyMoveOnState).
         return next;
     },
 
@@ -722,18 +733,14 @@ const chessGame = {
 function strategyForDifficulty(d)
 {
     if (d === 'easy')   return (game, state, opts) => randomAI(game, state);
-    if (d === 'medium') return (game, state, opts) => alphaBetaAI(game, state, 3, opts);
-    // HARD: adaptive depth based on piece count. Branching shrinks as pieces
-    // come off the board, so we can afford deeper search in the endgame.
+    // Medium: fixed depth 3. rootRandom varies ties so it doesn't replay the
+    // identical game every time.
+    if (d === 'medium') return (game, state, opts) => alphaBetaAI(game, state, 3, {...opts, rootRandom: true});
+    // HARD: iterative deepening bounded by a wall-clock budget instead of a fixed
+    // depth. This guarantees a move in bounded time no matter the position (the
+    // old fixed depth-6 endgame search could take minutes and appear frozen).
     return (game, state, opts) =>
-    {
-        let pieces = 0;
-        for (let r = 0; r < BOARD_SIZE; r++)
-            for (let c = 0; c < BOARD_SIZE; c++)
-                if (state.board[r][c]) pieces++;
-        const depth = pieces > 24 ? 4 : pieces > 12 ? 5 : 6;
-        return alphaBetaAI(game, state, depth, opts);
-    };
+        alphaBetaAI(game, state, HARD_MAX_DEPTH, {...opts, maxTimeMs: HARD_TIME_MS, rootRandom: true});
 }
 
 function findBestAIMove(opts = {})
@@ -869,7 +876,10 @@ function makeMove(move)
     enPassantTarget = newState.enPassantTarget;
     halfmoveClock = newState.halfmoveClock;
     fullmoveNumber = newState.fullmoveNumber;
-    positionHistory = newState.positionHistory;
+    // applyMoveOnState no longer tracks history (hot-path optimization), so the
+    // live game appends the post-move position hash here. Globals are already
+    // updated above, so positionHash() reflects the new position.
+    positionHistory = [...positionHistory, positionHash()];
     lastMove = {from: move.from, to: move.to};
     selectedSquare = null;
     legalMovesForSelected = [];
