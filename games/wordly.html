@@ -259,11 +259,20 @@ function gameInit() {
     saveDataInit('WordGuess');
     setMenuVisibilityCallback(v => paused = v);
 
+    // Wordle-style menu skin
+    setMenuTheme({
+        bg:          'rgba(18,18,19,.96)',
+        accent:      '#6aaa64',
+        backdrop:    'rgba(0,0,0,.6)',
+        borderWidth: 2,
+        radius:      6,
+    });
+
     newGame();
 
     createTitleMenu({
         title: 'WORDLY',
-        titleFx: {fill:'shine', color:'#6aaa64'},
+        titleFx: {fill:'shine', color:'#6aaa64', spacing:0.12},
         subtitle: 'Guess the 5-letter word in 6 tries',
         showBest: true,
         formatBest: n => 'BEST STREAK ' + n,
