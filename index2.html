@@ -1,0 +1,2284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- meta tags for social media -->
+<meta name='twitter:title'       content='LittleJS Arcade'>
+<meta property='og:title'        content='LittleJS Arcade'>
+<meta name='description'         content='A collection of retro arcade games with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.'>
+<meta name='twitter:description' content='A collection of retro arcade games with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.'>
+<meta property='og:description'  content='A collection of retro arcade games with the LittleJS HTML5 engine. Play instantly in your browser — no installs, fully open-source.'>
+<meta name='twitter:image'       content='https://killedbyapixel.github.io/LittleJSArcade/images/social_image.png'>
+<meta property='og:image'        content='https://killedbyapixel.github.io/LittleJSArcade/images/social_image.png'>
+<meta name='keywords'            content='LittleJS, arcade games, browser games, HTML5 games, JavaScript games, free games, retro games, open source games'>
+<meta name='twitter:creator'     content='@KilledByAPixel'>
+<meta name='twitter:card'        content='summary_large_image'>
+<meta property='og:url'          content='https://killedbyapixel.github.io/LittleJSArcade/'>
+<meta property='og:type'         content='website'>
+
+<title>The LittleJS Arcade</title>
+<link rel="icon" type="image/png" sizes="32x32" href="images/favicon.png">
+<link rel="apple-touch-icon" href="images/logo.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0e14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="LittleJS Arcade">
+<script>
+    // Apply the saved light/dark theme before first paint so there's no flash
+    // of the wrong theme on reload. The toggle wiring lives in the main script.
+    document.documentElement.setAttribute('data-theme',
+        localStorage.getItem('littlejs-games-theme') === 'light' ? 'light' : 'dark');
+</script>
+<style>
+    :root {
+        --bg: #0b0e14;
+        --bg-2: #0e1320;
+        --panel: #141a26;
+        --panel-2: #1c2332;
+        --border: #252e40;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --accent: #58a6ff;
+        --accent-2: #ff7eb6;
+        --accent-bg: #1a2f4d;
+        --chip-bg: #232b3c;
+        --chip-text: #adbac7;
+        --spark: #fff;            /* ambient starfield + logo sparkle color */
+        --tile-base: #0d1117;     /* base color the Top Picks tiles tint over */
+        --tile-border: #3a4862;   /* Top Picks tile border */
+
+        /* Per-category accent + translucent fill, applied via --cat-color / --cat-bg
+              CSS vars set on chips/tiles/row headers at build time. */
+        --cat-arcade:  #58a6ff;   --cat-arcade-bg:  rgba(88,166,255,.18);
+        --cat-shooter: #ff7eb6;   --cat-shooter-bg: rgba(255,126,182,.18);
+        --cat-puzzle:  #bb86fc;   --cat-puzzle-bg:  rgba(187,134,252,.18);
+        --cat-board:   #f7c948;   --cat-board-bg:   rgba(247,201,72,.18);
+        --cat-strategy:#2dd4bf;   --cat-strategy-bg:rgba(45,212,191,.18);
+        --cat-sports:  #4ade80;   --cat-sports-bg:  rgba(74,222,128,.18);
+        --cat-physics: #fb7185;   --cat-physics-bg: rgba(251,113,133,.18);
+        --cat-construction: #ff9744; --cat-construction-bg: rgba(255,151,68,.18);
+        --cat-frankforce: #22d3ee; --cat-frankforce-bg: rgba(34,211,238,.18);
+    }
+    /* Light theme — overrides the surface/text palette only; the bright
+          category + accent hues carry over (they read fine on light too). */
+    :root[data-theme="light"] {
+        --bg: #dde1e8;
+        --bg-2: #e6e9ef;
+        --panel: #ffffff;
+        --panel-2: #eef1f6;
+        --border: #d0d6e0;
+        --text: #1b2230;
+        --muted: #5a6573;
+        --accent: #2f7ad6;
+        --accent-2: #d6488f;
+        --accent-bg: #dbe8fb;
+        --chip-bg: #e6eaf1;
+        --chip-text: #3c4658;
+        --spark: #2f7ad6;
+        --tile-base: #ffffff;
+        --tile-border: #d0d6e0;
+    }
+    * { box-sizing: border-box; }
+    /* `height: 100%` on iOS measures the layout viewport (which extends behind
+          the browser URL bar in portrait), pushing fixed elements off-screen at
+          the top. `100dvh` measures the dynamic visible viewport — correct on
+          iOS, falls back to 100% on browsers that don't understand dvh. */
+    html, body { margin: 0; padding: 0; height: 100%; height: 100dvh; overflow: hidden; }
+    body {
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        display: flex;
+        /* Disable text selection on the launcher chrome — every clickable element
+              launches a game, so accidental selections just get in the way. The
+              iframe content is in its own document and is unaffected. */
+        user-select: none;
+        -webkit-user-select: none;
+    }
+    /* …but keep text inputs selectable, obviously. */
+    input, textarea { user-select: text; -webkit-user-select: text; }
+    button { font: inherit; color: inherit; cursor: pointer; }
+
+    /* ===================== Sidebar ===================== */
+    #sidebar {
+        width: 300px;
+        flex: 0 0 300px;
+        background: var(--panel);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        transition: margin-left .25s ease-out;
+    }
+    /* Desktop: the library toggle collapses the panel by sliding it off-screen
+          left; the stage reflows to fill the space. (On mobile the panel is a
+          fixed overlay driven by .open in the media query below instead.) */
+    @media (min-width: 721px) {
+        #sidebar.closed { margin-left: -300px; }
+    }
+    #sidebar-header { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); }
+
+    /* Sidebar logo — clickable "home" button */
+    #sidebar-logo-wrap {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 12px;
+        cursor: pointer;
+        /* One-time entrance pop lives on the wrapper so hover state changes on
+              the logo never replay it. */
+        animation: splat .55s cubic-bezier(.34, 1.56, .64, 1);
+    }
+    /* Breathing glow lives on the logo's own drop-shadow (no separate halo). */
+    @keyframes logo-breathe {
+        0%, 100% { filter: drop-shadow(0 3px 8px rgba(88, 166, 255, .35))
+                           drop-shadow(0 0 12px rgba(255, 126, 182, .15)); }
+        50%      { filter: drop-shadow(0 3px 13px rgba(88, 166, 255, .6))
+                           drop-shadow(0 0 22px rgba(255, 126, 182, .32)); }
+    }
+    /* Gentle left/right wobble on hover — keeps the hover scale baked in so it
+          isn't overridden by the transform animation. */
+    @keyframes logo-wobble {
+        0%, 100% { transform: scale(1.05) rotate(0deg); }
+        25%      { transform: scale(1.05) rotate(-4deg); }
+        75%      { transform: scale(1.05) rotate(4deg); }
+    }
+    #sidebar-logo-title {
+        margin-top: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: var(--accent);
+        text-align: center;
+        text-shadow: 0 0 10px rgba(88, 166, 255, .55),
+                     0 0 18px rgba(255, 126, 182, .3);
+        transition: color .15s, text-shadow .15s;
+    }
+    #sidebar-logo-wrap:hover #sidebar-logo-title {
+        color: var(--accent-2);
+        text-shadow: 0 0 12px rgba(255, 126, 182, .65),
+                     0 0 22px rgba(88, 166, 255, .35);
+    }
+    #sidebar-logo {
+        height: 64px;
+        width: auto;
+        filter: drop-shadow(0 3px 10px rgba(88, 166, 255, .45))
+                drop-shadow(0 0 16px rgba(255, 126, 182, .2));
+        transition: transform .15s, filter .15s;
+        animation: logo-breathe 4s ease-in-out infinite;
+    }
+    #sidebar-logo-wrap:hover #sidebar-logo {
+        animation: logo-breathe 4s ease-in-out infinite,
+                   logo-wobble 2.5s linear infinite;
+    }
+
+    #search {
+        width: 100%;
+        padding: 7px 10px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        font: inherit;
+        outline: none;
+    }
+    #search:focus { border-color: var(--accent); }
+
+    #filter-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-top: 10px;
+    }
+    .chip-filter {
+        background: var(--chip-bg);
+        color: var(--chip-text);
+        border: 1px solid transparent;
+        padding: 3px 9px;
+        border-radius: 11px;
+        font-size: 11px;
+        text-transform: lowercase;
+        letter-spacing: .3px;
+        transition: background .1s, color .1s, border-color .1s;
+    }
+    .chip-filter:hover { background: var(--panel-2); color: var(--text); }
+    .chip-filter.active {
+        background: var(--cat-bg, var(--accent-bg));
+        color: var(--text);
+        border-color: var(--cat-color, var(--accent));
+    }
+
+    /* overflow-anchor: none disables Chrome's scroll-anchoring at the list
+          bottom. Without it, hovering the last card expands its body, which
+          grows scrollHeight, which the browser "corrects" by shifting scrollTop —
+          and that shift moves the card out from under the cursor, triggering a
+          hover-collapse-anchor-expand oscillation loop. */
+    #list { flex: 1; overflow-y: auto; padding: 6px 0; overflow-anchor: none; }
+    #list::-webkit-scrollbar { width: 10px; }
+    #list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+    /* Suppress hover during scroll — otherwise each card under the cursor
+          briefly expands as the list slides by, causing visible flicker.
+          Gated to hover-capable (mouse) devices: on touch there's no hover to
+          suppress, and pointer-events:none would block the finger from grabbing
+          the list to stop its momentum scroll until the glide settled on its own. */
+    @media (hover: hover) {
+        #list.scrolling { pointer-events: none; }
+    }
+
+    .card {
+        padding: 8px 14px;
+        border-left: 3px solid transparent;
+        cursor: pointer;
+        user-select: none;
+        transition: background .08s;
+    }
+    .card:hover { background: var(--panel-2); }
+    .card.selected {
+        background: var(--accent-bg);
+        border-left-color: var(--accent);
+    }
+    .card .title {
+        font-weight: 500;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    /* Fixed-width emoji slot so titles line up regardless of glyph width. */
+    .card .title .emoji {
+        font-size: 18px;
+        line-height: 1;
+        flex: 0 0 22px;
+        text-align: center;
+    }
+    .card .title .name { flex: 1; min-width: 0; }
+    .card .body {
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        transition: max-height .15s, opacity .15s, margin-top .15s;
+    }
+    .card:hover .body, .card.selected .body {
+        max-height: 200px;
+        opacity: 1;
+        margin-top: 6px;
+    }
+    .card .desc { color: var(--muted); font-size: 12.5px; margin-bottom: 6px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+    .chip {
+        background: var(--chip-bg);
+        color: var(--chip-text);
+        padding: 1px 7px;
+        border-radius: 10px;
+        font-size: 10.5px;
+        text-transform: lowercase;
+        letter-spacing: .3px;
+    }
+    .empty { padding: 20px 16px; color: var(--muted); font-size: 13px; text-align: center; }
+
+    /* High-score badge — gold accent, used on tiles + sidebar cards. */
+    .score-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        background: rgba(247, 201, 72, .14);
+        color: #f7c948;
+        border: 1px solid rgba(247, 201, 72, .35);
+        padding: 1px 7px;
+        border-radius: 8px;
+        font-size: 10.5px;
+        font-weight: 600;
+        letter-spacing: .2px;
+        line-height: 1.3;
+    }
+    .card .body .score-badge { margin-bottom: 6px; }
+    .tile .score-badge {
+        align-self: flex-start;
+        justify-self: start;
+        margin: 2px 0 4px;
+    }
+
+    /* Subtle divider that separates "main" games from under-construction ones
+          at the bottom of the sidebar list. */
+    .list-divider {
+        margin: 14px 14px 4px;
+        padding-top: 10px;
+        border-top: 1px dashed var(--border);
+        color: var(--cat-construction);
+        font-size: 10.5px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.2px;
+    }
+
+    /* Sidebar footer — controls live here so they never overlap the game */
+    #sidebar-footer {
+        padding: 10px 14px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 6px;
+    }
+    #sidebar-footer .btn {
+        flex: 1;
+        text-align: center;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        padding: 7px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        text-decoration: none;
+        transition: background .1s, border-color .1s, opacity .1s;
+    }
+    #sidebar-footer .btn:hover:not(.disabled) {
+        background: var(--accent-bg);
+        border-color: var(--accent);
+    }
+    #sidebar-footer .btn.disabled { opacity: .35; cursor: not-allowed; pointer-events: none; }
+
+    /* ===================== Stage ===================== */
+    #stage {
+        flex: 1;
+        position: relative;
+        overflow: hidden;
+        /* gradient base lives on the stage so the starfield canvas can paint
+              transparent on top without losing the welcome backdrop. */
+        background: linear-gradient(180deg, var(--bg-2) 0%, var(--bg) 100%);
+    }
+    #frame { width: 100%; height: 100%; border: 0; display: block; position: relative; z-index: 2; }
+    #starfield { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+
+    /* ===================== Welcome screen ===================== */
+    #welcome {
+        position: absolute;
+        inset: 0;
+        overflow-y: auto;
+        z-index: 1;
+        background:
+            radial-gradient(ellipse at 50% 0%, rgba(88, 166, 255, .12) 0%, transparent 55%),
+            radial-gradient(ellipse at 80% 100%, rgba(255, 126, 182, .08) 0%, transparent 50%);
+        padding: 40px 48px 60px;
+    }
+    #welcome::-webkit-scrollbar { width: 10px; }
+    #welcome::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
+
+    #welcome-hero {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-bottom: 32px;
+    }
+    #welcome-logo {
+        width: min(220px, 30vw);
+        height: auto;
+        filter: drop-shadow(0 8px 28px rgba(88, 166, 255, .45))
+                        drop-shadow(0 0 40px rgba(255, 126, 182, .2));
+        animation: splat .7s cubic-bezier(.34, 1.56, .64, 1),
+                              float 5s ease-in-out infinite 1s;
+    }
+    #welcome-tagline {
+        margin-top: 14px;
+        color: var(--muted);
+        font-size: 14px;
+        letter-spacing: .5px;
+    }
+
+    #quick-actions {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        margin-bottom: 36px;
+        flex-wrap: wrap;
+    }
+    .quick-btn {
+        background: linear-gradient(135deg, var(--accent-bg), var(--panel));
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 12px 22px;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: transform .12s, border-color .12s, box-shadow .12s;
+    }
+    .quick-btn:hover {
+        transform: translateY(-2px);
+        border-color: var(--accent);
+        box-shadow: 0 6px 20px rgba(88, 166, 255, .25);
+    }
+    .quick-btn.primary {
+        background: linear-gradient(135deg, var(--accent), #2978d3);
+        border-color: var(--accent);
+    }
+    .quick-btn.primary:hover {
+        box-shadow: 0 6px 24px rgba(88, 166, 255, .5);
+    }
+    .quick-btn .icon { font-size: 16px; }
+    .quick-btn .sub {
+        color: rgba(255, 255, 255, .7);
+        font-size: 12px;
+        margin-left: 4px;
+    }
+
+    .row { margin-bottom: 32px; max-width: 100%; }
+    .row h2 {
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: var(--muted);
+        margin: 0 0 12px;
+        padding-left: 4px;
+    }
+    .row .tiles {
+        display: flex;
+        gap: 14px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 12px 4px 14px;     /* top padding gives hover-lift room */
+        cursor: grab;
+    }
+    .row .tiles.dragging { cursor: grabbing; }
+    .row .tiles.dragging .tile { pointer-events: none; }
+
+    /* Row header — small colored bar + category emoji */
+    .row h2 .row-bar {
+        display: inline-block;
+        width: 4px;
+        height: 14px;
+        margin-right: 8px;
+        vertical-align: -2px;
+        border-radius: 2px;
+        background: var(--cat-color, var(--accent));
+    }
+    .row h2 .row-emoji {
+        margin-right: 6px;
+        filter: drop-shadow(0 0 6px var(--cat-color, var(--accent)));
+    }
+    .row .tiles::-webkit-scrollbar { height: 8px; }
+    .row .tiles::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    /* Tiles wrapper hosts the edge scroll buttons */
+    .tiles-wrap { position: relative; }
+
+    /* Edge buttons — full-height columns at left/right that combine the
+          fade gradient and the click target. Chevron sits inside the fade. */
+    .edge-scroll {
+        position: absolute;
+        top: 0;
+        bottom: 12px;               /* clear the horizontal scrollbar */
+        width: 64px;
+        border: 0;
+        padding: 0 14px;
+        display: flex;
+        align-items: center;
+        font-size: 30px;
+        line-height: 1;
+        color: var(--text);
+        opacity: .55;
+        z-index: 2;
+        transition: opacity .15s;
+        text-shadow: 0 0 6px var(--bg), 0 0 12px var(--bg);
+    }
+    .edge-scroll:hover { opacity: 1; }
+    .edge-scroll[hidden] { display: none; }
+    .edge-scroll.left {
+        left: 0;
+        background: linear-gradient(to right, var(--bg) 25%, transparent);
+        justify-content: flex-start;
+    }
+    .edge-scroll.right {
+        right: 0;
+        background: linear-gradient(to left, var(--bg) 25%, transparent);
+        justify-content: flex-end;
+    }
+
+    .tile {
+        flex: 0 0 auto;
+        position: relative;
+        background: linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px;
+        padding-left: 18px;            /* room for the category color stripe */
+        cursor: pointer;
+        overflow: hidden;
+        transition: transform .15s, border-color .15s, box-shadow .15s;
+        display: flex;
+        gap: 12px;
+    }
+    /* Category color stripe down the left edge */
+    .tile::before {
+        content: '';
+        position: absolute;
+        left: 0; top: 0; bottom: 0;
+        width: 4px;
+        background: var(--cat-color, var(--border));
+    }
+    .tile:hover {
+        transform: translateY(-4px) scale(1.02);
+        border-color: var(--cat-color, var(--accent));
+        box-shadow: 0 10px 28px rgba(0, 0, 0, .45),
+                                0 0 0 1px var(--cat-color, rgba(88, 166, 255, .3));
+    }
+    .tile .emoji {
+        font-size: 32px;
+        line-height: 1;
+        flex: 0 0 auto;
+        filter: drop-shadow(0 2px 6px rgba(0, 0, 0, .5));
+    }
+    .tile .info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    .tile .name { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+    .tile .desc {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+        flex: 1;
+    }
+    .tile .chips { margin-top: 8px; }
+    .tiles.top .tile .emoji { font-size: 44px; }
+
+    /* Top picks — larger tiles with a gradient face. Hue is tinted by the
+          game's category color via color-mix; darkness is kept consistent so the
+          row reads as a set rather than a rainbow. */
+    .tiles.top .tile {
+        width: 220px;
+        min-height: 140px;
+        background: linear-gradient(135deg,
+            color-mix(in srgb, var(--cat-color, #58a6ff) 20%, var(--tile-base)) 0%,
+            color-mix(in srgb, var(--cat-color, #58a6ff) 9%, var(--tile-base)) 100%);
+        border-color: var(--tile-border);
+    }
+    .tiles.top .tile .name { font-size: 16px; }
+    .tiles.top .tile .desc { font-size: 12.5px; }
+
+    /* Top tile: emoji + name on top row, rest spans full width below. */
+    .tiles.top .tile {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        column-gap: 12px;
+        row-gap: 6px;
+        align-items: start;
+    }
+    .tiles.top .tile .emoji { align-self: center; }
+    .tiles.top .tile .info { display: contents; }
+    .tiles.top .tile .info .name {
+        align-self: center;
+        margin-bottom: 0;
+    }
+    .tiles.top .tile:has(.score-badge) .emoji { grid-row: 1 / span 2; }
+    .tiles.top .tile .info .score-badge {
+        grid-column: 2;
+        margin: 0;
+    }
+    .tiles.top .tile .info .desc,
+    .tiles.top .tile .info .chips {
+        grid-column: 1 / -1;
+        margin: 0;
+    }
+
+    /* Standard category tiles */
+    .row:not(.row-top) .tile { width: 170px; min-height: 100px; }
+
+    /* About blurb at the bottom of the welcome screen */
+    #about {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border);
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.6;
+        text-align: center;
+    }
+    #about a { color: var(--accent); text-decoration: none; }
+    #about a:hover { text-decoration: underline; }
+
+    @keyframes splat {
+        0%   { transform: scale(0) rotate(-6deg); opacity: 0; }
+        60%  { transform: scale(1.12) rotate(2deg); opacity: 1; }
+        100% { transform: scale(1) rotate(0); }
+    }
+    @keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50%      { transform: translateY(-8px); }
+    }
+
+    /* ===================== Theme toggle (top-right of the launcher) ===================== */
+    #theme-toggle {
+        position: fixed;
+        top: 12px;
+        right: 22px;
+        z-index: 100;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        font-size: 18px;
+        line-height: 1;
+        color: var(--text);
+        transition: background .15s, border-color .15s, transform .15s;
+    }
+    #theme-toggle:hover { border-color: var(--accent); transform: scale(1.08); }
+    /* Hide while a game is loaded — the iframe owns the view there. */
+    body.in-game #theme-toggle { display: none; }
+
+    /* ===================== Library toggle (top-right, beside theme toggle) ===================== */
+    #hamburger {
+        display: flex;             /* always shown (mobile + desktop) */
+        position: fixed;
+        /* Sits in the top-right, just left of #theme-toggle (40px wide + 8px gap). */
+        top: 12px;
+        right: 70px;
+        z-index: 100;
+        width: 40px;
+        height: 40px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        padding: 0;
+        transition: background .15s, border-color .15s, transform .15s;
+    }
+    #hamburger:hover { border-color: var(--accent); transform: scale(1.08); }
+    /* Looks identical whether the panel is open or closed — it just toggles it. */
+    /* Hide while a game is loaded — same as the theme toggle. */
+    body.in-game #hamburger { display: none; }
+
+    /* iOS top-URL-bar browsers (see the ios-topbar script) overlap fixed top
+       content in PORTRAIT (in landscape Chrome hides its bar, so no offset).
+       Drop the top buttons clear of the bar there. Desktop/Safari unaffected. */
+    @media (orientation: portrait) {
+        html.ios-topbar #theme-toggle,
+        html.ios-topbar #hamburger { top: 48px; }
+    }
+
+    /* 2×2 grid icon — clearly "library / apps", and doesn't collide with the
+          hamburger pattern many games use for their own pause menus. */
+    #hamburger .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 3px;
+        width: 20px;
+        height: 20px;
+    }
+    #hamburger .grid span {
+        background: var(--text);
+        border-radius: 2px;
+    }
+    #backdrop {
+        display: none;             /* shown only via mobile media query */
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, .55);
+        z-index: 50;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity .22s;
+    }
+    #backdrop.show { opacity: 1; pointer-events: auto; }
+
+    /* ===================== Polish: stagger + wiggle + dice + sparkle ===================== */
+
+    /* Tile entrance — staggered fade+rise. --i is set per-tile in makeTile,
+          capped so wide rows don't take forever to finish populating. */
+    .tile {
+        animation: tile-enter .3s ease-out backwards;
+        animation-delay: calc(var(--i, 0) * 25ms);
+    }
+    @keyframes tile-enter {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Emoji wiggle on tile hover — fires once per hover-in, doesn't loop. */
+    .tile:hover .emoji { animation: emoji-wiggle .5s ease-in-out; }
+    @keyframes emoji-wiggle {
+        0%, 100% { transform: rotate(0) scale(1); }
+        25%      { transform: rotate(-14deg) scale(1.15); }
+        60%      { transform: rotate(10deg)  scale(1.08); }
+    }
+
+    /* Random-button die roll — quick tumble before navigating. */
+    .quick-btn .icon { display: inline-block; }
+    .quick-btn .icon.rolling { animation: dice-roll .28s ease-out; }
+    @keyframes dice-roll {
+        0%   { transform: rotate(0)      scale(1); }
+        50%  { transform: rotate(180deg) scale(1.3); }
+        100% { transform: rotate(360deg) scale(1); }
+    }
+
+    /* Logo idle sparkles — small white square that rotates while floating up. */
+    .sparkle {
+        position: absolute;
+        pointer-events: none;
+        background: var(--spark, #fff);
+        border-radius: 1px;
+        box-shadow: 0 0 8px rgba(255, 255, 255, .8),
+                                0 0 14px rgba(180, 220, 255, .4);
+        z-index: 3;
+        animation: sparkle-float 1.3s ease-out forwards;
+    }
+    @keyframes sparkle-float {
+        0%   { opacity: 0; transform: translateY(0)    rotate(0)      scale(.3); }
+        18%  { opacity: 1; transform: translateY(-10px) rotate(140deg) scale(1);  }
+        100% { opacity: 0; transform: translateY(-60px) rotate(540deg) scale(.4); }
+    }
+
+    /* Respect OS-level "reduce motion" preference — kill the playful animations
+          that aren't required for understanding the page. Starfield + sparkle JS
+          loops are skipped in setupStarfield / setupSparkles for the same reason. */
+    @media (prefers-reduced-motion: reduce) {
+        .tile,
+        .tile:hover .emoji,
+        .quick-btn .icon.rolling,
+        .sparkle,
+        #welcome-logo,
+        #sidebar-logo-wrap,
+        #sidebar-logo { animation: none !important; }
+        .tile { opacity: 1; transform: none; }
+    }
+
+    /* ===================== Mobile / narrow viewport ===================== */
+    @media (max-width: 720px) {
+        /* Sidebar becomes an overlay drawer — hidden offscreen by default,
+              slid in by the hamburger button. */
+        #sidebar {
+            position: fixed;
+            top: 0; left: 0; bottom: 0;
+            width: 320px;
+            max-width: 85vw;
+            flex: none;
+            z-index: 60;
+            transform: translateX(-100%);
+            transition: transform .25s ease-out;
+            box-shadow: 4px 0 24px rgba(0, 0, 0, .5);
+        }
+        #sidebar.open { transform: translateX(0); }
+        #backdrop  { display: block; }
+
+        /* Stage takes the whole width once the sidebar is fixed-positioned. */
+        #stage { width: 100%; }
+
+        /* Welcome screen tweaks — extra top padding so the hamburger doesn't
+              overlap the logo, smaller side padding for more content width. */
+        #welcome { padding: 60px 16px 40px; }
+        #welcome-hero { margin-bottom: 24px; }
+        #welcome-tagline { font-size: 13px; }
+
+        /* Bigger touch targets + readable text inside the drawer. */
+        #sidebar-header { padding: 14px 14px 12px; }
+        #search { padding: 11px 12px; font-size: 15px; }
+        .card { padding: 12px 14px; }
+        .card .title { font-size: 16px; }
+        .card .title .emoji { font-size: 22px; flex-basis: 28px; }
+        .card .desc { font-size: 13.5px; }
+        .chip { padding: 2px 8px; font-size: 11.5px; }
+
+        /* Hide the category filter chips and the footer buttons on mobile —
+              the drawer is cramped enough already; leave just the logo, search,
+              and game list. (Footer actions are still reachable from the welcome
+              screen or via the iframe game's own UI / OS share.) */
+        #filter-chips { display: none; }
+        #sidebar-footer { display: none; }
+
+        /* Welcome tiles — slightly bigger text so they're readable on phones. */
+        .tile .name { font-size: 15px; }
+        .tile .desc { font-size: 12.5px; }
+        .tiles.top .tile { width: 200px; min-height: 130px; }
+        .row:not(.row-top) .tile { width: 160px; min-height: 96px; }
+        .row h2 { font-size: 14px; }
+
+        /* Quick-action buttons big enough to tap comfortably. */
+        .quick-btn { padding: 14px 22px; font-size: 15px; }
+    }
+</style>
+<script>
+    // Non-Safari iOS browsers (Chrome/Edge/Firefox = CriOS/EdgiOS/FxiOS) keep
+    // their URL bar at the TOP and overlap fixed top content. Tag the document
+    // so the CSS can nudge top-pinned buttons clear of it in portrait. Safari
+    // (URL bar at the bottom) is intentionally excluded. Set in <head> to avoid
+    // a position flash on load.
+    if (/CriOS|EdgiOS|FxiOS/.test(navigator.userAgent))
+        document.documentElement.classList.add('ios-topbar');
+</script>
+
+<style>
+    /* ===================== Arcade Floor (index2 prototype) ===================== */
+
+    /* Third top-right icon: About (?). Right of hamburger, left of theme. */
+    #about-btn {
+        position: fixed; top: 12px; right: 70px; z-index: 100;
+        width: 40px; height: 40px;
+        display: flex; align-items: center; justify-content: center;
+        padding: 0; background: var(--panel-2); border: 1px solid var(--border);
+        border-radius: 8px; font-size: 20px; font-weight: 700; line-height: 1;
+        color: var(--accent);
+        transition: background .15s, border-color .15s, transform .15s;
+    }
+    #about-btn:hover { border-color: var(--accent); transform: scale(1.08); }
+    #hamburger { right: 118px; }                    /* shove left to make room for ? */
+    body.in-game #about-btn { display: none; }
+    @media (orientation: portrait) { html.ios-topbar #about-btn { top: 48px; } }
+
+    /* ---- Hero attract cabinet: 16:9 screen + side info/controls panel ---- */
+    #hero-cabinet {
+        display: flex; align-items: stretch; margin: 0 auto 28px; max-width: 1100px;
+        border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+        cursor: pointer; background: var(--panel);
+        box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(88,166,255,.15);
+        transition: border-color .15s, box-shadow .15s, transform .15s;
+    }
+    #hero-cabinet:hover {
+        border-color: var(--accent);
+        box-shadow: 0 14px 50px rgba(0,0,0,.6), 0 0 0 1px var(--accent);
+        transform: translateY(-2px);
+    }
+    /* The screen holds the attract iframe at a locked 16:9 aspect ratio. */
+    .hero-screen { position: relative; flex: 0 0 62%; aspect-ratio: 16 / 9; background: #000; border-right: 1px solid var(--border); }
+    /* The attract iframe is purely visual — pointer-events off so the whole
+          cabinet acts as one big PLAY button. Starts transparent and fades in
+          once the attract is clean (no white flash, no menu flicker). */
+    #hero-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: #000; opacity: 0; transition: opacity .35s ease; }
+    /* Info + controls panel beside the screen, like a cabinet marquee. */
+    .hero-bar {
+        flex: 1; min-width: 0;
+        display: flex; flex-direction: column; justify-content: center; gap: 9px;
+        padding: 20px 22px; color: var(--text);
+        background: linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%);
+    }
+    .hero-now { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); }
+    .hero-name { font-size: 30px; font-weight: 800; line-height: 1.1; color: var(--text); }
+    .hero-bar .hero-score { align-self: flex-start; }
+    .hero-bar .hero-score[hidden] { display: none; }
+    .hero-coin {
+        align-self: flex-start; margin-top: 4px;
+        background: linear-gradient(135deg, var(--accent), #2978d3); border: 1px solid var(--accent);
+        color: #fff; font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 9px;
+        box-shadow: 0 4px 16px rgba(88,166,255,.4); white-space: nowrap; pointer-events: none;
+    }
+    .hero-shuffle {
+        align-self: flex-start; margin-top: 2px;
+        background: rgba(127,127,127,.10); border: 1px solid var(--border);
+        color: var(--muted); padding: 7px 12px; border-radius: 8px; font-size: 12px;
+        transition: border-color .12s, background .12s, color .12s;
+    }
+    .hero-shuffle:hover { border-color: var(--accent); background: rgba(127,127,127,.20); color: var(--text); }
+    /* Narrow viewports: stack the screen above the panel. */
+    @media (max-width: 720px) {
+        #hero-cabinet { flex-direction: column; }
+        .hero-screen { flex: 0 0 auto; width: 100%; border-right: 0; border-bottom: 1px solid var(--border); }
+        .hero-bar { padding: 16px 18px; }
+        .hero-name { font-size: 24px; }
+    }
+    /* Short viewports (phones in landscape): keep the logo + hero compact so
+          they don't eat the whole screen before the grid. */
+    @media (max-height: 520px) {
+        #welcome-hero { margin-bottom: 14px; }
+        #welcome-logo { width: min(120px, 22vw); }
+    }
+
+    /* ---- Floor controls + responsive grid ---- */
+    .floor-section { max-width: 1320px; margin: 0 auto; }
+    .floor-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 14px; }
+    .floor-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+    .floor-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+    .floor-search { width: 210px; max-width: 60vw; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: inherit; outline: none; }
+    .floor-search:focus { border-color: var(--accent); }
+    .floor-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .floor-chip { background: var(--chip-bg); color: var(--chip-text); border: 1px solid transparent; padding: 5px 12px; border-radius: 13px; font-size: 12px; transition: background .1s, color .1s, border-color .1s; }
+    .floor-chip:hover { background: var(--panel-2); color: var(--text); }
+    .floor-chip.on { background: var(--cat-bg, var(--accent-bg)); color: var(--text); border-color: var(--cat-color, var(--accent)); }
+
+    .floor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 14px; padding-bottom: 36px; }
+    /* Reuse the existing .tile look, but let it flex to the grid cell width. */
+    .floor-grid .tile { width: auto; min-height: 104px; }
+    /* ★ marker on the front-loaded Top Picks */
+    .floor-grid .tile.featured::after {
+        content: '★'; position: absolute; top: 6px; right: 9px;
+        font-size: 13px; color: var(--cat-board);
+        text-shadow: 0 0 8px rgba(247,201,72,.7); pointer-events: none;
+    }
+    /* Full-width divider before the Under Construction section (mirrors sidebar). */
+    .floor-grid .floor-divider {
+        grid-column: 1 / -1;
+        margin: 22px 0 2px; padding-top: 14px;
+        border-top: 1px dashed var(--border);
+        color: var(--cat-construction);
+        font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px;
+    }
+
+    /* ---- About modal ---- */
+    #about-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; }
+    #about-modal[hidden] { display: none; }
+    .about-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); }
+    .about-panel {
+        position: relative; z-index: 1; width: min(560px, 92vw); max-height: 88vh; overflow-y: auto;
+        background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+        padding: 30px 30px 26px; box-shadow: 0 20px 60px rgba(0,0,0,.6); text-align: center;
+    }
+    .about-close { position: absolute; top: 12px; right: 14px; background: none; border: 0; color: var(--muted); font-size: 20px; line-height: 1; }
+    .about-close:hover { color: var(--text); }
+    .about-logo { width: 120px; height: auto; filter: drop-shadow(0 4px 16px rgba(88,166,255,.4)); margin-bottom: 4px; }
+    .about-panel h2 { margin: 6px 0 4px; font-size: 20px; color: var(--text); }
+    .about-panel h3 { margin: 18px 0 6px; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); }
+    .about-panel p { margin: 0 auto 8px; color: var(--muted); font-size: 13.5px; line-height: 1.6; max-width: 46ch; }
+    .about-panel code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; color: var(--text); }
+    .about-links { display: flex; flex-direction: column; gap: 8px; margin: 8px auto; max-width: 420px; }
+    .about-links a { display: block; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 10px 14px; color: var(--text); text-decoration: none; font-size: 13.5px; text-align: left; transition: border-color .12s, background .12s; }
+    .about-links a:hover { border-color: var(--accent); background: var(--accent-bg); }
+    .about-links a .sub { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+    .about-credit { margin-top: 16px; font-size: 12px; color: var(--muted); }
+    @media (max-width: 720px) {
+        .about-panel { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; padding-top: 58px; }
+    }
+</style>
+</head>
+<body>
+
+<button id="hamburger" aria-label="Toggle library menu">
+    <span class="grid"><span></span><span></span><span></span><span></span></span>
+</button>
+<div id="backdrop"></div>
+<button id="theme-toggle" aria-label="Toggle light/dark theme"></button>
+<button id="about-btn" aria-label="About the LittleJS Arcade" title="About">?</button>
+
+<aside id="sidebar">
+    <div id="sidebar-header">
+        <div id="sidebar-logo-wrap" title="Back to library">
+            <img id="sidebar-logo" src="images/logo.png" alt="LittleJS">
+            <div id="sidebar-logo-title">The LittleJS Arcade</div>
+        </div>
+        <input id="search" type="text" placeholder="Search..." autocomplete="off" spellcheck="false">
+        <div id="filter-chips"></div>
+    </div>
+    <div id="list"></div>
+    <div id="sidebar-footer">
+        <a class="btn" id="sourceBtn" target="_blank" rel="noopener" title="View the LittleJSArcade repo on GitHub">Source { }</a>
+        <button class="btn" id="shareBtn" title="Share this link">Share ↗</button>
+        <button class="btn" id="fullscreenBtn" title="Fullscreen the whole page">Full ⛶</button>
+    </div>
+</aside>
+
+<main id="stage">
+    <div id="welcome"></div>
+    <iframe id="frame" allow="autoplay *; gamepad *; fullscreen *" allowfullscreen style="display:none;"></iframe>
+</main>
+
+<div id="about-modal" hidden>
+    <div class="about-backdrop"></div>
+    <div class="about-panel" role="dialog" aria-modal="true" aria-label="About the LittleJS Arcade">
+        <button class="about-close" aria-label="Close">✕</button>
+        <img class="about-logo" src="images/logo.png" alt="LittleJS Arcade">
+        <h2>The LittleJS Arcade</h2>
+        <p>A growing collection of tiny arcade games — all open source, all built with the LittleJS engine. They play instantly in your browser, no installs.</p>
+        <h3>What is LittleJS?</h3>
+        <p>A tiny, fast, zero-dependency HTML5 game engine. It powers every game in this arcade.</p>
+        <div class="about-links">
+            <a href="https://github.com/KilledByAPixel/LittleJS" target="_blank" rel="noopener">⭐ LittleJS engine<span class="sub">github.com/KilledByAPixel/LittleJS</span></a>
+            <a href="https://github.com/KilledByAPixel/LittleJSArcade" target="_blank" rel="noopener">🕹️ This arcade — fork any game (MIT)<span class="sub">github.com/KilledByAPixel/LittleJSArcade</span></a>
+            <a href="https://github.com/KilledByAPixel/LittleJS-AI" target="_blank" rel="noopener">🤖 LittleJS AI tools<span class="sub">github.com/KilledByAPixel/LittleJS-AI</span></a>
+        </div>
+        <h3>Make your own</h3>
+        <p>Every game is one self-contained HTML file. Start from a starter in the repo's <code>templates/</code> folder and remix it into your own.</p>
+        <p class="about-credit">Made by Frank Force · MIT licensed</p>
+    </div>
+</div>
+
+<script>
+'use strict';
+
+// file:     unique id for the entry. For local games it's the .html filename in
+//           games/ that gets loaded into the iframe. For off-site games it's
+//           just a slug id (no .html) — `url` below supplies the real source.
+// url:      OPTIONAL full external URL. When set, the game loads from here in the
+//           iframe instead of games/<file>, and the entry is marked "↗ off-site".
+//           Cross-ORIGIN games can't share the launcher's localStorage, so their
+//           scoreKey won't resolve (leave it unset). Same-origin works (every repo
+//           under one *.github.io user shares an origin). The host must allow
+//           framing (no X-Frame-Options: DENY).
+// source:   OPTIONAL "Source ↗" target for off-site games (their own repo). When
+//           omitted on an off-site entry the Source button points at `url`.
+// category: row grouping in the welcome screen (one per game).
+// emoji:    single grapheme used as "boxart" on tiles + sidebar cards.
+// emojiStyle: optional inline-CSS string applied to that emoji's element on
+//           both the welcome tile and the sidebar card (e.g.
+//           'filter: invert(1) hue-rotate(120deg)'). Most games omit it; use it
+//           to recolor/invert/filter an emoji that doesn't fit the game. Note an
+//           inline `filter:` overrides the tile's stylesheet drop-shadow glow —
+//           include your own drop-shadow in the string to keep it.
+// tags:     descriptive chips on the card (visible to the user).
+// keywords: search-only synonyms — original arcade name (for renames) plus
+//           genre cues people might type. Never rendered as chips.
+// top:      1..N — appears in the "Top Picks" row at that rank. Unset = not featured.
+// scoreKey: dotted path into the per-game save blob. e.g. 'tetris.bestScore'
+//           reads the 'tetris' save and returns its .bestScore field.
+//           Plain literal keys (for unmigrated games) also work.
+const GAMES = [
+    // ---- Frank Force Games (off-site) — load from external URLs via `url`. ----
+    { file:'DrivenWild',           name:'Driven Wild',      emoji:'🚗',  category:'frankforce', source:'https://github.com/js13kGames/dr1v3n-wild',   desc:'Retro Arcade Driving.',  url:'https://itch.io/embed-upload/15345755?color=000000', tags:['driving','js13k','3d'],            keywords:['outrun','race'] },
+    { file:'L1ttl3Paws',           name:'L1ttl3 Paws',      emoji:'🐈',  category:'frankforce', source:'https://github.com/KilledByAPixel/JS13K2025',   desc:'Hill sliding with colorful art.',  url:'https://itch.io/embed-upload/16167549?color=000000', tags:['cats','js13k'],            keywords:['tinywings'] },
+    { file:'EggTimeRewind',           name:'Egg Time Rewind',      emoji:'🥚',  category:'frankforce', source:'https://github.com/js13kGames/egg-time-rewind',   desc:'Time REWINDS when you die.',  url:'https://itch.io/embed-upload/7314694?color=000000', tags:['js13k'],            keywords:['shooter'] },
+    { file:'Bogus Roads',           name:'BogusRoads',      emoji:'🔶',  category:'frankforce',  desc:'Hit the road before the road hits you!',  url:'https://itch.io/embed-upload/4719204?color=180023', tags:['driving','3d'],            keywords:['lowres','race'] },
+
+    // ---- Local URLs. ----
+    { file:'2048.html',           name:'2048',            emoji:'🔢',  category:'puzzle',       desc:'Slide tiles, combine the numbers.',       scoreKey:'2048.bestScore',            tags:['grid','merge'],                           keywords:['threes','merge','numbers'] },
+    { file:'asterblast.html',      name:'Asterblast',      emoji:'🌑',  category:'shooter',      desc:'Thrust and blast the rocks.',    scoreKey:'asteroids.bestScore',       tags:['retro','space'],                 keywords:['asteroids','rocks','vector shooter'], top:10 },
+    { file:'homerDerby.html',       name:'Home Run Derby',     emoji:'⚾',  category:'sports',       desc:'Swing for the fences.',                   tags:['one-button','timing'],                     keywords:['baseball','home run derby','bat'] },
+    { file:'freeThrow.html',     name:'Free Throw',      emoji:'🏀',  category:'sports',       desc:'Sink free throws before time runs out.',  scoreKey:'basketball.bestScore',      tags:['timing','aim'],                keywords:['basketball','hoops','nba jam','dunk'] },
+    { file:'brickout.html',       name:'Brickout',        emoji:'🧱',  category:'arcade',       desc:'Bounce the ball, break the bricks.',      scoreKey:'breakout.bestScore',        tags:['paddle','retro'],                 keywords:['breakout','arkanoid','bricks'] },
+    { file:'captureGo.html',      name:'Capture Go',      emoji:'⚫',  category:'board',        desc:'Surround stones to capture them.',    tags:['strategy','2-player'],            keywords:['go','baduk','weiqi','igo'] },
+    { file:'centibug.html',      name:'Centibug',        emoji:'🐛',  category:'shooter',      desc:'Blast the centipede before it lands.',    scoreKey:'centipede.bestScore',       tags:['retro','classic'],                 keywords:['centipede','millipede','bug shooter','garden'] },
+    { file:'checkers.html',       name:'Checkers',        emoji:'🔴',  category:'board',        desc:'Jump to capture your rival.',             tags:['strategy','2-player'],            keywords:['draughts'], top:10},
+    { file:'chess.html',          name:'Chess',           emoji:'♟️', category:'board',        desc:'The classic game of kings.',              tags:['strategy','2-player'],            keywords:['chess'] },
+    { file:'pillars.html',        name:'Pillars',         emoji:'💎',  category:'puzzle',       desc:'Rotate falling jewels, match three.',     scoreKey:'columns.bestScore',         tags:['falling','matching'],             keywords:['columns','tetris attack','jewels','gem stack'] },
+    { file:'tankCombat.html',         name:'Tank Combat',     emoji:'🎖️', category:'construction', desc:'Two tanks, one cramped arena.',           tags:['multiplayer','retro'],            keywords:['combat','atari combat','tank duel','battle city'] },
+    { file:'connect4.html',       name:'Drop Four',       emoji:'🟡',  category:'board',        desc:'Drop discs, line up four.',               tags:['strategy','2-player'],            keywords:['connect four','four in a row'] },
+    { file:'protector.html',       name:'Protector',       emoji:'🛸',  category:'construction', desc:'Blast aliens, rescue the humans.',        scoreKey:'defender.bestScore',        tags:['scrolling','rescue'],            keywords:['defender','stargate','humans','rescue'] },
+    { file:'dominoes.html',       name:'Dominoes',        emoji:'🀄',  category:'construction', desc:'Match tiles end to end.',                 tags:['tiles','2-player'],               keywords:['domino','dominoes','draw','block','tiles'] },
+    { file:'drPill.html',        name:'Dr. Pill',        emoji:'💊',  category:'puzzle',       desc:'Drop pills, wipe out the viruses.',       scoreKey:'drMario.bestScore',         tags:['falling','matching'],             keywords:['dr mario','dr robotnik','pills','virus','puzzle league'] },
+    { file:'emojiSurvivors.html', name:'Emoji Survivors', emoji:'🧛',  category:'shooter',      desc:'Outlast the emoji horde.',        scoreKey:'emojiSurvivors.bestTime',   tags:['survival','roguelite'],           keywords:['vampire survivors','brotato','horde','bullet heaven','roguelite'], top:4 },
+    { file:'floppyBird.html',     name:'Floppy Bird',     emoji:'🐦',  category:'arcade',       desc:'Tap to flap past the pipes.',             scoreKey:'flappyBird.bestScore',      tags:['one-button','runner'],                     keywords:['flappy bird','tap'] },
+    { file:'freecell.html',       name:'FreeCell',        emoji:'🃏',  category:'strategy',       desc:'Sort every card back home.',              tags:['cards','solitaire'],              keywords:['solitaire','cards'], top:9},
+    { file:'klondike.html',       name:'Klondike',        emoji:'🏔️',  category:'strategy',       desc:'Arrange cards foundation piles.',              tags:['cards','solitaire'],              keywords:['solitaire','cards']},
+    { file:'froggit.html',        name:'Froggit',         emoji:'🐸',  category:'arcade',       desc:'Dodge traffic, cross the river.',         scoreKey:'frogger.bestScore',         tags:['classic','retro'],                        keywords:['frogger','crossy road','frog'], top:9 },
+    { file:'geometryJump.html',   name:'Geometry Jump',   emoji:'🔺',  category:'arcade',       desc:'Jump over the obstacles.',                scoreKey:'geometryDash.bestProgress', tags:['runner','rhythm'],                keywords:['geometry dash','rhythm runner','spikes'] },
+    { file:'powerwing.html',        name:'Powerwing',       emoji:'🚀',  category:'construction', desc:'Blast through the levels.',     scoreKey:'gradius.bestScore',         tags:['scrolling','power-ups'],            keywords:['gradius','r-type','salamander','life force','options','shmup'] },
+    { file:'jetdash.html',    name:'Jetdash',         emoji:'🪂',  category:'construction', desc:'Boost, glide, dodge the obstacles.',      scoreKey:'jetpackDash.bestScore',     tags:['runner','one-button'],            keywords:['jetpack joyride','endless runner','jetpack'] },
+    { file:'jouster.html',          name:'Jouster',         emoji:'🦅',  category:'construction', desc:'Flap higher than your rival.',            scoreKey:'joust.bestScore',           tags:['flight','classic'],                keywords:['joust','balloon fight','bird knight'] },
+    { file:'boomer.html',         name:'Boomer',          emoji:'💣',  category:'arcade',       desc:'Catch every bomb the bomber drops.',      scoreKey:'kaboom.bestScore',          tags:['paddle','retro'],                 keywords:['kaboom','atari kaboom','mad bomber'] },
+    { file:'moonLander.html',    name:'Moon Lander',     emoji:'🌙',  category:'arcade',       desc:'Touch down gently.',           scoreKey:'lunarLander.bestScore',     tags:['physics','retro'],                keywords:['lunar lander','lander','gravity','rocket','spaceflight'] },
+    { file:'jumpman.html',          name:'Jumpman',         emoji:'🍄',  category:'construction', desc:'Run, jump, and stomp.',           tags:['platformer','side-scroll'],                     keywords:['super mario bros','mario','platformer','brick blocks','goomba'] },
+    { file:'matchThree.html',         name:'Match Three',     emoji:'💠',  category:'puzzle',       desc:'Swap gems to match three.',               scoreKey:'match3.bestScore',          tags:['grid','matching'],                keywords:['bejeweled','candy crush','match 3','gems'] },
+    { file:'microRacer.html',     name:'Micro Racer',     emoji:'🏎️', category:'construction', desc:'Race tiny cars on tight tracks.',         scoreKey:'microRacer.bestTime',       tags:['racing','top-down'],              keywords:['micro machines','rc pro am','top down racing'] },
+    { file:'minesweeper.html',    name:'Minesweeper',     emoji:'🚩',  category:'strategy',       desc:'Flag the mines.',        scoreKey:'minesweeper.bestTimes.hard',tags:['grid','classic'],                 keywords:['mines','windows minesweeper'] },
+    { file:'miniGolf.html',       name:'Mini Golf',       emoji:'⛳',  category:'sports',       desc:'Putt across tricky little courses.',      scoreKey:'miniGolf.bestScore',        tags:['physics','aim'],                  keywords:['golf','putt putt','crazy golf'] },
+    { file:'missileDefense.html', name:'Missile Defense', emoji:'🏙️', category:'arcade',      desc:'Shoot down the missiles.',        scoreKey:'missileCommand.bestScore',  tags:['defense','aim'],              keywords:['missile command','nuke defense','abm','cold war'], top:1 },
+    { file:'moonbuggy.html',     name:'Moonbuggy',       emoji:'🌔',  category:'construction', desc:'Hop craters and shoot aliens.',    scoreKey:'moonPatrol.bestScore',      tags:['scrolling','runner'],             keywords:['moon patrol','moon buggy','rover'] },
+    { file:'mrDrill.html',      name:'Drillman',       emoji:'⛏️', category:'construction',       desc:'Dig down for air.',      scoreKey:'mrDriller.bestScore',       tags:['action','digging'],               keywords:['mr driller','dig dug','drilling'] },
+    { file:'orbitswarm.html',     name:'OrbitSwarm',      emoji:'🪐',  category:'strategy',      desc:'Build ships, conquer the galaxy.',         tags:['space','strategy'],                keywords:['gravitar','strategy','geometry wars'] },
+    { file:'reversi.html',        name:'Reversi',         emoji:'⚪',  category:'board',        desc:'Flank stones to flip them.',              tags:['strategy','2-player'],            keywords:['othello','reversi'] },
+    { file:'pucMan.html',         name:'Maze Munch',         emoji:'👻',  category:'arcade',       desc:'Eat dots, dodge the ghosts.',             scoreKey:'pacman.bestScore',          tags:['maze','retro'],                   keywords:['pac-man','pacman','ms pacman','ghosts','maze chase'] },
+    { file:'pegball.html',         name:'Pegball',         emoji:'🟢',  category:'physics',      desc:'Aim, drop, clear every peg.',             scoreKey:'peggle.bestScore',          tags:['physics','aim'],                  keywords:['peggle','pachinko','peg shooter'] },
+    { file:'pinball.html',        name:'Pinball',         emoji:'⚪',  category:'construction', desc:'Launch, flip, and bounce.',          scoreKey:'pinball.bestScore',         tags:['physics','retro'],                keywords:['pinball','flippers','silverball'] },
+    { file:'plinko.html',         name:'Plinker',         emoji:'🔵',  category:'physics',      desc:'Drop chips down the pegs.',               scoreKey:'plinko.bestScore',          tags:['physics','luck'],                 keywords:['plinko','price is right','pachinko'] },
+    { file:'speedway.html',   name:'Speedway',        emoji:'🏁',  category:'construction', desc:'Hug the curves, beat the clock.',         scoreKey:'polePosition.bestScore',    tags:['racing','retro','3d'],                 keywords:['pole position','outrun','f1','arcade racer'] },
+    { file:'pong.html',           name:'Pong',            emoji:'🏓',  category:'sports',       desc:'Two paddles, one bouncing ball.',         tags:['paddle','retro'],                 keywords:['pong','tennis','table tennis'] },
+    { file:'pool.html',           name:'Pool',            emoji:'🎱',  category:'sports',       desc:'Cue up and sink them all.',               scoreKey:'pool.bestShots',            tags:['physics','aim'],                  keywords:['pool','billiards','snooker','cue sports','8-ball','9-ball'], top:3 },
+    { file:'gemFighter.html',  name:'Gem Fighter',     emoji:'💢',  category:'construction', desc:'Stack gems, chain big combos.',           tags:['falling','matching'],               keywords:['puzzle fighter','super puzzle fighter','street fighter puzzle'] },
+    { file:'riverStrike.html',      name:'River Strike',    emoji:'✈️', category:'construction', desc:'Down enemy ships, collect fuel.',         scoreKey:'riverRaid.bestScore',       tags:['scrolling','classic'],            keywords:['river raid','xevious','vertical shmup'] },
+    { file:'roboRescue.html',       name:'Robo Rescue',     emoji:'🤖',  category:'shooter',      desc:'Destroy robots and save humans.', scoreKey:'robotron.bestScore',        tags:['twin-stick','retro'],             keywords:['robotron','smash tv','twin stick','robots'], top:2 },
+    { file:'musicSequencer.html',      name:'Music Sequencer',  emoji:'🎹',  category:'construction', desc:'Tap the grid, build a beat.',            tags:['music','toy'],                    keywords:['drum machine','beat maker','music tracker','step sequencer','tr-808'] },
+    { file:'skiing.html',         name:'Skiing',          emoji:'⛷️', category:'construction', desc:'Carve downhill through the gates.',       scoreKey:'skiing.bestScore',          tags:['racing','retro'],                 keywords:['ski free','slalom','snow','alpine'] },
+    { file:'skyhop.html',         name:'Skyhop',          emoji:'🦘',  category:'construction', desc:'Bounce ever higher up the platforms.',    scoreKey:'Skyhop.bestScore',          tags:['endless','vertical'],             keywords:['doodle jump','vertical jumper','icy tower','platform climber'] },
+    { file:'snake.html',          name:'Snake',           emoji:'🐍',  category:'arcade',       desc:'Eat, grow, and don’t crash.',             scoreKey:'snake.bestScore',           tags:['grid','classic'],                 keywords:['snake','nokia snake','tron'] },
+    { file:'bobblePop.html',          name:'Bobble Pop',      emoji:'🎈',  category:'puzzle',       desc:'Aim and pop matching bubbles.',           scoreKey:'snood.bestScore',           tags:['physics','aim'],                  keywords:['snood','bust a move','puzzle bobble','bubble shooter'] },
+    { file:'sokoban.html',        name:'Sokoban',         emoji:'📦',  category:'strategy',       desc:'Push every box onto its target.',         scoreKey:'sokoban.bestLevel',         tags:['grid','classic'],                 keywords:['sokoban','warehouse','box push'] },
+    { file:'spaceIntruders.html',  name:'Space Intruders', emoji:'👾',  category:'shooter',      desc:'Shoot the marching aliens.',          scoreKey:'spaceInvaders.bestScore',   tags:['retro','space'],                 keywords:['space invaders','galaga','galaxian','aliens'], top:7 },
+    { file:'sudoku.html',         name:'Sudoku',          emoji:'9️⃣',  category:'construction', desc:'Fill the grid with 1-9.',                 scoreKey:'sudoku.bestTimes.hard',     tags:['grid','logic'],                   keywords:['sudoku','number puzzle','logic puzzle','9x9'] },
+    { file:'spyDriver.html',      name:'Spy Driver',      emoji:'🕵️', category:'construction', desc:'Drive and shoot.',              scoreKey:'spyhunter.bestScore',       tags:['driving','top-down'],             keywords:['spy hunter','car combat','vehicular combat','road rash'] },
+    { file:'tetrix.html',         name:'Tetrix',          emoji:'🟪',  category:'puzzle',       desc:'Stack the blocks to clear lines.',      scoreKey:'tetris.bestScore',          tags:['falling','classic'],              keywords:['tetris','tetrimino','blocks'], top:6 },
+    { file:'wordly.html',         name:'Wordly',          emoji:'🅰️',  category:'construction', desc:'Guess the hidden 5-letter word.',         scoreKey:'WordGuess.bestScore',       tags:['word','logic'],                   keywords:['wordle','word game','5 letter','guess the word'] },
+    { file:'wulfstein.html',    name:'Wulfstein',       emoji:'🐺',  category:'construction', desc:'Shoot your way out.',       tags:['first-person','maze','3d'],         keywords:['wolfenstein','wolf','doom','fps','3d shooter','raycaster'] },
+    { file:'zoomi.html',           name:'Zoomi',           emoji:'🔮',  category:'construction', desc:'Shoot marbles, match three to pop.',      scoreKey:'zuma.bestScore',            tags:['matching','aim'],                 keywords:['zuma','luxor','marble shooter','chain pop'] },
+];
+
+GAMES.sort((a, b) => a.name.localeCompare(b.name));
+const gameByFile = Object.fromEntries(GAMES.map(g => [g.file, g]));
+
+// Engine templates (templates/ folder) — starter projects shown ONLY when the
+// debug build is active (littlejsDebug() / ?debug=1). They live OUTSIDE the GAMES
+// array on purpose, so random / recent / welcome rows never surface them; they
+// appear only as a separate bucket at the bottom of the sidebar list. Order is
+// curated (the default starter first), not alphabetized.
+const TEMPLATES = [
+    { file:'game.html',          name:'Default Starter',    emoji:'🎮', desc:'Minimal engine loop with the default sprite atlas.', tags:['starter','atlas'] },
+    { file:'menuGame.html',      name:'Menu Starter',       emoji:'📋', desc:'Title, pause, options & dialogs via menus.js.',      tags:['menus','ui'] },
+    { file:'boardGame.html',     name:'Board / Grid',       emoji:'🎲', desc:'Scaffolding for grid & board games.',                tags:['grid','board'] },
+    { file:'cardsGame.html',     name:'Cards',              emoji:'🃏', desc:'Starting point for card games.',                     tags:['cards'] },
+    { file:'box2dGame.html',     name:'Box2D Physics',      emoji:'⚙️', desc:'Box2D rigid-body physics setup.',                    tags:['physics','box2d'] },
+    { file:'textureGame.html',   name:'Procedural Sprites', emoji:'🎨', desc:'Build sprite atlases from canvas draw ops.',         tags:['sprites','texture'] },
+    { file:'tweakableGame.html', name:'Live Tweakables',    emoji:'🎛️', desc:'Mark globals as runtime-tweakable sliders.',          tags:['tweak','dev'] },
+    { file:'uiGame.html',        name:'Canvas UI',          emoji:'🎚️', desc:'Canvas-drawn menus & sliders (UISystemPlugin).',     tags:['ui','plugin'] },
+    { file:'defaultAtlas.html',  name:'Default Atlas',      emoji:'✨', desc:'Showcase of the 16 built-in atlas icons.',           tags:['atlas','icons'] },
+];
+const templateByFile = Object.fromEntries(TEMPLATES.map(t => [t.file, t]));
+// Combined lookup for selectGame / hash routing / titles — no file-name collisions
+// between games and templates. isTemplate() decides directory + dev-only behavior.
+const infoByFile = { ...gameByFile, ...templateByFile };
+const isTemplate = f => !!templateByFile[f];
+// Debug mode = the debug engine build is active (littlejsDebug() / ?debug=1).
+const debugMode = () => { try { return localStorage.getItem('littlejs-build') === 'debug'; } catch (e) { return false; } };
+
+// Games whose source uses the gamepad API — drives the 🎮 chip on cards/tiles.
+const GAMEPAD_GAMES = new Set([
+    '2048.html','asterblast.html','bobblePop.html','boomer.html','brickout.html',
+    'centibug.html','drPill.html','emojiSurvivors.html','floppyBird.html','froggit.html',
+    'gemFighter.html','geometryJump.html','homerDerby.html','jetdash.html','jouster.html',
+    'jumpman.html','microRacer.html','missileDefense.html','moonLander.html','moonbuggy.html',
+    'mrDrill.html','pegball.html','pillars.html','pinball.html','plinko.html',
+    'pong.html','powerwing.html','protector.html',
+    'pucMan.html','riverStrike.html','roboRescue.html','skiing.html','snake.html',
+    'sokoban.html','spaceIntruders.html','speedway.html','spyDriver.html','tankCombat.html',
+    'tetrix.html','wulfstein.html','zoomi.html',
+]);
+const hasGamepad = g => GAMEPAD_GAMES.has(g.file);
+
+// Display name, emoji, and accent color (referencing CSS vars) per category.
+// Used for row headers, filter chips, and tile color stripes.
+// Master switch for the off-site Frank Force Games section. Set to false to hide
+// it everywhere (sidebar, welcome rows, filter chip) — even in debug mode. Flip to
+// true to surface it once the off-site embeds are working. The game entries stay
+// in GAMES regardless; this just controls whether they're shown.
+const SHOW_FRANKFORCE = false;
+
+const CATEGORIES = [
+    { key:'arcade',  label:'Arcade',  emoji:'🕹️', color:'var(--cat-arcade)',  colorBg:'var(--cat-arcade-bg)'  },
+    { key:'shooter', label:'Shooter', emoji:'💥', color:'var(--cat-shooter)', colorBg:'var(--cat-shooter-bg)' },
+    { key:'puzzle',  label:'Puzzle',  emoji:'🧩', color:'var(--cat-puzzle)',  colorBg:'var(--cat-puzzle-bg)'  },
+    { key:'board',   label:'Board',   emoji:'🎲', color:'var(--cat-board)',   colorBg:'var(--cat-board-bg)'   },
+    { key:'strategy',label:'Strategy',emoji:'🧠', color:'var(--cat-strategy)',colorBg:'var(--cat-strategy-bg)'},
+    { key:'sports',  label:'Sports',  emoji:'⚽', color:'var(--cat-sports)',  colorBg:'var(--cat-sports-bg)'  },
+    { key:'physics', label:'Physics', emoji:'🎯', color:'var(--cat-physics)', colorBg:'var(--cat-physics-bg)' },
+    { key:'frankforce', label:'Frank Force Games', emoji:'🟥', color:'var(--cat-frankforce)', colorBg:'var(--cat-frankforce-bg)' },
+    { key:'construction', label:'Under Construction', emoji:'🚧', color:'var(--cat-construction)', colorBg:'var(--cat-construction-bg)' },
+];
+const catByKey = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
+const LAST_GAME_KEY = 'littlejs-games-last';
+const RECENT_KEY    = 'littlejs-games-recent';
+const RECENT_LIMIT  = 8;
+const BASE_TITLE    = document.title;
+// Honor the user's OS-level "reduce motion" preference for sparkles, starfield,
+// dice-roll wait, and CSS animations (handled via @media prefers-reduced-motion).
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const sidebarLogoWrap = document.getElementById('sidebar-logo-wrap');
+const listEl = document.getElementById('list');
+const searchEl = document.getElementById('search');
+const filterChipsEl = document.getElementById('filter-chips');
+const frameEl = document.getElementById('frame');
+const welcomeEl = document.getElementById('welcome');
+const sourceBtn = document.getElementById('sourceBtn');
+const fullscreenBtn = document.getElementById('fullscreenBtn');
+const shareBtn = document.getElementById('shareBtn');
+// Base URL for the "Source ↗" button — the game/template file's folder is appended.
+const SOURCE_BASE = 'https://github.com/KilledByAPixel/LittleJSArcade/blob/main/';
+const MAIN_REPO   = 'https://github.com/KilledByAPixel/LittleJSArcade';
+// Subfolders the .html files live in, relative to this launcher (at the repo root).
+// Games/templates keep their ../dist & ../templates paths, so they stay in place.
+const GAMES_DIR     = 'games/';
+const TEMPLATES_DIR = 'templates/';
+
+let currentFile = null;
+let activeCategory = 'all'; // sidebar filter
+
+// ===================== Sidebar list =====================
+
+// Locale-aware number formatter for high-score badges ("1,234,567").
+const numFmt = new Intl.NumberFormat();
+
+// scoreKeys containing "time" (e.g. 'emojiSurvivors.bestTime',
+// 'minesweeper.bestTimes.hard') are durations in seconds — show a stopwatch
+// and format M:SS instead of a raw number with a trophy.
+const isTimeScore = g => g.scoreKey && /time/i.test(g.scoreKey);
+const scoreEmoji = g => isTimeScore(g) ? '⏱️' : '🏆';
+// Mirrors littlejs.js's formatTime (M:SS). Inlined because index.html doesn't
+// load the engine.
+function formatTime(t) {
+    const sign = t < 0 ? '-' : '';
+    t = Math.abs(t) | 0;
+    return sign + (t / 60 | 0) + ':' + (t % 60 < 10 ? '0' : '') + (t % 60);
+}
+const formatScore = (g, n) => isTimeScore(g) ? formatTime(n) : numFmt.format(n);
+
+// Read a game's high score. Supports both:
+//   scoreKey:'somegame.bestField'    → for unmigrated games, reads localStorage[scoreKey] literally
+//   scoreKey:'robotron.bestScore'    → tries the literal key first; if absent, walks dotted
+//                                       prefixes looking for a key whose JSON payload contains
+//                                       the remaining path (here: key 'robotron',
+//                                       field 'bestScore')
+// Returns a number, or null if missing / unparsable / no scoreKey set.
+function getHighScore(g) {
+    if (!g.scoreKey) return null;
+
+    // 1) Literal key — the common case for games like robotron.best, tetris.best, etc.
+    const literal = localStorage.getItem(g.scoreKey);
+    if (literal != null) {
+        const n = parseFloat(literal);
+        if (!isNaN(n)) return n;
+    }
+
+    // 2) Dotted JSON-path fallback — walk prefixes right-to-left until we find
+    //    a real localStorage entry whose JSON contains the remaining path.
+    const parts = g.scoreKey.split('.');
+    for (let i = parts.length - 1; i > 0; i--) {
+        const key = parts.slice(0, i).join('.');
+        const raw = localStorage.getItem(key);
+        if (raw == null) continue;
+        let v;
+        try { v = JSON.parse(raw); } catch { continue; }
+        for (const p of parts.slice(i)) {
+            if (v == null || typeof v !== 'object') { v = undefined; break; }
+            v = v[p];
+        }
+        if (typeof v === 'string') {
+            const n = parseFloat(v);
+            if (!isNaN(n)) return n;
+        }
+        if (typeof v === 'number') return v;
+    }
+    return null;
+}
+
+// Recently-played history (newest first). Stored as an array of filenames.
+function getRecent() {
+    try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; }
+    catch { return []; }
+}
+function pushRecent(file) {
+    const next = [file, ...getRecent().filter(f => f !== file)].slice(0, RECENT_LIMIT);
+    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+}
+
+function makeCard(g) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.file = g.file;
+    card.innerHTML =
+        '<div class="title"><span class="emoji"></span><span class="name"></span></div>' +
+        '<div class="body">' +
+            '<div class="desc"></div>' +
+            '<div class="chips"></div>' +
+        '</div>';
+    const cardEmoji = card.querySelector('.emoji');
+    cardEmoji.textContent = g.emoji || '';
+    if (g.emojiStyle) cardEmoji.style.cssText += g.emojiStyle;
+    card.querySelector('.name').textContent = g.name;
+    card.querySelector('.desc').textContent = g.desc;
+    // High score badge inside the expanded body, before the description.
+    const score = getHighScore(g);
+    if (score != null) {
+        const body = card.querySelector('.body');
+        const badge = document.createElement('div');
+        badge.className = 'score-badge';
+        badge.textContent = scoreEmoji(g) + ' ' + formatScore(g, score);
+        body.insertBefore(badge, body.firstChild);
+    }
+    const chipsEl = card.querySelector('.chips');
+    for (const t of g.tags) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = t;
+        chipsEl.appendChild(chip);
+    }
+    if (hasGamepad(g)) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = '🎮';
+        chip.title = 'Gamepad supported';
+        chipsEl.appendChild(chip);
+    }
+    if (g.url) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = '↗ off-site';
+        chip.title = 'Loads from an external site';
+        chipsEl.appendChild(chip);
+    }
+    card.addEventListener('click', () => selectGame(g.file));
+    return card;
+}
+
+function renderList() {
+    listEl.innerHTML = '';
+    const q = searchEl.value.trim().toLowerCase();
+    // Three buckets — regular games alphabetically, then the pinned Frank Force
+    // section, then under-construction games, each sinking to the bottom under
+    // its own divider.
+    const regular = [];
+    const frankforce = [];
+    const construction = [];
+    for (const g of GAMES) {
+        if (activeCategory !== 'all' && g.category !== activeCategory) continue;
+        // Frank Force section is hidden unless its master switch is on.
+        if (g.category === 'frankforce' && !SHOW_FRANKFORCE) continue;
+        if (q) {
+            // Gamepad-supporting games are searchable by "gamepad"/"controller"
+            // without per-game tags — folded in from the GAMEPAD_GAMES set.
+            const gp = hasGamepad(g) ? ' gamepad controller' : '';
+            const hay = (g.name + ' ' + g.desc + ' ' + g.category + ' ' + g.tags.join(' ') + ' ' + (g.keywords||[]).join(' ') + gp).toLowerCase();
+            if (!hay.includes(q)) continue;
+        }
+        (g.category === 'construction' ? construction
+            : g.category === 'frankforce' ? frankforce : regular).push(g);
+    }
+    const appendCard = g => {
+        const card = makeCard(g);
+        if (g.file === currentFile) card.classList.add('selected');
+        listEl.appendChild(card);
+    };
+    const addDivider = (label, color) => {
+        const d = document.createElement('div');
+        d.className = 'list-divider';
+        d.textContent = label;
+        if (color) d.style.color = color;
+        listEl.appendChild(d);
+    };
+    // Render each section under its own divider; the divider only appears when
+    // there's content above it to separate from (so a category filter that
+    // isolates one section shows just its cards, no orphan header).
+    let rendered = regular.length;
+    for (const g of regular) appendCard(g);
+    if (frankforce.length) {
+        if (rendered) addDivider('🟥 Frank Force Games', 'var(--cat-frankforce)');
+        for (const g of frankforce) appendCard(g);
+        rendered += frankforce.length;
+    }
+    if (construction.length) {
+        if (rendered) addDivider('🚧 Under Construction', 'var(--cat-construction)');
+        for (const g of construction) appendCard(g);
+        rendered += construction.length;
+    }
+
+    // Debug-only Templates bucket — starter projects from templates/, shown below
+    // the construction divider only when the debug build is active. Filtered by
+    // search, hidden under a specific category filter (templates aren't categorized).
+    const templates = (debugMode() && activeCategory === 'all')
+        ? TEMPLATES.filter(t => !q ||
+            (t.name + ' ' + t.desc + ' templates ' + t.tags.join(' ')).toLowerCase().includes(q))
+        : [];
+    if (templates.length) {
+        const divider = document.createElement('div');
+        divider.className = 'list-divider';
+        divider.textContent = '📁 Templates';
+        listEl.appendChild(divider);
+        for (const t of templates) appendCard(t);
+    }
+
+    if (regular.length + frankforce.length + construction.length + templates.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'No games match.';
+        listEl.appendChild(empty);
+    }
+}
+
+// ===================== Filter chips =====================
+
+function buildFilterChips() {
+    // Skip 'construction' — those games already have their own pinned section
+    // at the bottom of the list, so filtering by it would be redundant.
+    const all = [{ key:'all', label:'All' }, ...CATEGORIES.filter(c =>
+        c.key !== 'construction' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
+    for (const c of all) {
+        const btn = document.createElement('button');
+        btn.className = 'chip-filter' + (c.key === 'all' ? ' active' : '');
+        btn.dataset.cat = c.key;
+        btn.textContent = (c.emoji ? c.emoji + ' ' : '') + c.label;
+        // Tint the active state in the category's accent color.
+        if (c.color) {
+            btn.style.setProperty('--cat-color', c.color);
+            btn.style.setProperty('--cat-bg', c.colorBg);
+        }
+        btn.addEventListener('click', () => {
+            // Clicking the already-active category toggles it back off (to 'All').
+            activeCategory = (c.key !== 'all' && activeCategory === c.key) ? 'all' : c.key;
+            for (const el of filterChipsEl.children) {
+                el.classList.toggle('active', el.dataset.cat === activeCategory);
+            }
+            renderList();
+        });
+        filterChipsEl.appendChild(btn);
+    }
+}
+
+// ===================== Welcome screen =====================
+
+function makeTile(g, index) {
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.innerHTML =
+        '<div class="emoji"></div>' +
+        '<div class="info">' +
+            '<div class="name"></div>' +
+            '<div class="desc"></div>' +
+            '<div class="chips"></div>' +
+        '</div>';
+    const tileEmoji = tile.querySelector('.emoji');
+    tileEmoji.textContent = g.emoji || '';
+    if (g.emojiStyle) tileEmoji.style.cssText += g.emojiStyle;
+    tile.querySelector('.name').textContent = g.name;
+    tile.querySelector('.desc').textContent = g.desc;
+    const chipsEl = tile.querySelector('.chips');
+    for (const t of g.tags.slice(0, 3)) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = t;
+        chipsEl.appendChild(chip);
+    }
+    if (hasGamepad(g)) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = '🎮';
+        chip.title = 'Gamepad supported';
+        chipsEl.appendChild(chip);
+    }
+    if (g.url) {
+        const chip = document.createElement('span');
+        chip.className = 'chip';
+        chip.textContent = '↗ off-site';
+        chip.title = 'Loads from an external site';
+        chipsEl.appendChild(chip);
+    }
+    // Color the left stripe + hover border by category.
+    const cat = catByKey[g.category];
+    if (cat) tile.style.setProperty('--cat-color', cat.color);
+    // High-score badge in the top-right corner (skipped when no score saved).
+    const score = getHighScore(g);
+    if (score != null) {
+        const badge = document.createElement('div');
+        badge.className = 'score-badge';
+        badge.textContent = scoreEmoji(g) + ' ' + formatScore(g, score);
+        const info = tile.querySelector('.info');
+        info.insertBefore(badge, info.querySelector('.desc'));
+    }
+    // Stagger the entrance animation by position; cap so wide rows finish fast.
+    if (index != null) tile.style.setProperty('--i', Math.min(index, 12));
+    tile.addEventListener('click', () => selectGame(g.file));
+    return tile;
+}
+
+// ===================== Arcade Floor: hero attract + grid + about =====================
+
+// Curated list of games with a lively attract / title screen — the hero
+// rotates through these. Add more files here as games grow real attract modes.
+const HERO_GAMES = ['pong.html', 'asterblast.html'];
+let heroFile = null;
+
+// Navigate any iframe without polluting browser history (same trick as loadIframe).
+function loadFrame(frame, url) {
+    if (frame.contentWindow) frame.contentWindow.location.replace(url);
+    else frame.src = url;
+}
+
+// Pick a hero game at random, avoiding an immediate repeat when possible.
+function pickHero(exclude) {
+    const pool = HERO_GAMES.filter(f => gameByFile[f] && f !== exclude);
+    const list = pool.length ? pool : HERO_GAMES.filter(f => gameByFile[f]);
+    return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+}
+
+// Hide menus.js chrome (#littlejs-menus root: title menu, toolbar, dialogs,
+// toasts) inside the hero iframe so only the live attract shows. Injecting into
+// the NEW document as soon as its <head> exists — before the engine's async
+// init creates the menu — is what kills the title-menu flicker on load.
+// Returns true once injected (or stopped by a cross-origin wall) so the poller
+// can stop. `prevDoc` is the document present before navigation, so we don't
+// match the outgoing page and quit before the new one has loaded.
+function injectHeroAttractStyle(frame, prevDoc) {
+    let doc;
+    try { doc = frame && frame.contentDocument; }
+    catch (e) { if (frame) frame.style.opacity = '1'; return true; }   // cross-origin hero
+    if (!doc || doc === prevDoc) return false;                         // old / blank — wait for new doc
+    // Inject the moment <head> exists — before the engine builds the menu — so
+    // the title menu never flickers. Also force a dark page so there's no white
+    // canvas flash during load.
+    if (doc.head && !doc.getElementById('arcade-attract-style')) {
+        const s = doc.createElement('style');
+        s.id = 'arcade-attract-style';
+        s.textContent = '#littlejs-menus{display:none!important}html,body{background:#000!important}';
+        doc.head.appendChild(s);
+    }
+    // Reveal only once the document has fully loaded — revealing at head-parse
+    // showed the canvas white for a frame before its first paint.
+    if (doc.readyState === 'complete') { frame.style.opacity = '1'; return true; }
+    return false;
+}
+
+// Poll the hero frame: inject the hide-CSS as soon as the new doc's head is
+// parsed, then fade the iframe in once it's fully loaded (no white flash).
+let _heroAttractTimer = 0;
+function armHeroAttract(frame, prevDoc) {
+    clearInterval(_heroAttractTimer);
+    let tries = 0;
+    const tick = () => {
+        if (injectHeroAttractStyle(frame, prevDoc)) { clearInterval(_heroAttractTimer); return; }
+        if (++tries >= 80) {   // ~2.4s safety: reveal anyway so the hero never stays blank
+            clearInterval(_heroAttractTimer);
+            if (frame) frame.style.opacity = '1';
+        }
+    };
+    _heroAttractTimer = setInterval(tick, 30);
+    tick();
+}
+
+// Load the chosen attract game into the small hero iframe. Browser autoplay
+// policy keeps it silent until the user clicks (which navigates to it big).
+function setHero(file) {
+    heroFile = file;
+    const frame = document.getElementById('hero-frame');
+    const nameEl = document.querySelector('#hero-cabinet .hero-name');
+    const scoreEl = document.querySelector('#hero-cabinet .hero-score');
+    const g = gameByFile[file];
+    if (nameEl) nameEl.textContent = g ? g.name : '';
+    // Personal best for this game, if one exists (e.g. Asterblast); else hidden.
+    if (scoreEl) {
+        const sc = g ? getHighScore(g) : null;
+        if (sc != null) { scoreEl.textContent = scoreEmoji(g) + ' ' + formatScore(g, sc); scoreEl.hidden = false; }
+        else scoreEl.hidden = true;
+    }
+    if (frame && file) {
+        let prevDoc = null;
+        try { prevDoc = frame.contentDocument; } catch (e) {}
+        frame.style.opacity = '0';
+        loadFrame(frame, GAMES_DIR + file);
+        armHeroAttract(frame, prevDoc);
+    }
+}
+
+function buildHero() {
+    const wrap = document.createElement('div');
+    wrap.id = 'hero-cabinet';
+    wrap.title = 'Click to play';
+    wrap.innerHTML =
+        '<div class="hero-screen">' +
+            '<iframe id="hero-frame" title="Attract mode" tabindex="-1" scrolling="no" ' +
+                'allow="autoplay *; gamepad *"></iframe>' +
+        '</div>' +
+        '<div class="hero-bar">' +
+            '<span class="hero-now">▸ NOW PLAYING</span>' +
+            '<span class="hero-name"></span>' +
+            '<span class="hero-score score-badge" hidden></span>' +
+            '<span class="hero-coin">▶ INSERT COIN</span>' +
+            '<button class="hero-shuffle" title="Show a different game" aria-label="Show a different game">🔀 Show a different game</button>' +
+        '</div>';
+    // The whole cabinet is one big PLAY button; the iframe ignores pointer events.
+    wrap.addEventListener('click', () => { if (heroFile) selectGame(heroFile); });
+    wrap.querySelector('.hero-shuffle').addEventListener('click', e => {
+        e.stopPropagation();
+        setHero(pickHero(heroFile));
+    });
+    // Load the initial attract game after the element lands in the DOM.
+    setTimeout(() => setHero(pickHero(heroFile)), 0);
+    return wrap;
+}
+
+// ---- Stable-per-visit shuffle: seeded so tiles don't jump around on refresh,
+//      but you get a fresh wall next time you open the arcade. ----
+function floorSeed() {
+    let s = sessionStorage.getItem('floorSeed');
+    if (!s) { s = String(Math.floor(Math.random() * 1e9)); sessionStorage.setItem('floorSeed', s); }
+    return +s;
+}
+function mulberry32(a) {
+    return function () {
+        a |= 0; a = a + 0x6D2B79F5 | 0;
+        let t = Math.imul(a ^ a >>> 15, 1 | a);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+function shuffledCopy(arr, rng) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+// Base set for the floor grid — everything except the (optional) hidden off-site section.
+function floorGames() {
+    return GAMES.filter(g => g.category !== 'frankforce' || SHOW_FRANKFORCE);
+}
+
+let floorCat = 'all';
+
+function buildFloorControls() {
+    const wrap = document.createElement('div');
+    wrap.className = 'floor-controls';
+
+    const title = document.createElement('div');
+    title.className = 'floor-title';
+    title.id = 'floor-title';
+    title.textContent = 'All Games';
+    wrap.appendChild(title);
+
+    const tools = document.createElement('div');
+    tools.className = 'floor-tools';
+
+    // No search box here — the sidebar owns search ("find a title"); the floor
+    // is for browsing (hero + chips + the wall). One search, no duplication.
+
+    const chips = document.createElement('div');
+    chips.className = 'floor-chips';
+    // Only categories that actually have games get a chip. 'construction' is
+    // skipped (like the sidebar) — those games live in their own bottom section.
+    const present = new Set(floorGames().map(g => g.category));
+    const cats = [{ key: 'all', label: 'All', emoji: '' },
+        ...CATEGORIES.filter(c => present.has(c.key) && c.key !== 'construction' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
+    for (const c of cats) {
+        const btn = document.createElement('button');
+        btn.className = 'floor-chip' + (c.key === floorCat ? ' on' : '');
+        btn.dataset.cat = c.key;
+        btn.textContent = (c.emoji ? c.emoji + ' ' : '') + c.label;
+        if (c.color) { btn.style.setProperty('--cat-color', c.color); btn.style.setProperty('--cat-bg', c.colorBg); }
+        btn.addEventListener('click', () => {
+            // Clicking the active category toggles back to All.
+            floorCat = (c.key !== 'all' && floorCat === c.key) ? 'all' : c.key;
+            for (const el of chips.children) el.classList.toggle('on', el.dataset.cat === floorCat);
+            buildFloorGrid();
+        });
+        chips.appendChild(btn);
+    }
+    tools.appendChild(chips);
+    wrap.appendChild(tools);
+    return wrap;
+}
+
+// Render the grid: ★ Top Picks first (by rank), then the rest shuffled, then a
+// separate "Under Construction" section at the bottom (not mixed in).
+function buildFloorGrid() {
+    const grid = document.getElementById('floor-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    let games = floorGames();
+    if (floorCat !== 'all') games = games.filter(g => g.category === floorCat);
+    // Text filter comes from the sidebar search — one box drives both the
+    // sidebar list and this grid.
+    const q = searchEl.value.trim().toLowerCase();
+    if (q) {
+        games = games.filter(g => {
+            const gp = hasGamepad(g) ? ' gamepad controller' : '';
+            const hay = (g.name + ' ' + g.desc + ' ' + g.category + ' ' + g.tags.join(' ') + ' ' + (g.keywords || []).join(' ') + gp).toLowerCase();
+            return hay.includes(q);
+        });
+    }
+
+    // Under-construction games sink into their own labeled section at the bottom
+    // (mirrors the sidebar) instead of shuffling in with the finished games.
+    const construction = games.filter(g => g.category === 'construction');
+    const regular = games.filter(g => g.category !== 'construction');
+
+    // Finished games: ★ Top Picks first (by rank), then the rest shuffled.
+    const featured = regular.filter(g => g.top != null).sort((a, b) => a.top - b.top);
+    const rest = shuffledCopy(regular.filter(g => g.top == null), mulberry32(floorSeed()));
+    const ordered = [...featured, ...rest];
+
+    const titleEl = document.getElementById('floor-title');
+    if (titleEl) titleEl.textContent = 'All Games · ' + (ordered.length + construction.length);
+
+    if (!ordered.length && !construction.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'No games match.';
+        grid.appendChild(empty);
+        return;
+    }
+
+    let i = 0;
+    for (const g of ordered) {
+        const tile = makeTile(g, i++);
+        if (g.top != null) tile.classList.add('featured');
+        grid.appendChild(tile);
+    }
+
+    // Bottom section — kept in natural (A–Z) order like the sidebar's WIP shelf.
+    if (construction.length) {
+        const divider = document.createElement('div');
+        divider.className = 'floor-divider';
+        divider.textContent = '🚧 Under Construction';
+        grid.appendChild(divider);
+        for (const g of construction) grid.appendChild(makeTile(g, i++));
+    }
+}
+
+function buildWelcome() {
+    welcomeEl.innerHTML = '';
+
+    // 0) Arcade branding — logo + tagline. Especially important on mobile, where
+    //    the sidebar (and its logo) is a hidden drawer, so without this you'd
+    //    load straight into a game playing with no branding at all. Reuses the
+    //    original #welcome-hero styling (and revives the logo sparkles).
+    const brand = document.createElement('div');
+    brand.id = 'welcome-hero';
+    brand.innerHTML =
+        '<img id="welcome-logo" src="images/logo.png" alt="The LittleJS Arcade">' +
+        '<div id="welcome-tagline">' + GAMES.length + ' games · Powered by LittleJS</div>';
+    welcomeEl.appendChild(brand);
+
+    // 1) Live attract hero — boots a curated light game; click to play it big.
+    welcomeEl.appendChild(buildHero());
+
+    // 2) Recently Played — score badges ride along on each tile (revives the
+    //    high-score surface). Only shows once the user has launched a game.
+    const recentGames = getRecent().map(f => gameByFile[f]).filter(Boolean);
+    if (recentGames.length) {
+        welcomeEl.appendChild(buildRow('Recently Played', '🕘', recentGames, false, null));
+    }
+
+    // 3) All Games — controls + one responsive grid (★ picks first, rest shuffled).
+    const section = document.createElement('div');
+    section.className = 'floor-section';
+    section.appendChild(buildFloorControls());
+    const grid = document.createElement('div');
+    grid.id = 'floor-grid';
+    grid.className = 'floor-grid';
+    section.appendChild(grid);
+    welcomeEl.appendChild(section);
+    buildFloorGrid();
+}
+
+// ---- About modal ----
+function openAbout() { const m = document.getElementById('about-modal'); if (m) m.hidden = false; }
+function closeAbout() { const m = document.getElementById('about-modal'); if (m) m.hidden = true; }
+function initFloorUI() {
+    const btn = document.getElementById('about-btn');
+    if (btn) btn.addEventListener('click', openAbout);
+    const m = document.getElementById('about-modal');
+    if (m) {
+        m.querySelector('.about-close').addEventListener('click', closeAbout);
+        m.querySelector('.about-backdrop').addEventListener('click', closeAbout);
+    }
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAbout(); });
+}
+
+
+function buildRow(label, rowEmoji, games, isTop, cat) {
+    const row = document.createElement('section');
+    row.className = 'row' + (isTop ? ' row-top' : '');
+    // Color the row's accent bar (and the row emoji's glow) by category.
+    if (cat) row.style.setProperty('--cat-color', cat.color);
+
+    const h2 = document.createElement('h2');
+    h2.innerHTML =
+        '<span class="row-bar"></span>' +
+        (rowEmoji ? '<span class="row-emoji">' + rowEmoji + '</span>' : '') +
+        '<span class="row-label"></span>';
+    h2.querySelector('.row-label').textContent = label;
+    row.appendChild(h2);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'tiles-wrap';
+    const tiles = document.createElement('div');
+    tiles.className = 'tiles' + (isTop ? ' top' : '');
+    for (let i = 0; i < games.length; i++) tiles.appendChild(makeTile(games[i], i));
+    wrap.appendChild(tiles);
+
+    const leftBtn = document.createElement('button');
+    leftBtn.className = 'edge-scroll left';
+    leftBtn.setAttribute('aria-label', 'Scroll left');
+    leftBtn.innerHTML = '&#8249;';
+    leftBtn.hidden = true;
+    leftBtn.addEventListener('click', () => {
+        tiles.scrollBy({ left: -tiles.clientWidth * 0.85, behavior: 'smooth' });
+    });
+
+    const rightBtn = document.createElement('button');
+    rightBtn.className = 'edge-scroll right';
+    rightBtn.setAttribute('aria-label', 'Scroll right');
+    rightBtn.innerHTML = '&#8250;';
+    rightBtn.hidden = true;
+    rightBtn.addEventListener('click', () => {
+        tiles.scrollBy({ left: tiles.clientWidth * 0.85, behavior: 'smooth' });
+    });
+
+    wrap.appendChild(leftBtn);
+    wrap.appendChild(rightBtn);
+    row.appendChild(wrap);
+
+    const update = () => {
+        const atStart = tiles.scrollLeft <= 5;
+        const atEnd = tiles.scrollLeft + tiles.clientWidth >= tiles.scrollWidth - 5;
+        leftBtn.hidden = atStart;
+        rightBtn.hidden = atEnd;
+    };
+    tiles.addEventListener('scroll', update, { passive: true });
+    new ResizeObserver(update).observe(tiles);
+
+    // ---- Click-and-drag to scroll (mouse only — touch keeps native scroll) ----
+    // Capture the pointer ONLY after a real drag is detected (>4px). Capturing
+    // on pointerdown would redirect the click event from the tile to the row
+    // container, so plain clicks would never reach the tile's launch handler.
+    let downX = 0, downScroll = 0, pointerId = 0, isDown = false, moved = false;
+    tiles.addEventListener('pointerdown', e => {
+        if (e.pointerType !== 'mouse' || e.button !== 0) return;
+        if (e.target.closest('.edge-scroll')) return; // let arrow clicks work
+        isDown = true;
+        moved = false;
+        downX = e.clientX;
+        downScroll = tiles.scrollLeft;
+        pointerId = e.pointerId;
+    });
+    tiles.addEventListener('pointermove', e => {
+        if (!isDown) return;
+        const dx = e.clientX - downX;
+        if (!moved && Math.abs(dx) > 4) {
+            moved = true;
+            tiles.classList.add('dragging');
+            // Only now do we need capture — to keep tracking past the row edges.
+            tiles.setPointerCapture(pointerId);
+        }
+        if (moved) tiles.scrollLeft = downScroll - dx;
+    });
+    const endDrag = e => {
+        if (!isDown) return;
+        isDown = false;
+        tiles.classList.remove('dragging');
+        if (tiles.hasPointerCapture(e.pointerId)) tiles.releasePointerCapture(e.pointerId);
+    };
+    tiles.addEventListener('pointerup', endDrag);
+    tiles.addEventListener('pointercancel', endDrag);
+    // Suppress the click that follows a real drag so tiles don't launch.
+    tiles.addEventListener('click', e => {
+        if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; }
+    }, true);
+
+    return row;
+}
+
+// ===================== Stage state =====================
+
+// Navigate the iframe without polluting the browser's session history.
+// Setting iframe.src adds an entry the user has to back out of (the symptom:
+// browser back navigates the iframe to about:blank instead of returning to
+// the library). location.replace() does the same load, no history entry.
+function loadIframe(url) {
+    if (frameEl.contentWindow) frameEl.contentWindow.location.replace(url);
+    else frameEl.src = url;
+}
+
+function showWelcome(pushHistory = true) {
+    const wasGame = currentFile !== null;
+    currentFile = null;
+    document.body.classList.remove('in-game');
+    document.title = BASE_TITLE;
+    loadIframe('about:blank');
+    frameEl.style.display = 'none';
+    welcomeEl.style.display = 'block';
+    welcomeEl.scrollTop = 0;
+    // Source + Fullscreen stay enabled on the welcome screen — Source links to
+    // the repo, Fullscreen fullscreens the entire page (sidebar + welcome).
+    sourceBtn.classList.remove('disabled');     // re-enable after an off-site game
+    sourceBtn.href = MAIN_REPO;
+    sourceBtn.title = 'View the LittleJSArcade repo on GitHub';
+    fullscreenBtn.title = 'Fullscreen the whole page';
+    shareBtn.title = 'Share the LittleJS Arcade';
+    // Push a history entry only on user-driven game→library transitions,
+    // so the browser back button can return to the previously played game.
+    const clean = location.pathname + location.search;
+    if (location.hash) {
+        if (pushHistory && wasGame) history.pushState(null, '', clean);
+        else history.replaceState(null, '', clean);
+    }
+    // Clear the search so returning to the library always shows the full list.
+    if (searchEl.value) { searchEl.value = ''; renderList(); }
+    for (const c of listEl.querySelectorAll('.card')) c.classList.remove('selected');
+    buildWelcome(); // refresh continue button in case last-game changed
+}
+
+function selectGame(file, pushHistory = true) {
+    const g = infoByFile[file];
+    if (!g) return;
+    const tmpl = isTemplate(file);
+    const external = !!g.url;       // off-site game — load from g.url, not games/
+    const dir = tmpl ? TEMPLATES_DIR : GAMES_DIR;
+    const wasLibrary = currentFile === null;
+    currentFile = file;
+    // Stop the attract game running in the welcome hero (if one is loaded).
+    const heroFrame = document.getElementById('hero-frame');
+    if (heroFrame) loadFrame(heroFrame, 'about:blank');
+    document.body.classList.add('in-game');
+    document.title = g.name + ' · ' + BASE_TITLE;
+    // Templates are a dev-only browsing aid — keep them out of recent / continue.
+    if (!tmpl) pushRecent(file);
+    // Local games get a cache-bust so edits show without reload; for off-site URLs
+    // we don't control caching and a stray query can confuse the host, so load as-is.
+    loadIframe(external ? g.url : dir + file + '?t=' + Date.now());
+    frameEl.style.display = 'block';
+    welcomeEl.style.display = 'none';
+    // Source button: local games/templates always have a repo source; off-site
+    // games only if they declare `source`. With no source, gray the button out.
+    const sourceHref = external ? g.source : SOURCE_BASE + dir + file;
+    sourceBtn.classList.toggle('disabled', !sourceHref);
+    if (sourceHref) {
+        sourceBtn.href = sourceHref;
+        sourceBtn.title = external ? "View this game's source"
+            : tmpl ? "View this template's source on GitHub" : "View this game's source on GitHub";
+    } else {
+        sourceBtn.removeAttribute('href');
+        sourceBtn.title = 'No source available for this game';
+    }
+    fullscreenBtn.title = 'Play this game fullscreen';
+    shareBtn.title = 'Share a link to this game';
+    if (!tmpl) localStorage.setItem(LAST_GAME_KEY, file);
+    const newHash = '#' + file.replace(/\.html$/, '');
+    if (location.hash !== newHash) {
+        // Push only on the first library→game step so back returns to library.
+        // Between games (game→game) replace, so back doesn't have to walk
+        // through every game the user tried.
+        if (pushHistory && wasLibrary) history.pushState(null, '', newHash);
+        else history.replaceState(null, '', newHash);
+    }
+    for (const c of listEl.querySelectorAll('.card')) {
+        c.classList.toggle('selected', c.dataset.file === file);
+    }
+}
+
+function loadFromHash() {
+    // Called on initial load and on hashchange (back/forward). Don't push more
+    // history entries in response to navigation the browser already performed.
+    const raw = decodeURIComponent(location.hash.replace(/^#/, ''));
+    // Accept either #snake or #snake.html so old bookmarks still work.
+    const file = raw && (infoByFile[raw] ? raw : infoByFile[raw + '.html'] ? raw + '.html' : null);
+    if (file) selectGame(file, false);
+    else showWelcome(false);
+}
+
+// ===================== Debug: step through every game =====================
+// Console helpers for quick QA — type nextGame() to load the next game in the
+// list (starts at the first when on the welcome screen), call again to advance
+// to the next, and so on through all of them; wraps back to the start after the
+// last. prevGame() steps backward. Each call replaces the current game's iframe,
+// so there's nothing to close manually.
+function stepGame(dir) {
+    const i = GAMES.findIndex(g => g.file === currentFile);
+    const n = i < 0 ? (dir > 0 ? 0 : GAMES.length - 1)
+                    : (i + dir + GAMES.length) % GAMES.length;
+    const g = GAMES[n];
+    selectGame(g.file);
+    console.log('[debug] ' + (n + 1) + '/' + GAMES.length + '  ' + g.name + '  (' + g.file + ')');
+    return g.name;
+}
+window.nextGame = () => stepGame(1);
+window.prevGame = () => stepGame(-1);
+
+// ===================== Debug: engine build switch =====================
+// Console helper (call from the launcher console). The chosen build is stored in
+// localStorage and read by templates/engineLoader.js, so it applies to EVERY game.
+// 'release' is the shipped default, so picking it just clears the override.
+//   littlejsBuild()          -> show the current build + available options
+//   littlejsBuild('debug')   -> run every game on the debug build, reload current
+//   littlejsBuild('release') -> back to the shipped default build
+//   littlejsBuild('min')     -> minified release build
+window.littlejsBuild = function(build) {
+    const BUILDS = ['debug', 'release', 'min'];
+    const KEY = 'littlejs-build';
+    const current = localStorage.getItem(KEY) || 'release';
+    if (build === undefined) {
+        console.log(
+            '%clittlejs build:%c ' + current + '%c\n' +
+            'Options: ' + BUILDS.join(', ') + '   (release = default)\n' +
+            "Switch every game with littlejsBuild('debug') / ('release') / ('min'), or littlejsDebug().",
+            'color: #f7c948; font-weight: bold;', 'color: #58a6ff; font-weight: bold;', 'color: #8b949e;'
+        );
+        return;
+    }
+    if (!BUILDS.includes(build)) {
+        console.warn("littlejsBuild: use 'debug', 'release', or 'min'");
+        return;
+    }
+    // 'release' is the default → clear the override; 'debug'/'min' persist it.
+    if (build === 'release') localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, build);
+    console.log('littlejs build → ' + build + (build === 'release' ? ' (default)' : ''));
+    // Refresh the sidebar + welcome so the debug-only Templates section appears/disappears.
+    renderList();
+    if (!currentFile) buildWelcome();
+    // Reload the current game so engineLoader.js re-reads the override immediately.
+    if (currentFile) selectGame(currentFile, false);
+};
+// Short alias — littlejsDebug() turns the debug build on for every game;
+// littlejsDebug(false) turns it back off (release default).
+window.littlejsDebug = (on = true) => littlejsBuild(on ? 'debug' : 'release');
+
+// ===================== Wire-up =====================
+
+sidebarLogoWrap.addEventListener('click', showWelcome);
+// One search drives both views: the sidebar list and the welcome floor grid.
+// buildFloorGrid no-ops when the grid isn't mounted (i.e. while in a game).
+searchEl.addEventListener('input', () => { renderList(); buildFloorGrid(); });
+window.addEventListener('hashchange', loadFromHash);
+
+// While the sidebar list is scrolling, disable hover effects so cards
+// passing under the cursor don't all briefly expand-collapse.
+let listScrollTimer;
+listEl.addEventListener('scroll', () => {
+    listEl.classList.add('scrolling');
+    clearTimeout(listScrollTimer);
+    listScrollTimer = setTimeout(() => listEl.classList.remove('scrolling'), 150);
+}, { passive: true });
+fullscreenBtn.addEventListener('click', () => {
+    if (currentFile) {
+        // Game loaded → fullscreen the iframe. No toggle here; games have their
+        // own controls and the user can press Escape to exit anyway.
+        if (frameEl.requestFullscreen) frameEl.requestFullscreen();
+    } else {
+        // Library view → toggle the whole page in/out of fullscreen.
+        if (document.fullscreenElement) document.exitFullscreen();
+        else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    }
+});
+
+// Share — uses the native share sheet on mobile/Safari, falls back to copying
+// the URL to the clipboard with a brief "Copied!" label swap.
+shareBtn.addEventListener('click', async () => {
+    const url = location.href;
+    const title = currentFile
+        ? (infoByFile[currentFile].name + ' · LittleJS Arcade')
+        : 'LittleJS Arcade';
+    if (navigator.share) {
+        try { await navigator.share({ title, url }); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; /* else fall through */ }
+    }
+    try {
+        await navigator.clipboard.writeText(url);
+        const orig = shareBtn.textContent;
+        shareBtn.textContent = 'Copied!';
+        setTimeout(() => { shareBtn.textContent = orig; }, 1200);
+    } catch {
+        prompt('Copy this URL:', url);
+    }
+});
+
+// ===================== Library panel toggle =====================
+const sidebarEl = document.getElementById('sidebar');
+const hamburgerBtn = document.getElementById('hamburger');
+const backdropEl = document.getElementById('backdrop');
+const isMobile = () => matchMedia('(max-width: 720px)').matches;
+
+// Panel starts open on desktop, closed on mobile. The class pair is
+// dual-purpose: .open drives the mobile overlay drawer, .closed collapses the
+// desktop panel — only one matters per breakpoint, so both are set together.
+let sidebarOpen = !isMobile();
+
+function setDrawer(open) {
+    sidebarOpen = open;
+    sidebarEl.classList.toggle('open', open);
+    sidebarEl.classList.toggle('closed', !open);
+    backdropEl.classList.toggle('show', open);
+}
+hamburgerBtn.addEventListener('click', () => setDrawer(!sidebarOpen));
+backdropEl.addEventListener('click', () => setDrawer(false));
+// On mobile only, picking a game or hitting the home logo closes the drawer so
+// the user lands cleanly on their pick. On desktop the panel stays put.
+listEl.addEventListener('click', e => { if (e.target.closest('.card') && isMobile()) setDrawer(false); });
+sidebarLogoWrap.addEventListener('click', () => { if (isMobile()) setDrawer(false); });
+
+// ===================== In-game Library button (iframe handshake) =====================
+// Games running inside this iframe show a Library button in their toolbar to
+// reopen the drawer on mobile (the launcher's own #hamburger is hidden in-game).
+// The game posts a 'hello' first; we answer 'here' so the button only appears
+// when a real launcher is listening. A click then posts 'openPanel'.
+window.addEventListener('message', e => {
+    const d = e.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.type === 'littlejsArcadeHello') {
+        // Echo back to the sender. file:// iframes report origin 'null', which
+        // postMessage rejects as a target — fall back to '*' there.
+        const target = (e.origin && e.origin !== 'null') ? e.origin : '*';
+        try { e.source && e.source.postMessage({ type: 'littlejsArcadeHere' }, target); }
+        catch (err) {}
+    } else if (d.type === 'littlejsArcadeOpenPanel') {
+        setDrawer(true);
+    }
+});
+
+document.addEventListener('keydown', e => {
+    if (document.activeElement === searchEl && e.key !== 'Escape') return;
+    const cards = Array.from(listEl.querySelectorAll('.card'));
+    if (e.key === 'ArrowDown' && cards.length) {
+        e.preventDefault();
+        const idx = cards.findIndex(c => c.classList.contains('selected'));
+        const newIdx = Math.min(cards.length - 1, idx + 1);
+        // Skip if already at the last card — otherwise selectGame would re-launch
+        // the same file and look like a reload.
+        if (newIdx === idx) return;
+        const next = cards[newIdx];
+        selectGame(next.dataset.file);
+        next.scrollIntoView({ block:'nearest' });
+    } else if (e.key === 'ArrowUp' && cards.length) {
+        e.preventDefault();
+        const idx = cards.findIndex(c => c.classList.contains('selected'));
+        const newIdx = Math.max(0, idx - 1);
+        if (newIdx === idx) return;
+        const prev = cards[newIdx];
+        selectGame(prev.dataset.file);
+        prev.scrollIntoView({ block:'nearest' });
+    } else if (e.key === '/' && document.activeElement !== searchEl) {
+        e.preventDefault();
+        searchEl.focus();
+        searchEl.select();
+    } else if (e.key === 'Escape' && document.activeElement === searchEl) {
+        searchEl.value = '';
+        renderList();
+        buildFloorGrid();
+        searchEl.blur();
+    }
+});
+
+// ===================== Light / dark theme toggle =====================
+const THEME_KEY = 'littlejs-games-theme';
+const themeToggle = document.getElementById('theme-toggle');
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+
+function applyTheme(theme) {
+    const light = theme === 'light';
+    document.documentElement.setAttribute('data-theme', light ? 'light' : 'dark');
+    // The button shows the icon for the mode it will switch TO.
+    themeToggle.textContent = light ? '🌙' : '☀️';
+    themeToggle.title = light ? 'Switch to dark mode' : 'Switch to light mode';
+    themeToggle.setAttribute('aria-label', themeToggle.title);
+    if (themeColorMeta) themeColorMeta.content = light ? '#eef1f6' : '#0b0e14';
+}
+
+let currentTheme = localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark';
+applyTheme(currentTheme);
+themeToggle.addEventListener('click', () => {
+    currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+    localStorage.setItem(THEME_KEY, currentTheme);
+    applyTheme(currentTheme);
+});
+
+// ===================== Ambient effects (starfield + logo sparkles) =====================
+
+function setupStarfield() {
+    if (reducedMotion) return;
+    const canvas = document.createElement('canvas');
+    canvas.id = 'starfield';
+    const stage = document.getElementById('stage');
+    stage.insertBefore(canvas, welcomeEl);
+    const ctx = canvas.getContext('2d');
+    const stars = Array.from({ length: 80 }, () => ({
+        x: Math.random(),
+        y: Math.random(),
+        z: 0.3 + Math.random() * 0.7,         // brightness + size
+        vy: -(0.0002 + Math.random() * 0.0006), // upward drift (perceptible)
+    }));
+    // Read the STAGE dimensions, not the canvas — the canvas's own clientWidth
+    // can be 0 before its first layout, which previously left the drawing
+    // buffer at the default 300×150 and squashed stars into the top-left.
+    const resize = () => {
+        canvas.width = stage.clientWidth;
+        canvas.height = stage.clientHeight;
+    };
+    resize();
+    new ResizeObserver(resize).observe(stage);
+
+    function frame() {
+        const w = canvas.width, h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        if (currentFile === null) {
+            // On light backgrounds white stars vanish — use a soft slate instead.
+            const light = document.documentElement.getAttribute('data-theme') === 'light';
+            const starColor = light ? '#9aa7b8' : '#fff';
+            for (const s of stars) {
+                s.y += s.vy;
+                if (s.y < -0.05) { s.y = 1.05; s.x = Math.random(); }
+                ctx.globalAlpha = s.z * 0.55;
+                const size = Math.max(1, Math.round(s.z * 2.4));
+                ctx.fillStyle = starColor;
+                ctx.fillRect(s.x * w, s.y * h, size, size);
+            }
+            ctx.globalAlpha = 1;
+        }
+        requestAnimationFrame(frame);
+    }
+    frame();
+}
+
+function setupSparkles() {
+    if (reducedMotion) return;
+    // Small white rotating square that rises off the logo. ~1.5/sec while
+    // welcome is up; capped variation in size + a touch of horizontal jitter
+    // so they don't look like a regular grid.
+    setInterval(() => {
+        if (currentFile !== null) return;
+        const logo = document.getElementById('welcome-logo');
+        if (!logo) return;
+        const logoRect = logo.getBoundingClientRect();
+        const welcomeRect = welcomeEl.getBoundingClientRect();
+
+        const sparkle = document.createElement('div');
+        sparkle.className = 'sparkle';
+        // Spawn anywhere along the bottom edge of the logo so they "lift off".
+        const x = logoRect.left - welcomeRect.left + welcomeEl.scrollLeft
+                            + Math.random() * logoRect.width;
+        const y = logoRect.top  - welcomeRect.top  + welcomeEl.scrollTop
+                            + logoRect.height * (0.7 + Math.random() * 0.3);
+        const size = 4 + Math.random() * 5;
+        sparkle.style.left = x + 'px';
+        sparkle.style.top  = y + 'px';
+        sparkle.style.width  = size + 'px';
+        sparkle.style.height = size + 'px';
+        welcomeEl.appendChild(sparkle);
+        sparkle.addEventListener('animationend', () => sparkle.remove());
+    }, 650);
+}
+
+// Engine build via URL: index.html?debug=1 forces the debug build for every
+// game, ?debug=0 clears the override (back to the release default). Applied
+// before loadFromHash() so a game launched on first load already sees it. The
+// param is then stripped so it doesn't linger in bookmarks / shared links.
+(function applyDebugParam() {
+    const v = new URLSearchParams(location.search).get('debug');
+    if (v == null) return;
+    if (v === '1') localStorage.setItem('littlejs-build', 'debug');
+    else if (v === '0') localStorage.removeItem('littlejs-build');
+    history.replaceState(null, '', location.pathname + location.hash);
+})();
+
+buildFilterChips();
+renderList();
+loadFromHash();
+setupStarfield();
+setupSparkles();
+initFloorUI();
+
+// ===================== Dev console greeting =====================
+// Many visitors here are developers — print a styled note in DevTools with
+// links to the engine + this repo so they can poke around the source.
+console.log(
+    '%c🚂 LittleJS Games',
+    'font-size: 22px; font-weight: bold; color: #ff7eb6; text-shadow: 0 0 8px rgba(255,126,182,.4); padding: 4px 0;'
+);
+console.log(
+    'Tiny HTML5 arcade games built with LittleJS - Fast, lightweight, and open source HTML5 game engine.'
+);
+console.log(
+    '%cEngine:%c https://github.com/KilledByAPixel/LittleJS',
+    'color: #58a6ff; font-weight: bold;', 'color: #e6edf3;'
+);
+console.log(
+    '%cLittleJS Arcade:%c https://github.com/KilledByAPixel/LittleJSArcade',
+    'color: #58a6ff; font-weight: bold;', 'color: #e6edf3;'
+);
+console.log(
+    '%cAI Tools:%c https://github.com/KilledByAPixel/LittleJS-AI',
+    'color: #58a6ff; font-weight: bold;', 'color: #e6edf3;'
+);
+</script>
+</body>
+</html>
