@@ -8,6 +8,11 @@
 <script>
 'use strict';
 
+// Demo / attract mode: when launched in the arcade iframe with #demo, run
+// menu-less AI-vs-AI on a loop. Gated everywhere so standalone play is unchanged.
+const demoMode = /demo/.test(location.hash);
+let demoRestartTimer = -1;
+
 // engine settings, do not remove
 paused = false;
 // (menus.js auto-moves the debug-overlay key off Escape to ` on first createMenu)
@@ -1478,6 +1483,14 @@ function buildMenus()
         },
     });
 
+    // Demo mode: skip the title and run AI-vs-AI on a loop (menus are hidden
+    // by the launcher anyway). Standalone play surfaces the title as normal.
+    if (demoMode)
+    {
+        startGame('aivs');
+        return;
+    }
+
     // Show the title menu immediately — no click-to-reveal step.
     showMenu('title');
 }
@@ -1691,6 +1704,20 @@ function gameUpdate()
     // If someone is KO'd, pause ALL gameplay input/AI and surface the menu.
     if (human.gameOver || (ai && ai.gameOver))
     {
+        // Demo mode: no menus — let the finished boards sit a moment, then
+        // auto-start a fresh AI-vs-AI round so the attract loops forever.
+        if (demoMode)
+        {
+            if (demoRestartTimer < 0) demoRestartTimer = 2.5;
+            demoRestartTimer -= timeDelta;
+            if (demoRestartTimer <= 0)
+            {
+                demoRestartTimer = -1;
+                startGame('aivs');
+            }
+            return;
+        }
+
         if (!gameOverShowing)
         {
             // Best score: only count human-driven single-player runs.

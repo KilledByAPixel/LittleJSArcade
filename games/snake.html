@@ -10,6 +10,11 @@
 <script>
 'use strict';
 
+// demo/attract mode — launcher loads the game with #demo and hides all menu chrome.
+// In demo mode we auto-run an AI-driven classic game that loops forever.
+const demoMode = /demo/.test(location.hash);
+let demoRestartTimer = 0; // counts down after a demo round ends, then restarts
+
 // engine settings, do not remove
 paused = false;
 
@@ -639,6 +644,55 @@ function aiChooseDir()
     if (chosen) ai.nextDir = clampDir(chosen, ai);
 }
 
+// demo-mode steering: same greedy-but-safe logic as aiChooseDir, but for any
+// snake (used to auto-drive the player snake during attract mode).
+function demoChooseDir(s)
+{
+    if (!s.alive) return;
+    const blocked = buildBlockedGrid();
+    const head = s.body[0];
+    const isFood = c => cellOnAnyApple(c) || (bonus && cellEquals(c, bonus));
+
+    const legal = d =>
+    {
+        if (!d) return false;
+        if (d.x === -s.dir.x && d.y === -s.dir.y) return false; // no reversing
+        const n = vec2(head.x + d.x, head.y + d.y);
+        if (!isCellInBounds(n)) return false;
+        if (blocked[n.x][n.y] && !isFood(n)) return false;
+        return true;
+    };
+
+    // 1) head for the closest reachable target (apples + live bonus fruit)
+    let chosen = null;
+    const targets = foods.map(f => f.pos);
+    if (bonus) targets.push(bonus);
+    targets.sort((a,b) =>
+        (Math.abs(a.x-head.x) + Math.abs(a.y-head.y)) -
+        (Math.abs(b.x-head.x) + Math.abs(b.y-head.y)));
+    for (const t of targets)
+    {
+        const step = bfsStep(head, t, blocked);
+        if (legal(step)) { chosen = step; break; }
+    }
+
+    // 2) no safe path: take the legal move that keeps the most open room
+    if (!chosen)
+    {
+        let best = null, bestArea = -1;
+        for (const d of DIRS)
+        {
+            if (!legal(d)) continue;
+            const n = vec2(head.x + d.x, head.y + d.y);
+            const area = floodArea(n, blocked) + (isFood(n) ? 1000 : 0);
+            if (area > bestArea) { bestArea = area; best = d; }
+        }
+        chosen = best;
+    }
+
+    if (chosen) s.nextDir = clampDir(chosen, s);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Menus
 
@@ -648,6 +702,7 @@ function startClassic()
     resetGame();
     setPlaying(true);
     hideAllMenus();
+    demoRestartTimer = 1.8; // attract-mode loop delay after a round ends (armed at death)
 }
 
 function startVersus()
@@ -784,7 +839,14 @@ async function gameInit()
     resetGame();
 
     buildMenus();
-    showMenu('title');
+
+    if (demoMode)
+    {
+        // attract mode: auto-run an AI-driven classic game (no title menu)
+        startClassic();
+    }
+    else
+        showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -797,7 +859,11 @@ function gameUpdate()
     // (which adds to cameraPos after gameUpdate) can nudge cleanly.
     cameraPos = vec2(0, 0);
 
-    if (!roundOver) handleInput();
+    if (!roundOver)
+    {
+        if (demoMode) demoChooseDir(player); // auto-steer the player snake in attract mode
+        else handleInput();
+    }
 
     // animation timers
     foodPulseTimer += timeDelta;
@@ -836,6 +902,15 @@ function gameUpdate()
 
     if (roundOver)
     {
+        if (demoMode)
+        {
+            // attract mode: pause on the dead board a moment, then loop a fresh run
+            demoRestartTimer -= timeDelta;
+            if (demoRestartTimer <= 0)
+                startClassic();
+            return;
+        }
+
         // brief freeze, then surface the result menu (which pauses the game)
         if (deathFreezeTimer > 0)
         {

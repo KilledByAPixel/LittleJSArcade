@@ -9,6 +9,9 @@
 <script>
 'use strict';
 
+// demo / attract mode (launcher loads the game with #demo and hides all menus)
+const demoMode = /demo/.test(location.hash);
+
 // engine settings, do not remove
 paused = false;
 
@@ -335,6 +338,29 @@ class Player extends EngineObject
         this.destroy();
     }
 
+    // demo autopilot: steer toward the pad and brake before touchdown.
+    // returns {rotate:-1..1, thrust:bool}. Not meant to play perfectly, just alive.
+    autoInput()
+    {
+        const dx = padX - this.pos.x;                 // horizontal offset to pad
+        const dy = this.pos.y - (padY + PAD_THICK + 1.5);
+        const v = this.velocity;
+
+        // desired tilt: lean toward the pad horizontally, but go upright when low/slow
+        let wantAngle = clamp(-dx*.05 - v.x*3, -.5, .5);
+        if (dy < 6) wantAngle = clamp(-dx*.02 - v.x*4, -SAFE_ANGLE*.6, SAFE_ANGLE*.6);
+
+        // rotate toward wantAngle, damping out spin
+        const rotate = clamp((wantAngle - this.angle)*8 - this.angleVelocity*40, -1, 1);
+
+        // thrust to arrest descent / climb back up; ease off near a soft touchdown
+        const targetFall = dy < 4 ? -.03 : (dy < 12 ? -.06 : -.10);
+        let thrust = v.y < targetFall && abs(this.angle) < .55;
+        if (dy < 1 && v.length() < SAFE_SPEED*.7) thrust = false; // settle onto pad
+
+        return {rotate, thrust};
+    }
+
     update()
     {
         if (gameState) return;
@@ -347,10 +373,20 @@ class Player extends EngineObject
         if (gamepadIsDown(4)) rotateInput += 1;
         if (gamepadIsDown(5)) rotateInput -= 1;
         rotateInput = clamp(rotateInput, -1, 1);
-        this.applyAngularAcceleration(rotateInput * TURN_POWER);
 
         // main thrust (Up/W/Space + gamepad A + touch button)
-        const thrustHeld = moveInput.y > 0 || keyIsDown('Space') || gamepadIsDown(0);
+        let thrustHeld = moveInput.y > 0 || keyIsDown('Space') || gamepadIsDown(0);
+
+        // demo mode: the autopilot supplies all input
+        if (demoMode)
+        {
+            const ai = this.autoInput();
+            rotateInput = ai.rotate;
+            thrustHeld = ai.thrust;
+        }
+
+        this.applyAngularAcceleration(rotateInput * TURN_POWER);
+
         const canThrust = thrustHeld && this.fuel > 0;
         this.thrusting = canThrust;
 
@@ -542,7 +578,14 @@ function gameInit()
 
     startLevel(1);
     buildMenus();
-    showMenu('title');
+
+    if (demoMode)
+    {
+        // attract mode: skip the title and self-run a fresh game (autopilot flies it)
+        startGame();
+    }
+    else
+        showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -553,6 +596,17 @@ function gameUpdate()
 
     if (keyWasPressed('KeyR'))
         startGame();
+
+    // demo mode loops itself with no menus: advance on a landing, restart on a crash
+    if (demoMode)
+    {
+        if (gameState && messageTimer.elapsed())
+        {
+            if (gameState === 1) startLevel(level + 1);
+            else                 startGame();
+        }
+        return;
+    }
 
     // once the landing/explosion has played, surface the end-of-round menu;
     // it handles continue on every device (keyboard, mouse, gamepad, touch)

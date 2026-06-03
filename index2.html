@@ -882,13 +882,13 @@
         color: #fff; font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 9px;
         box-shadow: 0 4px 16px rgba(88,166,255,.4); white-space: nowrap; pointer-events: none;
     }
-    .hero-shuffle {
+    .hero-shuffle, .hero-next {
         align-self: flex-start; margin-top: 2px;
         background: rgba(127,127,127,.10); border: 1px solid var(--border);
         color: var(--muted); padding: 7px 12px; border-radius: 8px; font-size: 12px;
         transition: border-color .12s, background .12s, color .12s;
     }
-    .hero-shuffle:hover { border-color: var(--accent); background: rgba(127,127,127,.20); color: var(--text); }
+    .hero-shuffle:hover, .hero-next:hover { border-color: var(--accent); background: rgba(127,127,127,.20); color: var(--text); }
     /* Narrow viewports: stack the screen above the panel. */
     @media (max-width: 720px) {
         #hero-cabinet { flex-direction: column; }
@@ -1046,7 +1046,6 @@ const GAMES = [
     { file:'homerDerby.html',       name:'Home Run Derby',     emoji:'⚾',  category:'sports',       desc:'Swing for the fences.',                   tags:['one-button','timing'],                     keywords:['baseball','home run derby','bat'] },
     { file:'freeThrow.html',     name:'Free Throw',      emoji:'🏀',  category:'sports',       desc:'Sink free throws before time runs out.',  scoreKey:'basketball.bestScore',      tags:['timing','aim'],                keywords:['basketball','hoops','nba jam','dunk'] },
     { file:'brickout.html',       name:'Brickout',        emoji:'🧱',  category:'arcade',       desc:'Bounce the ball, break the bricks.',      scoreKey:'breakout.bestScore',        tags:['paddle','retro'],                 keywords:['breakout','arkanoid','bricks'] },
-    { file:'captureGo.html',      name:'Capture Go',      emoji:'⚫',  category:'board',        desc:'Surround stones to capture them.',    tags:['strategy','2-player'],            keywords:['go','baduk','weiqi','igo'] },
     { file:'centibug.html',      name:'Centibug',        emoji:'🐛',  category:'shooter',      desc:'Blast the centipede before it lands.',    scoreKey:'centipede.bestScore',       tags:['retro','classic'],                 keywords:['centipede','millipede','bug shooter','garden'] },
     { file:'checkers.html',       name:'Checkers',        emoji:'🔴',  category:'board',        desc:'Jump to capture your rival.',             tags:['strategy','2-player'],            keywords:['draughts'], top:10},
     { file:'chess.html',          name:'Chess',           emoji:'♟️', category:'board',        desc:'The classic game of kings.',              tags:['strategy','2-player'],            keywords:['chess'] },
@@ -1076,7 +1075,7 @@ const GAMES = [
     { file:'moonbuggy.html',     name:'Moonbuggy',       emoji:'🌔',  category:'construction', desc:'Hop craters and shoot aliens.',    scoreKey:'moonPatrol.bestScore',      tags:['scrolling','runner'],             keywords:['moon patrol','moon buggy','rover'] },
     { file:'mrDrill.html',      name:'Drillman',       emoji:'⛏️', category:'construction',       desc:'Dig down for air.',      scoreKey:'mrDriller.bestScore',       tags:['action','digging'],               keywords:['mr driller','dig dug','drilling'] },
     { file:'orbitswarm.html',     name:'OrbitSwarm',      emoji:'🪐',  category:'strategy',      desc:'Build ships, conquer the galaxy.',         tags:['space','strategy'],                keywords:['gravitar','strategy','geometry wars'] },
-    { file:'reversi.html',        name:'Reversi',         emoji:'⚪',  category:'board',        desc:'Flank stones to flip them.',              tags:['strategy','2-player'],            keywords:['othello','reversi'] },
+    { file:'reversi.html',        name:'Reversi',         emoji:'⚫',  category:'board',        desc:'Flank stones to flip them.',              tags:['strategy','2-player'],            keywords:['othello','reversi'] },
     { file:'pucMan.html',         name:'Maze Munch',         emoji:'👻',  category:'arcade',       desc:'Eat dots, dodge the ghosts.',             scoreKey:'pacman.bestScore',          tags:['maze','retro'],                   keywords:['pac-man','pacman','ms pacman','ghosts','maze chase'] },
     { file:'pegball.html',         name:'Pegball',         emoji:'🟢',  category:'physics',      desc:'Aim, drop, clear every peg.',             scoreKey:'peggle.bestScore',          tags:['physics','aim'],                  keywords:['peggle','pachinko','peg shooter'] },
     { file:'pinball.html',        name:'Pinball',         emoji:'⚪',  category:'construction', desc:'Launch, flip, and bounce.',          scoreKey:'pinball.bestScore',         tags:['physics','retro'],                keywords:['pinball','flippers','silverball'] },
@@ -1469,9 +1468,15 @@ function makeTile(g, index) {
 
 // ===================== Arcade Floor: hero attract + grid + about =====================
 
-// Curated list of games with a lively attract / title screen — the hero
-// rotates through these. Add more files here as games grow real attract modes.
-const HERO_GAMES = ['pong.html', 'asterblast.html'];
+// Curated list of games that support DEMO MODE — the featured cabinet rotates
+// through these, loading each with #demo so it runs menu-less and self-running.
+// Add a game here once it's been wired for demo mode.
+const DEMO_GAMES = [
+    'pong.html', 'asterblast.html', 'missileDefense.html', 'roboRescue.html',
+    'tetrix.html', 'spaceIntruders.html', 'froggit.html', 'checkers.html',
+    'boomer.html', 'brickout.html', 'floppyBird.html', 'geometryJump.html',
+    'pucMan.html', 'moonLander.html', 'snake.html',
+];
 let heroFile = null;
 
 // Navigate any iframe without polluting browser history (same trick as loadIframe).
@@ -1482,9 +1487,16 @@ function loadFrame(frame, url) {
 
 // Pick a hero game at random, avoiding an immediate repeat when possible.
 function pickHero(exclude) {
-    const pool = HERO_GAMES.filter(f => gameByFile[f] && f !== exclude);
-    const list = pool.length ? pool : HERO_GAMES.filter(f => gameByFile[f]);
+    const pool = DEMO_GAMES.filter(f => gameByFile[f] && f !== exclude);
+    const list = pool.length ? pool : DEMO_GAMES.filter(f => gameByFile[f]);
     return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+}
+
+// Step to the NEXT demo game in DEMO_GAMES order (wraps) — lets you cycle all.
+function nextDemo(current) {
+    const list = DEMO_GAMES.filter(f => gameByFile[f]);
+    if (!list.length) return null;
+    return list[(list.indexOf(current) + 1) % list.length];
 }
 
 // Hide menus.js chrome (#littlejs-menus root: title menu, toolbar, dialogs,
@@ -1531,6 +1543,30 @@ function armHeroAttract(frame, prevDoc) {
     tick();
 }
 
+// Silence the demo cabinet — demo mode is a MUTED attract. Force the game's
+// audio off (soundEnable + master volume) and keep enforcing it for a few
+// seconds so it wins over the volume the game sets in its own gameInit.
+// SoundGenerator extends Sound, so both route through these. Same-origin only
+// (local games); off-site frames throw and are ignored.
+let _heroMuteTimer = 0;
+function muteHero(frame) {
+    clearInterval(_heroMuteTimer);
+    let tries = 0;
+    const tick = () => {
+        try {
+            const cw = frame.contentWindow;
+            if (cw) {
+                cw.soundEnable = false;
+                if (typeof cw.setSoundVolume === 'function') cw.setSoundVolume(0);
+                else cw.soundVolume = 0;
+            }
+        } catch (e) { /* cross-origin — can't mute, ignore */ }
+        if (++tries >= 100) clearInterval(_heroMuteTimer);   // ~5s of enforcement
+    };
+    _heroMuteTimer = setInterval(tick, 50);
+    tick();
+}
+
 // Load the chosen attract game into the small hero iframe. Browser autoplay
 // policy keeps it silent until the user clicks (which navigates to it big).
 function setHero(file) {
@@ -1550,8 +1586,9 @@ function setHero(file) {
         let prevDoc = null;
         try { prevDoc = frame.contentDocument; } catch (e) {}
         frame.style.opacity = '0';
-        loadFrame(frame, GAMES_DIR + file);
+        loadFrame(frame, GAMES_DIR + file + '#demo');
         armHeroAttract(frame, prevDoc);
+        muteHero(frame);
     }
 }
 
@@ -1570,12 +1607,17 @@ function buildHero() {
             '<span class="hero-score score-badge" hidden></span>' +
             '<span class="hero-coin">▶ INSERT COIN</span>' +
             '<button class="hero-shuffle" title="Show a different game" aria-label="Show a different game">🔀 Show a different game</button>' +
+            '<button class="hero-next" title="Show next game" aria-label="Show next game">⏭ Show next game</button>' +
         '</div>';
     // The whole cabinet is one big PLAY button; the iframe ignores pointer events.
     wrap.addEventListener('click', () => { if (heroFile) selectGame(heroFile); });
     wrap.querySelector('.hero-shuffle').addEventListener('click', e => {
         e.stopPropagation();
         setHero(pickHero(heroFile));
+    });
+    wrap.querySelector('.hero-next').addEventListener('click', e => {
+        e.stopPropagation();
+        setHero(nextDemo(heroFile));
     });
     // Load the initial attract game after the element lands in the DOM.
     setTimeout(() => setHero(pickHero(heroFile)), 0);

@@ -9,6 +9,10 @@
 <script>
 'use strict';
 
+// attract/demo mode: when the launcher loads this game with #demo it hides all
+// menu chrome, so we run the game self-playing instead of waiting for a tap.
+const demoMode = /demo/.test(location.hash);
+
 // engine settings, do not remove
 paused = false; // Start unpaused
 
@@ -152,6 +156,28 @@ function inputJumpPressed()
     return keyWasPressed('Space') || keyWasPressed('ArrowUp') || mouseWasPressed(0) || gamepadWasPressed(0);
 }
 
+// demo attract-mode state
+let demoDeadTimer = 0;
+
+// simple auto-pilot: aim for the gap of the next pipe ahead and flap when the
+// bird drops below that target. Doesn't need to play perfectly, just look alive.
+function demoWantsFlap()
+{
+    // find the next pipe whose right edge hasn't passed the bird yet
+    let target = 0;
+    for (const p of pipes)
+    {
+        if (p.x + pipeWidth/2 > birdX - 1)
+        {
+            // aim slightly above the gap center to counter gravity drop
+            target = p.gapY + .5;
+            break;
+        }
+    }
+    // flap when below target and not rising too fast (avoids over-flapping)
+    return birdPos.y < target && birdVelY < flapVelocity*.6;
+}
+
 function birdAabb()
 {
     const s = vec2(birdRadius*2);
@@ -199,7 +225,8 @@ function killBird()
         false               // additive
     );
 
-    submitBestScore(score);
+    if (!demoMode) // don't let the auto-pilot pollute the player's best score
+        submitBestScore(score);
 }
 
 // rotate a Vector2 by angle (radians) using LittleJS clockwise-positive convention
@@ -516,6 +543,18 @@ function startGame()
     hideAllMenus();
 }
 
+// attract mode: jump straight into a live run with the auto-pilot flying
+function startDemo()
+{
+    resetRun(false); // STATE_PLAY, no ready/tap-to-start gate
+    initScenery();
+    spawnPipe();
+    pipes[0].x = 6;
+    pipeTimer = pipeInterval;
+    demoDeadTimer = 0;
+    setPlaying(true);
+}
+
 function buildMenus()
 {
     if (typeof createMenu !== 'function') return;
@@ -573,7 +612,11 @@ async function gameInit()
     pipes[0].x = 6;
 
     buildMenus();
-    showMenu('title');
+
+    if (demoMode)
+        startDemo(); // self-running attract loop; menus stay hidden
+    else
+        showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -588,8 +631,24 @@ function gameUpdate()
     if (state === STATE_PLAY)
         bgScrollX += pipeSpeed * dt;
 
+    // attract mode: auto-pilot the bird, auto-restart a moment after a crash
+    if (demoMode)
+    {
+        if (state === STATE_DEAD)
+        {
+            demoDeadTimer += dt;
+            if (demoDeadTimer > 1.5)
+                startDemo();
+        }
+        else if (state === STATE_PLAY && demoWantsFlap())
+        {
+            birdVelY = flapVelocity;
+            sfxFlap.play();
+        }
+        // skip real input handling below
+    }
     // start / flap / restart
-    if (inputJumpPressed())
+    else if (inputJumpPressed())
     {
         if (state === STATE_READY)
         {

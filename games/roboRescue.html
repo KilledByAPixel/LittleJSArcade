@@ -8,6 +8,11 @@
 <script>
 'use strict';
 
+// Demo / attract mode: when loaded with #demo (arcade launcher iframe), run the game
+// self-playing with a simple auto-player and no menus. Gated everywhere so standalone
+// play (no #demo) is completely unchanged.
+const demoMode = /demo/.test(location.hash);
+
 // engine settings
 canvasFixedSize = vec2(1920, 1080);
 
@@ -2008,8 +2013,31 @@ class Player extends EngineObject
             if (this.invuln > 0 && respawnTimer === 0) this.invuln--;
             return;
         }
+        // Demo / attract mode: a simple auto-player drives movement, aim, and fire.
+        // It doesn't play well — it just flees the nearest threat and shoots the nearest
+        // killable enemy so the scene looks alive.
+        let move, aimDir, shootInput;
+        if (demoMode)
+        {
+            const ai = this.demoDecideInput();
+            move = ai.move;
+            aimDir = ai.aim;
+            shootInput = ai.fire;
+            this.pos = this.pos.add(move.scale(.17));
+            this.pos = clampToArena(this.pos, .5);
+            this.moveAmount = move.length();
+            if (this.moveAmount > .01) this.walkPhase += this.moveAmount * .4;
+            if (aimDir.lengthSquared() > .0001)
+            {
+                const a = aimDir.angle();
+                const snapped = Math.round(a / (PI/4)) * (PI/4);
+                this.facing = vec2(Math.sin(snapped), Math.cos(snapped));
+            }
+        }
+        else
+        {
         // MOVEMENT: keyboard WASD/arrows + gamepad/touch left stick
-        let move = keyDirection();
+        move = keyDirection();
         const leftStick = (typeof gamepadStick === 'function') ? gamepadStick(0) : vec2(0);
         if (leftStick.lengthSquared() > .04) move = move.add(leftStick);
         if (move.lengthSquared() > 0) move = move.normalize(1);
@@ -2024,7 +2052,7 @@ class Player extends EngineObject
         const fireButtonHeld = (typeof gamepadIsDown === 'function') && gamepadIsDown(0);
         const leftStickActive = leftStick.lengthSquared() > .04;
 
-        let aimDir = null;
+        aimDir = null;
         if (rightStickActive)                       aimDir = rightStick;
         else if (fireButtonHeld && leftStickActive) aimDir = leftStick;
         else                                        aimDir = mousePos.subtract(this.pos);
@@ -2038,7 +2066,8 @@ class Player extends EngineObject
 
         // FIRE: mouse left button, right stick pushed (twin-stick auto-fire), or gamepad A button.
         // Arcade (RRG23.ASM LSPROC): 8-tick auto-fire cadence, max 4 player bullets on screen (LCNT cap).
-        const shootInput = mouseIsDown(0) || rightStickActive || fireButtonHeld;
+        shootInput = mouseIsDown(0) || rightStickActive || fireButtonHeld;
+        }
         if (this.cooldown > 0) this.cooldown--;
         let aliveBullets = 0;
         for (const b of bullets) if (!b.destroyed) aliveBullets++;
@@ -2051,6 +2080,36 @@ class Player extends EngineObject
             sfxShoot.play(this.pos);
         }
         if (this.invuln > 0) this.invuln--;
+    }
+    // Demo auto-player: aim/fire at the nearest killable enemy, flee the nearest threat,
+    // and drift toward arena center when things are clear. Not meant to play well.
+    demoDecideInput()
+    {
+        let nearestKillable = null, killDist = Infinity;
+        let nearestThreat = null, threatDist = Infinity;
+        const consider = (o) =>
+        {
+            if (!o || o.destroyed) return;
+            const d = o.pos.subtract(this.pos).length();
+            if (d < threatDist) { threatDist = d; nearestThreat = o; }
+            if (o.killable && d < killDist) { killDist = d; nearestKillable = o; }
+        };
+        for (const e of enemies) consider(e);
+        for (const b of enemyBullets) consider(b);
+
+        // Aim at the nearest shootable enemy (fall back to nearest threat, then current facing)
+        const aimTarget = nearestKillable || nearestThreat;
+        const aim = aimTarget ? aimTarget.pos.subtract(this.pos) : this.facing.copy();
+
+        // Flee: steer away from the nearest threat when it's close; otherwise drift to center.
+        let move = vec2(0);
+        if (nearestThreat && threatDist < 6)
+            move = this.pos.subtract(nearestThreat.pos);
+        else
+            move = this.pos.scale(-1);   // ease back toward center so it doesn't hug a wall
+        if (move.lengthSquared() > 0) move = move.normalize(1);
+
+        return { move, aim, fire: !!nearestKillable };
     }
     damage()
     {
@@ -2464,6 +2523,9 @@ function buildMenus()
     // HUD toolbar
     installDefaultToolbar();
 
+    // Demo / attract mode (launcher iframe): skip the title and self-play immediately.
+    if (demoMode) { startGame(); return; }
+
     // Show the title menu immediately — no click-to-reveal step.
     showMenu('title');
 }
@@ -2563,8 +2625,8 @@ function gameUpdate()
     if (isPlaying() && keyWasPressed('KeyR'))
         startGame();
 
-    // Pause hotkey — only meaningful when actually playing
-    if (isPlaying() && !gameOver &&
+    // Pause hotkey — only meaningful when actually playing (disabled in self-running demo mode)
+    if (!demoMode && isPlaying() && !gameOver &&
         (keyWasPressed('Escape') || (typeof gamepadWasPressed === 'function' && gamepadWasPressed(9))))
     {
         if (typeof playMenuSound === 'function') playMenuSound('activate');
@@ -2591,8 +2653,13 @@ function gameUpdate()
         if (gameOverTimer > 0)
         {
             gameOverTimer--;
-            if (gameOverTimer === 0 && typeof showMenu === 'function')
-                showMenu('gameOver');
+            if (gameOverTimer === 0)
+            {
+                // Demo / attract mode loops forever: restart a fresh run instead of
+                // surfacing the (hidden) GAME OVER menu.
+                if (demoMode)                          startGame();
+                else if (typeof showMenu === 'function') showMenu('gameOver');
+            }
         }
         cleanupLists();
         return;

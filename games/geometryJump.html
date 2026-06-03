@@ -9,6 +9,11 @@
 <script>
 'use strict';
 
+// demo/attract mode: when launched in the arcade with #demo, run self-playing
+// (auto-jumping bot, auto-restart on crash/clear) with no menus.
+const demoMode = /demo/.test(location.hash);
+let demoRestartTimer = 0;   // counts down frames before auto-restarting a finished run
+
 // engine settings
 
 // --- Geometry Dash-ish micro runner ------------------------------------------
@@ -218,6 +223,7 @@ function killPlayer()
 {
     if (state !== 'play') return;
     state = 'dead';
+    if (demoMode) demoRestartTimer = 90;    // ~1.5s before the attract retries the level
     sDie.play();
     addScreenShake(.7, .4);
     trail.length = 0;
@@ -260,6 +266,7 @@ function winGame()
 {
     if (state !== 'play') return;
     state = 'win';
+    if (demoMode) demoRestartTimer = 90;    // ~1.5s before the attract moves to the next level
     campaignComplete = (levelIndex + 1 >= TOTAL_LEVELS);
     sWin.play();
     addScreenShake(.4, .3);
@@ -371,8 +378,8 @@ function playerStep()
     // auto-run (constant speed, even while jumping)
     player.pos.x += runSpeed;
 
-    // jump
-    if (player.grounded && wantJump())
+    // jump (demo mode lets the auto-player trigger it)
+    if (player.grounded && (wantJump() || (demoMode && demoWantsJump())))
     {
         player.velY = JUMP_VEL;
         player.grounded = false;
@@ -493,6 +500,43 @@ function playerStep()
         const target = Math.round(player.angle / (PI/2)) * (PI/2);
         player.angle = lerpAngle(player.angle, target, .35);
     }
+}
+
+// --- demo auto-player ---------------------------------------------------------
+// Decides whether the bot should jump THIS frame. Looks a short distance ahead
+// for the next ground hazard (spike or jump-over block) and jumps while there's
+// still room to take off. Ceiling bars (style 1) are gone under, never jumped.
+function demoWantsJump()
+{
+    if (!player.grounded) return false;
+
+    const px = player.pos.x + PLAYER_SIZE.x/2;   // leading edge of the cube
+    const lead = 1.6;                            // start the jump this far before a hazard
+
+    // spikes near our current standing height (floor OR a deck we've landed on)
+    const standY = player.pos.y - PLAYER_SIZE.y/2;   // bottom of the cube right now
+    for (const s of spikes)
+    {
+        if (Math.abs(s.y - standY) > .6) continue;   // spike must sit at roughly our feet
+        const gap = s.x - px;
+        if (gap >= 0 && gap < lead)
+            return true;
+    }
+
+    // solid blocks we must clear (normal style only; not ceiling bars, not under-floor decor)
+    for (const b of solids)
+    {
+        if (b.style === 1) continue;             // ceiling bar -> go under, don't jump
+        const top = b.pos.y + b.size.y/2;
+        if (top <= FLOOR_Y) continue;            // under-floor visual
+        const blockLeft = b.pos.x - b.size.x/2;
+        const gap = blockLeft - px;
+        // only worth jumping for low-ish blocks we can land on / clear
+        if (gap >= 0 && gap < lead && top <= player.pos.y + 2.5)
+            return true;
+    }
+
+    return false;
 }
 
 function drawSpike(s)
@@ -816,7 +860,11 @@ function gameInit()
     resetGame();
 
     buildMenus();
-    showMenu('title');
+
+    if (demoMode)
+        startRun('classic', 0);     // self-running attract: kick off level 1 (no title menu)
+    else
+        showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -828,6 +876,25 @@ function gameUpdate()
     if (state !== 'play')
     {
         updateParticles();
+
+        // demo attract loop: auto-advance after a short pause so the reel never stalls
+        if (demoMode)
+        {
+            if (--demoRestartTimer <= 0)
+            {
+                if (state === 'win')
+                {
+                    if (levelIndex + 1 < TOTAL_LEVELS)
+                        startRun('classic', levelIndex + 1);   // next level
+                    else
+                        startRun('classic', 0);                // loop back to level 1
+                }
+                else
+                    resetGame();                               // crashed -> retry this level
+            }
+            return;
+        }
+
         if (wantJump() || keyWasPressed('KeyR'))
         {
             if (state === 'win' && !keyWasPressed('KeyR'))

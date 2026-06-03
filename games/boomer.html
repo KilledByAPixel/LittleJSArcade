@@ -23,6 +23,13 @@
 <script>
 'use strict';
 
+// Demo/attract mode: the arcade launcher loads the game in an iframe with
+// "#demo" and hides all menus.js chrome. In demo mode we skip the title menu,
+// auto-start a game, drive the buckets with a simple auto-player, and loop on
+// game over. Standalone play (no #demo) is unchanged.
+const demoMode = /demo/.test(location.hash);
+let demoRestartTimer = 0;   // seconds until the next auto-restart after game over
+
 paused = false;
 gravity = vec2(0, -0.01);   // gentle pull so ParticleEmitter particles arc (only particles are engine objects; applied per-frame to velocity)
 cameraPos = vec2(0, 0);
@@ -292,6 +299,7 @@ function missBomb(missedBomb) {
         // player sees the shake before the modal eats the screen.
         gameOverShown = false;
         gameOverDelay = 1.2;
+        demoRestartTimer = 2.0;   // demo mode: pause on the wreckage, then loop
     }
 }
 
@@ -334,6 +342,17 @@ function updateBomber(dt) {
 
 function updateBucket(dt) {
     const maxX = FIELD_RIGHT - bucketHalfW(wave) - 0.3;
+    // Demo auto-player: track the lowest in-flight bomb so the bucket looks
+    // alive (it doesn't need to catch every one). Falls through to manual
+    // control when no bombs are falling.
+    if (demoMode && bombs.length) {
+        let target = bombs[0];
+        for (const b of bombs)
+            if (b.pos.y < target.pos.y) target = b;
+        bucketTargetX = clamp(target.pos.x, -maxX, maxX);
+        bucketX = bucketTargetX;
+        return;
+    }
     // One-axis steering: keyboard arrows/WASD or gamepad left stick / d-pad.
     let kx = keyDirection().x;                              // gamepad
     const sx = gamepadStick(0).x;                           // gamepad: merge left stick / d-pad
@@ -842,7 +861,10 @@ async function gameInit() {
     bombsSpawned = bombsCaught = bombsInWave = 0;
     missShakeTimer = 0;
 
-    showMenu('title');
+    if (demoMode)
+        startGame();     // attract mode: skip the title and run a self-playing game
+    else
+        showMenu('title');
 }
 
 function gameUpdate() {
@@ -858,6 +880,15 @@ function gameUpdate() {
 
     if (!isPlaying()) {
         if (gameOverDelay > 0) gameOverDelay -= dt;
+        // Demo mode: instead of the game-over modal, wait for the explosion to
+        // settle then auto-restart a fresh game so the attract loops forever.
+        if (demoMode) {
+            if (lives <= 0 && missShakeTimer <= 0 && gameOverDelay <= 0) {
+                demoRestartTimer -= dt;
+                if (demoRestartTimer <= 0) startGame();
+            }
+            return;
+        }
         // Game over modal surfacing — wait until the shake + explosion settle.
         if (lives <= 0 && !gameOverShown && missShakeTimer <= 0 && gameOverDelay <= 0) {
             showGameOver();

@@ -18,6 +18,9 @@
 <script>
 'use strict';
 
+// Demo/attract mode: gated behind the #demo hash so standalone play is untouched.
+const demoMode = /demo/.test(location.hash);
+
 // engine settings
 
 // ------------------------------------------------------------
@@ -1057,6 +1060,16 @@ function gameInit()
     // Attract mode: build a layout (cities, mountains, stars) but don't spawn waves.
     newGame();
     setPlaying(false);
+
+    if (demoMode)
+    {
+        // Self-running attract: the launcher hides all menu chrome, so start a
+        // live game immediately and let the built-in AI play both ends (it only
+        // controls the defenders; enemy waves spawn on their own). installAutoPause
+        // keeps paused=false while no menu is visible.
+        aiMode = true;
+        startGame();
+    }
 }
 
 function startGame()
@@ -1146,7 +1159,10 @@ function buildMenus()
     installDefaultToolbar();
 
     // Show the title menu immediately — no click-to-reveal step.
-    showMenu('title');
+    // In demo mode skip it: a visible title menu would pause the game via
+    // installAutoPause, and gameInit starts a live attract game instead.
+    if (!demoMode)
+        showMenu('title');
 }
 
 function gameUpdate()
@@ -1211,6 +1227,14 @@ function gameUpdate()
     {
         updateExplosions();
         // Brief on-canvas hold (lets the final explosions play out), then surface menu.
+        // In demo mode there is no menu — auto-restart so the attract loops forever.
+        if (demoMode)
+        {
+            gameOverHoldTimer -= timeDelta;
+            if (gameOverHoldTimer <= 0)
+                startGame();
+            return;
+        }
         if (!gameOverShowing)
         {
             gameOverHoldTimer -= timeDelta;

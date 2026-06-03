@@ -9,6 +9,10 @@
 <script>
 'use strict';
 
+// When the arcade launcher loads this game in an iframe with #demo, all
+// menus.js chrome is hidden — so run a self-playing attract loop instead.
+const demoMode = /demo/.test(location.hash);
+
 // engine settings, do not remove
 paused = false;
 
@@ -129,6 +133,11 @@ let laserTimer = 0;
 let laserCooldown = 0;
 let fireballTimer = 0;
 let slowTimer = 0;
+
+// demo/attract mode: counts down after game over before auto-restarting,
+// plus a short delay before each auto-launch from the serve state
+let demoRestartTimer = 0;
+let demoServeTimer = 0;
 
 // sounds
 let sfxBounce, sfxBrick, sfxLose, sfxWin, sfxPower, sfxLaser;
@@ -591,6 +600,8 @@ function resetGame()
     state = 'serve';
     ballSpeed = BALL_BASE_SPEED;
     combo = 0;
+    demoRestartTimer = 0;
+    demoServeTimer = 0;
 
     resetPaddle();
     resetRunState();
@@ -602,6 +613,44 @@ function startNewGame()
 {
     resetGame();
     setPlaying(true);
+}
+
+// Demo/attract auto-player: choose where the paddle should aim this frame.
+// Tracks the most threatening ball (lowest one heading down); if none is
+// descending, follows the lowest ball. Adds a tiny wobble so it isn't robotic
+// and nudges toward a catchable powerup when nothing urgent is happening.
+function demoPaddleTargetX()
+{
+    let target = paddlePos.x;
+    let best = null;
+    for (const b of balls)
+    {
+        if (b.stuck) continue;
+        // Prefer descending balls; among them, the lowest (closest to paddle).
+        const threat = b.vel.y < 0 ? 1 : 0;
+        if (!best
+            || threat > best.threat
+            || (threat === best.threat && b.pos.y < best.ball.pos.y))
+            best = { ball: b, threat };
+    }
+
+    if (best)
+    {
+        target = best.ball.pos.x;
+        // Aim slightly off-center so bounces vary and break across the field.
+        if (best.threat)
+            target += 0.6 * Math.sin(time * 1.7);
+    }
+    else
+    {
+        // No active ball (e.g. just before serve): drift toward a powerup.
+        let lowest = null;
+        for (const p of powerups)
+            if (!lowest || p.pos.y < lowest.pos.y) lowest = p;
+        if (lowest) target = lowest.pos.x;
+    }
+
+    return clamp(target, paddleSize.x / 2, levelSize.x - paddleSize.x / 2);
 }
 
 function quitToTitleWithCleanup()
@@ -683,7 +732,14 @@ async function gameInit()
     // while the title is up), then show the title menu over it.
     resetGame();
     setPlaying(false);
-    showMenu('title');
+
+    if (demoMode)
+    {
+        // Demo/attract: skip the (hidden) title menu and self-play.
+        startNewGame();
+    }
+    else
+        showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -698,11 +754,26 @@ function gameUpdate()
     if (!isPlaying())
         return;
 
-    if (bindPauseKey({when: () => isPlaying() && state !== 'lose'}))
-        return;
+    // Demo/attract: after a game over, wait briefly then auto-restart so the
+    // self-playing loop runs forever. (No pause/restart-key handling in demo.)
+    if (demoMode)
+    {
+        if (state === 'lose')
+        {
+            demoRestartTimer = max(0, demoRestartTimer - dt);
+            if (demoRestartTimer <= 0)
+                startNewGame();
+            return;
+        }
+    }
+    else
+    {
+        if (bindPauseKey({when: () => isPlaying() && state !== 'lose'}))
+            return;
 
-    if (keyWasPressed('KeyR'))
-        startNewGame();
+        if (keyWasPressed('KeyR'))
+            startNewGame();
+    }
 
     // Debug: N cycles to the next level (skip-clear).
     if (LEVELS.length > 1 && keyWasPressed('KeyN'))
@@ -718,7 +789,9 @@ function gameUpdate()
 
     // Follow the most recently used device: mouse only steers while it's active,
     // so the stick/keys don't get yanked back to the cursor each idle frame.
-    if (usingMouseInput())
+    if (demoMode)
+        paddlePos.x = lerp(paddlePos.x, demoPaddleTargetX(), clamp(dt * 9, 0, 1));
+    else if (usingMouseInput())
         paddlePos.x = mousePos.x;
     else
         paddlePos.x += dir * 24 * dt;
@@ -743,10 +816,15 @@ function gameUpdate()
     {
         const b = balls[0];
         b.pos = paddlePos.add(vec2(0, paddleSize.y / 2 + b.size / 2 + .2));
+        // demo: auto-launch after a short beat so the attract loop keeps moving
+        if (demoMode)
+            demoServeTimer += dt;
         // gamepad: A button also launches
-        if (mouseWasPressed(0) || keyWasPressed('Space') || keyWasPressed('Enter') || gamepadWasPressed(0))
+        if (mouseWasPressed(0) || keyWasPressed('Space') || keyWasPressed('Enter') || gamepadWasPressed(0)
+            || (demoMode && demoServeTimer > .6))
         {
             launchBall();
+            demoServeTimer = 0;
             state = 'play';
         }
         return;
@@ -757,7 +835,10 @@ function gameUpdate()
 
     // action: if any stuck, release first; otherwise fire laser
     // gamepad: A button is the action button
-    const actionPressed = mouseWasPressed(0) || keyWasPressed('Space') || keyWasPressed('Enter') || gamepadWasPressed(0);
+    let actionPressed = mouseWasPressed(0) || keyWasPressed('Space') || keyWasPressed('Enter') || gamepadWasPressed(0);
+    // demo: release stuck balls promptly, and keep the laser firing when held
+    if (demoMode && (anyStuckBalls() || laserTimer > 0))
+        actionPressed = true;
     if (actionPressed && anyStuckBalls())
         releaseStuckBalls();
     else if (actionPressed)
@@ -952,6 +1033,15 @@ function updateBalls(dt)
         if (lives <= 0)
         {
             state = 'lose';
+
+            if (demoMode)
+            {
+                // Attract loop: don't surface the (hidden) dialog or stop play —
+                // just schedule a fresh game so the demo runs forever.
+                demoRestartTimer = 2.5;
+                return;
+            }
+
             setPlaying(false);
 
             showGameOverDialog({

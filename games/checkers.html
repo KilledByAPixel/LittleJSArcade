@@ -11,6 +11,9 @@
 <script>
 'use strict';
 
+// Demo/attract mode: launcher loads the game with #demo and hides all menus.
+const demoMode = /demo/.test(location.hash);
+
 // engine settings, do not remove
 paused = false;
 
@@ -884,6 +887,8 @@ let aiProgress = '';
 let aiGeneration = 0;
 const AI_THINK_DELAY = 0.5;
 const AI_VS_AI_DELAY = 0.6;
+let demoRestartTimer = 0;
+const DEMO_RESTART_DELAY = 2.5;
 
 async function gameInit()
 {
@@ -963,9 +968,18 @@ async function gameInit()
 installDefaultToolbar({landscapeStack:true});
 
     initBoard();
+    refreshDifficultyUI();
+
+    if (demoMode)
+    {
+        // Attract mode: run AI vs AI on medium so it self-plays and loops.
+        difficulty = 'medium';
+        startGame('aivai');
+        return;
+    }
+
     setPlaying(false);
     showMenu('title');
-    refreshDifficultyUI();
 }
 
 function quitToTitleWithCleanup()
@@ -1007,7 +1021,20 @@ function gameUpdate()
         aiThinkTimer = 0;
     }
 
-    if (gameOver) return;
+    if (gameOver)
+    {
+        // Attract mode: pause on the result a moment, then start a fresh match so it loops.
+        if (demoMode)
+        {
+            demoRestartTimer += timeDelta;
+            if (demoRestartTimer >= DEMO_RESTART_DELAY)
+            {
+                demoRestartTimer = 0;
+                startGame('aivai');
+            }
+        }
+        return;
+    }
 
     // Block input while a piece is animating
     if (movingPiece) return;

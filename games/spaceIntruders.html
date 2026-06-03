@@ -12,6 +12,12 @@
 <script>
 'use strict';
 
+// Attract / demo mode: the arcade launcher loads the game in an iframe with
+// "#demo" and hides all menus.js chrome. When set, the game skips the title
+// menu, auto-starts a level, drives the ship with a simple auto-player, and
+// loops forever. Standalone play (no #demo) is completely unaffected.
+const demoMode = /demo/.test(location.hash);
+
 // engine settings
 // (menus.js auto-moves the debug-overlay key off Escape to ` on first createMenu)
 
@@ -423,6 +429,14 @@ class Player extends RectObject
         if (gameOver || gameWin || levelAnnounce > 0 || respawnTimer > 0)
             return;
 
+        // Demo mode: auto-pilot the ship — track the lowest threatening alien
+        // (or UFO), fire on a cooldown. Doesn't play well; just looks alive.
+        if (demoMode)
+        {
+            demoAutoPlay(this);
+            return;
+        }
+
         // Switch input mode based on most recent activity. Stick/D-pad press
         // counts as keyboard-mode (uses the same "compute X delta" path).
         const stick = gamepadStick(0);
@@ -813,6 +827,14 @@ function gameInit()
 
     buildMenus();
     initTitleScreen();
+
+    // Demo mode: skip the (hidden) title menu and auto-start a run. titleScreen
+    // becomes false in startGame, so installAutoPause keeps the engine running.
+    if (demoMode)
+    {
+        if (typeof hideAllMenus === 'function') hideAllMenus();
+        startGame();
+    }
 }
 
 function startGame()
@@ -822,6 +844,51 @@ function startGame()
     titleAliens = [];
     titleScreen = false;
     resetGame();
+}
+
+// Demo-mode auto-player. Picks a target (active UFO, else the lowest alien),
+// glides the ship toward its X, and fires whenever a player bullet isn't in
+// flight. Reuses the same shot path/cooldown as manual play.
+function demoAutoPlay(p)
+{
+    // Choose a target X to chase
+    let targetX = p.pos.x;
+    if (ufo && !ufo.destroyed)
+        targetX = ufo.pos.x;
+    else if (aliens.length)
+    {
+        // Aim at the lowest alien (most threatening), break ties by closeness.
+        let best = null, bestY = 1e9;
+        for (const a of aliens)
+        {
+            if (a.destroyed) continue;
+            if (a.pos.y < bestY ||
+                (a.pos.y === bestY && abs(a.pos.x - p.pos.x) < abs(best.pos.x - p.pos.x)))
+            {
+                bestY = a.pos.y;
+                best = a;
+            }
+        }
+        if (best) targetX = best.pos.x;
+    }
+
+    // Glide toward target, capped at the manual top speed (.55 wu/frame).
+    const dx = clamp(targetX - p.pos.x, -.55, .55);
+    p.pos.x += dx;
+    clampToPlayfield(p.pos, p.size.scale(.5));
+
+    // Fire on the same single-bullet + cooldown rule manual play uses.
+    if (p.shotCooldown > 0) p.shotCooldown--;
+    const hasActiveBullet = bullets.some(b => !b.destroyed && b.fromPlayer);
+    if (!hasActiveBullet && p.shotCooldown === 0 && abs(dx) < .35)
+    {
+        p.shotCooldown = 12;
+        playerShotsFired++;
+        const b = new Bullet(p.pos.add(vec2(0, 0.1)), vec2(0, 1.2), true);
+        b.shotIndex = playerShotsFired;
+        bullets.push(b);
+        sfxShoot.play(p.pos);
+    }
 }
 
 function quitToTitleWithCleanup()
@@ -954,6 +1021,13 @@ function gameUpdate()
     // Surface gameOver menu once the on-canvas delay (gameOverTimer) elapses.
     if (gameOver && gameOverTimer <= 0 && !endMenuShowing)
     {
+        // Demo mode: the gameOver menu is hidden, so just restart the attract
+        // run after the on-canvas banner has shown for a moment.
+        if (demoMode)
+        {
+            startGame();
+            return;
+        }
         submitBestScore(score);
         if (typeof showMenu === 'function') showMenu('gameOver');
         return;
