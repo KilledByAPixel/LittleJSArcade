@@ -358,8 +358,8 @@ function scoreArea(s, komi) {
 // area-score margin (black - (white + komi)).
 function randomPlayoutFrom(state) {
     const s = state.s; // caller owns this Int8Array
-    let toMove = state.toMove, ko = state.ko, passes = state.passes | 0;
-    const cap = NN * 3;
+    let toMove = state.toMove, ko = state.ko ?? -1, passes = state.passes | 0;
+    const cap = NN * 3; // safety net: far more plies than any real 9x9 game
     for (let m = 0; m < cap && passes < 2; m++) {
         const moves = [];
         for (let i = 0; i < NN; i++)
