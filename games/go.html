@@ -313,6 +313,66 @@ function flatLegalMoves(state) {
     return out;
 }
 
+// True-eye heuristic: i empty, all orthogonals are `color`, and diagonals are
+// controlled (corner/edge: no opponent diagonal; center: at most one).
+function isEye(s, i, color) {
+    if (s[i] !== STONE_EMPTY) return false;
+    for (const nb of NEIGHBORS[i]) if (s[nb] !== color) return false;
+    const opp = otherColor(color);
+    const diags = DIAGONALS[i];
+    let oppDiag = 0;
+    for (const d of diags) if (s[d] === opp) oppDiag++;
+    const onEdge = diags.length < 4;
+    return onEdge ? oppDiag === 0 : oppDiag <= 1;
+}
+
+// Chinese area score of a finished board. Returns {black, white, margin}
+// where margin = black - white (white includes komi).
+function scoreArea(s, komi) {
+    let black = 0, white = 0;
+    for (let i = 0; i < NN; i++) { if (s[i] === STONE_BLACK) black++; else if (s[i] === STONE_WHITE) white++; }
+    const seen = new Uint8Array(NN);
+    for (let i = 0; i < NN; i++) {
+        if (s[i] !== STONE_EMPTY || seen[i]) continue;
+        const region = [i]; seen[i] = 1; const stack = [i];
+        let touchB = false, touchW = false;
+        while (stack.length) {
+            const p = stack.pop();
+            for (const nb of NEIGHBORS[p]) {
+                const v = s[nb];
+                if (v === STONE_EMPTY) { if (!seen[nb]) { seen[nb] = 1; region.push(nb); stack.push(nb); } }
+                else if (v === STONE_BLACK) touchB = true;
+                else if (v === STONE_WHITE) touchW = true;
+            }
+        }
+        if (touchB && !touchW) black += region.length;
+        else if (touchW && !touchB) white += region.length;
+    }
+    white += komi;
+    return { black, white, margin: black - white };
+}
+
+// Random playout to game end on board state (mutated in place). Picks uniformly
+// random legal moves that are not own-eye-fills; passes when none remain; ends on
+// two consecutive passes (or a generous move cap as a safety net). Returns the
+// area-score margin (black - (white + komi)).
+function randomPlayoutFrom(state) {
+    const s = state.s; // caller owns this Int8Array
+    let toMove = state.toMove, ko = state.ko, passes = state.passes | 0;
+    const cap = NN * 3;
+    for (let m = 0; m < cap && passes < 2; m++) {
+        const moves = [];
+        for (let i = 0; i < NN; i++)
+            if (isLegal(s, i, toMove, ko) && !isEye(s, i, toMove)) moves.push(i);
+        if (moves.length === 0) { passes++; ko = -1; toMove = otherColor(toMove); continue; }
+        const mv = moves[(Math.random() * moves.length) | 0];
+        ko = applyInPlace(s, mv, toMove);
+        passes = 0;
+        toMove = otherColor(toMove);
+    }
+    return scoreArea(s, GO_KOMI).margin;
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // AI ADAPTER
 
