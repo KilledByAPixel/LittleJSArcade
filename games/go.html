@@ -326,6 +326,25 @@ function isEye(s, i, color) {
     return onEdge ? oppDiag === 0 : oppDiag <= 1;
 }
 
+// Flood-fill the contiguous empty region containing seed point `i`. Marks visited
+// cells in `seen` (a Uint8Array(NN) the caller owns). Returns {region, touchB, touchW}
+// where touchB/touchW say whether the region borders that color. Shared by area
+// scoring and Monte-Carlo ownership so the fill logic lives in exactly one place.
+function emptyRegion(s, i, seen) {
+    const region = [i]; seen[i] = 1; const stack = [i];
+    let touchB = false, touchW = false;
+    while (stack.length) {
+        const p = stack.pop();
+        for (const nb of NEIGHBORS[p]) {
+            const v = s[nb];
+            if (v === STONE_EMPTY) { if (!seen[nb]) { seen[nb] = 1; region.push(nb); stack.push(nb); } }
+            else if (v === STONE_BLACK) touchB = true;
+            else if (v === STONE_WHITE) touchW = true;
+        }
+    }
+    return { region, touchB, touchW };
+}
+
 // Chinese area score of a finished board. Returns {black, white, margin}
 // where margin = black - white (white includes komi).
 function scoreArea(s, komi) {
@@ -334,17 +353,7 @@ function scoreArea(s, komi) {
     const seen = new Uint8Array(NN);
     for (let i = 0; i < NN; i++) {
         if (s[i] !== STONE_EMPTY || seen[i]) continue;
-        const region = [i]; seen[i] = 1; const stack = [i];
-        let touchB = false, touchW = false;
-        while (stack.length) {
-            const p = stack.pop();
-            for (const nb of NEIGHBORS[p]) {
-                const v = s[nb];
-                if (v === STONE_EMPTY) { if (!seen[nb]) { seen[nb] = 1; region.push(nb); stack.push(nb); } }
-                else if (v === STONE_BLACK) touchB = true;
-                else if (v === STONE_WHITE) touchW = true;
-            }
-        }
+        const { region, touchB, touchW } = emptyRegion(s, i, seen);
         if (touchB && !touchW) black += region.length;
         else if (touchW && !touchB) white += region.length;
     }
@@ -492,18 +501,8 @@ function scoreWithDeadStones(s0, toMove, options = {}) {
             if (s[i] === STONE_BLACK) { ownB[i]++; continue; }
             if (s[i] === STONE_WHITE) { ownW[i]++; continue; }
             if (seen[i]) continue;
-            // Flood-fill empty region to determine territory color.
-            const region = [i]; seen[i] = 1; const stack = [i];
-            let touchB = false, touchW = false;
-            while (stack.length) {
-                const p = stack.pop();
-                for (const nb of NEIGHBORS[p]) {
-                    if (s[nb] === STONE_EMPTY) {
-                        if (!seen[nb]) { seen[nb] = 1; region.push(nb); stack.push(nb); }
-                    } else if (s[nb] === STONE_BLACK) touchB = true;
-                    else if (s[nb] === STONE_WHITE) touchW = true;
-                }
-            }
+            // Empty territory: attribute the whole region to its sole bordering color.
+            const { region, touchB, touchW } = emptyRegion(s, i, seen);
             if (touchB && !touchW) for (const r of region) ownB[r]++;
             else if (touchW && !touchB) for (const r of region) ownW[r]++;
         }
