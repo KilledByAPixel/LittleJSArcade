@@ -41,8 +41,9 @@ const spinGain   = .085;    // paddle vertical speed -> spin (rad/sec)
 const maxSpin    = 3.2;     // cap on imparted spin
 const spinDecay  = 1.6;     // how fast spin bleeds off per second
 
-let left = { pos: vec2(-halfField.x + 2.2, 0), vy: 0 };
-let right = { pos: vec2( halfField.x - 2.2, 0), vy: 0 };
+// each paddle carries its own AI volley state so both sides can auto-play at once
+let left  = { pos: vec2(-halfField.x + 2.2, 0), vy: 0, aiVel: 0, aiPredictedY: 0, aiPrevIncoming: false };
+let right = { pos: vec2( halfField.x - 2.2, 0), vy: 0, aiVel: 0, aiPredictedY: 0, aiPrevIncoming: false };
 
 let ball = { pos: vec2(0,0), vel: vec2(0,0) };
 let ballSpin = 0;                // current curveball spin (rad/sec), bends the ball's path
@@ -56,13 +57,24 @@ let waitingForServe = true;
 let gameOver = false;
 let aiRight = true; // press T to toggle
 
-// AI configuration
+// AI configuration (per-paddle volley state lives on the paddle objects above)
 const aiErrorMargin = 1.8;      // random aim offset, rolled ONCE per volley (keeps it beatable, no jitter)
 const aiSmoothing   = 0.15;     // how quickly AI velocity eases toward its desired velocity
-let aiTargetY  = 0;             // where AI wants to move
-let aiPredictedY = 0;           // predicted ball Y at paddle, locked in for the current volley
-let aiVel      = 0;             // smoothed paddle velocity (eliminates snap/jitter)
-let aiBallDir  = 0;             // sign of ball.vel.x last frame, used to detect a new volley
+
+// AI "skill" profiles: aim error (rolled once per volley), top paddle speed, and how
+// often it reads the ball's curve when predicting. Lower error / higher speed / higher
+// curveRead = harder to beat. Curve-reading is rolled per volley so curveballs still
+// beat it some of the time — tune curveRead to taste.
+const aiSkill    = { error: aiErrorMargin, speed: aiSpeed, curveRead: .5 };  // real-game opponent
+// The attract demo plays AI vs AI — two distinct styles (neither strictly better) so the
+// title match looks like a real game and never consistently feeds one side.
+const demoSkillL = { error: 2.4, speed: 15, curveRead: .35 };  // fast hands, loose aim
+const demoSkillR = { error: 1.5, speed: 13, curveRead: .65 };  // sharp aim, a step slow
+
+// brief "get ready" telegraph before each serve — the ball charges at center first,
+// giving the receiver a beat (and in the demo, a clean pause between points)
+const serveDelay = .55;          // seconds
+let serveTimer = new Timer();
 
 // Sounds
 let sfxPaddle, sfxWall, sfxScore, sfxServe;
@@ -157,26 +169,35 @@ function bounceOffPaddle(paddle, dirX)
         ballSquash = 1; // snappy stretch on the way out
 }
 
-// Predict where ball will be when it reaches a given x position
-function predictBallY(targetX)
+// Predict where the ball will be when it reaches a given x position. When useSpin is
+// set, the sim curves the path the same way the live ball does (so the AI can read a
+// curveball); otherwise it assumes a straight shot and the curve can fool it.
+function predictBallY(targetX, useSpin = false)
 {
         if (ball.vel.x === 0) return 0;
-        
+
         let simPos = ball.pos.copy();
         let simVel = ball.vel.copy();
+        let simSpin = useSpin ? ballSpin : 0;
         const yLimit = halfField.y - ballSize.y/2;
         const maxSteps = 500;
-        
+
         for (let i = 0; i < maxSteps; i++)
         {
-                // Step simulation
+                // Step simulation (mirror the live ball: move, then curve, then bounce)
                 const dt = 0.016; // ~60fps step
                 simPos = simPos.add(simVel.scale(dt));
-                
+
+                if (simSpin)
+                {
+                        simVel = simVel.rotate(simSpin * dt);
+                        simSpin -= simSpin * spinDecay * dt;
+                }
+
                 // Wall bounces
                 if (simPos.y > yLimit) { simPos.y = yLimit; simVel.y = -Math.abs(simVel.y); }
                 if (simPos.y < -yLimit) { simPos.y = -yLimit; simVel.y = Math.abs(simVel.y); }
-                
+
                 // Check if reached target x
                 if ((simVel.x > 0 && simPos.x >= targetX) || (simVel.x < 0 && simPos.x <= targetX))
                         return simPos.y;
@@ -184,7 +205,47 @@ function predictBallY(targetX)
         return 0;
 }
 
-function resetRound(servingToRight)
+// Beatable AI for one paddle. sideSign: +1 defends the right goal (ball is incoming
+// when vel.x > 0), -1 defends the left goal (incoming when vel.x < 0). skill = {error,
+// speed, curveRead}. It locks ONE prediction per volley (the frame the ball first turns
+// toward it) with a fixed aim error, then eases toward it — so fast / wide / curved
+// shots can still beat it. State lives on the paddle object so both paddles can run
+// this at the same time (the title-screen demo plays AI vs AI).
+function updateAiPaddle(p, sideSign, skill)
+{
+        let target;
+        if (waitingForServe || gameOver)
+        {
+                target = 0;                 // drift to center while waiting to serve
+                p.aiPrevIncoming = false;   // so the next serve toward me re-predicts fresh
+        }
+        else
+        {
+                const incoming = sign(ball.vel.x) === sideSign;
+                if (incoming)
+                {
+                        // first frame the ball turned toward me: predict the intercept ONCE
+                        // and bake in a fixed aim error for the whole volley (stable = no jitter).
+                        // Read the curve only some of the time, so curveballs beat it the rest.
+                        if (!p.aiPrevIncoming)
+                        {
+                                const readCurve = ballSpin && rand() < skill.curveRead;
+                                p.aiPredictedY = predictBallY(p.pos.x, readCurve) + rand(-skill.error, skill.error);
+                        }
+                        target = p.aiPredictedY;
+                }
+                else
+                        target = ball.pos.y * 0.3;  // ball going away — relax toward center
+                p.aiPrevIncoming = incoming;
+        }
+
+        // Smoothly accelerate toward the target (P-controller + velocity easing).
+        const desiredVel = clamp((target - p.pos.y) * 5, -skill.speed, skill.speed);
+        p.aiVel = lerp(p.aiVel, desiredVel, aiSmoothing);
+        p.pos.y += p.aiVel * timeDelta;
+}
+
+function resetRound(servingToRight, recenter = true)
 {
         ball.pos = vec2(0, 0);
         ball.vel = vec2(0, 0);
@@ -192,12 +253,30 @@ function resetRound(servingToRight)
         waitingForServe = true;
         gameOver = false;
 
-        // tiny nudge so it doesn't always serve dead-center
-        left.pos.y = 0;
-        right.pos.y = 0;
+        // Recenter paddles for a real point. In the attract-mode demo we pass
+        // recenter=false so a point doesn't yank the paddles back to center and
+        // look like the whole game respawned — the rally just keeps flowing.
+        if (recenter)
+        {
+                left.pos.y = 0;
+                right.pos.y = 0;
+        }
+
+        // Clear per-paddle AI volley state so the next serve re-predicts fresh.
+        // (Without this, an auto-served demo rally would reuse the stale aim from
+        // the shot it just missed and keep missing every serve in a row.)
+        for (const p of [left, right])
+        {
+                p.aiVel = 0;
+                p.aiPredictedY = 0;
+                p.aiPrevIncoming = false;
+        }
 
         // store who serves next on the ball object
         ball._serveDir = servingToRight ? 1 : -1;
+
+        // arm the serve telegraph: the ball charges at center for a beat before launch
+        serveTimer.set(serveDelay);
 }
 
 function serve()
@@ -215,6 +294,8 @@ function serve()
 
 function addScore(leftScored)
 {
+        const demo = !isPlaying();
+
         if (leftScored) scoreL++;
         else scoreR++;
 
@@ -227,17 +308,26 @@ function addScore(leftScored)
         lastHitter = 0;
         ballTrail.length = 0;
 
-        // win at 10
+        // First to 10. A real game ends here; the attract demo never ends — it just
+        // silently starts a fresh match (0-0) and keeps the rally flowing.
         if (scoreL >= 10 || scoreR >= 10)
         {
-                gameOver = true;
-                ball.vel = vec2(0,0);
-                waitingForServe = true;
-                return;
+                if (demo)
+                        scoreL = scoreR = 0;
+                else
+                {
+                        gameOver = true;
+                        ball.vel = vec2(0,0);
+                        waitingForServe = true;
+                        return;
+                }
         }
 
-        // Next serve goes toward the player who just conceded
-        resetRound(leftScored ? false : true);
+        // Next serve goes toward the player who just lost the point (the conceder):
+        // if left scored, right lost -> serve right (servingToRight = true), and vice
+        // versa. In the demo keep the paddles where they are (recenter=false) so a
+        // point doesn't look like the whole game respawned.
+        resetRound(leftScored, !demo);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -315,7 +405,7 @@ function buildMenus()
 
         createPauseMenu({
                 onRestart: startGame,
-                onQuit:    quitToTitle,
+                onQuit:    () => quitToTitle(() => { scoreL = scoreR = 0; resetRound(true); }),
                 extraItems: [
                         {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
                 ],
@@ -344,9 +434,9 @@ function gameUpdate()
 {
         if (bindPauseKey({when: () => isPlaying() && !gameOver})) return;
 
-        // On the title screen we run an AI-vs-AI demo rally behind the menu:
-        // both paddles auto-play and a point just restarts the rally (no
-        // scoring), so the field looks alive instead of frozen.
+        // On the title screen we run an AI-vs-AI demo match behind the menu: both
+        // paddles auto-play, the score tracks (but the match never ends — it resets at
+        // 10), and points leave the paddles in place, so the field looks alive.
         const demo = !isPlaying();
 
         // Reset camera to origin each frame so the gameFx screen-shake plugin
@@ -374,18 +464,15 @@ function gameUpdate()
                         serve();
                 }
         }
-        else if (waitingForServe)
-                serve();   // auto-serve to keep the demo rally going
+        else if (waitingForServe && serveTimer.elapsed())
+                serve();   // auto-serve after the telegraph, to keep the demo rally going
 
         // remember where the paddles were so we can measure their speed (for ball spin)
         const prevLeftY = left.pos.y, prevRightY = right.pos.y;
 
-        // Left paddle — player-controlled in play, tracking AI in the demo
+        // Left paddle — AI in the demo (AI vs AI), player-controlled in play
         if (demo)
-        {
-                const desired = clamp((ball.pos.y - left.pos.y) * 5, -paddleSpeed, paddleSpeed);
-                left.pos.y += desired * timeDelta;
-        }
+                updateAiPaddle(left, -1, demoSkillL);   // defends the left goal
         else
         {
                 // keyboard + gamepad stick take priority, mouse still works
@@ -402,6 +489,7 @@ function gameUpdate()
         }
         clampPaddleY(left);
 
+        // Right paddle — player-controlled only when the AI is toggled off mid-game; AI otherwise
         if (!aiRight && !demo)
         {
                 // human-controlled right paddle: keyboard + gamepad stick
@@ -412,32 +500,7 @@ function gameUpdate()
                 right.pos.y += move.y * paddleSpeed * timeDelta;
         }
         else
-        {
-                // AI: lock in one prediction per volley, then ease toward it smoothly.
-                if (waitingForServe || gameOver)
-                {
-                        aiTargetY = 0; // drift to center when waiting
-                }
-                else if (ball.vel.x > 0)
-                {
-                        // Ball just turned toward the AI? Predict the intercept ONCE and
-                        // bake in a fixed aim error for the whole volley (stable = no jitter).
-                        if (aiBallDir <= 0)
-                                aiPredictedY = predictBallY(right.pos.x) + rand(-aiErrorMargin, aiErrorMargin);
-                        aiTargetY = aiPredictedY;
-                }
-                else
-                {
-                        aiTargetY = ball.pos.y * 0.3; // ball going away - relax toward center
-                }
-                aiBallDir = sign(ball.vel.x);
-
-                // Smoothly accelerate toward the target (P-controller + velocity easing).
-                const diff = aiTargetY - right.pos.y;
-                const desiredVel = clamp(diff * 5, -aiSpeed, aiSpeed);
-                aiVel = lerp(aiVel, desiredVel, aiSmoothing);
-                right.pos.y += aiVel * timeDelta;
-        }
+                updateAiPaddle(right, 1, demo ? demoSkillR : aiSkill);   // defends the right goal
         clampPaddleY(right);
 
         // paddle vertical speed this frame (clamped so a fast mouse flick can't over-spin)
@@ -510,11 +573,13 @@ function gameUpdate()
         if (dangerLevel > 0)
                 addScreenShake(.02 * dangerLevel, .05); // low continuous rumble at top speed
 
-        // Scoring (in the demo, a point just restarts the rally — no score)
+        // Scoring. addScore handles the demo internally (tracks the score but never
+        // ends the match, and leaves the paddles in place). Off the left = left lost
+        // -> right scored; off the right = right lost -> left scored.
         if (ball.pos.x < -halfField.x - 2)
-                demo ? resetRound(false) : addScore(false);
+                addScore(false);
         else if (ball.pos.x > halfField.x + 2)
-                demo ? resetRound(true) : addScore(true);
+                addScore(true);
 }
 
 function gameUpdatePost()
@@ -601,6 +666,22 @@ function gameRender()
         const ballDrawSize = vec2(ballSize.x * (1 - ballSquash * .4), ballSize.y * (1 + ballSquash * .7));
         const coreCol      = colorLerp(rgb(1,1,1), dangerColor, dangerLevel * .6);
         drawRect(ball.pos, ballDrawSize, coreCol, ballAngle);
+
+        // serve telegraph — while waiting, the ball charges at center and a row of
+        // chevrons points the way it'll launch (head-start cue for the receiver)
+        if (waitingForServe && !gameOver)
+        {
+                const charge = clamp(serveTimer.getPercent(), 0, 1);  // 0 -> 1 as the serve nears
+                const pulse  = .5 + .5 * Math.sin(time * 12);
+                const dir    = ball._serveDir || 1;
+                // pulsing ring that tightens as the serve charges up
+                drawRect(ball.pos, ballSize.scale(2.4 + (1 - charge) * 2 + pulse * .6),
+                        new Color(1, 1, 1, .12 + .12 * pulse));
+                // chevron dots leading in the serve direction, brighter as it charges
+                for (let i = 1; i <= 3; ++i)
+                        drawRect(ball.pos.add(vec2(dir * i * 1.3, 0)), vec2(.55 + pulse * .08),
+                                new Color(1, 1, 1, max(0, (.35 - i * .08) * charge)));
+        }
 
         // top/bottom border lines (pulse red at top speed)
         const borderCol   = colorLerp(rgb(.2,.2,.2), dangerColor, dangerPulse);
