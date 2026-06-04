@@ -8,12 +8,8 @@
 <script>
 'use strict';
 
-// engine settings, do not remove
-paused = false;
-gravity = vec2(0, 0);
-enablePhysicsSolver = false;
-showSplashScreen = false;
-fontDefault = 'arial';
+// engine settings
+canvasMaxSize = vec2(2048);
 
 ///////////////////////////////////////////////////////////////////////////////
 // 2048 Game
@@ -586,7 +582,7 @@ function gameUpdatePost()
     }
 
     // setup camera leaving space for hud
-    cameraFit(vec2(0, 0), vec2(boardWorldSize()), { margin: 0, inset: { top: 100 } });
+    cameraFit(vec2(0, 0), vec2(boardWorldSize()), { margin: .1, inset: { top: 100 } });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
