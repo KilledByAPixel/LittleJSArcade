@@ -47,6 +47,8 @@ const CARD_PITCH_Y = 1.6;      // vertical fan gap in a tableau column
 const TOP_MARGIN   = 1;        // empty felt above the top row
 const MAX_DEPTH    = 9;        // camera height budget, in fan-pitches
 const FLIP_TIME    = 0.18;     // flip-over animation length, seconds (lower = snappier)
+const DEAL_STAGGER = 0.025;    // delay between each card popping off the deck (lower = faster)
+const DEAL_FLIGHT  = 0.25;     // how long each dealt card takes to fly from the deck to its spot
 
 // Opaque stack tags. Tableau columns fan; stock/waste pile on the anchor.
 const StackType = { Stock: 0, Waste: 1, Tableau: 2 };
@@ -120,6 +122,9 @@ function buildTable()
 function newGame()
 {
     buildTable();
+    // Deal-out animation: cards pop off the stock (top-left deck) into place.
+    // Purely cosmetic and silent; the board is already logically dealt.
+    dealCards(stacks, stockStack.pos, {perCard: DEAL_STAGGER, duration: DEAL_FLIGHT});
     history.reset();
 }
 

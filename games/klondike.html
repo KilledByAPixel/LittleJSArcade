@@ -957,13 +957,6 @@ const KlondikeSolver = (function()
         };
         return moves.map(m => [scoreOf(m), m]).sort((a, b) => b[0] - a[0]).map(p => p[1]);
     }
-    function heuristic(st)
-    {
-        let faceDown = 0;
-        for (let i = 0; i < NTAB; ++i) faceDown += st.tab[i].d;
-        return (52 - foundationCount(st)) + 3 * faceDown + 0.1 * (st.stock.length + st.waste.length);
-    }
-
     const HASH_SEP = String.fromCharCode(252), HASH_GRP = String.fromCharCode(253), HASH_D = String.fromCharCode(254);
     function canonicalHash(st)
     {
@@ -979,114 +972,49 @@ const KlondikeSolver = (function()
                tab.join(HASH_SEP) + HASH_GRP + found.join(HASH_SEP);
     }
 
-    class MinHeap
+    // Greedy rollout — NO search, NO backtracking, so it's effectively instant
+    // (sub-ms) and the demo can play the FIRST deal it's handed right away. One
+    // linear pass: each step take the highest-ranked move whose resulting state
+    // we haven't already seen (simple cycle avoidance), apply safe-autoplay,
+    // repeat until solved or stuck. Returns the move list (always played, win or
+    // not) and whether it happened to win. ~32% of deals win outright; the rest
+    // play a long line then the demo just deals a fresh board.
+    function greedyPlan(initial, { maxMoves = 400, stallLimit = Infinity } = {})
     {
-        constructor() { this.a = []; }
-        get size() { return this.a.length; }
-        push(item)
+        let st = cloneState(initial);
+        const moves = [];
+        const visited = new Set();
+        for (const m of autoplay(st)) moves.push(m);
+        visited.add(canonicalHash(st));
+
+        let homed = foundationCount(st);
+        let stall = 0;   // committed moves since the last card went home
+
+        while (!isSolved(st) && moves.length < maxMoves)
         {
-            const a = this.a; a.push(item);
-            let i = a.length - 1;
-            while (i > 0)
+            const cands = orderMoves(generateMoves(st), st);
+            let advanced = false;
+            for (const cand of cands)
             {
-                const p = (i - 1) >> 1;
-                if (a[p].prio <= a[i].prio) break;
-                [a[p], a[i]] = [a[i], a[p]]; i = p;
+                const ns = cloneState(st);
+                applyMoveToState(ns, cand);
+                const auto = autoplay(ns);
+                const h = canonicalHash(ns);
+                if (visited.has(h)) continue;          // would cycle — try the next-best move
+                moves.push(cand);
+                for (const a of auto) moves.push(a);
+                visited.add(h);
+                st = ns;
+                advanced = true;
+                break;
             }
+            if (!advanced) break;                      // stuck: every move repeats a state
+
+            const nowHomed = foundationCount(st);
+            if (nowHomed > homed) { homed = nowHomed; stall = 0; }
+            else if (++stall >= stallLimit) break;     // optional: bail out of long no-progress runs
         }
-        pop()
-        {
-            const a = this.a, top = a[0], last = a.pop();
-            if (a.length) { a[0] = last; this._down(0); }
-            return top;
-        }
-        _down(i)
-        {
-            const a = this.a, n = a.length;
-            for (;;)
-            {
-                let s = i; const l = 2 * i + 1, r = 2 * i + 2;
-                if (l < n && a[l].prio < a[s].prio) s = l;
-                if (r < n && a[r].prio < a[s].prio) s = r;
-                if (s === i) break;
-                [a[s], a[i]] = [a[i], a[s]]; i = s;
-            }
-        }
-    }
-
-    function createSolver(initial, opts = {})
-    {
-        const expandCap = opts.expandCap || 15000;
-        const W = opts.weight || 5;
-
-        const root = cloneState(initial);
-        const rootAuto = autoplay(root);
-        const rootHash = canonicalHash(root);
-        const cameFrom = new Map([[rootHash, { moves: rootAuto, parent: null }]]);
-        const gScore   = new Map([[rootHash, rootAuto.length]]);
-        const closed   = new Set();
-        const open     = new MinHeap();
-        const rootH    = heuristic(root);
-        open.push({ prio: rootAuto.length + W * rootH, st: root, hash: rootHash, h: rootH });
-
-        let expansions = 0;
-        let best = { h: Infinity, hash: rootHash };
-        let result = null;
-
-        const buildPath = hash =>
-        {
-            const out = [];
-            for (let h = hash; h !== null; )
-            {
-                const e = cameFrom.get(h);
-                for (let k = e.moves.length - 1; k >= 0; --k) out.push(e.moves[k]);
-                h = e.parent;
-            }
-            return out.reverse();
-        };
-
-        function step(budget = 600)
-        {
-            if (result) return true;
-            let count = 0;
-            while (open.size && count < budget)
-            {
-                const cur = open.pop();
-                if (closed.has(cur.hash)) continue;
-                closed.add(cur.hash);
-                ++expansions; ++count;
-
-                if (isSolved(cur.st))
-                { result = { moves: buildPath(cur.hash), won: true, nodes: expansions }; return true; }
-
-                if (cur.h < best.h) best = { h: cur.h, hash: cur.hash };
-                if (expansions >= expandCap)
-                { result = { moves: buildPath(best.hash), won: false, nodes: expansions }; return true; }
-
-                const g = gScore.get(cur.hash);
-                const moves = orderMoves(generateMoves(cur.st), cur.st);
-                for (const m of moves)
-                {
-                    const ns = cloneState(cur.st);
-                    applyMoveToState(ns, m);
-                    const auto = autoplay(ns);
-                    const childMoves = auto.length ? [m, ...auto] : [m];
-                    const nh = canonicalHash(ns);
-                    if (closed.has(nh)) continue;
-                    const ng = g + childMoves.length;
-                    if (gScore.has(nh) && gScore.get(nh) <= ng) continue;
-                    gScore.set(nh, ng);
-                    cameFrom.set(nh, { moves: childMoves, parent: cur.hash });
-                    const nHeu = heuristic(ns);
-                    open.push({ prio: ng + W * nHeu, st: ns, hash: nh, h: nHeu });
-                }
-            }
-            if (!open.size && !result)
-                result = { moves: buildPath(best.hash), won: false, nodes: expansions };
-            return result !== null;
-        }
-
-        return { step, getResult: () => result };
+        return { moves, won: isSolved(st) };
     }
 
     // Build the abstract state from a klondike deck (array of 52 Card), dealt
@@ -1114,14 +1042,15 @@ const KlondikeSolver = (function()
         return st;
     }
 
-    return { createSolver, abstractFromDeck };
+    return { greedyPlan, abstractFromDeck };
 })();
 
 // --- Demo pacing (seconds) — tweak these to taste -------------------------
 //   DEMO_TWEEN_TIME — how long a card takes to SLIDE to its spot (raise = slower
 //                     glide). Keep it <= DEMO_MOVE_DELAY.
-//   DEMO_MOVE_DELAY — the gap between moves. Klondike plays ~135 moves (incl.
-//                     stock draws), so 0.7s ≈ a ~90s game; lower to speed it up.
+//   DEMO_MOVE_DELAY — the gap between moves. The greedy demo plays a long,
+//                     variable line (often 150-250 moves incl. stock draws), so
+//                     keep this modest or a game runs minutes; lower to speed up.
 const DEMO_TWEEN_TIME  = 1.0;
 const DEMO_MOVE_DELAY  = 1.5;
 const DEMO_DEAL_PAUSE  = 1.8;
@@ -1130,23 +1059,16 @@ const DEMO_START_DELAY = 0.7;
 // Wire up the attract self-player. Called once from gameInit when #demo is set.
 function setupDemo()
 {
-    let curDeck = null, solver = null;
+    let curDeck = null;
 
-    const planStep = budget =>
+    // Demo planning is a GREEDY rollout (no search, no full solution). It's
+    // effectively instant, so we just take the first deal, plan it, and play it
+    // out — win or stuck. When the line ends the harness pauses and we deal a
+    // fresh board. ~32% of deals win; the rest play a long line then restart.
+    const planStep = () =>
     {
-        if (!solver)
-        {
-            curDeck = shuffledDeck();
-            solver = KlondikeSolver.createSolver(
-                KlondikeSolver.abstractFromDeck(curDeck), { weight: 5, expandCap: 15000 });
-        }
-        if (solver.step(budget))
-        {
-            const res = solver.getResult();
-            solver = null;                       // attempt done either way
-            return res.won ? res.moves : null;   // null => discard, reshuffle next frame
-        }
-        return null;
+        curDeck = shuffledDeck();
+        return KlondikeSolver.greedyPlan(KlondikeSolver.abstractFromDeck(curDeck)).moves;
     };
 
     // Deal the solved deck onto the live board, and slow every card's slide for

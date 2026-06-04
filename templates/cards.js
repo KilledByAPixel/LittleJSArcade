@@ -446,16 +446,23 @@ class Card
         this.tweenFrom     = null;   // null = no active tween
         this.tweenTimer    = new Timer();
         this.tweenDuration = 0.2;
+        this.tweenDelay    = 0;      // optional wait before the flight starts (staggered deals)
+        this.tweenSpan     = 0.2;    // duration of the active flight (set by startTween)
         // Flip animation: squeeze width to ~0, swap the face at the thin point,
         // then expand back. flipFrom is the face shown during the first half.
         this.flipTimer     = new Timer();
         this.flipFrom      = faceUp;
         this.flipDuration  = 0.18;
     }
-    startTween(fromPos)
+    // Fly from `fromPos` to the card's current pos. `delay` (seconds) holds the
+    // card at the source before it sets off — used to stagger a deal. `duration`
+    // is the flight time (defaults to tweenDuration).
+    startTween(fromPos, delay = 0, duration = this.tweenDuration)
     {
-        this.tweenFrom = fromPos.copy();
-        this.tweenTimer.set(this.tweenDuration);
+        this.tweenFrom  = fromPos.copy();
+        this.tweenDelay = delay;
+        this.tweenSpan  = duration;
+        this.tweenTimer.set(delay + duration);
     }
     // Begin a flip to `faceUp`. The old face shows for the first half of the
     // animation, the new face for the second; flipScaleX() drives the squeeze.
@@ -485,7 +492,12 @@ class Card
     {
         if (!this.tweenFrom) return this.pos;
         if (this.tweenTimer.elapsed()) return this.pos;
-        return this.tweenFrom.lerp(this.pos, smoothStep(this.tweenTimer.getPercent()));
+        // Honor an optional start delay: sit at the source until it passes, then
+        // fly to the destination over tweenSpan (staggered deal support).
+        const elapsed = this.tweenTimer.getPercent() * (this.tweenDelay + this.tweenSpan);
+        if (elapsed <= this.tweenDelay) return this.tweenFrom;
+        const p = (elapsed - this.tweenDelay) / this.tweenSpan;
+        return this.tweenFrom.lerp(this.pos, smoothStep(p));
     }
 }
 
@@ -629,6 +641,30 @@ function updateCardTweens(stacks)
         for (const c of s.cards)
             if (c.tweenFrom && c.tweenTimer.elapsed())
                 c.tweenFrom = null;
+}
+
+// Animate a freshly-built layout dealing out from `fromPos` — a "deck" in, e.g.,
+// the top-left. Every card NOT already sitting at fromPos flies from there to
+// its final spot, staggered so they pop off one after another in a row-major
+// deal rhythm. Purely cosmetic: the cards are already logically placed, so
+// play/solve logic is unaffected. Cards already at fromPos (a face-down stock)
+// stay put and read as the deck. Returns the total animation length (seconds)
+// so a caller can wait for it (e.g. an attract player before it starts moving).
+//   opts: { perCard (stagger between cards, s), duration (per-card flight, s) }
+function dealCards(stacks, fromPos, { perCard = 0.025, duration = 0.25 } = {})
+{
+    let maxLen = 0;
+    for (const s of stacks) maxLen = max(maxLen, s.cards.length);
+    let i = 0;   // counts only the moving cards — drives the stagger
+    for (let row = 0; row < maxLen; ++row)
+        for (const s of stacks)
+        {
+            const c = s.cards[row];
+            if (!c || c.pos.distance(fromPos) < .01) continue;   // empty slot or already in the deck
+            c.startTween(fromPos, i * perCard, duration);
+            ++i;
+        }
+    return i ? (i - 1) * perCard + duration : 0;
 }
 
 // Undo/redo + autosave for a card game. The game supplies `serialize()`
