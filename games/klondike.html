@@ -40,6 +40,8 @@ const CARD_PITCH_DOWN = 0.65;       // tighter gap below a FACE-DOWN cascade car
 const TOP_MARGIN      = 1;        // empty felt above the top row of stacks
 const MAX_CASCADE_DEPTH = 13;       // height budget (face-up pitches) for camera fit
 const FLIP_TIME       = 0.2;        // card flip-over animation length, seconds (lower = snappier)
+const DEAL_STAGGER    = 0.025;      // delay between each card popping off the deck (lower = faster)
+const DEAL_FLIGHT     = 0.25;       // how long each dealt card takes to fly (and flip) to its spot
 
 ///////////////////////////////////////////////////////////////////////////////
 // Card model
@@ -134,6 +136,11 @@ function newGame(deck)
     pickupOrigin = null;
     recyclesUsed = 0;
     history.reset();   // clear undo/redo and seed the initial snapshot
+
+    // Deal-out animation: tableau cards fly off the face-down stock (top-left
+    // deck) and flip face-up while flying; the 24 stock cards stay as the deck.
+    // Cosmetic only — the board is already logically dealt. Returns its length.
+    return dealCards(cardStacks, stock.pos, {perCard: DEAL_STAGGER, duration: DEAL_FLIGHT, flip: true});
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -722,12 +729,11 @@ function gameRender()
         }
     }
 
-    // Tweening cards (stock deal, snap-back, auto-send-home) drawn last so the
-    // flight path stays on top of static cards.
-    for (const s of cardStacks)
-        for (const c of s.cards)
-            if (c.isTweening())
-                drawAnyCard(c, c.drawnPos(), null);
+    // Tweening cards (stock deal, snap-back, auto-send-home, the opening deal)
+    // drawn last so flight paths stay on top. Ordered so the deal peels off the
+    // TOP of the deck (next-to-fly card on top).
+    for (const c of tweeningCardsInDealOrder(cardStacks))
+        drawAnyCard(c, c.drawnPos(), null);
 
     // Hand cards on top with a rounded-card shadow.
     const shadow = new Color(0, 0, 0, 0.35);
@@ -1075,8 +1081,10 @@ function setupDemo()
     // the demo (one set covers later moves and stock draws of those same cards).
     const deal = () =>
     {
-        newGame(curDeck);
+        const dealTime = newGame(curDeck);
         for (const s of cardStacks) for (const c of s.cards) c.tweenDuration = DEMO_TWEEN_TIME;
+        // hold the AI until the opening deal animation finishes
+        demoPlayer.startDelay = dealTime + 0.3;
     };
 
     // Execute one planned move, animated. A draw routes through the game's own

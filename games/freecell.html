@@ -36,6 +36,8 @@ canvasClearColor = new Color().setHex('#264d40');   // felt green
 const COL_PITCH_X   = 7;          // horizontal distance between column anchors
 const CARD_PITCH_Y  = 1.6;          // how far DOWN each cascade card sits from the one above it
 const TOP_MARGIN    = 1;          // empty felt above the top row of stacks
+const DEAL_STAGGER  = 0.02;       // delay between each card popping off the deck (lower = faster)
+const DEAL_FLIGHT   = 0.25;       // how long each dealt card takes to fly (and flip) to its spot
 
 ///////////////////////////////////////////////////////////////////////////////
 // Card model
@@ -102,16 +104,26 @@ function newGame(deck)
 
     deck = deck || shuffledDeck();           // demo passes a specific solved deck
 
-    // Deal into cascades: 7,7,7,7,6,6,6,6
+    // Deal into cascades: 7,7,7,7,6,6,6,6. FreeCell hides nothing, so every card
+    // rests face-up (the deal animation flips them up from the face-down deck).
     const cascades = cardStacks.slice(8);   // 8 cascade stacks
     let idx = 0;
     for (let col = 0; col < 8; ++col)
         for (let row = 0, n = (col < 4 ? 7 : 6); row < n; ++row)
-            cascades[col].putCardOnTop(deck[idx++]);
+        {
+            const card = deck[idx++];
+            card.faceUp = true;
+            cascades[col].putCardOnTop(card);
+        }
 
     handStack    = new CardStack(vec2(0, 0), StackType.Cascade);  // off-screen until pickup
     pickupOrigin = null;
     history.reset();   // clear undo/redo and seed the initial snapshot
+
+    // Deal-out animation: every card flies off the top-left deck (free cell 0)
+    // and flips face-up while flying. Cosmetic only — the board is already
+    // logically dealt. Returns its length so the demo can wait for it.
+    return dealCards(cardStacks, cardStacks[0].pos, {perCard: DEAL_STAGGER, duration: DEAL_FLIGHT, flip: true});
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -489,7 +501,7 @@ function loadState(snap)
     for (let i = 0; i < cardStacks.length; ++i)
     {
         const stack = cardStacks[i];
-        stack.cards = snap.stacks[i].map(([v, s]) => new Card(v, s));
+        stack.cards = snap.stacks[i].map(([v, s]) => new Card(v, s, true));   // FreeCell cards are face-up
         stack.relayout();
     }
     // Clear any in-flight tweens — restored positions are authoritative.
@@ -641,6 +653,19 @@ function gameUpdatePost()
     }
     setCursor(cursor);
 }
+
+// Draw a card honoring its flip state. FreeCell cards rest face-up; the only
+// time a back shows is mid-flip during the opening deal (cards fly face-down off
+// the deck and flip up). `tint` is an optional highlight veil.
+function drawAnyCard(c, pos, tint)
+{
+    const opts = {tint};
+    let faceUp = c.faceUp;
+    if (c.isFlipping()) { opts.squashX = c.flipScaleX(); faceUp = c.flipFaceUp(); }
+    if (faceUp) drawCard(pos, c.value, c.suit, opts);
+    else        drawCardBack(pos, opts);
+}
+
 function gameRender()
 {
     if (!cardStacks.length) return;
@@ -678,7 +703,7 @@ function gameRender()
     for (const s of cardStacks)
         for (const c of s.cards)
             if (!c.isTweening())
-                drawCard(c.pos, c.value, c.suit, {tint: tintFor(c)});
+                drawAnyCard(c, c.pos, tintFor(c));
 
     // Empty legal-drop slots still need a phantom tint because there's
     // no card to draw the overlay on.
@@ -691,12 +716,10 @@ function gameRender()
         }
     }
 
-    // Tweening cards (auto-send-home, snap-back) drawn last so the
-    // flight path stays on top of static cards.
-    for (const s of cardStacks)
-        for (const c of s.cards)
-            if (c.isTweening())
-                drawCard(c.drawnPos(), c.value, c.suit);
+    // Tweening cards (auto-send-home, snap-back, the opening deal) drawn last so
+    // flight paths stay on top. Ordered so the deal peels off the TOP of the deck.
+    for (const c of tweeningCardsInDealOrder(cardStacks))
+        drawAnyCard(c, c.drawnPos(), null);
 
     // Hand cards on top with a rounded-card shadow.
     const shadow = new Color(0, 0, 0, 0.35);
@@ -704,7 +727,7 @@ function gameRender()
         drawCardShape(c.pos.add(vec2(0.25, -0.25)),
             CARD_SIZE.add(vec2(0.1, 0.1)), shadow);
     for (const c of handStack.cards)
-        drawCard(c.pos, c.value, c.suit);
+        drawAnyCard(c, c.pos, null);
 }
 function gameRenderPost() {}
 
@@ -1119,8 +1142,13 @@ function setupDemo()
         return null;
     };
 
-    // Deal the solved deck onto the live board (move list replays against it).
-    const deal = () => newGame(curDeck);
+    // Deal the solved deck onto the live board (move list replays against it),
+    // and hold the AI until the opening deal animation finishes.
+    const deal = () =>
+    {
+        const dealTime = newGame(curDeck);
+        demoPlayer.startDelay = dealTime + 0.3;
+    };
 
     // Execute one planned move, animated. `count` cards from the top of `from`
     // slide together onto `to` (supermoves are one stack-slide, as requested).
