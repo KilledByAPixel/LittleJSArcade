@@ -908,7 +908,7 @@
     .floor-section { max-width: 1320px; margin: 0 auto; }
     .floor-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 14px; }
     .floor-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
-    .floor-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+    .floor-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
     .floor-search { width: 210px; max-width: 60vw; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: inherit; outline: none; }
     .floor-search:focus { border-color: var(--accent); }
     .floor-chips { display: flex; flex-wrap: wrap; gap: 5px; }
@@ -1497,6 +1497,14 @@ const DEMO_GAMES = [
     'boomer.html', 'brickout.html', 'floppyBird.html', 'geometryJump.html',
     'pucMan.html', 'moonLander.html', 'snake.html',
 ];
+
+// Optional: pin one or more games to the FRONT of the hero rotation. When set,
+// these lead the cabinet (shuffled among themselves so a different one can open
+// each visit), then the rest of DEMO_GAMES follow. Leave [] for a pure shuffle.
+// Featured games should also be in DEMO_GAMES so they run menu-less under #demo.
+const FEATURED_GAMES = [];
+const isFeatured = file => FEATURED_GAMES.includes(file);
+
 let heroFile = null;
 let _demoOrder = [];   // DEMO_GAMES shuffled once per page load
 let _demoIndex = 0;    // position in _demoOrder currently shown in the cabinet
@@ -1511,7 +1519,13 @@ function loadFrame(frame, url) {
 // game. "Show a different game" then steps through this shuffled order, wrapping
 // at the end — so clicking it repeatedly walks past every game before repeating.
 function buildDemoOrder() {
-    _demoOrder = shuffledCopy(DEMO_GAMES.filter(f => gameByFile[f]), Math.random);
+    // Featured games lead (shuffled among themselves so a different one can open
+    // each visit), then the rest of the demo games (also shuffled, featured de-duped).
+    const featured = shuffledCopy(FEATURED_GAMES.filter(f => gameByFile[f]), Math.random);
+    const seen = new Set(featured);
+    const rest = shuffledCopy(
+        DEMO_GAMES.filter(f => gameByFile[f] && !seen.has(f)), Math.random);
+    _demoOrder = [...featured, ...rest];
     _demoIndex = 0;
 }
 
@@ -1596,9 +1610,12 @@ function setHero(file) {
     heroFile = file;
     const frame = document.getElementById('hero-frame');
     const nameEl = document.querySelector('#hero-cabinet .hero-name');
+    const nowEl = document.querySelector('#hero-cabinet .hero-now');
     const scoreEl = document.querySelector('#hero-cabinet .hero-score');
     const g = gameByFile[file];
     if (nameEl) nameEl.textContent = g ? g.name : '';
+    // Flag featured games in the cabinet's status line.
+    if (nowEl) nowEl.textContent = isFeatured(file) ? '★ FEATURED' : '▸ NOW PLAYING';
     // Personal best for this game, if one exists (e.g. Asterblast); else hidden.
     if (scoreEl) {
         const sc = g ? getHighScore(g) : null;
@@ -1684,12 +1701,6 @@ function buildFloorControls() {
     const wrap = document.createElement('div');
     wrap.className = 'floor-controls';
 
-    const title = document.createElement('div');
-    title.className = 'floor-title';
-    title.id = 'floor-title';
-    title.textContent = 'All Games';
-    wrap.appendChild(title);
-
     const tools = document.createElement('div');
     tools.className = 'floor-tools';
 
@@ -1759,9 +1770,6 @@ function buildFloorGrid() {
     const featured = shuffledCopy(regular.filter(g => g.top != null), mulberry32(floorSeed() + 7));
     const rest = shuffledCopy(regular.filter(g => g.top == null), mulberry32(floorSeed()));
     const ordered = [...featured, ...rest];
-
-    const titleEl = document.getElementById('floor-title');
-    if (titleEl) titleEl.textContent = 'All Games · ' + (ordered.length + construction.length + extra.length);
 
     if (!ordered.length && !construction.length && !extra.length) {
         const empty = document.createElement('div');

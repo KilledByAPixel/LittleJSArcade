@@ -9,9 +9,12 @@
 <script>
 'use strict';
 
-// attract mode: while at the title (isPlaying() === false) the auto-pilot flies
-// the bird behind the menu and loops on crash. Clicking PLAY starts a real game.
+// The arcade cabinet loads games with #demo: there we run the live auto-fly demo
+// behind the title. A normal launch (menu mode) is a calm STATIC backdrop — no
+// bird, no auto-play, stationary camera. Clicking PLAY starts a real game.
+const inCabinet = /demo/.test(location.hash);
 function isAttract() { return !isPlaying(); }
+function isMenuStatic() { return !isPlaying() && !inCabinet; }
 
 // engine settings
 canvasFixedSize = vec2(960, 540);
@@ -570,6 +573,16 @@ function startDemo()
     demoDeadTimer = 0;
 }
 
+// menu mode (normal title, not the cabinet): a calm STATIC backdrop — just the
+// parallax scenery, no bird and no pipes. The camera stays put and nothing
+// auto-plays; clicking PLAY starts a real game.
+function startMenuScene()
+{
+    resetRun(true);    // STATE_READY: sets birdPos/pipes/scroll; no gameplay runs
+    initScenery();
+    pipes = [];        // no pipes on the static backdrop
+}
+
 function buildMenus()
 {
     if (typeof createMenu !== 'function') return;
@@ -600,8 +613,8 @@ function buildMenus()
 
     createPauseMenu({
         onRestart: startGame,
-        // back to a fresh, live attract demo behind the title
-        onQuit:    () => quitToTitle(startDemo),
+        // back to the title backdrop (static in menu mode, live demo in cabinet)
+        onQuit:    () => quitToTitle(inCabinet ? startDemo : startMenuScene),
     });
 
     installDefaultToolbar();
@@ -621,8 +634,12 @@ async function gameInit()
 
     buildMenus();
 
-    // start the live attract demo behind the title (isPlaying() is false here)
-    startDemo();
+    // Cabinet (#demo): live auto-fly demo behind the title. Normal launch: a
+    // calm static backdrop (no bird, no auto-play). isPlaying() is false here.
+    if (inCabinet)
+        startDemo();
+    else
+        startMenuScene();
     showMenu('title');
 }
 
@@ -636,6 +653,11 @@ function gameUpdate()
     // advance scenery scroll with gameplay (feels like the world moves)
     if (state === STATE_PLAY)
         bgScrollX += pipeSpeed * dt;
+
+    // menu mode (normal title): static backdrop — no autopilot, no input, no
+    // movement. The cabinet demo and real games fall through below.
+    if (isMenuStatic())
+        return;
 
     // attract mode (at the title, isPlaying() === false): auto-pilot the bird and
     // loop the run on crash. Never touches setPlaying / menus / best score.
@@ -849,7 +871,8 @@ function gameRender()
         drawRect(vec2(0, dirtY), vec2(worldSize.x*3, .18), dirtTop);
     }
 
-    // bird (circle + simple wing)
+    // bird (circle + simple wing) — hidden on the calm static menu backdrop
+    if (!isMenuStatic())
     {
         // LittleJS uses clockwise-positive angles; invert so "up" tilt looks right
         const tilt = -clamp(birdVelY / 12, -1, 1) * .5;
