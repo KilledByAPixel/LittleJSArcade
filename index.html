@@ -899,10 +899,16 @@
         box-shadow: inset 0 0 0 2px var(--accent); opacity: 0; transition: opacity .15s;
     }
     @media (hover: hover) { .hero-screen:hover::after { opacity: 1; } }
-    /* The attract iframe is purely visual — pointer-events off so a click on the
-          screen lands on .hero-screen (which launches). Starts transparent and
-          fades in once the attract is clean (no white flash, no menu flicker). */
+    /* The attract iframe is purely visual — pointer-events off so it never
+          handles input. Starts transparent and fades in once the attract is
+          clean (no white flash, no menu flicker). */
     #hero-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: #000; opacity: 0; transition: opacity .35s ease; }
+    /* Transparent hit layer ON TOP of the iframe. Catches the launch tap/click,
+          and — crucially on real mobile — keeps the touch from ever reaching the
+          iframe (which can swallow drag-to-scroll gestures there despite the
+          iframe's pointer-events:none). A plain div scrolls the page on drag and
+          fires click on tap, so the hero scrolls like the rest of the page. */
+    .hero-hit { position: absolute; inset: 0; cursor: pointer; }
     /* Info + controls panel beside the screen, like a cabinet marquee. */
     .hero-bar {
         flex: 1; min-width: 0;
@@ -1769,6 +1775,7 @@ function buildHero() {
         '<div class="hero-screen" title="Click to play">' +
             '<iframe id="hero-frame" title="Attract mode" tabindex="-1" scrolling="no" ' +
                 'allow="autoplay *; gamepad *"></iframe>' +
+            '<div class="hero-hit"></div>' +
         '</div>' +
         '<div class="hero-bar">' +
             '<span class="hero-now">▸ NOW PLAYING</span>' +
@@ -1783,7 +1790,9 @@ function buildHero() {
     // stops a stray tap on the info panel from booting you into the game (esp. on
     // mobile, where the whole cabinet was easy to hit by accident).
     const launch = () => { if (heroFile) selectGame(heroFile); };
-    wrap.querySelector('.hero-screen').addEventListener('click', launch);
+    // Click lands on the transparent hit layer above the iframe (so drag-to-
+    // scroll still works on mobile — see .hero-hit).
+    wrap.querySelector('.hero-hit').addEventListener('click', launch);
     wrap.querySelector('.hero-coin').addEventListener('click', launch);
     // Steps through the shuffled demo order, wrapping — repeated clicks cycle all.
     wrap.querySelector('.hero-shuffle').addEventListener('click', () => advanceDemo());
