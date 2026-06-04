@@ -2397,10 +2397,11 @@ function buildMenus()
 {
     if (typeof createMenu !== 'function') return; // menus.js not loaded — fail gracefully
 
-    // Title menu — title is drawn on the canvas (fancy effect) so we suppress the DOM title here
+    // Title menu — the game name is shown here (DOM title with themed FX), not on the canvas.
     setMenuTheme({accent:'#ff3333'});
     createTitleMenu({
-        title: '',
+        title: 'ROBO RESCUE',
+        titleFx: {fill:'neon', motion:'float', sparkle:true, color:'#ff3333'},
         onPlay: startGame,
         revealOnClick: false,
         canReveal: () => !isPlaying(),
@@ -2734,31 +2735,12 @@ function gameRenderPost()
 
     const W = mainCanvasSize.x, H = mainCanvasSize.y;
 
-    // Pre-play canvas: chromatic multi-layer title always visible behind/around the menu
+    // Pre-play canvas: enemies-wander attract backdrop only. The game name lives in
+    // the DOM title menu (createTitleMenu titleFx), not drawn on the canvas.
     if (!isPlaying())
     {
         const t = time;
         const cx = W / 2;
-        const cy = 130;  // top of screen so the menu (centered) doesn't overlap
-
-        const wobbleY = Math.sin(t * 3.5) * 4;
-        const wobbleX = Math.cos(t * 2.7) * 5;
-        const titleSize = 100 + Math.sin(t * 2) * 4;
-
-        // Chromatic color halos (offset R/G/B layers)
-        drawTextScreen('ROBO RESCUE', vec2(cx + 10 + wobbleX*.4, cy),
-            titleSize, rgb(1, .12, .2, .55));
-        drawTextScreen('ROBO RESCUE', vec2(cx - 10 - wobbleX*.4, cy),
-            titleSize, rgb(.15, .85, 1, .55));
-        drawTextScreen('ROBO RESCUE', vec2(cx, cy + 8 + wobbleY*.4),
-            titleSize, rgb(1, .9, .15, .45));
-        drawTextScreen('ROBO RESCUE', vec2(cx, cy - 8 - wobbleY*.4),
-            titleSize, rgb(.7, .25, 1, .45));
-
-        // Main color-cycling layer (rainbow hue drift) on top
-        const hue = (t * .12) % 1;
-        drawTextScreen('ROBO RESCUE', vec2(cx, cy + wobbleY),
-            titleSize, hsl(hue, .85, .75), 9, rgb(0,0,0));
 
         // Pulsing CLICK / TOUCH TO PLAY prompt — only when no menu is up yet
         const menuUp = (typeof isMenuVisible === 'function') && isMenuVisible();

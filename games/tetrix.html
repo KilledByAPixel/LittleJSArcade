@@ -1387,10 +1387,12 @@ function buildMenus()
 {
     if (typeof createMenu !== 'function') return;
 
-    // Title — canvas draws the animated TETRIS word, so we suppress the DOM title.
+    // Title — the themed name lives in the menu; the falling-pieces backdrop
+    // stays behind it with no name drawn on the canvas.
     setMenuTheme({accent:'#6a7bff'});
     createTitleMenu({
-        title: '',
+        title: 'TETRIX',
+        titleFx: {fill:'neon', motion:'float', sparkle:true},
         subtitle: '',
         playLabel: 'SINGLE PLAYER',
         onPlay: () => startGame('single'),
@@ -1520,28 +1522,6 @@ function isGameFinished()
 {
     if (!isPlaying() || !players.length) return false;
     return !!(players[0]?.gameOver || players[1]?.gameOver);
-}
-
-function renderMenuTitle()
-{
-    const t = time * 1.5; // animation speed
-    const baseY = 9; // world Y position for title (above the DOM menu panel)
-    
-    // Animated layers orbiting around the center
-    const numLayers = 6;
-    for (let i = 0; i < numLayers; i++)
-    {
-        const angle = t + i * (Math.PI * 2 / numLayers); // evenly spaced, rotating
-        const radius = 0.8 + Math.sin(t * 0.5 + i) * 0.3;
-        const offsetX = Math.cos(angle) * radius;
-        const offsetY = Math.sin(angle) * radius * 0.6;
-        const hue = (i / numLayers + t * 0.1) % 1; // cycling colors
-        const color = hsl(hue, .9, .55, .6);
-        drawText('TETRIX', vec2(offsetX, baseY + offsetY), 4, color, 0, CLEAR_BLACK);
-    }
-    
-    // Draw main white text on top
-    drawText('TETRIX', vec2(0, baseY), 4, WHITE, .6, BLACK);
 }
 
 // Calm menu backdrop: large tetromino pieces gently falling/drifting behind the
@@ -1814,12 +1794,8 @@ function gameRender()
         renderParticles();
     }
 
-    if (!isPlaying())
-    {
-        // Title: draw the animated TETRIX word over the live demo; the DOM
-        // menu panel renders on top.
-        renderMenuTitle();
-    }
+    // The themed TETRIX name lives in the DOM title menu; the canvas only draws
+    // the falling-pieces backdrop behind it (no name on the canvas).
 
     // The gameOver menu (DOM) now owns the win/lose banner.
 }

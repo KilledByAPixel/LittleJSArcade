@@ -896,7 +896,9 @@ async function gameInit()
 
     initBoard();
     setPlaying(false);
-    fitCameraToBoard();   // tight board fit behind the title
+    // Letterbox-fit the board behind the title via the shared cameraFit helper.
+    cameraFit(vec2(0, 0), vec2(BOARD_SIZE * CELL_SIZE + 0.4),
+        { margin: .3, inset: { top: 100 } });
     showMenu('title');
     refreshDifficultyUI();
 }
@@ -1072,26 +1074,18 @@ function gameUpdate()
     }
 }
 
-// Fit the camera tightly to the square board with a little padding. Used for
-// both attract modes (cabinet demo + static menu board) so the board fills the
-// view; real play uses the normal REAL_PLAY_CAMERA_SCALE.
-function fitCameraToBoard(padding = 0.96)
-{
-    const boardWorldSize = BOARD_SIZE * CELL_SIZE + 0.4; // include the frame
-    const scaleX = mainCanvasSize.x / boardWorldSize;
-    const scaleY = mainCanvasSize.y / boardWorldSize;
-    cameraScale = min(scaleX, scaleY) * padding;
-}
-
 function gameUpdatePost()
 {
     cameraPos = vec2(0, 0);
-    // Tight board fit while at the title (both cabinet demo and static menu);
-    // restore the normal zoom for real play.
+    // Letterbox-fit the board while at the title (both cabinet demo and static
+    // menu) via the shared cameraFit helper; restore the normal zoom for real
+    // play. The board is centered at origin; span includes the frame, and the
+    // top inset leaves room for the always-visible toolbar.
     if (isPlaying())
         cameraScale = REAL_PLAY_CAMERA_SCALE;
     else
-        fitCameraToBoard();
+        cameraFit(vec2(0, 0), vec2(BOARD_SIZE * CELL_SIZE + 0.4),
+            { margin: .3, inset: { top: 100 } });
 }
 
 function gameRender()

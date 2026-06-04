@@ -964,16 +964,15 @@ function worldPosToSquare(worldPos)
     return null;
 }
 
-// Fit the camera tightly to the board for the title/attract view: the board
-// frame (plus a little padding) fills the viewport. The board is square and the
-// canvas is portrait, so width is the limiting axis. Recomputed from the live
-// canvas size so it's robust to any actual on-screen scaling.
+// Fit the camera tightly to the board for the title/attract view via the shared
+// cameraFit() helper: the board frame (plus a little padding) is letterbox-fit
+// to the viewport, reserving pixels up top for the HUD toolbar that shows over
+// the title/attract. Recomputed every frame from the live canvas size so it's
+// robust to any on-screen scaling/resize.
 function fitCameraToBoard()
 {
-    const span = BOARD_SIZE * SQUARE_SIZE + 0.4 + 0.6; // frame + small padding
-    const w = mainCanvasSize.x || 720, h = mainCanvasSize.y || 1080;
-    cameraPos = vec2(0, 0);
-    cameraScale = Math.min(w / span, h / span);
+    const span = BOARD_SIZE * SQUARE_SIZE + 0.4; // board + frame
+    cameraFit(vec2(0, 0), vec2(span), { margin: 0.3, inset: { top: 80 } });
 }
 
 // Bake every piece glyph + a reusable circle into the texture atlas. Called
@@ -1428,6 +1427,9 @@ function updateAIMove()
 // couple seconds after each game ends. Runs only while NOT playing.
 function updateAttract()
 {
+    // Keep the attract framed every frame (both the cabinet AI view and the
+    // static menu board), robust to any live canvas resize.
+    fitCameraToBoard();
     if (!attractRunning) return; // normal launch: static board, nothing to do
     if (gameOver) {
         // Hold the finished position briefly, then deal a fresh match.

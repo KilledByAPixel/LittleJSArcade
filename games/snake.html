@@ -1091,21 +1091,13 @@ function gameRenderPost()
         drawTextScreen(`FIRST TO ${versusWinApples}`, vec2(cx, by + 24), 16, hsl(0,0,1,.7), 2, hsl(0,0,0,.8));
         drawTextScreen(`YOU ${player.apples}`, vec2(cx - 250, by), 36 * popScale, hsl(playerHue,.7,.78), 4, hsl(0,0,0));
         drawTextScreen(`AI ${ai.apples}`,      vec2(cx + 250, by), 36,             hsl(aiHue,.75,.72),   4, hsl(0,0,0));
-
-        if (!roundOver && player.apples + ai.apples === 0)
-        {
-            const help = isTouchDevice ? 'Swipe / d-pad to steer' : 'Arrows or WASD to steer';
-            const a = .5 + .35 * Math.sin(time * 2.5);
-            drawTextScreen(help, vec2(cx, 34), 17, hsl(0,0,1,a), 3, hsl(0,0,0,a));
-        }
         return;
     }
 
-    // Classic — Score (pops on eat) + best, in the bottom strip
+    // Classic — Score number only (pops on eat), in the bottom strip
     const popScale  = scorePopTimer > 0 ? 1 + .35 * (scorePopTimer / .45) : 1;
     const scoreSize = 38 * popScale;
     drawTextScreen(`${score}`, vec2(cx, by), scoreSize, hsl(.34,.7,.88), 5, hsl(0,0,0));
-    drawTextScreen(`BEST  ${getBestScore()}`, vec2(cx, by + 28), 17, hsl(0,0,1,.7), 3, hsl(0,0,0,.8));
 
     // bonus indicator on the left of the bottom strip while a bonus is live
     if (!roundOver && bonus)
@@ -1114,16 +1106,6 @@ function gameRenderPost()
         const a = warn ? .55 + .45*Math.sin(time*16) : 1;
         drawTextScreen(`★ +${bonusValue}`, vec2(150, by - 6), 24, hsl(.13,1,.7,a), 3, hsl(0,0,0,.8));
         drawTextScreen(`${Math.ceil(bonusTimer)}s`, vec2(150, by + 22), 16, hsl(0,0,1,.85), 2, hsl(0,0,0,.8));
-    }
-
-    // first-time hint, faint near the top of the field (fades out once you score)
-    if (!roundOver && score < 2)
-    {
-        const help = isTouchDevice
-            ? 'Swipe / d-pad to steer'
-            : 'Arrow keys or WASD to move    Esc to pause';
-        const a = .5 + .35 * Math.sin(time * 2.5);
-        drawTextScreen(help, vec2(cx, 34), 17, hsl(0,0,1,a), 3, hsl(0,0,0,a));
     }
 }
 

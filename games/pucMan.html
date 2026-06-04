@@ -372,13 +372,14 @@ function gameRender()
 // -----------------------------------------------------------------------------
 function gameRenderPost()
 {
-    if (!isPlaying()) return; // title screen — menu owns the display
-
-    // HUD strip
+    // HUD strip — drawn in real play AND in the attract demo (ghosts don't score,
+    // so the demo shows a static SCORE 000000; lives is the title default).
     drawRect(vec2(mainCanvasSize.x/2, 28), vec2(mainCanvasSize.x, 56), hsl(0,0,0,.55), 0, false, true);
 
     drawTextScreen(`SCORE ${score.toString().padStart(6,'0')}`, vec2(20, 22), 24, hsl(.58, .2, .92), 3, hsl(0,0,0,.7), 'left');
     drawTextScreen(`LIVES ${lives}`, vec2(mainCanvasSize.x - 20, 22), 24, hsl(.58, .2, .92), 3, hsl(0,0,0,.7), 'right');
+
+    if (!isPlaying()) return; // title screen — menu owns the rest of the display
 
     // Brief on-canvas banner while the end-hold timer runs; the gameOver menu owns the rest.
     if ((win || gameOver) && endHoldTimer > 0)

@@ -699,13 +699,13 @@ async function gameInit()
     refreshDifficultyUI();
 }
 
-// Zoom the camera in so the board fills the view with a little padding.
+// Letterbox-fit the whole board (frame border included) into the view via the
+// shared cameraFit() helper, leaving room at the top for the HUD toolbar.
 function fitCameraToBoard()
 {
-    const padding = 0.6; // world units of breathing room on each side
-    const boardW = COLS * CELL_SIZE + 0.5 + padding * 2; // +0.5 = frame border
-    const boardH = ROWS * CELL_SIZE + 0.5 + padding * 2;
-    cameraScale = min(mainCanvasSize.x / boardW, mainCanvasSize.y / boardH);
+    const boardW = COLS * CELL_SIZE + 0.5; // +0.5 = frame border
+    const boardH = ROWS * CELL_SIZE + 0.5;
+    cameraFit(vec2(0, 0), vec2(boardW, boardH), { margin: .6, inset: { top: 100 } });
 }
 
 // Set up the title attract: cabinet runs AI vs AI on loop; a normal launch
@@ -716,8 +716,7 @@ function enterAttract()
     initBoard();
     aiThinkTimer = 0;
     attractRestartTimer = 0;
-    setPlaying(false);
-    fitCameraToBoard();
+    setPlaying(false); // gameUpdatePost frames the attract board via fitCameraToBoard()
 }
 
 function quitToTitleWithCleanup()
@@ -733,8 +732,7 @@ function startGame(mode)
     gameMode = mode;
     initBoard();
     aiThinkTimer = 0;
-    cameraScale = PLAY_CAMERA_SCALE; // restore the normal real-play camera
-    setPlaying(true);
+    setPlaying(true); // gameUpdatePost restores the real-play camera (PLAY_CAMERA_SCALE)
     hideMenu('title');
 }
 
@@ -855,7 +853,17 @@ function gameUpdate()
 
 function gameUpdatePost()
 {
-    cameraPos = vec2(0, 0);
+    if (isPlaying())
+    {
+        // Normal real-play camera: fixed zoom, board centered.
+        cameraScale = PLAY_CAMERA_SCALE;
+        cameraPos = vec2(0, 0);
+    }
+    else
+    {
+        // Attract (cabinet AI view + static menu board): shared letterbox fit.
+        fitCameraToBoard();
+    }
 }
 
 function gameRender()
