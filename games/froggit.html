@@ -1296,7 +1296,7 @@ function gameRender() {
 }
 
 function gameRenderPost() {
-    if (!isPlaying()) return; // title screen — menu owns the display
+    if (!isPlaying() || inCabinet) return; // title screen / cabinet demo — no HUD
 
     // HUD lives along the bottom corners, leaving the top open for added lanes.
     // Score (prominent) bottom-right; lives/level bottom-left. The crossing-timer

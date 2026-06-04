@@ -1402,7 +1402,7 @@ function gameRender()
 
 function gameRenderPost()
 {
-        if (!isPlaying()) return; // title screen — menu owns the display
+        if (!isPlaying() || inCabinet) return; // title screen / cabinet demo — no HUD
 
         // HUD
         const left = 18;

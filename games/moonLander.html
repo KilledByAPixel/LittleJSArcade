@@ -760,12 +760,14 @@ function renderEarth()
     const ex = mod(W*.78 - cameraPos.x*6, W*1.6) - W*.3;
     const ey = H*.20 + cameraPos.y*4;
     const p = vec2(ex, ey);
-    drawTile(p, vec2(360), icons.glow, rgb(.35,.6,1,.22), 0, false, undefined, true, true); // atmosphere
-    drawTile(p, vec2(150), icons.circle, rgb(.16,.4,.78), 0, false, undefined, true, true); // ocean
-    drawTile(p.add(vec2(-30,-25)), vec2(55), icons.circle, rgb(.3,.6,.42,.9), 0, false, undefined, true, true); // land
-    drawTile(p.add(vec2(40,30)),   vec2(42), icons.circle, rgb(.32,.58,.4,.9), 0, false, undefined, true, true);
-    drawTile(p.add(vec2(10,-50)),  vec2(30), icons.circle, rgb(.9,.95,1,.5), 0, false, undefined, true, true);  // cloud/ice
-    drawCrescent(p, 152, .15, hsl(0,0,0,.7), 1, false, 0, BLACK, glEnable, true);;
+    // shrink the whole Earth to half size in the cabinet demo
+    const s = inCabinet ? .5 : 1;
+    drawTile(p, vec2(360*s), icons.glow, rgb(.35,.6,1,.22), 0, false, undefined, true, true); // atmosphere
+    drawTile(p, vec2(150*s), icons.circle, rgb(.16,.4,.78), 0, false, undefined, true, true); // ocean
+    drawTile(p.add(vec2(-30,-25).scale(s)), vec2(55*s), icons.circle, rgb(.3,.6,.42,.9), 0, false, undefined, true, true); // land
+    drawTile(p.add(vec2(40,30).scale(s)),   vec2(42*s), icons.circle, rgb(.32,.58,.4,.9), 0, false, undefined, true, true);
+    drawTile(p.add(vec2(10,-50).scale(s)),  vec2(30*s), icons.circle, rgb(.9,.95,1,.5), 0, false, undefined, true, true);  // cloud/ice
+    drawCrescent(p, 152*s, .15, hsl(0,0,0,.7), 1, false, 0, BLACK, glEnable, true);;
 }
 
 // filled silhouette across the visible range, drawn as a WebGL triangle strip

@@ -822,13 +822,17 @@ function gameRenderPost()
 
     if (gamePhase === 'playing' || gamePhase === 'buzzer')
     {
-        // score (top center)
-        drawTextScreen(`${score}`, vec2(c.x/2, 56), 60, hsl(0,0,1), 4, hsl(0,0,0));
+        // Score + time are hidden in the cabinet demo for a clean attract screen.
+        if (!inCabinet)
+        {
+            // score (top center)
+            drawTextScreen(`${score}`, vec2(c.x/2, 56), 60, hsl(0,0,1), 4, hsl(0,0,0));
 
-        // time (top right area, but offset from HUD toolbar)
-        const tStr = Math.ceil(timeLeft).toString().padStart(2, '0');
-        const tColor = timeLeft < 10 ? hsl(.02, .9, .65) : hsl(.13, .9, .65);
-        drawTextScreen(`0:${tStr}`, vec2(c.x/2, 100), 28, tColor, 3, hsl(0,0,0));
+            // time (top right area, but offset from HUD toolbar)
+            const tStr = Math.ceil(timeLeft).toString().padStart(2, '0');
+            const tColor = timeLeft < 10 ? hsl(.02, .9, .65) : hsl(.13, .9, .65);
+            drawTextScreen(`0:${tStr}`, vec2(c.x/2, 100), 28, tColor, 3, hsl(0,0,0));
+        }
 
         // combo (top left) — only show a real combo (2+ in a row), or the
         // ON FIRE streak. A streak of 1 isn't a combo, so it stays hidden.

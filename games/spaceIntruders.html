@@ -966,7 +966,7 @@ function buildMenus()
         ],
     });
 
-    installDefaultToolbar();
+    if (!inCabinet) installDefaultToolbar(); // attract demo keeps the corner clear for HI-SCORE
 
     // Show the title menu immediately — no click-to-reveal step.
     showMenu('title');
@@ -1088,9 +1088,20 @@ function gameRenderPost()
     const hudY = 30;
     const color = rgb(.2,.95,.25);
     
-    // SCORE at top left
+    // SCORE at top left (always — the cabinet demo shows it too, as an exception
+    // to the usual "no HUD in demo" rule).
     drawTextScreen('SCORE', vec2(80, hudY), 26, color);
     drawTextScreen(String(score).padStart(4, '0'), vec2(80, hudY + 32), 26, rgb(.95,.95,.95));
+
+    // In the cabinet demo, also show the all-time HI-SCORE tucked into the very
+    // top-right corner (mirrors SCORE's top-left spot; the corner is free there
+    // because the toolbar is hidden in demo).
+    if (inCabinet)
+    {
+        const rx = mainCanvasSize.x - 30;
+        drawTextScreen('HI-SCORE', vec2(rx, hudY), 26, color, undefined, undefined, 'right');
+        drawTextScreen(String(getBestScore()).padStart(4, '0'), vec2(rx, hudY + 32), 26, rgb(.95,.95,.95), undefined, undefined, 'right');
+    }
     
     // Lives indicator with ship icons at bottom - below the green line
     const livesY = mainCanvasSize.y - 18;

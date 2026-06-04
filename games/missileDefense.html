@@ -1850,8 +1850,12 @@ function gameRenderPost()
 
     const topLeft = vec2(24, 44);
 
-    drawTextScreen(`SCORE ${score}`, topLeft, 70, hsl(.12,.1,.95), 4, hsl(0,0,0,.6), 'left');
-    drawTextScreen(`WAVE ${waveIndex}`, topLeft.add(vec2(0, 50)), 40, hsl(.12,.08,.9), 3, hsl(0,0,0,.6), 'left');
+    // Hide the live score + wave readout in the cabinet demo (clean attract screen).
+    if (!inCabinet)
+    {
+        drawTextScreen(`SCORE ${score}`, topLeft, 70, hsl(.12,.1,.95), 4, hsl(0,0,0,.6), 'left');
+        drawTextScreen(`WAVE ${waveIndex}`, topLeft.add(vec2(0, 50)), 40, hsl(.12,.08,.9), 3, hsl(0,0,0,.6), 'left');
+    }
 
     if (!gameOver && !anyBasesAliveWithAmmo())
         drawTextScreen('NO AMMO! (protect what\'s left)', vec2(mainCanvasSize.x/2, 30), 22, hsl(.06,1,.65), 4, hsl(0,0,0,.7));
