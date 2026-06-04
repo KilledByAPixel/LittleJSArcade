@@ -29,9 +29,8 @@
 <script>
 'use strict';
 
-paused = false;
-
-setCanvasFixedSize(vec2(680, 520));
+// engine settings
+cameraScale = 10;
 
 const stepCount = 8, trackCount = 16, sequencer = [];
 const buttonSize = vec2(68, 28);
@@ -351,6 +350,7 @@ function gameInit()
     new UISystemPlugin;
     uiSystem.defaultCornerRadius = 8;
     uiSystem.defaultShadowColor = BLACK;
+    uiSystem.nativeHeight = 500;
     canvasClearColor = GRAY;
 
     const saved = loadState();
