@@ -122,9 +122,11 @@ function buildTable()
 function newGame()
 {
     buildTable();
-    // Deal-out animation: cards pop off the stock (top-left deck) into place.
-    // Purely cosmetic and silent; the board is already logically dealt.
-    dealCards(stacks, stockStack.pos, {perCard: DEAL_STAGGER, duration: DEAL_FLIGHT});
+    // Deal-out animation: cards pop off the face-down stock (top-left deck) and
+    // flip face-up as they land. Purely cosmetic and silent; the board is already
+    // logically dealt.
+    dealCards(stacks, stockStack.pos,
+        {perCard: DEAL_STAGGER, duration: DEAL_FLIGHT, flip: true, flipTime: FLIP_TIME});
     history.reset();
 }
 
@@ -344,11 +346,10 @@ function gameRender()
             if (!c.isTweening())
                 drawAnyCard(c, c.pos, tintFor(c));
 
-    // Tweening cards drawn last so the flight path stays on top.
-    for (const s of stacks)
-        for (const c of s.cards)
-            if (c.isTweening())
-                drawAnyCard(c, c.drawnPos(), null);
+    // Tweening cards drawn last so flight paths stay on top. Ordered so a
+    // staggered deal peels off the TOP of the deck (next-to-fly card on top).
+    for (const c of tweeningCardsInDealOrder(stacks))
+        drawAnyCard(c, c.drawnPos(), null);
 
     // Held cards on top with a soft shadow.
     const shadow = new Color(0, 0, 0, 0.35);

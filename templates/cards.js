@@ -453,6 +453,8 @@ class Card
         this.flipTimer     = new Timer();
         this.flipFrom      = faceUp;
         this.flipDuration  = 0.18;
+        this.flipDelay     = 0;      // optional wait before the squeeze (deal-on-land)
+        this.flipSpan      = 0.18;   // duration of the squeeze (set by flipTo)
     }
     // Fly from `fromPos` to the card's current pos. `delay` (seconds) holds the
     // card at the source before it sets off — used to stagger a deal. `duration`
@@ -468,18 +470,26 @@ class Card
     // animation, the new face for the second; flipScaleX() drives the squeeze.
     // Toggling face is normally instant (card.faceUp = x) — call this instead to
     // get the animated flip.
-    flipTo(faceUp, duration = this.flipDuration)
+    flipTo(faceUp, duration = this.flipDuration, delay = 0)
     {
         if (this.faceUp === faceUp && !this.isFlipping()) return;
-        this.flipFrom = this.faceUp;
-        this.faceUp   = faceUp;
-        this.flipTimer.set(duration);
+        this.flipFrom  = this.faceUp;
+        this.faceUp    = faceUp;
+        this.flipDelay = delay;
+        this.flipSpan  = duration;
+        this.flipTimer.set(delay + duration);
     }
     isFlipping() { return this.flipTimer.active(); }
-    // Horizontal scale across the flip: 1 -> ~0 -> 1 (cosine ease).
-    flipScaleX() { return abs(Math.cos(this.flipTimer.getPercent() * PI)); }
-    // Which face to show right now (old for the first half, new after midpoint).
-    flipFaceUp() { return this.flipTimer.getPercent() < .5 ? this.flipFrom : this.faceUp; }
+    // Progress through the squeeze (0..1), or -1 while still in the pre-flip delay.
+    _flipProgress()
+    {
+        const elapsed = this.flipTimer.getPercent() * (this.flipDelay + this.flipSpan);
+        return elapsed < this.flipDelay ? -1 : (elapsed - this.flipDelay) / this.flipSpan;
+    }
+    // Horizontal scale across the flip: 1 (waiting / edges) -> ~0 (mid) -> 1.
+    flipScaleX() { const p = this._flipProgress(); return p < 0 ? 1 : abs(Math.cos(p * PI)); }
+    // Which face to show right now (old until the squeeze midpoint, new after).
+    flipFaceUp() { const p = this._flipProgress(); return p < .5 ? this.flipFrom : this.faceUp; }
     // True only while actively interpolating; goes false the frame the timer
     // elapses (updateCardTweens clears tweenFrom shortly after).
     isTweening()
@@ -650,21 +660,49 @@ function updateCardTweens(stacks)
 // play/solve logic is unaffected. Cards already at fromPos (a face-down stock)
 // stay put and read as the deck. Returns the total animation length (seconds)
 // so a caller can wait for it (e.g. an attract player before it starts moving).
-//   opts: { perCard (stagger between cards, s), duration (per-card flight, s) }
-function dealCards(stacks, fromPos, { perCard = 0.025, duration = 0.25 } = {})
+//   opts: { perCard (stagger between cards, s), duration (per-card flight, s),
+//           flip (deal each card face-down and flip it face-up as it lands),
+//           flipTime (the landing-flip duration, s) }
+function dealCards(stacks, fromPos, { perCard = 0.025, duration = 0.25, flip = false, flipTime = 0.18 } = {})
 {
     let maxLen = 0;
     for (const s of stacks) maxLen = max(maxLen, s.cards.length);
     let i = 0;   // counts only the moving cards — drives the stagger
+    // Deal order: lowest stack index first (index 0 = the back / top card of
+    // each fan), stacking DOWN to the front-most card. This is the natural deal —
+    // each new card lands below and in front of the previous one.
     for (let row = 0; row < maxLen; ++row)
         for (const s of stacks)
         {
             const c = s.cards[row];
             if (!c || c.pos.distance(fromPos) < .01) continue;   // empty slot or already in the deck
-            c.startTween(fromPos, i * perCard, duration);
+            const delay = i * perCard;
+            c.startTween(fromPos, delay, duration);
+            if (flip)
+            {
+                const faceUp = c.faceUp;     // intended final face
+                c.faceUp = false;            // fly face-down, as part of the deck...
+                c.flipTo(faceUp, flipTime, delay + duration);   // ...and flip as it lands
+            }
             ++i;
         }
-    return i ? (i - 1) * perCard + duration : 0;
+    return i ? (i - 1) * perCard + duration + (flip ? flipTime : 0) : 0;
+}
+
+// Every currently-tweening card across `stacks`, ordered for drawing so a
+// staggered deal peels off the TOP of the deck: cards with the LARGEST start
+// delay first (they sit lowest, still waiting), the next-to-fly card last (on
+// top). Draw these after the settled cards in your render. For ordinary moves
+// (no deal delay) the order is unchanged, so this is safe to use as the single
+// tweening-pass iterator.
+function tweeningCardsInDealOrder(stacks)
+{
+    const out = [];
+    for (const s of stacks)
+        for (const c of s.cards)
+            if (c.isTweening()) out.push(c);
+    out.sort((a, b) => b.tweenDelay - a.tweenDelay);
+    return out;
 }
 
 // Undo/redo + autosave for a card game. The game supplies `serialize()`
