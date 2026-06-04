@@ -39,6 +39,7 @@ const SAFE_ANGLE = .22;            // radians (~12.6 deg)
 // Camera tuning (cameraScale = pixels per world unit; smaller = zoomed out)
 const CAMERA_SCALE_FAR  = 22;      // start / wide view
 const CAMERA_SCALE_NEAR = 60;      // close-up near pad
+const CAMERA_SCALE_DEMO = 18;      // title attract: wider, calmer static framing
 const CAMERA_ZOOM_IN_DIST  = 8;    // fully zoomed in inside this distance
 const CAMERA_ZOOM_OUT_DIST = 18;   // start zooming in inside this distance
 
@@ -161,6 +162,17 @@ function startLevel(n)
     cameraPos = camTarget.copy();
     camScale = CAMERA_SCALE_FAR;
     cameraScale = camScale;
+
+    // at the title the lander just rests on its pad — compose a calmer, wider
+    // static shot (zoomed out a touch, pad sitting low with sky above) rather
+    // than the close-up the gameplay camera would otherwise hold here
+    if (!isPlaying())
+    {
+        camTarget = vec2(padX, padY + 7);
+        cameraPos = camTarget.copy();
+        camScale = CAMERA_SCALE_DEMO;
+        cameraScale = camScale;
+    }
 }
 
 function startGame()

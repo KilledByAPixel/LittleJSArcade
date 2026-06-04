@@ -1076,13 +1076,14 @@ function drawSnake(s)
 ///////////////////////////////////////////////////////////////////////////////
 function gameRenderPost()
 {
-    if (!isPlaying()) return; // title screen owns the canvas; menu draws its own
-
     const cx = mainCanvasSize.x/2;
     const by = mainCanvasSize.y - 42;   // bottom HUD baseline, below the playfield
 
+    // Versus only runs in a real game; in attract it's always classic. Show the
+    // classic score even at the title so it climbs live as the AI test-player eats.
     if (versus)
     {
+        if (!isPlaying()) return;
         // race scoreboard: YOU (green, left) vs AI (cyan, right), target in the middle
         const popScale = scorePopTimer > 0 ? 1 + .25 * (scorePopTimer / .35) : 1;
         drawTextScreen(`FIRST TO ${versusWinApples}`, vec2(cx, by + 24), 16, hsl(0,0,1,.7), 2, hsl(0,0,0,.8));
@@ -1091,10 +1092,10 @@ function gameRenderPost()
         return;
     }
 
-    // Classic — Score number only (pops on eat), in the bottom strip
+    // Classic — Score number only (pops on eat), centered in the bottom strip
     const popScale  = scorePopTimer > 0 ? 1 + .35 * (scorePopTimer / .45) : 1;
-    const scoreSize = 38 * popScale;
-    drawTextScreen(`${score}`, vec2(cx, by), scoreSize, hsl(.34,.7,.88), 5, hsl(0,0,0));
+    const scoreSize = 54 * popScale;
+    drawTextScreen(`${score}`, vec2(cx, mainCanvasSize.y - 60), scoreSize, hsl(.34,.7,.88), 6, hsl(0,0,0));
 
     // bonus indicator on the left of the bottom strip while a bonus is live
     if (!roundOver && bonus)

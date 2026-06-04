@@ -1,5 +1,5 @@
 <!DOCTYPE html><head>
-<title>Go (9×9)</title>
+<title>Go</title>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
@@ -20,6 +20,11 @@ canvasMaxSize = vec2(2048, 2048);
 const BOARD_SIZE = 9;
 const CELL_SIZE  = 1.0;   // world units between intersections
 const STONE_RADIUS = 0.8; // world units
+
+// Camera framing — matches the other board games (reversi/checkers): fit the
+// board to the screen at the title, fixed zoom during play so it sits steady.
+const REAL_PLAY_CAMERA_SCALE = 72;                                    // in-game zoom
+const BOARD_FIT_SPAN = (BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE * 1.4; // wooden board span (matches drawBoard)
 
 const STONE_EMPTY = 0;
 const STONE_BLACK = 1;
@@ -915,8 +920,9 @@ async function gameInit()
 
     icons = initDefaultAtlas(); // bake 16 white-on-transparent icons into tiles 0-15
 
-    // One callback drives `paused` for every menu (including dialogs).
-    installAutoPause();
+    // Keep the title UNPAUSED so the framed board shows (and refits on resize)
+    // behind the menu; only a real game pauses when a menu/dialog appears.
+    installAutoPause(() => isPlaying());
 
     // Gameplay sounds.
     sfxPlace  = new SoundGenerator({frequency: 300, release: 0.05, volume: 0.3});
@@ -987,6 +993,8 @@ async function gameInit()
 
     initBoard();
     setPlaying(false);
+    // Fit the empty board tight and centered behind the title.
+    cameraFit(vec2(0, 0), vec2(BOARD_FIT_SPAN), { margin: .3 });
     showMenu('title');
     refreshDifficultyUI();
 }
@@ -1060,6 +1068,12 @@ function gameUpdate()
 function gameUpdatePost()
 {
     cameraPos = vec2(0, 0);
+    // Title (static framed board): fit the board to the view via the shared
+    // cameraFit helper. Real play: a fixed zoom so the board sits steady.
+    if (isPlaying())
+        cameraScale = REAL_PLAY_CAMERA_SCALE;
+    else
+        cameraFit(vec2(0, 0), vec2(BOARD_FIT_SPAN), { margin: .3 });
 }
 
 // gameRender draws the board behind the title menu (empty board on load).

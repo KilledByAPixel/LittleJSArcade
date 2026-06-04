@@ -1360,8 +1360,6 @@ async function gameInit()
     // Mute all game audio while at the title; menu click sounds still play.
     setSilentAttract(true);
 
-    applyCanvasSize();
-
     buildMenus();
 
     // Cabinet: live AI-vs-AI demo. Normal launch: calm large-pieces backdrop.
@@ -1371,11 +1369,52 @@ async function gameInit()
         spawnMenuBackground();
 }
 
-// Fixed wide landscape canvas in every mode. Portrait play is blocked by the
-// orientation-lock overlay (set up in gameInit), so there's no narrow layout.
-function applyCanvasSize()
+// World-space bounding box of everything drawn for the active board(s): the
+// board rects plus each side info panel (NEXT / HOLD / score lines).
+function contentBounds()
 {
-    setCanvasFixedSize(vec2(1920, 1080));
+    let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9;
+    const ext = (x, y) =>
+    {
+        minX = min(minX, x); maxX = max(maxX, x);
+        minY = min(minY, y); maxY = max(maxY, y);
+    };
+    for (const p of players)
+    {
+        // board rect (+a little headroom for the two-player name label)
+        ext(p.boardPos.x, p.boardPos.y);
+        ext(p.boardPos.x + BOARD_SIZE.x, p.boardPos.y + BOARD_SIZE.y + 1.6);
+        // side UI column — centered on uiPos.x (~2.4 half-width), running from
+        // the NEXT label down past the score lines (~20 units tall)
+        ext(p.uiPos.x - 2.4, p.uiPos.y + 1.5);
+        ext(p.uiPos.x + 2.4, p.uiPos.y - 20);
+    }
+    return { minX, maxX, minY, maxY };
+}
+
+// Frame the camera so the board(s) + info panels fill whatever canvas size we
+// get (responsive, capped by canvasMaxSize) — replaces the old fixed 1920x1080
+// canvas. Called every frame: it sets the base camera and the gameFx screen-
+// shake plugin nudges from there.
+function frameView()
+{
+    // default framing for the title / calm menu backdrop (falling-pieces field)
+    let cx = 0, cy = 0, halfW = 14, halfH = 12;
+
+    if ((isPlaying() || inCabinet) && players.length)
+    {
+        const b = contentBounds();
+        cx = (b.minX + b.maxX) / 2;
+        cy = (b.minY + b.maxY) / 2;
+        halfW = (b.maxX - b.minX) / 2;
+        halfH = (b.maxY - b.minY) / 2;
+    }
+
+    // fit both axes with a small margin so content never kisses the screen edge
+    const margin = 1.08;
+    cameraScale = min(mainCanvasSize.x / (halfW * 2 * margin),
+                      mainCanvasSize.y / (halfH * 2 * margin));
+    cameraPos = vec2(cx, cy);
 }
 
 function buildMenus()
@@ -1491,7 +1530,6 @@ function gameOverBannerText()
 function quitToTitleWithCleanup()
 {
     quitToTitle(() => {
-        applyCanvasSize();
         // Cabinet returns to the live AI-vs-AI demo; a normal launch returns to
         // the calm large-pieces backdrop.
         if (inCabinet)
@@ -1617,9 +1655,6 @@ function startGame(mode)
     if (typeof clearSubmenuStack === 'function') clearSubmenuStack();
     if (typeof hideAllMenus === 'function') hideAllMenus();
 
-    // Canvas adapts to game mode + orientation (single+portrait = narrow board)
-    applyCanvasSize();
-
     // Generate a shared seed for piece generation so both players get same pieces
     pieceSeed = randInt(2147483647);
 
@@ -1683,9 +1718,9 @@ function simulatePlayers(human, ai)
 
 function gameUpdate()
 {
-    // Reset cameraPos to origin each frame so the gameFx screen-shake plugin
-    // (between gameUpdate and gameUpdatePost) can nudge cleanly without drift.
-    cameraPos = vec2(0, 0);
+    // Frame the camera to fit the board(s) + info panels into the current canvas
+    // (sets the base camera; the gameFx screen-shake plugin nudges from here).
+    frameView();
 
     const human = players[0];
     const ai = (gameMode === 'vs' || gameMode === 'aivs') ? players[1] : null;

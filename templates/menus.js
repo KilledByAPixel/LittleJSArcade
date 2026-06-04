@@ -106,6 +106,10 @@
 // Lookups:         getMenu(id), getToolbar(id), getTopMenu(),
 //                  isMenuVisible(), showMenu(id), hideMenu(id),
 //                  hideAllMenus().
+// Demo mode:       isDemoMode() — true when loaded with `#demo` in the URL
+//                  (the arcade launcher's hero cabinet). All menu chrome is
+//                  auto-hidden so the game runs menu-less as a live attract;
+//                  games can also branch on it (e.g. AI-vs-AI vs static board).
 //
 // Lifecycle hook: setMenuVisibilityCallback(v => paused = v) — fires once
 // per show/hide for ALL menus including dialogs. Use this for paused-
@@ -1680,6 +1684,18 @@ let _silentAttract = false;   // did the game opt in?
 let _demoSilent    = false;   // are we muting game audio right now?
 let _inMenuSound   = false;   // true only while a menu sound is being played
 
+// Demo (attract) mode: the game was loaded with `#demo` in the URL. The arcade
+// launcher's hero cabinet uses this to run a game menu-less as a live attract.
+// initMenuSystem() auto-hides all menu chrome (#littlejs-menus) when this is set,
+// so the launcher no longer has to inject hide-CSS into the iframe — `#demo` is
+// self-describing. Hiding is purely visual: the menu stays tracked in allMenus,
+// so isMenuVisible() is unchanged and installAutoPause(() => isPlaying()) keeps
+// `paused` false at the title (isPlaying() is false there), letting the attract
+// run live behind nothing. Games can also read isDemoMode() to branch behavior
+// (e.g. board games run AI-vs-AI only in demo, a static board otherwise).
+const _demoMode = /demo/.test(location.hash);
+function isDemoMode() { return _demoMode; }
+
 // Patch Sound.prototype.play once (per document) so we can force game sounds to
 // volume 0 during a silent attract, without disabling the engine's audio.
 function _installSoundMute()
@@ -2655,6 +2671,14 @@ function initMenuSystem()
     menuSystemRoot = document.createElement('div');
     menuSystemRoot.id = 'littlejs-menus';
     document.body.appendChild(menuSystemRoot);
+
+    // In demo/attract mode (#demo — e.g. the launcher's hero cabinet), hide all
+    // menu chrome so the game runs menu-less behind nothing. setProperty with
+    // 'important' beats any game CSS, matching what the launcher used to inject.
+    // This is visual only — allMenus tracking is untouched, so the demo still
+    // updates live (see _demoMode note above).
+    if (_demoMode)
+        menuSystemRoot.style.setProperty('display', 'none', 'important');
 
     // Stop pointer events from bubbling to LittleJS's document-level handlers,
     // which would otherwise preventDefault() and break native widget behavior

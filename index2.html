@@ -62,6 +62,7 @@
         --cat-physics: #fb7185;   --cat-physics-bg: rgba(251,113,133,.18);
         --cat-construction: #ff9744; --cat-construction-bg: rgba(255,151,68,.18);
         --cat-frankforce: #22d3ee; --cat-frankforce-bg: rgba(34,211,238,.18);
+        --cat-extra: #94a3b8; --cat-extra-bg: rgba(148,163,184,.18);
     }
     /* Light theme — overrides the surface/text palette only; the bright
           category + accent hues carry over (they read fine on light too). */
@@ -1099,6 +1100,12 @@ const GAMES = [
     { file:'wordly.html',         name:'Wordly',          emoji:'🅰️',  category:'construction', desc:'Guess the hidden 5-letter word.',         scoreKey:'WordGuess.bestScore',       tags:['word','logic'],                   keywords:['wordle','word game','5 letter','guess the word'] },
     { file:'wulfstein.html',    name:'Wulfstein',       emoji:'🐺',  category:'construction', desc:'Shoot your way out.',       tags:['first-person','maze','3d'],         keywords:['wolfenstein','wolf','doom','fps','3d shooter','raycaster'] },
     { file:'zoomi.html',           name:'Zoomi',           emoji:'🔮',  category:'construction', desc:'Shoot marbles, match three to pop.',      scoreKey:'zuma.bestScore',            tags:['matching','aim'],                 keywords:['zuma','luxor','marble shooter','chain pop'] },
+
+    // ---- Extra games (debug-only). Finished/experimental games not yet on the
+    //      main floor; the 'extra' category is gated to debug mode everywhere. ----
+    { file:'go.html',             name:'Go',              emoji:'⚪',  category:'extra',        desc:'Surround territory on a 9×9 board.',      tags:['strategy','2-player'],            keywords:['go','baduk','weiqi','igo'] },
+    { file:'captureGo.html',      name:'Capture Go',      emoji:'⭕',  category:'extra',        desc:'First to capture wins (Atari Go).',        tags:['strategy','2-player'],            keywords:['atari go','capture go','first capture','baduk'] },
+    { file:'slotDemon.html',      name:'Slot Demon',      emoji:'🎰',  category:'extra',        desc:'Spin the reels and tempt fate.',          tags:['luck','casino'],                  keywords:['slots','slot machine','jackpot','gambling','fruit machine'] },
 ];
 
 GAMES.sort((a, b) => a.name.localeCompare(b.name));
@@ -1160,6 +1167,9 @@ const CATEGORIES = [
     { key:'physics', label:'Physics', emoji:'🎯', color:'var(--cat-physics)', colorBg:'var(--cat-physics-bg)' },
     { key:'frankforce', label:'Frank Force Games', emoji:'🟥', color:'var(--cat-frankforce)', colorBg:'var(--cat-frankforce-bg)' },
     { key:'construction', label:'Under Construction', emoji:'🚧', color:'var(--cat-construction)', colorBg:'var(--cat-construction-bg)' },
+    // Debug-only bucket: finished/experimental games not yet on the main floor.
+    // Gated to debug mode everywhere (sidebar, welcome grid, chips, tagline count).
+    { key:'extra', label:'Extra Games', emoji:'🧪', color:'var(--cat-extra)', colorBg:'var(--cat-extra-bg)' },
 ];
 const catByKey = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
 const LAST_GAME_KEY = 'littlejs-games-last';
@@ -1316,10 +1326,13 @@ function renderList() {
     const regular = [];
     const frankforce = [];
     const construction = [];
+    const extra = [];
     for (const g of GAMES) {
         if (activeCategory !== 'all' && g.category !== activeCategory) continue;
         // Frank Force section is hidden unless its master switch is on.
         if (g.category === 'frankforce' && !SHOW_FRANKFORCE) continue;
+        // Extra games only appear in the debug build.
+        if (g.category === 'extra' && !debugMode()) continue;
         if (q) {
             // Gamepad-supporting games are searchable by "gamepad"/"controller"
             // without per-game tags — folded in from the GAMEPAD_GAMES set.
@@ -1328,7 +1341,8 @@ function renderList() {
             if (!hay.includes(q)) continue;
         }
         (g.category === 'construction' ? construction
-            : g.category === 'frankforce' ? frankforce : regular).push(g);
+            : g.category === 'frankforce' ? frankforce
+            : g.category === 'extra' ? extra : regular).push(g);
     }
     const appendCard = g => {
         const card = makeCard(g);
@@ -1357,6 +1371,11 @@ function renderList() {
         for (const g of construction) appendCard(g);
         rendered += construction.length;
     }
+    if (extra.length) {
+        if (rendered) addDivider('🧪 Extra Games', 'var(--cat-extra)');
+        for (const g of extra) appendCard(g);
+        rendered += extra.length;
+    }
 
     // Debug-only Templates bucket — starter projects from templates/, shown below
     // the construction divider only when the debug build is active. Filtered by
@@ -1373,7 +1392,7 @@ function renderList() {
         for (const t of templates) appendCard(t);
     }
 
-    if (regular.length + frankforce.length + construction.length + templates.length === 0) {
+    if (regular.length + frankforce.length + construction.length + extra.length + templates.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty';
         empty.textContent = 'No games match.';
@@ -1387,7 +1406,7 @@ function buildFilterChips() {
     // Skip 'construction' — those games already have their own pinned section
     // at the bottom of the list, so filtering by it would be redundant.
     const all = [{ key:'all', label:'All' }, ...CATEGORIES.filter(c =>
-        c.key !== 'construction' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
+        c.key !== 'construction' && c.key !== 'extra' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
     for (const c of all) {
         const btn = document.createElement('button');
         btn.className = 'chip-filter' + (c.key === 'all' ? ' active' : '');
@@ -1503,10 +1522,11 @@ function advanceDemo() {
     setHero(_demoOrder[_demoIndex]);
 }
 
-// Hide menus.js chrome (#littlejs-menus root: title menu, toolbar, dialogs,
-// toasts) inside the hero iframe so only the live attract shows. Injecting into
-// the NEW document as soon as its <head> exists — before the engine's async
-// init creates the menu — is what kills the title-menu flicker on load.
+// Force a dark page inside the hero iframe so there's no white canvas flash
+// during load, then reveal the frame only once it's fully painted. The game
+// itself now hides its own menu chrome: menus.js detects `#demo` in the URL and
+// hides #littlejs-menus internally (see isDemoMode / initMenuSystem), so the
+// launcher no longer injects hide-CSS — it only handles the load flash here.
 // Returns true once injected (or stopped by a cross-origin wall) so the poller
 // can stop. `prevDoc` is the document present before navigation, so we don't
 // match the outgoing page and quit before the new one has loaded.
@@ -1515,13 +1535,12 @@ function injectHeroAttractStyle(frame, prevDoc) {
     try { doc = frame && frame.contentDocument; }
     catch (e) { if (frame) frame.style.opacity = '1'; return true; }   // cross-origin hero
     if (!doc || doc === prevDoc) return false;                         // old / blank — wait for new doc
-    // Inject the moment <head> exists — before the engine builds the menu — so
-    // the title menu never flickers. Also force a dark page so there's no white
-    // canvas flash during load.
+    // Inject the moment <head> exists so the dark background is in place before
+    // first paint (no white canvas flash during load).
     if (doc.head && !doc.getElementById('arcade-attract-style')) {
         const s = doc.createElement('style');
         s.id = 'arcade-attract-style';
-        s.textContent = '#littlejs-menus{display:none!important}html,body{background:#000!important}';
+        s.textContent = 'html,body{background:#000!important}';
         doc.head.appendChild(s);
     }
     // Reveal only once the document has fully loaded — revealing at head-parse
@@ -1530,7 +1549,7 @@ function injectHeroAttractStyle(frame, prevDoc) {
     return false;
 }
 
-// Poll the hero frame: inject the hide-CSS as soon as the new doc's head is
+// Poll the hero frame: inject the dark-bg as soon as the new doc's head is
 // parsed, then fade the iframe in once it's fully loaded (no white flash).
 let _heroAttractTimer = 0;
 function armHeroAttract(frame, prevDoc) {
@@ -1654,7 +1673,8 @@ function shuffledCopy(arr, rng) {
 
 // Base set for the floor grid — everything except the (optional) hidden off-site section.
 function floorGames() {
-    return GAMES.filter(g => g.category !== 'frankforce' || SHOW_FRANKFORCE);
+    return GAMES.filter(g => (g.category !== 'frankforce' || SHOW_FRANKFORCE)
+        && (g.category !== 'extra' || debugMode()));
 }
 
 let floorCat = 'all';
@@ -1690,7 +1710,7 @@ function buildFloorControls() {
     // skipped (like the sidebar) — those games live in their own bottom section.
     const present = new Set(floorGames().map(g => g.category));
     const cats = [{ key: 'all', label: 'All', emoji: '' },
-        ...CATEGORIES.filter(c => present.has(c.key) && c.key !== 'construction' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
+        ...CATEGORIES.filter(c => present.has(c.key) && c.key !== 'construction' && c.key !== 'extra' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
     for (const c of cats) {
         const btn = document.createElement('button');
         btn.className = 'floor-chip' + (c.key === floorCat ? ' on' : '');
@@ -1731,7 +1751,8 @@ function buildFloorGrid() {
     // Under-construction games sink into their own labeled section at the bottom
     // (mirrors the sidebar) instead of shuffling in with the finished games.
     const construction = games.filter(g => g.category === 'construction');
-    const regular = games.filter(g => g.category !== 'construction');
+    const extra = games.filter(g => g.category === 'extra');
+    const regular = games.filter(g => g.category !== 'construction' && g.category !== 'extra');
 
     // Finished games: Top Picks lead, but shuffled among themselves (not by
     // rank), then the rest shuffled too — best stuff first, never the same order.
@@ -1740,9 +1761,9 @@ function buildFloorGrid() {
     const ordered = [...featured, ...rest];
 
     const titleEl = document.getElementById('floor-title');
-    if (titleEl) titleEl.textContent = 'All Games · ' + (ordered.length + construction.length);
+    if (titleEl) titleEl.textContent = 'All Games · ' + (ordered.length + construction.length + extra.length);
 
-    if (!ordered.length && !construction.length) {
+    if (!ordered.length && !construction.length && !extra.length) {
         const empty = document.createElement('div');
         empty.className = 'empty';
         empty.textContent = 'No games match.';
@@ -1761,6 +1782,15 @@ function buildFloorGrid() {
         grid.appendChild(divider);
         for (const g of construction) grid.appendChild(makeTile(g, i++));
     }
+
+    // Debug-only Extra Games section (sinks to the very bottom, like construction).
+    if (extra.length) {
+        const divider = document.createElement('div');
+        divider.className = 'floor-divider';
+        divider.textContent = '🧪 Extra Games';
+        grid.appendChild(divider);
+        for (const g of extra) grid.appendChild(makeTile(g, i++));
+    }
 }
 
 function buildWelcome() {
@@ -1774,7 +1804,7 @@ function buildWelcome() {
     brand.id = 'welcome-hero';
     brand.innerHTML =
         '<img id="welcome-logo" src="images/logo.png" alt="The LittleJS Arcade">' +
-        '<div id="welcome-tagline">' + GAMES.length + ' games · Powered by LittleJS</div>';
+        '<div id="welcome-tagline">' + floorGames().length + ' games · Powered by LittleJS</div>';
     welcomeEl.appendChild(brand);
 
     // 1) Live attract hero — boots a curated light game; click to play it big.
