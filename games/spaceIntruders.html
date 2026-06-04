@@ -326,8 +326,9 @@ function resetInvaderState()
     const levelShootBonus = (currentLevel - 1) * 2;
     alienShootMin = max(6, 12 - levelShootBonus);
     alienShootMax = max(20, 40 - levelShootBonus * 2);
-    alienShootTimer = 60; // 1 second delay before enemies shoot
-    
+    // In the attract (no player), enemies fire right away; in real play wait 1s.
+    alienShootTimer = isPlaying() ? 60 : 0;
+
     // Reset march
     marchTimer = 40;
     marchBeat = 0;
@@ -391,9 +392,10 @@ function startLevel()
         player = null;
     }
     
-    // Show level announcement for 2 seconds (120 frames)
-    levelAnnounce = 120;
-        
+    // Show level announcement for 2 seconds (120 frames). The attract title has
+    // no level intro — the formation starts marching immediately.
+    levelAnnounce = isPlaying() ? 120 : 0;
+
     createBarriers();
     createAliens();
 }
@@ -1144,9 +1146,8 @@ function updateInvaders()
         }
     }
 
-    // invader shooting - scale rate by number of aliens alive (no firing at title)
-    if (attract)
-        return;
+    // invader shooting - scale rate by number of aliens alive. Fires in the
+    // attract too (no player to hit; bombs just fall off the bottom) to add life.
     if (alienShootTimer > 0) alienShootTimer--;
     if (alienShootTimer === 0)
     {

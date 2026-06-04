@@ -9,12 +9,8 @@
 
 'use strict';
 
-// engine settings, do not remove
-debugKey = 'Backquote';
-
 // engine settings
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
+canvasFixedSize = vec2(1080, 720);
 cameraScale = 19;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -910,7 +906,6 @@ function drawPlanet(p)
 function gameInit()
 {
     setOrientationLock('landscape');
-    setCanvasFixedSize(vec2(1080, 720));
     // bake the built-in default atlas (white-on-transparent icons in tiles 0-15)
     spriteAtlas = initDefaultAtlas();
     spriteAtlas.dot = spriteAtlas.glow;   // the old gradient "dot" was the soft glow circle

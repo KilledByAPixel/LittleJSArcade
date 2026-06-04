@@ -139,10 +139,22 @@ function startLevel(n)
     // pad is a plain object (custom collision); camera + render read it
     landingPad = { pos: vec2(padX, padY + PAD_THICK/2), size: vec2(padWidth, PAD_THICK) };
 
-    // player starts well above the pad, offset to one side
+    // player starts well above the pad, offset to one side...
     player = new Player(vec2(padX + rand(11, -11), padY + 22));
     player.fuel = cfg.fuel;
     player.maxFuel = cfg.fuel;
+
+    // ...but at the title (attract) the lander rests calmly on the pad instead of
+    // flying — gameState=1 freezes physics so it just sits there as a static scene
+    if (!isPlaying())
+    {
+        gameState = 1;
+        player.angle = 0;
+        player.angleVelocity = 0;
+        player.velocity = vec2();
+        player.pos = vec2(padX, padY + PAD_THICK + 1.5);
+        player.trail.emitRate = 0;
+    }
 
     // start framed on the whole approach
     camTarget = player.pos.lerp(landingPad.pos, .5);
@@ -155,10 +167,18 @@ function startGame()
 {
     level = 1;
     totalScore = 0;
+    setPlaying(true);   // set BEFORE startLevel so it builds a real (un-frozen) level
     startLevel(1);
-    setPlaying(true);
     clearSubmenuStack();
     hideAllMenus();
+}
+
+// quit back to the title and rebuild a fresh idle scene (onCleanup runs AFTER
+// quitToTitle's setPlaying(false), so startLevel sees !isPlaying() and freezes
+// the lander resting on the pad — a clean calm backdrop, not a mid-game wreck)
+function quitToIdleTitle()
+{
+    quitToTitle(() => { level = 1; totalScore = 0; startLevel(1); });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -313,8 +333,8 @@ class Player extends EngineObject
         this.pos.x = padX;
         this.pos.y = padY + PAD_THICK + 1.5;
 
-        // score: level bonus + leftover fuel + soft-touchdown bonus
-        // (the title-screen attract demo runs the same flight model but never scores)
+        // score: level bonus + leftover fuel + soft-touchdown bonus (only counted
+        // during real play; the title's idle lander never flies, so never lands here)
         const soft = max(0, 100 - lastTouchdownSpeed*900) | 0;
         lastLevelScore = (level*100) + (this.fuel*4 | 0) + soft;
         if (isPlaying())
@@ -339,30 +359,6 @@ class Player extends EngineObject
         this.destroy();
     }
 
-    // demo autopilot: steer toward the pad and brake before touchdown.
-    // returns {rotate:-1..1, thrust:bool}. Not meant to play perfectly, just alive.
-    autoInput()
-    {
-        const dx = padX - this.pos.x;                 // horizontal offset to pad
-        const dy = this.pos.y - (padY + PAD_THICK + 1.5);
-        const v = this.velocity;
-
-        // desired tilt: lean toward the pad horizontally, but go upright when low/slow
-        // (positive angle thrusts +x, so lean +dx toward a pad on the right, brake -v.x)
-        let wantAngle = clamp(dx*.05 - v.x*3, -.5, .5);
-        if (dy < 6) wantAngle = clamp(dx*.02 - v.x*4, -SAFE_ANGLE*.6, SAFE_ANGLE*.6);
-
-        // rotate toward wantAngle, damping out spin
-        const rotate = clamp((wantAngle - this.angle)*8 - this.angleVelocity*40, -1, 1);
-
-        // thrust to arrest descent / climb back up; ease off near a soft touchdown
-        const targetFall = dy < 4 ? -.03 : (dy < 12 ? -.06 : -.10);
-        let thrust = v.y < targetFall && abs(this.angle) < .55;
-        if (dy < 1 && v.length() < SAFE_SPEED*.7) thrust = false; // settle onto pad
-
-        return {rotate, thrust};
-    }
-
     update()
     {
         if (gameState) return;
@@ -379,12 +375,12 @@ class Player extends EngineObject
         // main thrust (Up/W/Space + gamepad A + touch button)
         let thrustHeld = moveInput.y > 0 || keyIsDown('Space') || gamepadIsDown(0);
 
-        // attract demo: while at the title (not playing) the autopilot flies it
+        // attract: at the title (not playing) the lander rests idle on the pad —
+        // no autopilot, no input drives it (just a calm static scene behind the menu)
         if (!isPlaying())
         {
-            const ai = this.autoInput();
-            rotateInput = ai.rotate;
-            thrustHeld = ai.thrust;
+            rotateInput = 0;
+            thrustHeld = false;
         }
 
         this.applyAngularAcceleration(rotateInput * TURN_POWER);
@@ -494,7 +490,8 @@ function buildMenus()
 {
     if (typeof createMenu !== 'function') return;
 
-    // keep the title UNPAUSED so the attract demo runs behind the menu;
+    // keep the title UNPAUSED so the calm idle scene keeps breathing behind the
+    // menu (twinkling stars, pulsing pad beacons — the lander itself sits still);
     // pause only happens for menus surfaced during a real game (pause / dialogs)
     installAutoPause(() => isPlaying());
 
@@ -522,7 +519,7 @@ function buildMenus()
 
     createPauseMenu({
         onRestart: startGame,
-        onQuit:    quitToTitle,
+        onQuit:    quitToIdleTitle,
     });
 
     installDefaultToolbar({landscapeStack:true});
@@ -547,7 +544,7 @@ function showGameOver()
         score:      totalScore,
         format:     s => 'Score ' + s,
         extraLines: [`Reached level ${level}`],
-        onContinue: quitToTitle,
+        onContinue: quitToIdleTitle,
     });
 }
 
@@ -585,8 +582,8 @@ function gameInit()
     // mute all game audio while sitting at the title (menu clicks still play)
     setSilentAttract(true);
 
-    // the title is a live attract demo: the autopilot flies behind the menu and
-    // loops forever until the player presses PLAY (which starts a real game)
+    // the title is a calm idle scene: the lander rests on the pad behind the menu
+    // (no autopilot, nothing flying) until the player presses PLAY to start a game
     showMenu('title');
 }
 
@@ -595,23 +592,10 @@ function gameUpdate()
 {
     if (bindPauseKey({when: () => isPlaying() && !gameState})) return;
 
-    // title-screen attract demo: the autopilot flies behind the menu and loops
-    // forever with NO menus / scoring — advance on a landing, restart on a crash
+    // title-screen attract: a calm static scene — the lander rests idle on the
+    // pad behind the menu. No autopilot, no menus, no scoring, nothing to advance.
     if (!isPlaying())
-    {
-        if (gameState && messageTimer.elapsed())
-        {
-            if (gameState === 1)
-                startLevel(level + 1);
-            else
-            {
-                level = 1;
-                totalScore = 0;
-                startLevel(1);
-            }
-        }
         return;
-    }
 
     if (keyWasPressed('KeyR'))
         startGame();

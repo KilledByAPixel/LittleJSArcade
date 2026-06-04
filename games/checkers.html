@@ -1128,13 +1128,12 @@ function gameUpdate()
 function gameUpdatePost()
 {
     // Title attract (both the cabinet AI view and the static-menu board):
-    // letterbox-fit the board with the shared cameraFit() helper, reserving
-    // pixels at the top for the HUD toolbar. Restore the normal play camera
-    // on PLAY.
+    // tight-fit the board with the shared cameraFit() helper, centered on the
+    // board's own center with no inset. Restore the normal play camera on PLAY.
     if (!isPlaying())
     {
         const boardSpan = BOARD_SIZE * CELL_SIZE + 0.6; // board + frame
-        cameraFit(vec2(0, 0), vec2(boardSpan), { margin: .3, inset: { top: 100 } });
+        cameraFit(vec2(0, 0), vec2(boardSpan), { margin: .3 });
     }
     else
     {

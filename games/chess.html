@@ -966,13 +966,13 @@ function worldPosToSquare(worldPos)
 
 // Fit the camera tightly to the board for the title/attract view via the shared
 // cameraFit() helper: the board frame (plus a little padding) is letterbox-fit
-// to the viewport, reserving pixels up top for the HUD toolbar that shows over
-// the title/attract. Recomputed every frame from the live canvas size so it's
-// robust to any on-screen scaling/resize.
+// to the viewport, centered on the board's own center with no inset so it fills
+// the view. Recomputed every frame from the live canvas size so it's robust to
+// any on-screen scaling/resize.
 function fitCameraToBoard()
 {
     const span = BOARD_SIZE * SQUARE_SIZE + 0.4; // board + frame
-    cameraFit(vec2(0, 0), vec2(span), { margin: 0.3, inset: { top: 80 } });
+    cameraFit(vec2(0, 0), vec2(span), { margin: 0.3 });
 }
 
 // Bake every piece glyph + a reusable circle into the texture atlas. Called

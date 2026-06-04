@@ -896,9 +896,9 @@ async function gameInit()
 
     initBoard();
     setPlaying(false);
-    // Letterbox-fit the board behind the title via the shared cameraFit helper.
-    cameraFit(vec2(0, 0), vec2(BOARD_SIZE * CELL_SIZE + 0.4),
-        { margin: .3, inset: { top: 100 } });
+    // Fit the board tight and centered behind the title via the shared
+    // cameraFit helper (no inset, so it fills the view centered on its center).
+    cameraFit(vec2(0, 0), vec2(BOARD_SIZE * CELL_SIZE + 0.4), { margin: .3 });
     showMenu('title');
     refreshDifficultyUI();
 }
@@ -1077,15 +1077,14 @@ function gameUpdate()
 function gameUpdatePost()
 {
     cameraPos = vec2(0, 0);
-    // Letterbox-fit the board while at the title (both cabinet demo and static
-    // menu) via the shared cameraFit helper; restore the normal zoom for real
-    // play. The board is centered at origin; span includes the frame, and the
-    // top inset leaves room for the always-visible toolbar.
+    // While at the title (both cabinet demo and static menu) fit the board
+    // tight and centered on its own center via the shared cameraFit helper (no
+    // inset, so it fills the view); restore the normal zoom for real play. The
+    // board is centered at origin and the span includes the frame.
     if (isPlaying())
         cameraScale = REAL_PLAY_CAMERA_SCALE;
     else
-        cameraFit(vec2(0, 0), vec2(BOARD_SIZE * CELL_SIZE + 0.4),
-            { margin: .3, inset: { top: 100 } });
+        cameraFit(vec2(0, 0), vec2(BOARD_SIZE * CELL_SIZE + 0.4), { margin: .3 });
 }
 
 function gameRender()

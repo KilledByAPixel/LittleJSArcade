@@ -23,13 +23,8 @@ let menuSpawnTimer = 0;
 const MENU_SPAWN_RATE = 0.4; // seconds between spawns
 const MENU_FALL_SPEED = 3;   // cells per second
 
-// engine settings, do not remove
-paused = false;
-// (menus.js auto-moves the debug-overlay key off Escape to ` on first createMenu)
-
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
-cameraScale = 42;
+// engine settings
+canvasMaxSize = vec2(2048);
 
 // setup touch gamepad
 touchGamepadEnable = true;

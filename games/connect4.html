@@ -699,13 +699,13 @@ async function gameInit()
     refreshDifficultyUI();
 }
 
-// Letterbox-fit the whole board (frame border included) into the view via the
-// shared cameraFit() helper, leaving room at the top for the HUD toolbar.
+// Tight-fit the whole board (frame border included) into the view via the
+// shared cameraFit() helper, centered on the board's own center with no inset.
 function fitCameraToBoard()
 {
     const boardW = COLS * CELL_SIZE + 0.5; // +0.5 = frame border
     const boardH = ROWS * CELL_SIZE + 0.5;
-    cameraFit(vec2(0, 0), vec2(boardW, boardH), { margin: .6, inset: { top: 100 } });
+    cameraFit(vec2(0, 0), vec2(boardW, boardH), { margin: .6 });
 }
 
 // Set up the title attract: cabinet runs AI vs AI on loop; a normal launch

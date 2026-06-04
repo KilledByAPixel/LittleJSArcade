@@ -8,13 +8,10 @@
 <script>
 'use strict';
 
-// engine settings, do not remove
-paused = false;
-
 // engine settings
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
-cameraScale = 20;   // arcade-style zoom — even more road visible
+paused = false;
+canvasFixedSize = vec2(1280, 720);
+cameraScale = 20;
 
 // on-screen touch gamepad (analog left stick + fire button) for mobile
 touchGamepadEnable = true;
@@ -1092,7 +1089,6 @@ function runSanityTests()
 async function gameInit()
 {
     saveDataInit('spyhunter');
-    setCanvasFixedSize(vec2(1280, 720));
     runSanityTests();
     resetGame();
     buildMenus();
