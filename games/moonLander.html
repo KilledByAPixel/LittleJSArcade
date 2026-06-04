@@ -9,8 +9,8 @@
 <script>
 'use strict';
 
-// engine settings, do not remove
-paused = false;
+// engine settings
+canvasMaxSize = vec2(2048);
 
 // on-screen touch pad
 touchGamepadEnable = true;
@@ -555,7 +555,6 @@ function showGameOver()
 function gameInit()
 {
     saveDataInit('lunarLander');
-    setCanvasFixedSize(vec2(900, 720));
 
     icons = initDefaultAtlas();
 
