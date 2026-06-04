@@ -1051,7 +1051,7 @@
     <div class="about-panel" role="dialog" aria-modal="true" aria-label="About the LittleJS Arcade">
         <button class="about-close" aria-label="Close">✕</button>
         <img class="about-logo" src="images/arcade_logo.png" alt="LittleJS Arcade">
-        <h2>The LittleJS Arcade</h2>
+    <h2>The LittleJS Arcade</h2>
         <p>A growing collection of tiny arcade games. All are built with the LittleJS engine and fully open source.</p>
         <h3>What is LittleJS?</h3>
         <p>A tiny, fast, zero-dependency HTML5 game engine. It powers every game in this arcade.</p>
@@ -2463,6 +2463,8 @@ function setupStarfield() {
         y: Math.random(),
         z: 0.3 + Math.random() * 0.7,         // brightness + size
         vy: -(0.0002 + Math.random() * 0.0006), // upward drift (perceptible)
+        tw: Math.random() * Math.PI * 2,        // twinkle phase (light mode)
+        tws: 1 + Math.random() * 2.5,           // twinkle speed (light mode)
     }));
     // Read the STAGE dimensions, not the canvas — the canvas's own clientWidth
     // can be 0 before its first layout, which previously left the drawing
@@ -2478,16 +2480,35 @@ function setupStarfield() {
         const w = canvas.width, h = canvas.height;
         ctx.clearRect(0, 0, w, h);
         if (currentFile === null) {
-            // On light backgrounds white stars vanish — use a soft slate instead.
             const light = document.documentElement.getAttribute('data-theme') === 'light';
-            const starColor = light ? '#9aa7b8' : '#fff';
+            const t = performance.now() / 1000;
             for (const s of stars) {
                 s.y += s.vy;
                 if (s.y < -0.05) { s.y = 1.05; s.x = Math.random(); }
-                ctx.globalAlpha = s.z * 0.55;
-                const size = Math.max(1, Math.round(s.z * 2.4));
-                ctx.fillStyle = starColor;
-                ctx.fillRect(s.x * w, s.y * h, size, size);
+                const px = s.x * w, py = s.y * h;
+                if (light) {
+                    // Light mode: bluish twinkling glow particles. Flat white/slate
+                    // squares vanished against the pale background, so draw a soft
+                    // blue halo + bright core whose alpha pulses on a per-star sine.
+                    const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * s.tws + s.tw));
+                    const r = 1.4 + s.z * 2.4;
+                    ctx.globalAlpha = Math.min(1, s.z * 0.85 * twinkle);
+                    ctx.fillStyle = '#3f86e0';
+                    ctx.beginPath();
+                    ctx.arc(px, py, r, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = Math.min(1, s.z * twinkle);
+                    ctx.fillStyle = '#cfe2ff';
+                    ctx.beginPath();
+                    ctx.arc(px, py, r * 0.42, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // Dark mode: classic soft white starfield (unchanged).
+                    ctx.globalAlpha = s.z * 0.55;
+                    const size = Math.max(1, Math.round(s.z * 2.4));
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(px, py, size, size);
+                }
             }
             ctx.globalAlpha = 1;
         }
