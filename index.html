@@ -932,7 +932,11 @@
     .floor-search { width: 210px; max-width: 60vw; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: inherit; outline: none; }
     .floor-search:focus { border-color: var(--accent); }
     .floor-chips { display: flex; flex-wrap: wrap; gap: 5px; }
-    .floor-chip { background: var(--chip-bg); color: var(--chip-text); border: 1px solid transparent; padding: 5px 12px; border-radius: 13px; font-size: 12px; transition: background .1s, color .1s, border-color .1s; }
+    .floor-chip { position: relative; background: var(--chip-bg); color: var(--chip-text); border: 1px solid transparent; padding: 5px 12px 5px 18px; border-radius: 13px; font-size: 12px; transition: background .1s, color .1s, border-color .1s; }
+    /* Category color bar on the left — mirrors the stripe on the game tiles, so a
+       filter chip's color maps 1:1 to its category. 'All' has no category color, so
+       it falls back to a neutral bar (same fallback the tile stripe uses). */
+    .floor-chip::before { content: ''; position: absolute; left: 7px; top: 5px; bottom: 5px; width: 4px; border-radius: 2px; background: var(--cat-color, var(--border)); }
     .floor-chip:hover { background: var(--panel-2); color: var(--text); }
     .floor-chip.on { background: var(--cat-bg, var(--accent-bg)); color: var(--text); border-color: var(--cat-color, var(--accent)); }
 
@@ -1669,7 +1673,16 @@ function setHero(file) {
     if (frame && file) {
         let prevDoc = null;
         try { prevDoc = frame.contentDocument; } catch (e) {}
+        // Hide the frame INSTANTLY (kill the opacity transition for this step)
+        // before navigating. A *fading* frame stays partly visible for ~.35s, and
+        // during that window location.replace tears down the old doc and the
+        // browser paints a blank WHITE page inside it — that's the flash. Popping
+        // straight to opacity:0 lets the black .hero-screen show during load;
+        // armHeroAttract restores the fade and reveals the (dark) game once ready.
+        frame.style.transition = 'none';
         frame.style.opacity = '0';
+        void frame.offsetHeight;       // force the opacity:0 to apply now
+        frame.style.transition = '';   // restore the CSS fade for the reveal
         loadFrame(frame, GAMES_DIR + file + '#demo');
         armHeroAttract(frame, prevDoc);
         muteHero(frame);
