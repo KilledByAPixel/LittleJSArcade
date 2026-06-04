@@ -81,6 +81,7 @@ const AI_MISTAKE_CHANCE = .04; // occasionally choose 2nd-best-ish
 const AI_EVAL_NOISE = 50; // random noise added to move evaluation
 const AI_EARLY_NOISE_BOOST = 4; // extra eval-noise multiplier on a near-empty board (AI-vs-AI divergence)
 const AI_EARLY_NOISE_FADE = 8;  // stack height by which the early-noise boost fades back to baseline
+const FIRST_MOVE_SPREAD = 8;    // empty board: pick randomly among the top N moves so AI-vs-AI ALWAYS opens differently
 
 ///////////////////////////////////////////////////////////////////////////////
 // PIECES
@@ -1008,6 +1009,11 @@ function computeBestMove(type, boardRef)
     const tetrisMove = candidates.find(c => c.cleared === 4);
     if (tetrisMove)
         return tetrisMove;
+
+    // First move (empty board): pick randomly among the top few candidates so the
+    // two AIs ALWAYS open differently — that single divergence cascades all game.
+    if (maxH === 0)
+        return candidates[randInt(min(FIRST_MOVE_SPREAD, candidates.length))];
 
     // human-ish mistakes: sometimes pick 2nd/3rd best
     const pickIndex = (Math.random() < AI_MISTAKE_CHANCE) ? Math.min(2, candidates.length-1) : 0;
