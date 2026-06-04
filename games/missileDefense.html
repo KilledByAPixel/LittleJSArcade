@@ -77,6 +77,8 @@ let stars = [];
 let shootingStars = [];
 let mountains = [];
 let moonPos = vec2();
+let moonPhase = 0;
+let moonAngle = 0;
 
 // default-atlas icon map (name -> TileInfo)
 let icons;
@@ -210,7 +212,9 @@ function generateBackground()
         mx += r * .85;
     }
 
-    moonPos = vec2(levelSize.x * (.72 + rand() * .12), levelSize.y * (.78 + rand() * .1));
+    moonPos = vec2(levelSize.x * rand(.2,.8), levelSize.y * rand(.4,.9));
+    moonPhase = rand();
+    moonAngle = PI/2 + rand(-.5,.5);
 }
 
 // ------------------------------------------------------------
@@ -1495,12 +1499,14 @@ function drawGround()
     // full moon with soft radial halo and craters
     drawTile(moonPos, vec2(9.0), icons.glow, hsl(.13, .3, .9, .25));
     drawTile(moonPos, vec2(3.0), icons.circle, hsl(.13, .15, .93, .95));
+    drawCrescent(moonPos, 3.08, moonPhase, hsl(0,0,.3), moonAngle); // bright crescent
     // craters
-    drawTile(moonPos.add(vec2(-.55,  .55)), vec2(.45), icons.circle, hsl(.12, .12, .78, .55));
-    drawTile(moonPos.add(vec2( .7,  -.25)), vec2(.32), icons.circle, hsl(.12, .12, .78, .5));
-    drawTile(moonPos.add(vec2( .15, -.85)), vec2(.25), icons.circle, hsl(.12, .12, .78, .5));
-    drawTile(moonPos.add(vec2(-.85, -.4 )), vec2(.28), icons.circle, hsl(.12, .12, .78, .45));
-    drawTile(moonPos.add(vec2( .4,   .8 )), vec2(.2),  icons.circle, hsl(.12, .12, .78, .4));
+    const shadowColor = hsl(0,0,0,.2);
+    drawTile(moonPos.add(vec2(-.55,  .55)), vec2(.45), icons.circle, shadowColor);
+    drawTile(moonPos.add(vec2( .7,  -.25)), vec2(.32), icons.circle, shadowColor);
+    drawTile(moonPos.add(vec2( .15, -.85)), vec2(.25), icons.circle, shadowColor);
+    drawTile(moonPos.add(vec2(-.85, -.4 )), vec2(.28), icons.circle, shadowColor);
+    drawTile(moonPos.add(vec2( .4,   .8 )), vec2(.2),  icons.circle, shadowColor);
 
     // distant mountains
     for (const m of mountains)
