@@ -62,6 +62,7 @@
         --cat-physics: #fb7185;   --cat-physics-bg: rgba(251,113,133,.18);
         --cat-construction: #ff9744; --cat-construction-bg: rgba(255,151,68,.18);
         --cat-frankforce: #22d3ee; --cat-frankforce-bg: rgba(34,211,238,.18);
+        --cat-extra: #94a3b8; --cat-extra-bg: rgba(148,163,184,.18);
     }
     /* Light theme — overrides the surface/text palette only; the bright
           category + accent hues carry over (they read fine on light too). */
@@ -104,6 +105,11 @@
     button { font: inherit; color: inherit; cursor: pointer; }
 
     /* ===================== Sidebar ===================== */
+    /* Sidebar = the in-game game-switcher, hidden on the welcome floor.
+          NON-TOUCH: a persistent side panel that appears beside the game in-game
+          (the game fills the remaining space) — no overlay, no dim, no toggle.
+          TOUCH: an overlay drawer slid in by the game's Library button, dimming
+          the rest of the screen (the original mobile behavior). */
     #sidebar {
         width: 300px;
         flex: 0 0 300px;
@@ -112,14 +118,22 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        transition: margin-left .25s ease-out;
     }
-    /* Desktop: the library toggle collapses the panel by sliding it off-screen
-          left; the stage reflows to fill the space. (On mobile the panel is a
-          fixed overlay driven by .open in the media query below instead.) */
-    @media (min-width: 721px) {
-        #sidebar.closed { margin-left: -300px; }
+    /* Non-touch: no sidebar on the welcome floor (the base rule shows it in-game). */
+    body:not(.touch):not(.in-game) #sidebar { display: none; }
+    /* Touch: overlay drawer at all widths, hidden off-screen until opened. */
+    body.touch #sidebar {
+        position: fixed;
+        top: 0; left: 0; bottom: 0;
+        width: 320px;
+        max-width: 85vw;
+        flex: none;
+        z-index: 60;
+        transform: translateX(-100%);
+        transition: transform .25s ease-out;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, .5);
     }
+    body.touch #sidebar.open { transform: translateX(0); }
     #sidebar-header { padding: 14px 14px 10px; border-bottom: 1px solid var(--border); }
 
     /* Sidebar logo — clickable "home" button */
@@ -687,8 +701,11 @@
         background: var(--text);
         border-radius: 2px;
     }
+    /* Backdrop dims the screen behind the TOUCH drawer (it only covers the side,
+          so we dim the rest) and catches an outside tap to close. Touch-only —
+          the non-touch side panel is in-flow and never overlays the game. */
     #backdrop {
-        display: none;             /* shown only via mobile media query */
+        display: none;
         position: fixed;
         inset: 0;
         background: rgba(0, 0, 0, .55);
@@ -697,6 +714,7 @@
         pointer-events: none;
         transition: opacity .22s;
     }
+    body.touch #backdrop { display: block; }
     #backdrop.show { opacity: 1; pointer-events: auto; }
 
     /* ===================== Polish: stagger + wiggle + dice + sparkle ===================== */
@@ -762,26 +780,10 @@
 
     /* ===================== Mobile / narrow viewport ===================== */
     @media (max-width: 720px) {
-        /* Sidebar becomes an overlay drawer — hidden offscreen by default,
-              slid in by the hamburger button. */
-        #sidebar {
-            position: fixed;
-            top: 0; left: 0; bottom: 0;
-            width: 320px;
-            max-width: 85vw;
-            flex: none;
-            z-index: 60;
-            transform: translateX(-100%);
-            transition: transform .25s ease-out;
-            box-shadow: 4px 0 24px rgba(0, 0, 0, .5);
-        }
-        #sidebar.open { transform: translateX(0); }
-        #backdrop  { display: block; }
+        /* Sidebar drawer behavior is handled by the touch rules above (not by
+              width), so there are no sidebar/backdrop overrides here. */
 
-        /* Stage takes the whole width once the sidebar is fixed-positioned. */
-        #stage { width: 100%; }
-
-        /* Welcome screen tweaks — extra top padding so the hamburger doesn't
+        /* Welcome screen tweaks — extra top padding so the top buttons don't
               overlap the logo, smaller side padding for more content width. */
         #welcome { padding: 60px 16px 40px; }
         #welcome-hero { margin-bottom: 24px; }
@@ -823,6 +825,142 @@
     if (/CriOS|EdgiOS|FxiOS/.test(navigator.userAgent))
         document.documentElement.classList.add('ios-topbar');
 </script>
+
+<style>
+    /* ===================== Arcade Floor (index2 prototype) ===================== */
+
+    /* Third top-right icon: About (?). Right of hamburger, left of theme. */
+    #about-btn {
+        position: fixed; top: 12px; right: 70px; z-index: 100;
+        width: 40px; height: 40px;
+        display: flex; align-items: center; justify-content: center;
+        padding: 0; background: var(--panel-2); border: 1px solid var(--border);
+        border-radius: 8px; font-size: 20px; font-weight: 700; line-height: 1;
+        color: var(--accent);
+        transition: background .15s, border-color .15s, transform .15s;
+    }
+    #about-btn:hover { border-color: var(--accent); transform: scale(1.08); }
+    /* The launcher's own library toggle is retired — each game's top-right
+          toolbar now carries the Library button (on touch AND desktop, via the
+          menus.js handshake), so there's nothing for this to do. */
+    #hamburger { display: none; }
+    body.in-game #about-btn { display: none; }
+    @media (orientation: portrait) { html.ios-topbar #about-btn { top: 48px; } }
+
+    /* ---- Hero attract cabinet: 16:9 screen + side info/controls panel ---- */
+    #hero-cabinet {
+        display: flex; align-items: stretch; margin: 0 auto 28px; max-width: 1100px;
+        border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+        cursor: pointer; background: var(--panel);
+        box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(88,166,255,.15);
+        transition: border-color .15s, box-shadow .15s, transform .15s;
+    }
+    #hero-cabinet:hover {
+        border-color: var(--accent);
+        box-shadow: 0 14px 50px rgba(0,0,0,.6), 0 0 0 1px var(--accent);
+        transform: translateY(-2px);
+    }
+    /* The screen holds the attract iframe at a locked 16:9 aspect ratio. */
+    .hero-screen { position: relative; flex: 0 0 62%; aspect-ratio: 16 / 9; background: #000; border-right: 1px solid var(--border); }
+    /* The attract iframe is purely visual — pointer-events off so the whole
+          cabinet acts as one big PLAY button. Starts transparent and fades in
+          once the attract is clean (no white flash, no menu flicker). */
+    #hero-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: #000; opacity: 0; transition: opacity .35s ease; }
+    /* Info + controls panel beside the screen, like a cabinet marquee. */
+    .hero-bar {
+        flex: 1; min-width: 0;
+        display: flex; flex-direction: column; justify-content: center; gap: 9px;
+        padding: 20px 22px; color: var(--text);
+        background: linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%);
+    }
+    .hero-now { font-size: 10px; letter-spacing: 1.5px; color: var(--muted); }
+    .hero-name { font-size: 30px; font-weight: 800; line-height: 1.1; color: var(--text); }
+    .hero-bar .hero-score { align-self: flex-start; }
+    .hero-bar .hero-score[hidden] { display: none; }
+    .hero-coin {
+        align-self: flex-start; margin-top: 4px;
+        background: linear-gradient(135deg, var(--accent), #2978d3); border: 1px solid var(--accent);
+        color: #fff; font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 9px;
+        box-shadow: 0 4px 16px rgba(88,166,255,.4); white-space: nowrap; pointer-events: none;
+    }
+    .hero-shuffle {
+        align-self: flex-start; margin-top: 2px;
+        background: rgba(127,127,127,.10); border: 1px solid var(--border);
+        color: var(--muted); padding: 7px 12px; border-radius: 8px; font-size: 12px;
+        transition: border-color .12s, background .12s, color .12s;
+    }
+    .hero-shuffle:hover { border-color: var(--accent); background: rgba(127,127,127,.20); color: var(--text); }
+    /* Auto-advance countdown, shown under the shuffle button while it ticks. */
+    .hero-next {
+        align-self: flex-start; margin-top: 2px;
+        font-size: 11px; letter-spacing: 1px; font-weight: 600;
+        color: var(--accent-2); text-transform: uppercase;
+        opacity: 0; transition: opacity .2s; pointer-events: none;
+    }
+    .hero-next.show { opacity: 1; }
+    /* Narrow viewports: stack the screen above the panel. */
+    @media (max-width: 720px) {
+        #hero-cabinet { flex-direction: column; }
+        .hero-screen { flex: 0 0 auto; width: 100%; border-right: 0; border-bottom: 1px solid var(--border); }
+        .hero-bar { padding: 16px 18px; }
+        .hero-name { font-size: 24px; }
+    }
+    /* Short viewports (phones in landscape): keep the logo + hero compact so
+          they don't eat the whole screen before the grid. */
+    @media (max-height: 520px) {
+        #welcome-hero { margin-bottom: 14px; }
+        #welcome-logo { width: min(120px, 22vw); }
+    }
+
+    /* ---- Floor controls + responsive grid ---- */
+    .floor-section { max-width: 1320px; margin: 0 auto; }
+    .floor-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; margin-bottom: 14px; }
+    .floor-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+    .floor-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .floor-search { width: 210px; max-width: 60vw; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; color: var(--text); font: inherit; outline: none; }
+    .floor-search:focus { border-color: var(--accent); }
+    .floor-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .floor-chip { background: var(--chip-bg); color: var(--chip-text); border: 1px solid transparent; padding: 5px 12px; border-radius: 13px; font-size: 12px; transition: background .1s, color .1s, border-color .1s; }
+    .floor-chip:hover { background: var(--panel-2); color: var(--text); }
+    .floor-chip.on { background: var(--cat-bg, var(--accent-bg)); color: var(--text); border-color: var(--cat-color, var(--accent)); }
+
+    .floor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 14px; padding-bottom: 36px; }
+    /* Reuse the existing .tile look, but let it flex to the grid cell width. */
+    .floor-grid .tile { width: auto; min-height: 104px; }
+    /* Full-width divider before the Under Construction section (mirrors sidebar). */
+    .floor-grid .floor-divider {
+        grid-column: 1 / -1;
+        margin: 22px 0 2px; padding-top: 14px;
+        border-top: 1px dashed var(--border);
+        color: var(--cat-construction);
+        font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px;
+    }
+
+    /* ---- About modal ---- */
+    #about-modal { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; }
+    #about-modal[hidden] { display: none; }
+    .about-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.6); backdrop-filter: blur(3px); }
+    .about-panel {
+        position: relative; z-index: 1; width: min(560px, 92vw); max-height: 88vh; overflow-y: auto;
+        background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+        padding: 30px 30px 26px; box-shadow: 0 20px 60px rgba(0,0,0,.6); text-align: center;
+    }
+    .about-close { position: absolute; top: 12px; right: 14px; background: none; border: 0; color: var(--muted); font-size: 20px; line-height: 1; }
+    .about-close:hover { color: var(--text); }
+    .about-logo { width: 120px; height: auto; filter: drop-shadow(0 4px 16px rgba(88,166,255,.4)); margin-bottom: 4px; }
+    .about-panel h2 { margin: 6px 0 4px; font-size: 20px; color: var(--text); }
+    .about-panel h3 { margin: 18px 0 6px; font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--accent); }
+    .about-panel p { margin: 0 auto 8px; color: var(--muted); font-size: 13.5px; line-height: 1.6; max-width: 46ch; }
+    .about-panel code { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; color: var(--text); }
+    .about-links { display: flex; flex-direction: column; gap: 8px; margin: 8px auto; max-width: 420px; }
+    .about-links a { display: block; background: var(--bg); border: 1px solid var(--border); border-radius: 9px; padding: 10px 14px; color: var(--text); text-decoration: none; font-size: 13.5px; text-align: left; transition: border-color .12s, background .12s; }
+    .about-links a:hover { border-color: var(--accent); background: var(--accent-bg); }
+    .about-links a .sub { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+    .about-credit { margin-top: 16px; font-size: 12px; color: var(--muted); }
+    @media (max-width: 720px) {
+        .about-panel { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; padding-top: 58px; }
+    }
+</style>
 </head>
 <body>
 
@@ -831,6 +969,7 @@
 </button>
 <div id="backdrop"></div>
 <button id="theme-toggle" aria-label="Toggle light/dark theme"></button>
+<button id="about-btn" aria-label="About the LittleJS Arcade" title="About">?</button>
 
 <aside id="sidebar">
     <div id="sidebar-header">
@@ -853,6 +992,26 @@
     <div id="welcome"></div>
     <iframe id="frame" allow="autoplay *; gamepad *; fullscreen *" allowfullscreen style="display:none;"></iframe>
 </main>
+
+<div id="about-modal" hidden>
+    <div class="about-backdrop"></div>
+    <div class="about-panel" role="dialog" aria-modal="true" aria-label="About the LittleJS Arcade">
+        <button class="about-close" aria-label="Close">✕</button>
+        <img class="about-logo" src="images/logo.png" alt="LittleJS Arcade">
+        <h2>The LittleJS Arcade</h2>
+        <p>A growing collection of tiny arcade games — all open source, all built with the LittleJS engine. They play instantly in your browser, no installs.</p>
+        <h3>What is LittleJS?</h3>
+        <p>A tiny, fast, zero-dependency HTML5 game engine. It powers every game in this arcade.</p>
+        <div class="about-links">
+            <a href="https://github.com/KilledByAPixel/LittleJS" target="_blank" rel="noopener">⭐ LittleJS engine<span class="sub">github.com/KilledByAPixel/LittleJS</span></a>
+            <a href="https://github.com/KilledByAPixel/LittleJSArcade" target="_blank" rel="noopener">🕹️ This arcade — fork any game (MIT)<span class="sub">github.com/KilledByAPixel/LittleJSArcade</span></a>
+            <a href="https://github.com/KilledByAPixel/LittleJS-AI" target="_blank" rel="noopener">🤖 LittleJS AI tools<span class="sub">github.com/KilledByAPixel/LittleJS-AI</span></a>
+        </div>
+        <h3>Make your own</h3>
+        <p>Every game is one self-contained HTML file. Start from a starter in the repo's <code>templates/</code> folder and remix it into your own.</p>
+        <p class="about-credit">Made by Frank Force · MIT licensed</p>
+    </div>
+</div>
 
 <script>
 'use strict';
@@ -949,6 +1108,12 @@ const GAMES = [
     { file:'wordly.html',         name:'Wordly',          emoji:'🅰️',  category:'construction', desc:'Guess the hidden 5-letter word.',         scoreKey:'WordGuess.bestScore',       tags:['word','logic'],                   keywords:['wordle','word game','5 letter','guess the word'] },
     { file:'wulfstein.html',    name:'Wulfstein',       emoji:'🐺',  category:'construction', desc:'Shoot your way out.',       tags:['first-person','maze','3d'],         keywords:['wolfenstein','wolf','doom','fps','3d shooter','raycaster'] },
     { file:'zoomi.html',           name:'Zoomi',           emoji:'🔮',  category:'construction', desc:'Shoot marbles, match three to pop.',      scoreKey:'zuma.bestScore',            tags:['matching','aim'],                 keywords:['zuma','luxor','marble shooter','chain pop'] },
+
+    // ---- Extra games (debug-only). Finished/experimental games not yet on the
+    //      main floor; the 'extra' category is gated to debug mode everywhere. ----
+    { file:'go.html',             name:'Go',              emoji:'⚪',  category:'extra',        desc:'Surround territory on a 9×9 board.',      tags:['strategy','2-player'],            keywords:['go','baduk','weiqi','igo'] },
+    { file:'captureGo.html',      name:'Capture Go',      emoji:'⭕',  category:'extra',        desc:'First to capture wins (Atari Go).',        tags:['strategy','2-player'],            keywords:['atari go','capture go','first capture','baduk'] },
+    { file:'slotDemon.html',      name:'Slot Demon',      emoji:'🎰',  category:'extra',        desc:'Spin the reels and tempt fate.',          tags:['luck','casino'],                  keywords:['slots','slot machine','jackpot','gambling','fruit machine'] },
 ];
 
 GAMES.sort((a, b) => a.name.localeCompare(b.name));
@@ -1010,6 +1175,9 @@ const CATEGORIES = [
     { key:'physics', label:'Physics', emoji:'🎯', color:'var(--cat-physics)', colorBg:'var(--cat-physics-bg)' },
     { key:'frankforce', label:'Frank Force Games', emoji:'🟥', color:'var(--cat-frankforce)', colorBg:'var(--cat-frankforce-bg)' },
     { key:'construction', label:'Under Construction', emoji:'🚧', color:'var(--cat-construction)', colorBg:'var(--cat-construction-bg)' },
+    // Debug-only bucket: finished/experimental games not yet on the main floor.
+    // Gated to debug mode everywhere (sidebar, welcome grid, chips, tagline count).
+    { key:'extra', label:'Extra Games', emoji:'🧪', color:'var(--cat-extra)', colorBg:'var(--cat-extra-bg)' },
 ];
 const catByKey = Object.fromEntries(CATEGORIES.map(c => [c.key, c]));
 const LAST_GAME_KEY = 'littlejs-games-last';
@@ -1166,10 +1334,13 @@ function renderList() {
     const regular = [];
     const frankforce = [];
     const construction = [];
+    const extra = [];
     for (const g of GAMES) {
         if (activeCategory !== 'all' && g.category !== activeCategory) continue;
         // Frank Force section is hidden unless its master switch is on.
         if (g.category === 'frankforce' && !SHOW_FRANKFORCE) continue;
+        // Extra games only appear in the debug build.
+        if (g.category === 'extra' && !debugMode()) continue;
         if (q) {
             // Gamepad-supporting games are searchable by "gamepad"/"controller"
             // without per-game tags — folded in from the GAMEPAD_GAMES set.
@@ -1178,7 +1349,8 @@ function renderList() {
             if (!hay.includes(q)) continue;
         }
         (g.category === 'construction' ? construction
-            : g.category === 'frankforce' ? frankforce : regular).push(g);
+            : g.category === 'frankforce' ? frankforce
+            : g.category === 'extra' ? extra : regular).push(g);
     }
     const appendCard = g => {
         const card = makeCard(g);
@@ -1207,6 +1379,11 @@ function renderList() {
         for (const g of construction) appendCard(g);
         rendered += construction.length;
     }
+    if (extra.length) {
+        if (rendered) addDivider('🧪 Extra Games', 'var(--cat-extra)');
+        for (const g of extra) appendCard(g);
+        rendered += extra.length;
+    }
 
     // Debug-only Templates bucket — starter projects from templates/, shown below
     // the construction divider only when the debug build is active. Filtered by
@@ -1223,7 +1400,7 @@ function renderList() {
         for (const t of templates) appendCard(t);
     }
 
-    if (regular.length + frankforce.length + construction.length + templates.length === 0) {
+    if (regular.length + frankforce.length + construction.length + extra.length + templates.length === 0) {
         const empty = document.createElement('div');
         empty.className = 'empty';
         empty.textContent = 'No games match.';
@@ -1237,7 +1414,7 @@ function buildFilterChips() {
     // Skip 'construction' — those games already have their own pinned section
     // at the bottom of the list, so filtering by it would be redundant.
     const all = [{ key:'all', label:'All' }, ...CATEGORIES.filter(c =>
-        c.key !== 'construction' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
+        c.key !== 'construction' && c.key !== 'extra' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
     for (const c of all) {
         const btn = document.createElement('button');
         btn.className = 'chip-filter' + (c.key === 'all' ? ' active' : '');
@@ -1316,90 +1493,422 @@ function makeTile(g, index) {
     return tile;
 }
 
+// ===================== Arcade Floor: hero attract + grid + about =====================
+
+// Curated list of games that support DEMO MODE — the featured cabinet rotates
+// through these, loading each with #demo so it runs menu-less and self-running.
+// Add a game here once it's been wired for demo mode.
+const DEMO_GAMES = [
+    'pong.html', 'asterblast.html', 'missileDefense.html', 'roboRescue.html',
+    'tetrix.html', 'spaceIntruders.html', 'froggit.html', 'checkers.html',
+    'reversi.html', 'connect4.html', 'chess.html',
+    'boomer.html', 'brickout.html', 'floppyBird.html', 'geometryJump.html',
+    'pucMan.html', 'moonLander.html', 'snake.html',
+    'centibug.html', 'matchThree.html', 'freeThrow.html',
+    'freecell.html', 'klondike.html',   // self-solving AI attract (added this session)
+];
+
+// Optional: pin one or more games to the FRONT of the hero rotation. When set,
+// these lead the cabinet (shuffled among themselves so a different one can open
+// each visit), then the rest of DEMO_GAMES follow. Leave [] for a pure shuffle.
+// Featured games should also be in DEMO_GAMES so they run menu-less under #demo.
+const FEATURED_GAMES = [];
+const isFeatured = file => FEATURED_GAMES.includes(file);
+
+let heroFile = null;
+let _demoOrder = [];   // DEMO_GAMES shuffled once per page load
+let _demoIndex = 0;    // position in _demoOrder currently shown in the cabinet
+
+// Navigate any iframe without polluting browser history (same trick as loadIframe).
+function loadFrame(frame, url) {
+    if (frame.contentWindow) frame.contentWindow.location.replace(url);
+    else frame.src = url;
+}
+
+// Shuffle the demo list once (per page load) so the cabinet opens on a random
+// game. "Show a different game" then steps through this shuffled order, wrapping
+// at the end — so clicking it repeatedly walks past every game before repeating.
+function buildDemoOrder() {
+    // Featured games lead (shuffled among themselves so a different one can open
+    // each visit), then the rest of the demo games (also shuffled, featured de-duped).
+    const featured = shuffledCopy(FEATURED_GAMES.filter(f => gameByFile[f]), Math.random);
+    const seen = new Set(featured);
+    const rest = shuffledCopy(
+        DEMO_GAMES.filter(f => gameByFile[f] && !seen.has(f)), Math.random);
+    _demoOrder = [...featured, ...rest];
+    _demoIndex = 0;
+}
+
+// Advance the cabinet to the next game in the shuffled order (wraps to start).
+function advanceDemo() {
+    if (!_demoOrder.length) buildDemoOrder();
+    else _demoIndex = (_demoIndex + 1) % _demoOrder.length;
+    setHero(_demoOrder[_demoIndex]);
+}
+
+// Force a dark page inside the hero iframe so there's no white canvas flash
+// during load, then reveal the frame only once it's fully painted. The game
+// itself now hides its own menu chrome: menus.js detects `#demo` in the URL and
+// hides #littlejs-menus internally (see isDemoMode / initMenuSystem), so the
+// launcher no longer injects hide-CSS — it only handles the load flash here.
+// Returns true once injected (or stopped by a cross-origin wall) so the poller
+// can stop. `prevDoc` is the document present before navigation, so we don't
+// match the outgoing page and quit before the new one has loaded.
+function injectHeroAttractStyle(frame, prevDoc) {
+    let doc;
+    try { doc = frame && frame.contentDocument; }
+    catch (e) { if (frame) frame.style.opacity = '1'; return true; }   // cross-origin hero
+    if (!doc || doc === prevDoc) return false;                         // old / blank — wait for new doc
+    // Inject the moment <head> exists so the dark background is in place before
+    // first paint (no white canvas flash during load).
+    if (doc.head && !doc.getElementById('arcade-attract-style')) {
+        const s = doc.createElement('style');
+        s.id = 'arcade-attract-style';
+        s.textContent = 'html,body{background:#000!important}';
+        doc.head.appendChild(s);
+    }
+    // Reveal only once the document has fully loaded — revealing at head-parse
+    // showed the canvas white for a frame before its first paint.
+    if (doc.readyState === 'complete') { frame.style.opacity = '1'; return true; }
+    return false;
+}
+
+// Poll the hero frame: inject the dark-bg as soon as the new doc's head is
+// parsed, then fade the iframe in once it's fully loaded (no white flash).
+let _heroAttractTimer = 0;
+function armHeroAttract(frame, prevDoc) {
+    clearInterval(_heroAttractTimer);
+    let tries = 0;
+    const tick = () => {
+        if (injectHeroAttractStyle(frame, prevDoc)) { clearInterval(_heroAttractTimer); return; }
+        if (++tries >= 80) {   // ~2.4s safety: reveal anyway so the hero never stays blank
+            clearInterval(_heroAttractTimer);
+            if (frame) frame.style.opacity = '1';
+        }
+    };
+    _heroAttractTimer = setInterval(tick, 30);
+    tick();
+}
+
+// Silence the demo cabinet — demo mode is a MUTED attract. Force the game's
+// audio off (soundEnable + master volume) and keep enforcing it for a few
+// seconds so it wins over the volume the game sets in its own gameInit.
+// SoundGenerator extends Sound, so both route through these. Same-origin only
+// (local games); off-site frames throw and are ignored.
+let _heroMuteTimer = 0;
+function muteHero(frame) {
+    clearInterval(_heroMuteTimer);
+    let tries = 0;
+    const tick = () => {
+        try {
+            const cw = frame.contentWindow;
+            if (cw) {
+                cw.soundEnable = false;
+                if (typeof cw.setSoundVolume === 'function') cw.setSoundVolume(0);
+                else cw.soundVolume = 0;
+            }
+        } catch (e) { /* cross-origin — can't mute, ignore */ }
+        if (++tries >= 100) clearInterval(_heroMuteTimer);   // ~5s of enforcement
+    };
+    _heroMuteTimer = setInterval(tick, 50);
+    tick();
+}
+
+// Load the chosen attract game into the small hero iframe. Browser autoplay
+// policy keeps it silent until the user clicks (which navigates to it big).
+function setHero(file) {
+    heroFile = file;
+    resetHeroTimer();   // restart the auto-advance cycle for the new game
+    const frame = document.getElementById('hero-frame');
+    const nameEl = document.querySelector('#hero-cabinet .hero-name');
+    const nowEl = document.querySelector('#hero-cabinet .hero-now');
+    const scoreEl = document.querySelector('#hero-cabinet .hero-score');
+    const g = gameByFile[file];
+    if (nameEl) nameEl.textContent = g ? g.name : '';
+    // Flag featured games in the cabinet's status line.
+    if (nowEl) nowEl.textContent = isFeatured(file) ? '★ FEATURED' : '▸ NOW PLAYING';
+    // Personal best for this game, if one exists (e.g. Asterblast); else hidden.
+    if (scoreEl) {
+        const sc = g ? getHighScore(g) : null;
+        if (sc != null) { scoreEl.textContent = scoreEmoji(g) + ' ' + formatScore(g, sc); scoreEl.hidden = false; }
+        else scoreEl.hidden = true;
+    }
+    if (frame && file) {
+        let prevDoc = null;
+        try { prevDoc = frame.contentDocument; } catch (e) {}
+        frame.style.opacity = '0';
+        loadFrame(frame, GAMES_DIR + file + '#demo');
+        armHeroAttract(frame, prevDoc);
+        muteHero(frame);
+    }
+}
+
+// ---- Hero auto-advance: hold each demo ~30s, then run a 10s "NEXT GAME"
+//      countdown, then move on. Hovering the cabinet pauses + resets the
+//      countdown so it only resumes (from full) once the mouse leaves. ----
+const HERO_HOLD_TIME = 30;       // seconds a game shows before the countdown starts
+const HERO_COUNTDOWN = 10;       // length of the "next game" countdown
+let heroHold = 0;
+let heroCountdown = HERO_COUNTDOWN;
+let heroHover = false;
+let _heroTimerStarted = false;
+
+function resetHeroTimer() {
+    heroHold = 0;
+    heroCountdown = HERO_COUNTDOWN;
+    const el = document.querySelector('#hero-cabinet .hero-next');
+    if (el) { el.textContent = ''; el.classList.remove('show'); }
+}
+
+function tickHeroTimer() {
+    const el = document.querySelector('#hero-cabinet .hero-next');
+    if (!el) return;
+    // Only run on the welcome floor — pause entirely while a game fills the stage.
+    if (document.body.classList.contains('in-game')) return;
+
+    const dt = 0.25;
+    if (heroHover) {
+        // Paused: hide + reset so the countdown restarts fresh when the mouse leaves.
+        heroCountdown = HERO_COUNTDOWN;
+        el.classList.remove('show');
+        return;
+    }
+    if (heroHold < HERO_HOLD_TIME) {
+        heroHold += dt;
+        el.classList.remove('show');
+        return;
+    }
+    heroCountdown -= dt;
+    if (heroCountdown <= 0) {
+        advanceDemo();   // loads the next game (setHero resets the timer)
+        return;
+    }
+    el.textContent = '▸ next game in ' + Math.ceil(heroCountdown) + 's';
+    el.classList.add('show');
+}
+
+function buildHero() {
+    const wrap = document.createElement('div');
+    wrap.id = 'hero-cabinet';
+    wrap.title = 'Click to play';
+    wrap.innerHTML =
+        '<div class="hero-screen">' +
+            '<iframe id="hero-frame" title="Attract mode" tabindex="-1" scrolling="no" ' +
+                'allow="autoplay *; gamepad *"></iframe>' +
+        '</div>' +
+        '<div class="hero-bar">' +
+            '<span class="hero-now">▸ NOW PLAYING</span>' +
+            '<span class="hero-name"></span>' +
+            '<span class="hero-score score-badge" hidden></span>' +
+            '<span class="hero-coin">▶ INSERT COIN</span>' +
+            '<button class="hero-shuffle" title="Show a different game" aria-label="Show a different game">🔀 Show a different game</button>' +
+            '<span class="hero-next" aria-hidden="true"></span>' +
+        '</div>';
+    // The whole cabinet is one big PLAY button; the iframe ignores pointer events.
+    wrap.addEventListener('click', () => { if (heroFile) selectGame(heroFile); });
+    // Steps through the shuffled demo order, wrapping — repeated clicks cycle all.
+    wrap.querySelector('.hero-shuffle').addEventListener('click', e => {
+        e.stopPropagation();
+        advanceDemo();
+    });
+    // Hovering the cabinet pauses + resets the auto-advance countdown.
+    wrap.addEventListener('mouseenter', () => { heroHover = true; });
+    wrap.addEventListener('mouseleave', () => { heroHover = false; });
+    if (!_heroTimerStarted) { _heroTimerStarted = true; setInterval(tickHeroTimer, 250); }
+    // Show the current game in the shuffled order once the element is in the DOM
+    // (builds the shuffle on first run; preserves position when returning here).
+    setTimeout(() => {
+        if (!_demoOrder.length) buildDemoOrder();
+        setHero(_demoOrder[_demoIndex]);
+    }, 0);
+    return wrap;
+}
+
+// ---- Stable-per-visit shuffle: seeded so tiles don't jump around on refresh,
+//      but you get a fresh wall next time you open the arcade. ----
+function floorSeed() {
+    let s = sessionStorage.getItem('floorSeed');
+    if (!s) { s = String(Math.floor(Math.random() * 1e9)); sessionStorage.setItem('floorSeed', s); }
+    return +s;
+}
+function mulberry32(a) {
+    return function () {
+        a |= 0; a = a + 0x6D2B79F5 | 0;
+        let t = Math.imul(a ^ a >>> 15, 1 | a);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+function shuffledCopy(arr, rng) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
+
+// Base set for the floor grid — everything except the (optional) hidden off-site section.
+function floorGames() {
+    return GAMES.filter(g => (g.category !== 'frankforce' || SHOW_FRANKFORCE)
+        && (g.category !== 'extra' || debugMode()));
+}
+
+let floorCat = 'all';
+let floorQuery = '';
+
+function buildFloorControls() {
+    const wrap = document.createElement('div');
+    wrap.className = 'floor-controls';
+
+    const tools = document.createElement('div');
+    tools.className = 'floor-tools';
+
+    // Floor search — the welcome's own search (the sidebar, which has its own
+    // search, isn't shown here; it's the in-game switcher). They never coexist,
+    // so there's no duplication.
+    const search = document.createElement('input');
+    search.className = 'floor-search';
+    search.type = 'text';
+    search.placeholder = 'Search games…';
+    search.value = floorQuery;
+    search.addEventListener('input', () => { floorQuery = search.value.trim().toLowerCase(); buildFloorGrid(); });
+    tools.appendChild(search);
+
+    const chips = document.createElement('div');
+    chips.className = 'floor-chips';
+    // Only categories that actually have games get a chip. 'construction' is
+    // skipped (like the sidebar) — those games live in their own bottom section.
+    const present = new Set(floorGames().map(g => g.category));
+    const cats = [{ key: 'all', label: 'All', emoji: '' },
+        ...CATEGORIES.filter(c => present.has(c.key) && c.key !== 'construction' && c.key !== 'extra' && (c.key !== 'frankforce' || SHOW_FRANKFORCE))];
+    for (const c of cats) {
+        const btn = document.createElement('button');
+        btn.className = 'floor-chip' + (c.key === floorCat ? ' on' : '');
+        btn.dataset.cat = c.key;
+        btn.textContent = (c.emoji ? c.emoji + ' ' : '') + c.label;
+        if (c.color) { btn.style.setProperty('--cat-color', c.color); btn.style.setProperty('--cat-bg', c.colorBg); }
+        btn.addEventListener('click', () => {
+            // Clicking the active category toggles back to All.
+            floorCat = (c.key !== 'all' && floorCat === c.key) ? 'all' : c.key;
+            for (const el of chips.children) el.classList.toggle('on', el.dataset.cat === floorCat);
+            buildFloorGrid();
+        });
+        chips.appendChild(btn);
+    }
+    tools.appendChild(chips);
+    wrap.appendChild(tools);
+    return wrap;
+}
+
+// Render the grid: Top Picks first (shuffled), then the rest shuffled, then a
+// separate "Under Construction" section at the bottom (not mixed in).
+function buildFloorGrid() {
+    const grid = document.getElementById('floor-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    let games = floorGames();
+    if (floorCat !== 'all') games = games.filter(g => g.category === floorCat);
+    // Text filter comes from the floor's own search box.
+    if (floorQuery) {
+        games = games.filter(g => {
+            const gp = hasGamepad(g) ? ' gamepad controller' : '';
+            const hay = (g.name + ' ' + g.desc + ' ' + g.category + ' ' + g.tags.join(' ') + ' ' + (g.keywords || []).join(' ') + gp).toLowerCase();
+            return hay.includes(floorQuery);
+        });
+    }
+
+    // Under-construction games sink into their own labeled section at the bottom
+    // (mirrors the sidebar) instead of shuffling in with the finished games.
+    const construction = games.filter(g => g.category === 'construction');
+    const extra = games.filter(g => g.category === 'extra');
+    const regular = games.filter(g => g.category !== 'construction' && g.category !== 'extra');
+
+    // Finished games: Top Picks lead, but shuffled among themselves (not by
+    // rank), then the rest shuffled too — best stuff first, never the same order.
+    const featured = shuffledCopy(regular.filter(g => g.top != null), mulberry32(floorSeed() + 7));
+    const rest = shuffledCopy(regular.filter(g => g.top == null), mulberry32(floorSeed()));
+    const ordered = [...featured, ...rest];
+
+    if (!ordered.length && !construction.length && !extra.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'No games match.';
+        grid.appendChild(empty);
+        return;
+    }
+
+    let i = 0;
+    for (const g of ordered) grid.appendChild(makeTile(g, i++));
+
+    // Bottom section — kept in natural (A–Z) order like the sidebar's WIP shelf.
+    if (construction.length) {
+        const divider = document.createElement('div');
+        divider.className = 'floor-divider';
+        divider.textContent = '🚧 Under Construction';
+        grid.appendChild(divider);
+        for (const g of construction) grid.appendChild(makeTile(g, i++));
+    }
+
+    // Debug-only Extra Games section (sinks to the very bottom, like construction).
+    if (extra.length) {
+        const divider = document.createElement('div');
+        divider.className = 'floor-divider';
+        divider.textContent = '🧪 Extra Games';
+        grid.appendChild(divider);
+        for (const g of extra) grid.appendChild(makeTile(g, i++));
+    }
+}
+
 function buildWelcome() {
     welcomeEl.innerHTML = '';
 
-    // Hero — logo + tagline
-    const hero = document.createElement('div');
-    hero.id = 'welcome-hero';
-    hero.innerHTML =
-        '<img id="welcome-logo" src="images/logo.png" alt="LittleJS">' +
-        '<div id="welcome-tagline">' + GAMES.length + ' Games · Powered by LittleJS</div>';
-    welcomeEl.appendChild(hero);
+    // 0) Arcade branding — logo + tagline. Especially important on mobile, where
+    //    the sidebar (and its logo) is a hidden drawer, so without this you'd
+    //    load straight into a game playing with no branding at all. Reuses the
+    //    original #welcome-hero styling (and revives the logo sparkles).
+    const brand = document.createElement('div');
+    brand.id = 'welcome-hero';
+    brand.innerHTML =
+        '<img id="welcome-logo" src="images/logo.png" alt="The LittleJS Arcade">' +
+        '<div id="welcome-tagline">' + floorGames().length + ' games · Powered by LittleJS</div>';
+    welcomeEl.appendChild(brand);
 
-    // Quick actions — Continue + Random
-    const quick = document.createElement('div');
-    quick.id = 'quick-actions';
+    // 1) Live attract hero — boots a curated light game; click to play it big.
+    welcomeEl.appendChild(buildHero());
 
-    const lastFile = localStorage.getItem(LAST_GAME_KEY);
-    const lastGame = lastFile && gameByFile[lastFile];
-    if (lastGame) {
-        const cont = document.createElement('button');
-        cont.className = 'quick-btn primary';
-        cont.innerHTML = '<span class="icon">▶</span>Continue<span class="sub">' + lastGame.name + '</span>';
-        cont.addEventListener('click', () => selectGame(lastGame.file));
-        quick.appendChild(cont);
-    }
-
-    // Random skips test stubs AND under-construction games — it should only
-    // surface finished, playable titles.
-    const playable = GAMES.filter(g => g.category !== 'test' && g.category !== 'construction');
-    const rand = document.createElement('button');
-    rand.className = 'quick-btn';
-    rand.innerHTML = '<span class="icon">🎲</span>Random Game';
-    rand.addEventListener('click', () => {
-        const pick = () => {
-            const g = playable[Math.floor(Math.random() * playable.length)];
-            selectGame(g.file);
-        };
-        if (reducedMotion) { pick(); return; }
-        const icon = rand.querySelector('.icon');
-        // Re-add the class so the animation restarts on subsequent clicks.
-        icon.classList.remove('rolling');
-        void icon.offsetWidth;
-        icon.classList.add('rolling');
-        setTimeout(pick, 260);
-    });
-    quick.appendChild(rand);
-
-    welcomeEl.appendChild(quick);
-
-    // Top Picks (no category — uses neutral accent for the row bar)
-    const topGames = GAMES.filter(g => g.top != null).sort((a, b) => a.top - b.top);
-    if (topGames.length) {
-        welcomeEl.appendChild(buildRow('Top Picks', '⭐', topGames, true, null));
-    }
-
-    // Recently Played — only renders once the user has launched at least one
-    // game. Sits right under Top Picks so it's the first personal section.
-    // (Per-game best scores still show as a badge on each regular tile; there's
-    // no longer a separate "Best Scores" row.)
-    const recentFiles = getRecent();
-    const recentGames = recentFiles.map(f => gameByFile[f]).filter(Boolean);
+    // 2) Recently Played — score badges ride along on each tile (revives the
+    //    high-score surface). Only shows once the user has launched a game.
+    const recentGames = getRecent().map(f => gameByFile[f]).filter(Boolean);
     if (recentGames.length) {
         welcomeEl.appendChild(buildRow('Recently Played', '🕘', recentGames, false, null));
     }
 
-    // Category rows — each row tints its bar + emoji in the category color.
-    for (const cat of CATEGORIES) {
-        if (cat.key === 'frankforce' && !SHOW_FRANKFORCE) continue;   // off-site section toggle
-        const games = GAMES.filter(g => g.category === cat.key);
-        if (games.length) welcomeEl.appendChild(buildRow(cat.label, cat.emoji, games, false, cat));
-    }
+    // 3) All Games — controls + one responsive grid (top picks first, all shuffled).
+    const section = document.createElement('div');
+    section.className = 'floor-section';
+    section.appendChild(buildFloorControls());
+    const grid = document.createElement('div');
+    grid.id = 'floor-grid';
+    grid.className = 'floor-grid';
+    section.appendChild(grid);
+    welcomeEl.appendChild(section);
+    buildFloorGrid();
+}
 
-    // Debug-only Templates row — starter projects from templates/, mirroring the
-    // sidebar bucket. Sits below the category rows (Under Construction is last).
-    if (debugMode()) {
-        welcomeEl.appendChild(buildRow('Templates', '📁', TEMPLATES, false, { color: 'var(--accent)' }));
+// ---- About modal ----
+function openAbout() { const m = document.getElementById('about-modal'); if (m) m.hidden = false; }
+function closeAbout() { const m = document.getElementById('about-modal'); if (m) m.hidden = true; }
+function initFloorUI() {
+    const btn = document.getElementById('about-btn');
+    if (btn) btn.addEventListener('click', openAbout);
+    const m = document.getElementById('about-modal');
+    if (m) {
+        m.querySelector('.about-close').addEventListener('click', closeAbout);
+        m.querySelector('.about-backdrop').addEventListener('click', closeAbout);
     }
-
-    // One-line "about" footer.
-    const about = document.createElement('div');
-    about.id = 'about';
-    about.innerHTML =
-        'Built with <a href="https://github.com/KilledByAPixel/LittleJS" target="_blank" rel="noopener">LittleJS</a>' +
-        ' — a tiny, fast, open-source HTML5 game engine.';
-    welcomeEl.appendChild(about);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAbout(); });
 }
 
 
@@ -1511,6 +2020,7 @@ function showWelcome(pushHistory = true) {
     const wasGame = currentFile !== null;
     currentFile = null;
     document.body.classList.remove('in-game');
+    setDrawer(false);   // never leave the drawer open over the welcome floor
     document.title = BASE_TITLE;
     loadIframe('about:blank');
     frameEl.style.display = 'none';
@@ -1544,6 +2054,9 @@ function selectGame(file, pushHistory = true) {
     const dir = tmpl ? TEMPLATES_DIR : GAMES_DIR;
     const wasLibrary = currentFile === null;
     currentFile = file;
+    // Stop the attract game running in the welcome hero (if one is loaded).
+    const heroFrame = document.getElementById('hero-frame');
+    if (heroFrame) loadFrame(heroFrame, 'about:blank');
     document.body.classList.add('in-game');
     document.title = g.name + ' · ' + BASE_TITLE;
     // Templates are a dev-only browsing aid — keep them out of recent / continue.
@@ -1598,12 +2111,16 @@ function loadFromHash() {
 // last. prevGame() steps backward. Each call replaces the current game's iframe,
 // so there's nothing to close manually.
 function stepGame(dir) {
-    const i = GAMES.findIndex(g => g.file === currentFile);
-    const n = i < 0 ? (dir > 0 ? 0 : GAMES.length - 1)
-                    : (i + dir + GAMES.length) % GAMES.length;
-    const g = GAMES[n];
+    // Step only through local games — skip the off-site / Frank Force entries
+    // (those load from an external `url` and aren't part of the local rotation).
+    const steppable = GAMES.filter(g => !g.url);
+    if (!steppable.length) return;
+    const i = steppable.findIndex(g => g.file === currentFile);
+    const n = i < 0 ? (dir > 0 ? 0 : steppable.length - 1)
+                    : (i + dir + steppable.length) % steppable.length;
+    const g = steppable[n];
     selectGame(g.file);
-    console.log('[debug] ' + (n + 1) + '/' + GAMES.length + '  ' + g.name + '  (' + g.file + ')');
+    console.log('[debug] ' + (n + 1) + '/' + steppable.length + '  ' + g.name + '  (' + g.file + ')');
     return g.name;
 }
 window.nextGame = () => stepGame(1);
@@ -1651,6 +2168,8 @@ window.littlejsDebug = (on = true) => littlejsBuild(on ? 'debug' : 'release');
 // ===================== Wire-up =====================
 
 sidebarLogoWrap.addEventListener('click', showWelcome);
+// The sidebar search filters the sidebar list (the in-game switcher). The floor
+// has its own search; the two are never on screen together.
 searchEl.addEventListener('input', renderList);
 window.addEventListener('hashchange', loadFromHash);
 
@@ -1700,24 +2219,27 @@ const sidebarEl = document.getElementById('sidebar');
 const hamburgerBtn = document.getElementById('hamburger');
 const backdropEl = document.getElementById('backdrop');
 const isMobile = () => matchMedia('(max-width: 720px)').matches;
+// Touch detection (matches menus.js) selects the sidebar mode: non-touch gets a
+// persistent in-game side panel (shown via body.in-game in CSS); touch gets an
+// overlay drawer opened by the game's Library button.
+const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if (isTouch) document.body.classList.add('touch');
 
-// Panel starts open on desktop, closed on mobile. The class pair is
-// dual-purpose: .open drives the mobile overlay drawer, .closed collapses the
-// desktop panel — only one matters per breakpoint, so both are set together.
-let sidebarOpen = !isMobile();
+// The touch drawer starts closed (the non-touch side panel is shown by CSS).
+let sidebarOpen = false;
 
 function setDrawer(open) {
     sidebarOpen = open;
     sidebarEl.classList.toggle('open', open);
-    sidebarEl.classList.toggle('closed', !open);
     backdropEl.classList.toggle('show', open);
 }
 hamburgerBtn.addEventListener('click', () => setDrawer(!sidebarOpen));
 backdropEl.addEventListener('click', () => setDrawer(false));
-// On mobile only, picking a game or hitting the home logo closes the drawer so
-// the user lands cleanly on their pick. On desktop the panel stays put.
-listEl.addEventListener('click', e => { if (e.target.closest('.card') && isMobile()) setDrawer(false); });
-sidebarLogoWrap.addEventListener('click', () => { if (isMobile()) setDrawer(false); });
+// Touch: picking a game from the drawer closes it so you land on the game.
+// (Non-touch's side panel is persistent — nothing to close on pick.)
+listEl.addEventListener('click', e => { if (isTouch && e.target.closest('.card')) setDrawer(false); });
+// Home logo closes the touch drawer and returns to the floor.
+sidebarLogoWrap.addEventListener('click', () => setDrawer(false));
 
 // ===================== In-game Library button (iframe handshake) =====================
 // Games running inside this iframe show a Library button in their toolbar to
@@ -1739,7 +2261,10 @@ window.addEventListener('message', e => {
 });
 
 document.addEventListener('keydown', e => {
-    if (document.activeElement === searchEl && e.key !== 'Escape') return;
+    // Don't hijack keys while typing in either search box (sidebar or floor).
+    const ae = document.activeElement;
+    const inSearch = ae === searchEl || (ae && ae.classList && ae.classList.contains('floor-search'));
+    if (inSearch && e.key !== 'Escape') return;
     const cards = Array.from(listEl.querySelectorAll('.card'));
     if (e.key === 'ArrowDown' && cards.length) {
         e.preventDefault();
@@ -1759,14 +2284,18 @@ document.addEventListener('keydown', e => {
         const prev = cards[newIdx];
         selectGame(prev.dataset.file);
         prev.scrollIntoView({ block:'nearest' });
-    } else if (e.key === '/' && document.activeElement !== searchEl) {
+    } else if (e.key === '/') {
         e.preventDefault();
-        searchEl.focus();
-        searchEl.select();
-    } else if (e.key === 'Escape' && document.activeElement === searchEl) {
-        searchEl.value = '';
-        renderList();
-        searchEl.blur();
+        // Focus whichever search is visible: floor search on the welcome,
+        // sidebar search while in a game.
+        const fs = !currentFile && document.querySelector('.floor-search');
+        (fs || searchEl).focus();
+        (fs || searchEl).select();
+    } else if (e.key === 'Escape' && inSearch) {
+        ae.value = '';
+        if (ae === searchEl) renderList();
+        else { floorQuery = ''; buildFloorGrid(); }
+        ae.blur();
     }
 });
 
@@ -1886,6 +2415,7 @@ renderList();
 loadFromHash();
 setupStarfield();
 setupSparkles();
+initFloorUI();
 
 // ===================== Dev console greeting =====================
 // Many visitors here are developers — print a styled note in DevTools with
