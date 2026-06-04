@@ -19,14 +19,8 @@
 <script>
 'use strict';
 
-///////////////////////////////////////////////////////////////////////////////
-// Engine settings
-paused = false;
-
-gravity = vec2(0, 0); // overridden in gameInit after box2dInit
-cameraPos = vec2(0, 2.5); // bias the board downward so the score HUD has headroom
-cameraScale = 30;
-canvasMaxSize = vec2(2048, 2048);
+// engine settings
+cameraPos = vec2(0, 2.5);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Board layout (world units, y is up)
