@@ -296,11 +296,10 @@ function gameUpdate()
 // -----------------------------------------------------------------------------
 function gameUpdatePost()
 {
-    // Fit the whole maze under the HUD strip; offset the camera so the maze sits below the HUD.
+    // Fit the whole maze under the HUD strip: a top inset reserves the HUD band
+    // and cameraFit recenters the maze down into the space below it.
     const hudHeight = 56;
-    cameraScale = min(mainCanvasSize.x / gridW, (mainCanvasSize.y - hudHeight) / gridH);
-    // Shift camera up in world space (= maze down on screen) by half the HUD height.
-    cameraPos = vec2(gridW/2, gridH/2 + (hudHeight/2) / cameraScale);
+    cameraFit(vec2(gridW/2, gridH/2), vec2(gridW, gridH), { inset: { top: hudHeight } });
 }
 
 // -----------------------------------------------------------------------------

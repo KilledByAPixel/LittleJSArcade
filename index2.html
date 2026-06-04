@@ -890,6 +890,14 @@
         transition: border-color .12s, background .12s, color .12s;
     }
     .hero-shuffle:hover { border-color: var(--accent); background: rgba(127,127,127,.20); color: var(--text); }
+    /* Auto-advance countdown, shown under the shuffle button while it ticks. */
+    .hero-next {
+        align-self: flex-start; margin-top: 2px;
+        font-size: 11px; letter-spacing: 1px; font-weight: 600;
+        color: var(--accent-2); text-transform: uppercase;
+        opacity: 0; transition: opacity .2s; pointer-events: none;
+    }
+    .hero-next.show { opacity: 1; }
     /* Narrow viewports: stack the screen above the panel. */
     @media (max-width: 720px) {
         #hero-cabinet { flex-direction: column; }
@@ -1497,6 +1505,7 @@ const DEMO_GAMES = [
     'boomer.html', 'brickout.html', 'floppyBird.html', 'geometryJump.html',
     'pucMan.html', 'moonLander.html', 'snake.html',
     'centibug.html', 'matchThree.html', 'freeThrow.html',
+    'freecell.html', 'klondike.html',   // self-solving AI attract (added this session)
 ];
 
 // Optional: pin one or more games to the FRONT of the hero rotation. When set,
@@ -1609,6 +1618,7 @@ function muteHero(frame) {
 // policy keeps it silent until the user clicks (which navigates to it big).
 function setHero(file) {
     heroFile = file;
+    resetHeroTimer();   // restart the auto-advance cycle for the new game
     const frame = document.getElementById('hero-frame');
     const nameEl = document.querySelector('#hero-cabinet .hero-name');
     const nowEl = document.querySelector('#hero-cabinet .hero-now');
@@ -1633,6 +1643,50 @@ function setHero(file) {
     }
 }
 
+// ---- Hero auto-advance: hold each demo ~30s, then run a 10s "NEXT GAME"
+//      countdown, then move on. Hovering the cabinet pauses + resets the
+//      countdown so it only resumes (from full) once the mouse leaves. ----
+const HERO_HOLD_TIME = 30;       // seconds a game shows before the countdown starts
+const HERO_COUNTDOWN = 10;       // length of the "next game" countdown
+let heroHold = 0;
+let heroCountdown = HERO_COUNTDOWN;
+let heroHover = false;
+let _heroTimerStarted = false;
+
+function resetHeroTimer() {
+    heroHold = 0;
+    heroCountdown = HERO_COUNTDOWN;
+    const el = document.querySelector('#hero-cabinet .hero-next');
+    if (el) { el.textContent = ''; el.classList.remove('show'); }
+}
+
+function tickHeroTimer() {
+    const el = document.querySelector('#hero-cabinet .hero-next');
+    if (!el) return;
+    // Only run on the welcome floor — pause entirely while a game fills the stage.
+    if (document.body.classList.contains('in-game')) return;
+
+    const dt = 0.25;
+    if (heroHover) {
+        // Paused: hide + reset so the countdown restarts fresh when the mouse leaves.
+        heroCountdown = HERO_COUNTDOWN;
+        el.classList.remove('show');
+        return;
+    }
+    if (heroHold < HERO_HOLD_TIME) {
+        heroHold += dt;
+        el.classList.remove('show');
+        return;
+    }
+    heroCountdown -= dt;
+    if (heroCountdown <= 0) {
+        advanceDemo();   // loads the next game (setHero resets the timer)
+        return;
+    }
+    el.textContent = '▸ next game in ' + Math.ceil(heroCountdown) + 's';
+    el.classList.add('show');
+}
+
 function buildHero() {
     const wrap = document.createElement('div');
     wrap.id = 'hero-cabinet';
@@ -1648,6 +1702,7 @@ function buildHero() {
             '<span class="hero-score score-badge" hidden></span>' +
             '<span class="hero-coin">▶ INSERT COIN</span>' +
             '<button class="hero-shuffle" title="Show a different game" aria-label="Show a different game">🔀 Show a different game</button>' +
+            '<span class="hero-next" aria-hidden="true"></span>' +
         '</div>';
     // The whole cabinet is one big PLAY button; the iframe ignores pointer events.
     wrap.addEventListener('click', () => { if (heroFile) selectGame(heroFile); });
@@ -1656,6 +1711,10 @@ function buildHero() {
         e.stopPropagation();
         advanceDemo();
     });
+    // Hovering the cabinet pauses + resets the auto-advance countdown.
+    wrap.addEventListener('mouseenter', () => { heroHover = true; });
+    wrap.addEventListener('mouseleave', () => { heroHover = false; });
+    if (!_heroTimerStarted) { _heroTimerStarted = true; setInterval(tickHeroTimer, 250); }
     // Show the current game in the shuffled order once the element is in the DOM
     // (builds the shuffle on first run; preserves position when returning here).
     setTimeout(() => {

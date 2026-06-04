@@ -1422,9 +1422,7 @@ function frameView()
 
     // fit both axes with a small margin so content never kisses the screen edge
     const margin = 1.08;
-    cameraScale = min(mainCanvasSize.x / (halfW * 2 * margin),
-                      mainCanvasSize.y / (halfH * 2 * margin));
-    cameraPos = vec2(cx, cy);
+    cameraFit(vec2(cx, cy), vec2(halfW * 2 * margin, halfH * 2 * margin));
 }
 
 function buildMenus()

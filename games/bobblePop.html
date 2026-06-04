@@ -728,10 +728,7 @@ function gameUpdatePost()
     // frame the whole field — tight around the play area, shooter, and preview
     const visibleTop = TOP_Y - .5;
     const visibleBot = SHOOT_Y - .7;
-    const worldW = FIELD_W;
-    const worldH = visibleTop - visibleBot;
-    cameraScale = min(mainCanvasSize.x/worldW, mainCanvasSize.y/worldH);
-    cameraPos = vec2(0, (visibleTop + visibleBot)/2);
+    cameraFit(vec2(0, (visibleTop + visibleBot)/2), vec2(FIELD_W, visibleTop - visibleBot));
     cameraAngle = 0;
 }
 

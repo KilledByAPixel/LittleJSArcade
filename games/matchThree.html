@@ -14,14 +14,11 @@
 </style>
 </head>
 <script src="../templates/engineLoader.js?1780463135445"></script>
+<script src="../templates/gameFx.js?1780463135445"></script>
 <script src="../templates/menus.js?1780463135445"></script>
 <script src="../templates/textureGenerator.js?1780463135445"></script>
 <script>
 'use strict';
-
-paused = false;
-canvasMaxSize = vec2(2048, 2048);
-canvasPixelated = false;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Constants
@@ -37,8 +34,9 @@ const arenaSize = vec2(gridSize.x + .5, gridSize.y + 2); // playable grid + scor
 const backgroundColor = hsl(0, 0, .12);
 const minMatchCount = 3;
 
-const fitCamera = () => cameraScale =
-    min(mainCanvasSize.x / arenaSize.x, mainCanvasSize.y / arenaSize.y);
+// frame the playable arena (grid + score-line padding) via the shared helper
+const fitCamera = () =>
+    cameraFit(levelSize.scale(.5).add(cameraOffset), arenaSize);
 
 // zzfx sound params from the LittleJS examples puzzle — already tuned
 const sound_goodMove = new Sound([.4,.2,250,.04,,.04,,,1,,,,,3]);
@@ -198,7 +196,6 @@ async function gameInit()
     gemSprites[6] = drawToTexture(6, paintPlus,     'white plus / cross shape with black outline');
 
     levelSize = gridSize.copy();
-    cameraPos = levelSize.scale(.5).add(cameraOffset);
     fitCamera();
     gravity = vec2(0, -.004);
     canvasClearColor = backgroundColor;

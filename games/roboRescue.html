@@ -2480,12 +2480,8 @@ function buildMenus()
 function fitCameraToArena()
 {
     if (!mainCanvasSize || mainCanvasSize.x < 100) return;
-    const marginX = 2.2;
-    const marginY = 2.2;
-    cameraScale = min(
-        mainCanvasSize.x / (arenaSize.x + marginX),
-        mainCanvasSize.y / (arenaSize.y + marginY)
-    );
+    // 1.1 world units of margin per side leaves room for the cyan frame
+    cameraFit(vec2(0), arenaSize, { margin: 1.1 });
 }
 
 function gameInit()

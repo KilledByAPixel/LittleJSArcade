@@ -23,6 +23,10 @@
 <script>
 'use strict';
 
+// engine settings
+gravity = vec2(0, -0.01);
+cameraScale = 38;
+
 // Attract mode: the title screen IS a live self-playing demo. While the title
 // menu is up (isPlaying() === false) the full game simulates behind it — bombs
 // drop, the bomber paces, and an auto-player sweeps the buckets. On death it
@@ -31,12 +35,6 @@
 // stands down and the normal game-over -> menu path resumes. The arcade cabinet
 // simply hides the menu chrome over this same live title.
 let attractRestartTimer = 0;   // seconds to linger on the wreckage before looping
-
-paused = false;
-gravity = vec2(0, -0.01);   // gentle pull so ParticleEmitter particles arc (only particles are engine objects; applied per-frame to velocity)
-cameraPos = vec2(0, 0);
-cameraScale = 38;
-canvasFixedSize = vec2(1300, 1080);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Kaboom! — classic Activision paddle-catcher style.
@@ -928,9 +926,12 @@ function gameUpdatePost() {
     // Auto-fit camera so the play area shows on any aspect ratio (portrait
     // phones, ultrawide, etc.). Field uses ~26w x ~28h of world units
     // (taller side fits bomber's head + sky margin).
-    cameraScale = Math.min(mainCanvasSize.x / 26, mainCanvasSize.y / 28);
-    // Screen-shake is applied by the gameFx engine plugin (between gameUpdate
-    // and gameUpdatePost); cameraPos base is reset at the top of gameUpdate.
+    // The gameFx screen-shake plugin runs between gameUpdate and here and has
+    // already nudged cameraPos (base reset to 0,0 at the top of gameUpdate), so
+    // keep our shaken position and take only cameraFit's fitted scale.
+    const camPos = cameraPos;
+    cameraFit(vec2(0, 0), vec2(26, 28));
+    cameraPos = camPos;
 }
 
 function gameRender() {

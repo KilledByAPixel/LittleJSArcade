@@ -1057,8 +1057,12 @@ function updateBalls(dt)
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdatePost()
 {
-    const fit = min(mainCanvasSize.x / levelSize.x, mainCanvasSize.y / levelSize.y);
-    cameraScale = fit * .95;
+    // cameraFit sets cameraPos too, but the gameFx shake plugin already nudged
+    // it before this post-update — keep the shaken position, take only the scale.
+    // Framed size is inflated by 1/.95 to leave a ~5% border around the level.
+    const camPos = cameraPos;
+    cameraFit(levelSize.scale(.5), levelSize.scale(1/.95));
+    cameraPos = camPos;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

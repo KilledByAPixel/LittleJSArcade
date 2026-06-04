@@ -598,9 +598,9 @@ function gameUpdate()
 
 function gameUpdatePost()
 {
-    cameraPos = vec2(0,0);
+    // letterbox-fit the arena with a ~4% border (inflate the framed size by 1/.96)
+    cameraFit(vec2(0,0), ARENA_SIZE.scale(1/.96));
     cameraAngle = 0;
-    cameraScale = min(mainCanvasSize.x/ARENA_SIZE.x, mainCanvasSize.y/ARENA_SIZE.y) * 0.96;
 }
 
 function gameRender()
