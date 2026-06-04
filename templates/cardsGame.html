@@ -123,10 +123,10 @@ function newGame()
 {
     buildTable();
     // Deal-out animation: cards pop off the face-down stock (top-left deck) and
-    // flip face-up as they land. Purely cosmetic and silent; the board is already
-    // logically dealt.
+    // flip face-up while flying to their spots. Purely cosmetic and silent; the
+    // board is already logically dealt.
     dealCards(stacks, stockStack.pos,
-        {perCard: DEAL_STAGGER, duration: DEAL_FLIGHT, flip: true, flipTime: FLIP_TIME});
+        {perCard: DEAL_STAGGER, duration: DEAL_FLIGHT, flip: true});
     history.reset();
 }
 

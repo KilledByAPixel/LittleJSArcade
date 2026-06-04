@@ -661,9 +661,9 @@ function updateCardTweens(stacks)
 // stay put and read as the deck. Returns the total animation length (seconds)
 // so a caller can wait for it (e.g. an attract player before it starts moving).
 //   opts: { perCard (stagger between cards, s), duration (per-card flight, s),
-//           flip (deal each card face-down and flip it face-up as it lands),
-//           flipTime (the landing-flip duration, s) }
-function dealCards(stacks, fromPos, { perCard = 0.025, duration = 0.25, flip = false, flipTime = 0.18 } = {})
+//           flip (deal each card face-down and flip it face-up DURING its
+//                 flight — edge-on around mid-air, face-up as it lands) }
+function dealCards(stacks, fromPos, { perCard = 0.025, duration = 0.25, flip = false } = {})
 {
     let maxLen = 0;
     for (const s of stacks) maxLen = max(maxLen, s.cards.length);
@@ -681,12 +681,12 @@ function dealCards(stacks, fromPos, { perCard = 0.025, duration = 0.25, flip = f
             if (flip)
             {
                 const faceUp = c.faceUp;     // intended final face
-                c.faceUp = false;            // fly face-down, as part of the deck...
-                c.flipTo(faceUp, flipTime, delay + duration);   // ...and flip as it lands
+                c.faceUp = false;            // leave the deck face-down...
+                c.flipTo(faceUp, duration, delay);   // ...flipping over the whole flight
             }
             ++i;
         }
-    return i ? (i - 1) * perCard + duration + (flip ? flipTime : 0) : 0;
+    return i ? (i - 1) * perCard + duration : 0;
 }
 
 // Every currently-tweening card across `stacks`, ordered for drawing so a
