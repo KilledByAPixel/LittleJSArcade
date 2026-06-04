@@ -122,6 +122,18 @@ const homeSlots = 5;
 const homeXs = Array.from({length: homeSlots}, (_,i)=>
     (3 + i * (LEVEL_W-6)/(homeSlots-1))
 );
+// Lily pads gently sway side to side (a bit of movement, like the logs). This is
+// the current swayed CENTER x of pad i — used for drawing, home detection, the
+// reached-frogs, and the demo AI, so they all stay in sync with the moving pad.
+const HOME_SWAY_AMP  = 1.1;   // world units of horizontal sway
+const HOME_SWAY_FREQ = 0.6;   // sway speed (radians / second)
+function homePadX(i) {
+    return homeXs[i] + .5 + Math.sin(time * HOME_SWAY_FREQ + i * 1.7) * HOME_SWAY_AMP;
+}
+// Gentle up/down float on the water (like the logs' bob), per-pad phase.
+function homePadY(i) {
+    return Math.sin(time * 1.4 + i * 1.9) * .07;
+}
 
 // Game state
 let frog, cars = [], logs = [];
@@ -455,11 +467,11 @@ function frogWorldChecks() {
     if (frog.grid.y === HOME_Y) {
         let best = -1, bestDx = 999;
         for (let i=0;i<homeSlots;i++) {
-            const dx = Math.abs(frog.pos.x - (homeXs[i] + .5));
+            const dx = Math.abs(frog.pos.x - homePadX(i));
             if (dx < bestDx) { bestDx = dx; best = i; }
         }
-        if (bestDx < 1.3) reachHome(best);
-        else killFrog();
+        if (bestDx < 1.3 && !reached[best]) reachHome(best);
+        else killFrog();   // missed a pad, or it's already occupied → drown
     }
 }
 
@@ -612,37 +624,88 @@ function buildMenus() {
     showMenu('title');
 }
 
-// Cabinet demo: hop the frog forward whenever the next row is safe (a clear road
-// lane, or a log under the landing column on the river); otherwise wait a beat.
+// Cabinet demo helpers --------------------------------------------------------
+
+// Is it safe to land at world-x `landX` on row `ny`? Road = no car near (now or
+// soon); river = a log under the column; home = aligned with a FREE lily pad;
+// otherwise (start / median banks) safe.
+function laneSafe(ny, landX) {
+    if (ny < 0) return false;
+    if (ny >= ROAD_MIN_Y && ny <= ROAD_MAX_Y) {
+        for (const c of cars) {
+            if (Math.round(c.pos.y - .5) !== ny) continue;
+            const half = c.size.x/2 + .7;
+            if (abs(c.pos.x - landX) < half || abs((c.pos.x + c.vx*.45) - landX) < half) return false;
+        }
+        return true;
+    }
+    if (ny >= RIVER_MIN_Y && ny <= RIVER_MAX_Y) {
+        for (const l of logs)
+            if (Math.round(l.pos.y - .5) === ny && abs(l.pos.x - landX) < l.size.x/2 - .3) return true;
+        return false;
+    }
+    if (ny === HOME_Y) {
+        for (let i = 0; i < homeSlots; i++)
+            if (!reached[i] && abs(landX - homePadX(i)) < 1) return true;
+        return false;
+    }
+    return true;
+}
+
+// World-x of the nearest unfilled lily pad (or null if the board is full).
+function nearestFreePadX() {
+    let bx = null, bd = 1e9;
+    for (let i = 0; i < homeSlots; i++) {
+        if (reached[i]) continue;
+        const d = abs(frog.pos.x - homePadX(i));
+        if (d < bd) { bd = d; bx = homePadX(i); }
+    }
+    return bx;
+}
+
+// Cabinet demo: cross the frog — advance when the next row is safe, line up with
+// a free lily pad before going home, and dodge a car bearing down in its lane.
 function demoFrogAI() {
     if (respawnTimer.active()) return;
     demoHopTimer -= DT;
     if (demoHopTimer > 0) return;
 
-    const ny = frog.grid.y + 1;                  // row we'd advance into
-    const landX = gridToWorld(frog.grid.x, ny).x;
+    const gx = frog.grid.x, gy = frog.grid.y;
 
-    let canGoUp = true;
-    if (ny >= ROAD_MIN_Y && ny <= ROAD_MAX_Y) {
-        // road: wait if a car is at the landing column now or arrives soon
+    // a car bearing down on the frog in its current road lane?
+    let threatened = false;
+    if (gy >= ROAD_MIN_Y && gy <= ROAD_MAX_Y) {
         for (const c of cars) {
-            if (Math.round(c.pos.y - .5) !== ny) continue;
-            const half = c.size.x/2 + .7;
-            if (abs(c.pos.x - landX) < half || abs((c.pos.x + c.vx*.45) - landX) < half)
-            { canGoUp = false; break; }
+            if (Math.round(c.pos.y - .5) !== gy) continue;
+            const toFrog = frog.pos.x - c.pos.x;          // car moving toward the frog?
+            if (toFrog * c.dir > 0 && abs(toFrog) < c.size.x/2 + 3) { threatened = true; break; }
         }
-    } else if (ny >= RIVER_MIN_Y && ny <= RIVER_MAX_Y) {
-        // river: only advance if a log sits under the landing column
-        let onLog = false;
-        for (const l of logs) {
-            if (Math.round(l.pos.y - .5) !== ny) continue;
-            if (abs(l.pos.x - landX) < l.size.x/2 - .3) { onLog = true; break; }
-        }
-        canGoUp = onLog;
     }
 
-    if (canGoUp) { tryMove(0, 1); demoHopTimer = .26; }
-    else demoHopTimer = .1;   // re-check soon
+    // On the top river row, slide along the log to line up with a free pad first.
+    if (gy === RIVER_MAX_Y) {
+        const padX = nearestFreePadX();
+        if (padX !== null && abs(frog.pos.x - padX) > 1) {
+            const step = padX > frog.pos.x ? 1 : -1;
+            if (laneSafe(gy, gridToWorld(gx + step, gy).x)) { tryMove(step, 0); demoHopTimer = .2; return; }
+        }
+    }
+
+    // advance when the next row is safe (hop faster when a car is closing in)
+    if (laneSafe(gy + 1, gridToWorld(gx, gy + 1).x)) {
+        tryMove(0, 1);
+        demoHopTimer = threatened ? .14 : .26;
+        return;
+    }
+
+    // threatened and can't advance → dodge backward out of the lane
+    if (threatened && laneSafe(gy - 1, gridToWorld(gx, gy - 1).x)) {
+        tryMove(0, -1);
+        demoHopTimer = .14;
+        return;
+    }
+
+    demoHopTimer = .1;  // wait and re-check
 }
 
 function gameUpdate() {
@@ -1002,9 +1065,8 @@ function paintStaticBackground(ctx) {
     const riverH = (LEVEL_H - RIVER_MIN_Y);
     rect(vec2(cx, RIVER_MIN_Y + riverH/2), vec2(W, riverH), hsl(205/360,.65,.30));
 
-    // banks
+    // bank — only the river's lower edge (no brown line below the lily pads)
     rect(vec2(cx, RIVER_MIN_Y), vec2(W, .18), hsl(35/360,.5,.35));
-    rect(vec2(cx, RIVER_MAX_Y+1), vec2(W, .18), hsl(35/360,.5,.35));
 
     // grass tufts on median (between the road and the river — position varies
     // with lane counts)
@@ -1021,25 +1083,14 @@ function paintStaticBackground(ctx) {
         circ(vec2(x, y), .15, hsl(120/360,.6,.32));
     }
 
-    // home row (still water)
-    rect(vec2(cx, HOME_Y+.5), vec2(W, 1), hsl(205/360,.55,.27));
+    // home row — same water color as the river (one continuous strip)
+    rect(vec2(cx, HOME_Y+.5), vec2(W, 1), hsl(205/360,.65,.30));
 
-    // hedges between home slots
-    for (let i=0; i<=homeSlots; i++) {
-        const x0 = i===0 ? -OFFSCREEN_PAD : homeXs[i-1] + 1.4;
-        const x1 = i===homeSlots ? LEVEL_W + OFFSCREEN_PAD : homeXs[i] - .4;
-        const w = x1 - x0;
-        rect(vec2(x0 + w/2, HOME_Y+.5), vec2(w, 1), hsl(120/360,.6,.18));
-        for (let j=0; j<Math.floor(w*1.2); j++) {
-            circ(vec2(x0 + (j+.5)*w/(w*1.2|0), HOME_Y + .85 + (j%2)*.05), .15, hsl(120/360,.7,.26));
-        }
-    }
+    // No green banks between the pads — the whole home row is water, so the frog
+    // must land on a lily pad (missing it, or hitting an occupied one, drowns).
 
-    // home pads (lily pads) — static; the reached-home frogs animate on top
-    for (let i=0;i<homeSlots;i++) {
-        const p = vec2(homeXs[i]+.5, HOME_Y+.5);
-        drawTile(p, vec2(1.6, 1.0), sprites.lily, WHITE, 0, false, undefined, false, false, ctx);
-    }
+    // (lily pads are no longer baked here — they sway, so they're drawn live each
+    // frame in drawLilyPads())
 }
 
 // Build the offscreen background lazily, and repaint it whenever the lane
@@ -1071,18 +1122,24 @@ function drawWaterRipples() {
 }
 
 // Breathing frogs sitting on filled home pads (drawn live, not cached).
+// Lily pads — drawn live each frame so they can sway (see homePadX).
+function drawLilyPads() {
+    for (let i = 0; i < homeSlots; i++)
+        drawTile(vec2(homePadX(i), HOME_Y + .5 + homePadY(i)), vec2(1.6, 1.0), sprites.lily, WHITE);
+}
+
 function drawHomeFrogs() {
     for (let i=0;i<homeSlots;i++) {
         if (!reached[i]) continue;
         // Per-pad breathing phase so they don't all inhale in lockstep.
-        drawFrog(vec2(homeXs[i]+.5, HOME_Y+.5), vec2(0, 1), 0, i * 1.7);
+        drawFrog(vec2(homePadX(i), HOME_Y+.5 + homePadY(i)), vec2(0, 1), 0, i * 1.7);
     }
 }
 
 // Bonus fly sitting on an empty pad (drawn with primitives — atlas is full).
 function drawFly() {
     if (flySlot < 0) return;
-    const c = vec2(homeXs[flySlot]+.5, HOME_Y + .5 + Math.sin(time*8)*.04);
+    const c = vec2(homePadX(flySlot), HOME_Y + .5 + homePadY(flySlot) + Math.sin(time*8)*.04);
     const wa = .18 + Math.sin(time*30)*.05;            // fluttering wings
     drawEllipse(c.add(vec2(-.14,.06)), vec2(.30, wa), hsl(0,0,1,.6));
     drawEllipse(c.add(vec2( .14,.06)), vec2(.30, wa), hsl(0,0,1,.6));
@@ -1181,7 +1238,7 @@ function drawDebugCollision() {
     for (const l of logs) debugRect(l.pos, l.size, hsl(.5,1,.5));   // logs: cyan
     // home-slot capture windows: |x - slot| < 1.3 at the HOME_Y row (green)
     for (let i = 0; i < homeSlots; i++)
-        debugRect(vec2(homeXs[i]+.5, HOME_Y+.5), vec2(2.6, 1), hsl(.33,1,.5));
+        debugRect(vec2(homePadX(i), HOME_Y+.5), vec2(2.6, 1), hsl(.33,1,.5));
     // player frog: yellow (only while the live frog is on screen)
     if (isPlaying() && !gameOver && !respawnTimer.active())
         debugRect(frog.pos, frogSize, hsl(.15,1,.5));
@@ -1204,6 +1261,7 @@ function gameRender() {
     ensureBackground();
     bgLayer.draw(mainCanvasSize.scale(.5), mainCanvasSize, levelTint(), 0, false, undefined, true);
     drawWaterRipples();
+    drawLilyPads();
     drawHomeFrogs();
     drawFly();
 

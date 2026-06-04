@@ -76,6 +76,8 @@ let worldHalf = vec2(15, 9);
 let ship;
 let bullets = [];
 let rocks = [];
+// Arcade cabinet (#demo): an AI flies the ship + shoots asteroids (self-running demo).
+const inCabinet = /demo/.test(location.hash);
 let debris = [];
 let ufos = [];
 let ufoBullets = [];
@@ -112,6 +114,17 @@ const TAU = Math.PI * 2;
 const clamp01 = (v)=> clamp(v, 0, 1);
 
 function angleToVec(a) { return vec2(Math.sin(a), Math.cos(a)); } // up is 0 in LittleJS style
+
+// Shortest delta between two points in the wrapped (toroidal) world — used by
+// the demo AI to aim/dodge across the screen seams.
+function wrapDelta(d)
+{
+    const fw = worldHalf.x*2, fh = worldHalf.y*2;
+    let x = d.x, y = d.y;
+    if (x >  worldHalf.x) x -= fw; else if (x < -worldHalf.x) x += fw;
+    if (y >  worldHalf.y) y -= fh; else if (y < -worldHalf.y) y += fh;
+    return vec2(x, y);
+}
 
 function wrapPos(p)
 {
@@ -310,7 +323,7 @@ function addScore(points)
         nextExtraLifeAt += 10000;
         sExtraLife.play();
     }
-    submitBestScore(score);
+    if (!inCabinet) submitBestScore(score);   // the demo never banks a best
 }
 
 function explodeAt(pos, intensity=1)
@@ -346,6 +359,9 @@ class Ship extends EngineObject
     {
         if (gameOver) return;
         if (this.dead) return;
+
+        // Cabinet (#demo): an AI flies + shoots instead of human input.
+        if (inCabinet) { this.demoControl(); return; }
 
         // analog stick (touch or physical gamepad merged into the same API)
         const stick = gamepadStick(0);
@@ -413,6 +429,63 @@ class Ship extends EngineObject
         }
 
         // move
+        this.pos = this.pos.add(this.velocity);
+        wrapPos(this.pos);
+    }
+
+    // Cabinet demo: aim at the nearest rock and shoot; flee when one gets close.
+    demoControl()
+    {
+        let target = null, td = 1e9, tdelta = null;
+        for (const r of rocks)
+        {
+            if (r.destroyed) continue;
+            const d = wrapDelta(r.pos.subtract(this.pos));
+            const dist = d.length();
+            if (dist < td) { td = dist; target = r; tdelta = d; }
+        }
+
+        let aimAngle = this.angle, dodge = false;
+        if (target)
+        {
+            const danger = target.size.x*.5 + SHIP_RADIUS + 2.2;
+            if (td < danger)
+            {
+                dodge = true;                                  // too close — face away + thrust
+                aimAngle = Math.atan2(-tdelta.x, -tdelta.y);
+            }
+            else
+            {
+                const lead = clamp(td / BULLET_SPEED, 0, 60);  // lead the rock's drift
+                const aim = tdelta.add(target.velocity.scale(lead));
+                aimAngle = Math.atan2(aim.x, aim.y);
+            }
+        }
+
+        // rotate toward the aim, capped by turn speed
+        const diff = Math.atan2(Math.sin(aimAngle - this.angle), Math.cos(aimAngle - this.angle));
+        this.angle += clamp(diff, -SHIP_TURN_SPEED, SHIP_TURN_SPEED);
+        const aligned = abs(diff) < .22;
+
+        // thrust hard to flee when dodging; otherwise keep a gentle drift going so
+        // the ship actually flies around instead of sitting still while it aims
+        const speed = this.velocity.length();
+        if (aligned && (dodge || speed < SHIP_MAX_SPEED * .45))
+            this.velocity = this.velocity.add(angleToVec(this.angle).scale(SHIP_THRUST));
+
+        // same manual damping + speed clamp as the human path
+        this.velocity = this.velocity.scale(SHIP_DAMPING);
+        if (this.velocity.lengthSquared() > SHIP_MAX_SPEED*SHIP_MAX_SPEED)
+            this.velocity = this.velocity.normalize(SHIP_MAX_SPEED);
+
+        // fire when locked onto a rock (and not fleeing)
+        if (target && !dodge && aligned && bullets.length < BULLET_MAX &&
+            (!shootTimer.isSet() || shootTimer.elapsed()))
+        {
+            shootTimer.set(BULLET_COOLDOWN);
+            this.fire();
+        }
+
         this.pos = this.pos.add(this.velocity);
         wrapPos(this.pos);
     }
@@ -860,6 +933,13 @@ function gameInit()
 
     buildMenus();
     spawnAttractField();
+
+    if (inCabinet)
+    {
+        // self-run the AI demo behind the (hidden) menu chrome
+        startGame();
+        if (typeof hideAllMenus === 'function') hideAllMenus();
+    }
 }
 
 function buildMenus()
@@ -975,7 +1055,8 @@ function gameUpdate()
         if (gameOverTimer.isSet() && gameOverTimer.elapsed())
         {
             gameOverTimer.unset();
-            if (typeof showMenu === 'function') showMenu('gameOver');
+            if (inCabinet) startGame();   // loop the demo
+            else if (typeof showMenu === 'function') showMenu('gameOver');
         }
         return;
     }
@@ -1166,7 +1247,7 @@ function gameRender()
 
 function gameRenderPost()
 {
-    if (!isPlaying()) return; // title screen \u2014 menu owns the display
+    if (!isPlaying() || inCabinet) return; // no HUD on the title or the cabinet demo
 
     // HUD
     const hud = `SCORE  ${score}\nLIVES  ${Math.max(0,lives)}   LEVEL  ${level}`;

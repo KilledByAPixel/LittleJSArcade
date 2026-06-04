@@ -395,8 +395,8 @@ function startLevel()
     }
     
     // Show level announcement for 2 seconds (120 frames). The attract title has
-    // no level intro — the formation starts marching immediately.
-    levelAnnounce = isPlaying() ? 120 : 0;
+    // no level intro — and the cabinet demo jumps straight into the action.
+    levelAnnounce = (isPlaying() && !inCabinet) ? 120 : 0;
 
     createBarriers();
     createAliens();
@@ -1421,8 +1421,9 @@ function loseLife()
     // Hide player during respawn wait (don't move them, just hide)
     playerHidden = true;
     
-    // Start respawn timer (2 seconds = 120 frames)
-    respawnTimer = 120;
+    // Start respawn timer (2 seconds = 120 frames). The cabinet demo barely
+    // pauses on death — it jumps straight back into the action.
+    respawnTimer = inCabinet ? 20 : 120;
 }
 
 function doRespawn()
@@ -1443,8 +1444,9 @@ function doRespawn()
     player.pos = vec2(levelSize.x/2, playerY);
     playerHidden = false; // show player again
     
-    // Show level announcement again (player must wait before shooting)
-    levelAnnounce = 120;
+    // Show level announcement again (player must wait before shooting) — but the
+    // cabinet demo skips it and resumes firing immediately.
+    levelAnnounce = inCabinet ? 0 : 120;
 }
 
 function doGameOver()

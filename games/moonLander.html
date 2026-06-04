@@ -46,6 +46,16 @@ const CAMERA_SCALE_NEAR = 60;      // close-up near pad
 const CAMERA_SCALE_DEMO = 18;      // title attract: wider, calmer static framing
 const CAMERA_ZOOM_IN_DIST  = 8;    // fully zoomed in inside this distance
 const CAMERA_ZOOM_OUT_DIST = 18;   // start zooming in inside this distance
+// In-flight camera uses cameraFit (canvas-size-independent): it frames a box
+// around the ship + pad, never smaller than this, so the touchdown isn't
+// over-zoomed on the now-responsive canvas (~2x wider than a tight close-up).
+const CAMERA_FIT_MIN    = vec2(30, 22);  // smallest framed box, world units
+const CAMERA_FIT_MARGIN = 3;             // breathing room around the ship + pad
+// Menu (resting lander): frame the surface near the bottom with sky above so the
+// lander isn't buried deep in the ground.
+const CAMERA_MENU_SKY    = 18;   // world units of sky shown above the surface
+const CAMERA_MENU_GROUND = 2.5;  // world units of ground shown below the surface
+const CAMERA_MENU_MINW   = 18;   // minimum framed width (world units)
 
 let icons;                         // default-atlas icon map (name -> TileInfo)
 let player, landingPad;
@@ -56,6 +66,7 @@ let lastLevelScore = 0;
 let messageTimer = new Timer();
 let camTarget = vec2();
 let camScale = CAMERA_SCALE_FAR;
+let camSize = CAMERA_FIT_MIN.copy();   // current framed box size for cameraFit
 let lastTouchdownSpeed = 0;        // speed at moment of ground contact (for scoring)
 
 // terrain state (analytic, generated per level)
@@ -168,16 +179,8 @@ function startLevel(n)
     camScale = CAMERA_SCALE_FAR;
     cameraScale = camScale;
 
-    // at the title the lander just rests on its pad — compose a calmer, wider
-    // static shot (zoomed out a touch, pad sitting low with sky above) rather
-    // than the close-up the gameplay camera would otherwise hold here
-    if (!isPlaying())
-    {
-        camTarget = vec2(player.pos.x, getTerrainY(player.pos.x) + 7);
-        cameraPos = camTarget.copy();
-        camScale = CAMERA_SCALE_DEMO;
-        cameraScale = camScale;
-    }
+    // the title's resting-lander framing is handled every frame by
+    // frameMenuCamera() (in gameUpdatePost) so it adapts to the canvas size
 }
 
 function startGame()
@@ -678,31 +681,52 @@ function gameUpdate()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Title attract: frame the resting lander + the pad with the surface near the
+// bottom of the screen and sky above (so it isn't buried deep in the ground).
+function frameMenuCamera()
+{
+    if (!player || !landingPad) return;
+    const ship = player.pos, pad = landingPad.pos;
+    const surfY = min(ship.y - 1.5, pad.y);                 // ground level beneath them
+    const center = vec2((ship.x + pad.x) / 2, surfY);
+    const box = vec2(max(abs(ship.x - pad.x) + 8, CAMERA_MENU_MINW), 1);
+    camTarget = center.copy();
+    camSize = box.copy();
+    cameraFit(center, box, {margin: {top: CAMERA_MENU_SKY, bottom: CAMERA_MENU_GROUND}});
+}
+
 function gameUpdatePost()
 {
+    // Title attract: frame the resting lander every frame (adapts to canvas size).
+    // gameState is 1 here, so this must run before the win/crash freeze below.
+    if (!isPlaying())
+    {
+        frameMenuCamera();
+        return;
+    }
+
     if (gameState)
-        return; // freeze camera on win/crash
+        return; // freeze camera on win/crash (real game)
 
     if (landingPad && player && !player.destroyed)
     {
-        const d = player.pos.subtract(landingPad.pos).length();
-        const raw = (CAMERA_ZOOM_OUT_DIST - d) / (CAMERA_ZOOM_OUT_DIST - CAMERA_ZOOM_IN_DIST);
-        const z = smoothStep(clamp(raw, 0, 1));
-
-        const mid = player.pos.lerp(landingPad.pos, .5);
-        camTarget = mid.lerp(player.pos, z);
-
-        cameraPos = cameraPos.lerp(camTarget, lerp(.06, .18, z));
-
-        const desiredScale = lerp(CAMERA_SCALE_FAR, CAMERA_SCALE_NEAR, z);
-        camScale = lerp(camScale, desiredScale, .07);
-        cameraScale = camScale;
+        // Frame a box around the ship + pad, centered between them, never smaller
+        // than CAMERA_FIT_MIN so touchdown isn't over-zoomed. cameraFit derives
+        // cameraPos + cameraScale, keeping the view consistent across canvas sizes.
+        const ship = player.pos, pad = landingPad.pos;
+        const target = ship.lerp(pad, .5);
+        const box = vec2(
+            max(abs(ship.x - pad.x), CAMERA_FIT_MIN.x),
+            max(abs(ship.y - pad.y), CAMERA_FIT_MIN.y));
+        camTarget = camTarget.lerp(target, .12);
+        camSize   = camSize.lerp(box, .08);
+        cameraFit(camTarget, camSize, {margin: CAMERA_FIT_MARGIN});
     }
     else
     {
-        cameraPos = cameraPos.lerp(camTarget, .15);
-        camScale = lerp(camScale, CAMERA_SCALE_FAR, .07);
-        cameraScale = camScale;
+        camTarget = camTarget.lerp(player ? player.pos : camTarget, .12);
+        camSize   = camSize.lerp(CAMERA_FIT_MIN, .05);
+        cameraFit(camTarget, camSize, {margin: CAMERA_FIT_MARGIN});
     }
 }
 
