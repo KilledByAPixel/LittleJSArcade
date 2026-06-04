@@ -890,14 +890,8 @@
         transition: border-color .12s, background .12s, color .12s;
     }
     .hero-shuffle:hover { border-color: var(--accent); background: rgba(127,127,127,.20); color: var(--text); }
-    /* Auto-advance countdown, shown under the shuffle button while it ticks. */
-    .hero-next {
-        align-self: flex-start; margin-top: 2px;
-        font-size: 11px; letter-spacing: 1px; font-weight: 600;
-        color: var(--accent-2); text-transform: uppercase;
-        opacity: 0; transition: opacity .2s; pointer-events: none;
-    }
-    .hero-next.show { opacity: 1; }
+    /* While the auto-advance counts down, the NOW PLAYING / FEATURED line shows it. */
+    .hero-now.counting { color: var(--accent-2); }
     /* Narrow viewports: stack the screen above the panel. */
     @media (max-width: 720px) {
         #hero-cabinet { flex-direction: column; }
@@ -1653,29 +1647,33 @@ let heroCountdown = HERO_COUNTDOWN;
 let heroHover = false;
 let _heroTimerStarted = false;
 
+// The cabinet's status line normally shows NOW PLAYING / ★ FEATURED; during the
+// auto-advance countdown it shows "next game in Ns" in that same spot instead.
+function heroNowLabel() {
+    return isFeatured(heroFile) ? '★ FEATURED' : '▸ NOW PLAYING';
+}
+
 function resetHeroTimer() {
     heroHold = 0;
     heroCountdown = HERO_COUNTDOWN;
-    const el = document.querySelector('#hero-cabinet .hero-next');
-    if (el) { el.textContent = ''; el.classList.remove('show'); }
+    const nowEl = document.querySelector('#hero-cabinet .hero-now');
+    if (nowEl) { nowEl.textContent = heroNowLabel(); nowEl.classList.remove('counting'); }
 }
 
 function tickHeroTimer() {
-    const el = document.querySelector('#hero-cabinet .hero-next');
-    if (!el) return;
+    const nowEl = document.querySelector('#hero-cabinet .hero-now');
+    if (!nowEl) return;
     // Only run on the welcome floor — pause entirely while a game fills the stage.
     if (document.body.classList.contains('in-game')) return;
 
     const dt = 0.25;
-    if (heroHover) {
-        // Paused: hide + reset so the countdown restarts fresh when the mouse leaves.
-        heroCountdown = HERO_COUNTDOWN;
-        el.classList.remove('show');
-        return;
-    }
-    if (heroHold < HERO_HOLD_TIME) {
-        heroHold += dt;
-        el.classList.remove('show');
+    // Hovering, or still within the hold window → show the normal label. On hover
+    // also reset the countdown so it restarts fresh once the mouse leaves.
+    if (heroHover || heroHold < HERO_HOLD_TIME) {
+        if (heroHover) heroCountdown = HERO_COUNTDOWN;
+        else heroHold += dt;
+        nowEl.textContent = heroNowLabel();
+        nowEl.classList.remove('counting');
         return;
     }
     heroCountdown -= dt;
@@ -1683,8 +1681,8 @@ function tickHeroTimer() {
         advanceDemo();   // loads the next game (setHero resets the timer)
         return;
     }
-    el.textContent = '▸ next game in ' + Math.ceil(heroCountdown) + 's';
-    el.classList.add('show');
+    nowEl.textContent = '▸ NEXT GAME IN ' + Math.ceil(heroCountdown) + 's';
+    nowEl.classList.add('counting');
 }
 
 function buildHero() {
@@ -1702,7 +1700,6 @@ function buildHero() {
             '<span class="hero-score score-badge" hidden></span>' +
             '<span class="hero-coin">▶ INSERT COIN</span>' +
             '<button class="hero-shuffle" title="Show a different game" aria-label="Show a different game">🔀 Show a different game</button>' +
-            '<span class="hero-next" aria-hidden="true"></span>' +
         '</div>';
     // The whole cabinet is one big PLAY button; the iframe ignores pointer events.
     wrap.addEventListener('click', () => { if (heroFile) selectGame(heroFile); });
