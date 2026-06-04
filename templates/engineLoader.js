@@ -62,5 +62,10 @@
     // exist until the tag above executes — but classic scripts share one global lexical
     // scope, so this inline script (parser-blocking, runs right after the engine is
     // defined and before any game's engineInit) can flip them.
-    document.write('<script>showEngineVersion=false;<\/script>');
+    document.write(`<script>
+        showEngineVersion=false;
+        canvasMaxSize = vec2(2048);
+        canvasMinAspect = .4;
+        canvasMaxAspect = 2.5;
+    <\/script>`);
 }
