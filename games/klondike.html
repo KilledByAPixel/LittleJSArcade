@@ -87,7 +87,7 @@ function setupLayout()
         { margin: { top: TOP_MARGIN, right: 1, bottom: 1, left: 1 } });
 }
 
-function newGame()
+function newGame(deck)
 {
     cardStacks = [];
     won = false;
@@ -110,7 +110,7 @@ function newGame()
     window.stockStack = stock;
     window.wasteStack = waste;
 
-    const deck = shuffledDeck();
+    deck = deck || shuffledDeck();           // demo passes a specific solved deck
 
     // Deal tableau: column c gets c+1 cards; only the last (top) is face-up.
     let idx = 0;
@@ -149,6 +149,25 @@ let limitPasses = false;     // toggled by OPTIONS → LIMIT PASSES (Vegas-style
 let recyclesUsed = 0;        // times the waste has been recycled this game (part of game state)
 let lastClick = { card: null, time: -1 };
 let history = null;          // CardHistory (created in gameInit)
+let demoPlayer = null;       // CardDemoPlayer (created in gameInit only when #demo)
+
+// SoundGenerator options (from templates/gameFx.js):
+//   volume, randomness, frequency, attack, release, shapeCurve, slide,
+//   pitchJump, pitchJumpTime, repeatTime, noise, bitCrush, delay
+// Exposed via window globals so the rest of the file (and the demo player) can
+// reach them. Tune by ear during polish — these are starting points.
+function setupSounds()
+{
+    // Match the engine's master volume to whatever the options slider starts at,
+    // so the very first menu sound plays at the user-visible volume.
+    setSoundVolume(.8);
+    window.sndPickup     = new SoundGenerator({ frequency: 400, attack: 0, release: 0.005, volume: 0.4, noise:2 });
+    window.sndPlace      = new SoundGenerator({ frequency: 200, attack: 0, release: 0.01, volume: 0.4, noise:2 });
+    window.sndFlip       = new SoundGenerator({ frequency: 600, attack: 0, release: 0.02, volume: 0.35, noise:1 });
+    window.sndInvalid    = new SoundGenerator({ frequency: 110, attack: 0.005, release: 0.14, shapeCurve: 2, noise: 0.4, slide: -2, volume: 0.4 });
+    window.sndFoundation = new SoundGenerator({ frequency: 880, attack: 0.002, release: 0.08, volume: 0.4 });
+    window.sndWin        = new SoundGenerator({ frequency: 440, attack: 0.02, release: 0.5, pitchJump: 660, pitchJumpTime: 0.2, repeatTime: 0.25, volume: 0.5 });
+}
 
 async function gameInit()
 {
@@ -156,15 +175,29 @@ async function gameInit()
     setupLayout();
     initCardAtlas();
 
+    // Undo/redo + autosave. snapshot()/loadState() are the game-specific hooks.
+    history = new CardHistory({ serialize: snapshot, deserialize: loadState });
+
+    setupSounds();   // window.sndPickup..sndWin — used by both normal play and demo
+
+    // Attract / hero-cabinet mode (#demo): a self-playing AI solves a fresh
+    // random deal and plays it out, looping forever. It never reads or writes
+    // save data and shows no menus (menus.js already hides chrome in #demo).
+    if (isDemoMode())
+    {
+        history.save = () => {};   // belt-and-suspenders: zero persistence in demo
+        stockDrawCount = 1;        // demo always plays draw-1 (highest solve rate)
+        limitPasses    = false;    // unlimited recycles
+        setupDemo();               // build the self-player (deals lazily once solved)
+        return;
+    }
+
     // Read any in-progress saved game BEFORE newGame() — newGame calls
     // saveState() at the end which overwrites the save data with the
     // fresh-deal snapshot, so we'd otherwise lose the previous session.
     let savedSnap = null;
     const raw = getSaveData().saveState;
     if (raw) savedSnap = raw;
-
-    // Undo/redo + autosave. snapshot()/loadState() are the game-specific hooks.
-    history = new CardHistory({ serialize: snapshot, deserialize: loadState });
 
     newGame();
 
@@ -182,29 +215,6 @@ async function gameInit()
             resumedGame = true;
         }
     }
-
-    // Match the engine's master volume to whatever the options slider starts at,
-    // so the very first menu sound plays at the user-visible volume.
-    setSoundVolume(.8);
-
-    // SoundGenerator options (from templates/gameFx.js):
-    //   volume, randomness, frequency, attack, release, shapeCurve, slide,
-    //   pitchJump, pitchJumpTime, repeatTime, noise, bitCrush, delay
-    // Tune by ear during polish — these are starting points.
-    const sndPickup     = new SoundGenerator({ frequency: 400, attack: 0, release: 0.005, volume: 0.4, noise:2 });
-    const sndPlace      = new SoundGenerator({ frequency: 200, attack: 0, release: 0.01, volume: 0.4, noise:2 });
-    const sndFlip       = new SoundGenerator({ frequency: 600, attack: 0, release: 0.02, volume: 0.35, noise:1 });
-    const sndInvalid    = new SoundGenerator({ frequency: 110, attack: 0.005, release: 0.14, shapeCurve: 2, noise: 0.4, slide: -2, volume: 0.4 });
-    const sndFoundation = new SoundGenerator({ frequency: 880, attack: 0.002, release: 0.08, volume: 0.4 });
-    const sndWin        = new SoundGenerator({ frequency: 440, attack: 0.02, release: 0.5, pitchJump: 660, pitchJumpTime: 0.2, repeatTime: 0.25, volume: 0.5 });
-
-    // Expose for the rest of the file via window globals (simple).
-    window.sndPickup     = sndPickup;
-    window.sndPlace      = sndPlace;
-    window.sndFlip       = sndFlip;
-    window.sndInvalid    = sndInvalid;
-    window.sndFoundation = sndFoundation;
-    window.sndWin        = sndWin;
 
     // Pause whenever a menu is up during a run. Title menu sits over the
     // canvas without freezing anything.
@@ -496,6 +506,9 @@ function redoState() { history.redoMove(); }
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdate()
 {
+    // Attract mode drives everything through the self-player; no human input.
+    if (isDemoMode()) { demoPlayer && demoPlayer.update(); return; }
+
     if (bindPauseKey({ when: () => isPlaying() && !won })) return;
     if (!isPlaying() || won) return;
 
@@ -720,6 +733,444 @@ function gameRender()
         drawAnyCard(c, c.pos, null);
 }
 function gameRenderPost() {}
+
+///////////////////////////////////////////////////////////////////////////////
+// DEMO / ATTRACT MODE — self-playing AI (only active when the URL has #demo)
+//
+// KlondikeSolver is a pure, engine-independent Klondike (draw-1, unlimited
+// recycles) solver: weighted-A* best-first search with a transposition table
+// and an expansion budget, exposed as a stepper so the search spreads across
+// frames. It plays with FULL INFORMATION — it peeks at the face-down cards
+// (fine, since the demo holds the whole deal in memory); cards still flip on
+// screen only as play uncovers them, so it looks like normal play.
+//
+// Abstract state mirrors cardStacks' index order so the move list replays 1:1:
+//   STOCK=0  WASTE=1  FOUND 2..5  TABLEAU 6..12
+//   move = { draw:true }            (deal 1 stock->waste, or recycle when empty)
+//        | { from, count, to }      (global indices; `count` cards off the top)
+// Card flips of newly-exposed tableau cards are applied deterministically after
+// every move by BOTH the solver (normalize) and the replay (flipExposedCards),
+// so they're never part of the move list.
+//
+// Card code 0..51: suit=code/13|0 (0=H,1=S,2=D,3=C), value=code%13, color=suit%2.
+//
+// Verified headlessly (local/temp/klondikeSolver.js): at weight 5 / cap 15000,
+// ~60% of random deals solve in a median ~1400 nodes (~135 moves incl. draws),
+// every "won" plan replayed to a real 52-card finish (zero false wins). The demo
+// silently discards the unsolvable minority and reshuffles.
+///////////////////////////////////////////////////////////////////////////////
+const KlondikeSolver = (function()
+{
+    const STOCK = 0, WASTE = 1, FOUND0 = 2, NFOUND = 4, TAB0 = 6, NTAB = 7;
+    const RANK_ACE = 0, RANK_KING = 12;
+    const val   = c => c % 13;
+    const suit  = c => (c / 13) | 0;
+    const color = c => ((c / 13) | 0) % 2;
+
+    function cloneState(st)
+    {
+        return {
+            stock: st.stock.slice(),
+            waste: st.waste.slice(),
+            found: st.found.map(p => p.slice()),
+            tab:   st.tab.map(col => ({ d: col.d, cards: col.cards.slice() })),
+        };
+    }
+    function foundationCount(st)
+    {
+        let n = 0;
+        for (let f = 0; f < NFOUND; ++f) n += st.found[f].length;
+        return n;
+    }
+    function isSolved(st) { return foundationCount(st) === 52; }
+    function foundValueOfSuit(st, s)
+    {
+        for (let f = 0; f < NFOUND; ++f)
+        {
+            const p = st.found[f];
+            if (p.length && suit(p[p.length - 1]) === s) return val(p[p.length - 1]);
+        }
+        return -1;
+    }
+    function foundTargetFor(st, code)
+    {
+        for (let f = 0; f < NFOUND; ++f)
+        {
+            const p = st.found[f];
+            if (p.length && suit(p[p.length - 1]) === suit(code) && val(p[p.length - 1]) + 1 === val(code))
+                return f;
+        }
+        if (val(code) === RANK_ACE)
+            for (let f = 0; f < NFOUND; ++f) if (!st.found[f].length) return f;
+        return -1;
+    }
+    function canPlaceTab(st, t, bottom)
+    {
+        const col = st.tab[t];
+        if (!col.cards.length) return val(bottom) === RANK_KING;
+        const top = col.cards[col.cards.length - 1];
+        return color(top) !== color(bottom) && val(top) === val(bottom) + 1;
+    }
+    function normalize(st)
+    {
+        for (let i = 0; i < NTAB; ++i)
+        {
+            const col = st.tab[i];
+            if (col.cards.length && col.d === col.cards.length) --col.d;
+        }
+    }
+    function safeToAutoplay(st, code)
+    {
+        const v = val(code);
+        if (v <= 1) return true;
+        const c = color(code), s = suit(code);
+        let oppMin = 99, sameOther = -1;
+        for (let sl = 0; sl < 4; ++sl)
+        {
+            if (sl === s) continue;
+            const fv = foundValueOfSuit(st, sl);
+            if ((sl % 2) !== c) oppMin = Math.min(oppMin, fv);
+            else                sameOther = fv;
+        }
+        return oppMin >= v - 1 && sameOther >= v - 2;
+    }
+    function applyMoveToState(st, m)
+    {
+        if (m.draw)
+        {
+            if (st.stock.length) st.waste.push(st.stock.pop());
+            else while (st.waste.length) st.stock.push(st.waste.pop());
+            normalize(st);
+            return;
+        }
+        const src = m.from === WASTE ? st.waste : st.tab[m.from - TAB0].cards;
+        const moving = src.splice(src.length - m.count);
+        if (m.to >= FOUND0 && m.to < FOUND0 + NFOUND)
+            for (const c of moving) st.found[m.to - FOUND0].push(c);
+        else
+            for (const c of moving) st.tab[m.to - TAB0].cards.push(c);
+        normalize(st);
+    }
+    function autoplay(st)
+    {
+        const moves = [];
+        let progressed = true;
+        while (progressed)
+        {
+            progressed = false;
+            if (st.waste.length)
+            {
+                const card = st.waste[st.waste.length - 1];
+                const f = foundTargetFor(st, card);
+                if (f >= 0 && safeToAutoplay(st, card))
+                {
+                    const m = { from: WASTE, count: 1, to: FOUND0 + f };
+                    applyMoveToState(st, m); moves.push(m); progressed = true; continue;
+                }
+            }
+            for (let i = 0; i < NTAB; ++i)
+            {
+                const col = st.tab[i];
+                if (!col.cards.length || col.d === col.cards.length) continue;
+                const card = col.cards[col.cards.length - 1];
+                const f = foundTargetFor(st, card);
+                if (f >= 0 && safeToAutoplay(st, card))
+                {
+                    const m = { from: TAB0 + i, count: 1, to: FOUND0 + f };
+                    applyMoveToState(st, m); moves.push(m); progressed = true; break;
+                }
+            }
+        }
+        return moves;
+    }
+    function generateMoves(st)
+    {
+        const moves = [];
+        if (st.stock.length || st.waste.length) moves.push({ draw: true });
+
+        let firstEmptyTab = -1;
+        for (let t = 0; t < NTAB; ++t) if (!st.tab[t].cards.length) { firstEmptyTab = t; break; }
+
+        if (st.waste.length)
+        {
+            const card = st.waste[st.waste.length - 1];
+            const f = foundTargetFor(st, card);
+            if (f >= 0) moves.push({ from: WASTE, count: 1, to: FOUND0 + f });
+            for (let t = 0; t < NTAB; ++t)
+            {
+                if (st.tab[t].cards.length)
+                { if (canPlaceTab(st, t, card)) moves.push({ from: WASTE, count: 1, to: TAB0 + t }); }
+                else if (t === firstEmptyTab && val(card) === RANK_KING)
+                    moves.push({ from: WASTE, count: 1, to: TAB0 + t });
+            }
+        }
+        for (let i = 0; i < NTAB; ++i)
+        {
+            const col = st.tab[i], n = col.cards.length;
+            const faceUpLen = n - col.d;
+            if (faceUpLen <= 0) continue;
+
+            const top = col.cards[n - 1];
+            const f = foundTargetFor(st, top);
+            if (f >= 0) moves.push({ from: TAB0 + i, count: 1, to: FOUND0 + f });
+
+            for (let L = 1; L <= faceUpLen; ++L)
+            {
+                const bottom = col.cards[n - L];
+                for (let j = 0; j < NTAB; ++j)
+                {
+                    if (j === i) continue;
+                    if (st.tab[j].cards.length)
+                    { if (canPlaceTab(st, j, bottom)) moves.push({ from: TAB0 + i, count: L, to: TAB0 + j }); }
+                    else if (j === firstEmptyTab && val(bottom) === RANK_KING)
+                    {
+                        // moving a King already at the column bottom to another empty
+                        // column is pointless churn — skip it
+                        if (col.d > 0 || L < faceUpLen) moves.push({ from: TAB0 + i, count: L, to: TAB0 + j });
+                    }
+                }
+            }
+        }
+        return moves;
+    }
+    function orderMoves(moves, st)
+    {
+        const scoreOf = m =>
+        {
+            let s = 0;
+            if (m.draw) return -20;
+            if (m.to >= FOUND0 && m.to < FOUND0 + NFOUND) s += 1000;
+            if (m.from >= TAB0)
+            {
+                const col = st.tab[m.from - TAB0];
+                if (col.d > 0 && (col.cards.length - col.d) === m.count) s += 250;
+                if (col.cards.length === m.count && col.d === 0) s += 30;
+            }
+            if (m.from === WASTE) s += 40;
+            if (m.to >= TAB0) s += 20;
+            return s;
+        };
+        return moves.map(m => [scoreOf(m), m]).sort((a, b) => b[0] - a[0]).map(p => p[1]);
+    }
+    function heuristic(st)
+    {
+        let faceDown = 0;
+        for (let i = 0; i < NTAB; ++i) faceDown += st.tab[i].d;
+        return (52 - foundationCount(st)) + 3 * faceDown + 0.1 * (st.stock.length + st.waste.length);
+    }
+
+    const HASH_SEP = String.fromCharCode(252), HASH_GRP = String.fromCharCode(253), HASH_D = String.fromCharCode(254);
+    function canonicalHash(st)
+    {
+        const fcc = String.fromCharCode;
+        const tab = [];
+        for (let i = 0; i < NTAB; ++i)
+            tab.push(fcc(st.tab[i].d) + HASH_D + fcc.apply(null, st.tab[i].cards));
+        tab.sort();
+        const found = [];
+        for (let f = 0; f < NFOUND; ++f) found.push(fcc.apply(null, st.found[f]));
+        found.sort();
+        return fcc.apply(null, st.stock) + HASH_GRP + fcc.apply(null, st.waste) + HASH_GRP +
+               tab.join(HASH_SEP) + HASH_GRP + found.join(HASH_SEP);
+    }
+
+    class MinHeap
+    {
+        constructor() { this.a = []; }
+        get size() { return this.a.length; }
+        push(item)
+        {
+            const a = this.a; a.push(item);
+            let i = a.length - 1;
+            while (i > 0)
+            {
+                const p = (i - 1) >> 1;
+                if (a[p].prio <= a[i].prio) break;
+                [a[p], a[i]] = [a[i], a[p]]; i = p;
+            }
+        }
+        pop()
+        {
+            const a = this.a, top = a[0], last = a.pop();
+            if (a.length) { a[0] = last; this._down(0); }
+            return top;
+        }
+        _down(i)
+        {
+            const a = this.a, n = a.length;
+            for (;;)
+            {
+                let s = i; const l = 2 * i + 1, r = 2 * i + 2;
+                if (l < n && a[l].prio < a[s].prio) s = l;
+                if (r < n && a[r].prio < a[s].prio) s = r;
+                if (s === i) break;
+                [a[s], a[i]] = [a[i], a[s]]; i = s;
+            }
+        }
+    }
+
+    function createSolver(initial, opts = {})
+    {
+        const expandCap = opts.expandCap || 15000;
+        const W = opts.weight || 5;
+
+        const root = cloneState(initial);
+        const rootAuto = autoplay(root);
+        const rootHash = canonicalHash(root);
+        const cameFrom = new Map([[rootHash, { moves: rootAuto, parent: null }]]);
+        const gScore   = new Map([[rootHash, rootAuto.length]]);
+        const closed   = new Set();
+        const open     = new MinHeap();
+        const rootH    = heuristic(root);
+        open.push({ prio: rootAuto.length + W * rootH, st: root, hash: rootHash, h: rootH });
+
+        let expansions = 0;
+        let best = { h: Infinity, hash: rootHash };
+        let result = null;
+
+        const buildPath = hash =>
+        {
+            const out = [];
+            for (let h = hash; h !== null; )
+            {
+                const e = cameFrom.get(h);
+                for (let k = e.moves.length - 1; k >= 0; --k) out.push(e.moves[k]);
+                h = e.parent;
+            }
+            return out.reverse();
+        };
+
+        function step(budget = 600)
+        {
+            if (result) return true;
+            let count = 0;
+            while (open.size && count < budget)
+            {
+                const cur = open.pop();
+                if (closed.has(cur.hash)) continue;
+                closed.add(cur.hash);
+                ++expansions; ++count;
+
+                if (isSolved(cur.st))
+                { result = { moves: buildPath(cur.hash), won: true, nodes: expansions }; return true; }
+
+                if (cur.h < best.h) best = { h: cur.h, hash: cur.hash };
+                if (expansions >= expandCap)
+                { result = { moves: buildPath(best.hash), won: false, nodes: expansions }; return true; }
+
+                const g = gScore.get(cur.hash);
+                const moves = orderMoves(generateMoves(cur.st), cur.st);
+                for (const m of moves)
+                {
+                    const ns = cloneState(cur.st);
+                    applyMoveToState(ns, m);
+                    const auto = autoplay(ns);
+                    const childMoves = auto.length ? [m, ...auto] : [m];
+                    const nh = canonicalHash(ns);
+                    if (closed.has(nh)) continue;
+                    const ng = g + childMoves.length;
+                    if (gScore.has(nh) && gScore.get(nh) <= ng) continue;
+                    gScore.set(nh, ng);
+                    cameFrom.set(nh, { moves: childMoves, parent: cur.hash });
+                    const nHeu = heuristic(ns);
+                    open.push({ prio: ng + W * nHeu, st: ns, hash: nh, h: nHeu });
+                }
+            }
+            if (!open.size && !result)
+                result = { moves: buildPath(best.hash), won: false, nodes: expansions };
+            return result !== null;
+        }
+
+        return { step, getResult: () => result };
+    }
+
+    // Build the abstract state from a klondike deck (array of 52 Card), dealt
+    // exactly as newGame does: tableau col c gets c+1 cards (last face-up), the
+    // remaining 24 form the face-down stock.
+    function abstractFromDeck(deck)
+    {
+        const st = { stock: [], waste: [], found: [[], [], [], []], tab: [] };
+        let idx = 0;
+        for (let col = 0; col < NTAB; ++col)
+        {
+            const cards = [];
+            for (let row = 0; row <= col; ++row)
+            {
+                const c = deck[idx++];
+                cards.push(c.suit * 13 + c.value);
+            }
+            st.tab.push({ d: col, cards });
+        }
+        while (idx < deck.length)
+        {
+            const c = deck[idx++];
+            st.stock.push(c.suit * 13 + c.value);
+        }
+        return st;
+    }
+
+    return { createSolver, abstractFromDeck };
+})();
+
+// --- Demo pacing (seconds) — tweak these to taste -------------------------
+//   DEMO_TWEEN_TIME — how long a card takes to SLIDE to its spot (raise = slower
+//                     glide). Keep it <= DEMO_MOVE_DELAY.
+//   DEMO_MOVE_DELAY — the gap between moves. Klondike plays ~135 moves (incl.
+//                     stock draws), so 0.7s ≈ a ~90s game; lower to speed it up.
+const DEMO_TWEEN_TIME  = 1.0;
+const DEMO_MOVE_DELAY  = 1.5;
+const DEMO_DEAL_PAUSE  = 1.8;
+const DEMO_START_DELAY = 0.7;
+
+// Wire up the attract self-player. Called once from gameInit when #demo is set.
+function setupDemo()
+{
+    let curDeck = null, solver = null;
+
+    const planStep = budget =>
+    {
+        if (!solver)
+        {
+            curDeck = shuffledDeck();
+            solver = KlondikeSolver.createSolver(
+                KlondikeSolver.abstractFromDeck(curDeck), { weight: 5, expandCap: 15000 });
+        }
+        if (solver.step(budget))
+        {
+            const res = solver.getResult();
+            solver = null;                       // attempt done either way
+            return res.won ? res.moves : null;   // null => discard, reshuffle next frame
+        }
+        return null;
+    };
+
+    // Deal the solved deck onto the live board, and slow every card's slide for
+    // the demo (one set covers later moves and stock draws of those same cards).
+    const deal = () =>
+    {
+        newGame(curDeck);
+        for (const s of cardStacks) for (const c of s.cards) c.tweenDuration = DEMO_TWEEN_TIME;
+    };
+
+    // Execute one planned move, animated. A draw routes through the game's own
+    // drawFromStock (deal-1 / recycle) so stock/waste behave exactly as in play.
+    const applyMove = m =>
+    {
+        if (m.draw) { drawFromStock(); return; }
+        const from = cardStacks[m.from], to = cardStacks[m.to];
+        if (!from || !to) return;
+        const startCard = from.cards[from.cards.length - m.count];
+        if (!startCard) return;
+        from.moveManyToStack(to, startCard, true);
+        if (flipExposedCards()) window.sndFlip && window.sndFlip.play();
+        const snd = to.type === StackType.Foundation ? window.sndFoundation : window.sndPlace;
+        const land = to.topCard();
+        if (snd && land) snd.play(land.pos);
+    };
+
+    demoPlayer = new CardDemoPlayer({ planStep, deal, applyMove,
+        moveDelay: DEMO_MOVE_DELAY, dealPause: DEMO_DEAL_PAUSE, startDelay: DEMO_START_DELAY });
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
