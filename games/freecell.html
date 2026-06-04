@@ -81,7 +81,7 @@ function setupLayout()
         { margin: { top: TOP_MARGIN, right: 1, bottom: 1, left: 1 } });
 }
 
-function newGame()
+function newGame(deck)
 {
     cardStacks = [];
     won = false;
@@ -100,7 +100,7 @@ function newGame()
         cardStacks.push(new CardStack(vec2(x, layoutCascadeTopY), StackType.Cascade, cascadeOffset));
     }
 
-    const deck = shuffledDeck();
+    deck = deck || shuffledDeck();           // demo passes a specific solved deck
 
     // Deal into cascades: 7,7,7,7,6,6,6,6
     const cascades = cardStacks.slice(8);   // 8 cascade stacks
@@ -128,6 +128,24 @@ let won = false;
 let hintsEnabled = true;     // toggled by OPTIONS → HINTS; gates the green legal-drop tint
 let lastClick = { card: null, time: -1 };
 let history = null;          // CardHistory (created in gameInit)
+let demoPlayer = null;       // CardDemoPlayer (created in gameInit only when #demo)
+
+// SoundGenerator options (from templates/gameFx.js):
+//   volume, randomness, frequency, attack, release, shapeCurve, slide,
+//   pitchJump, pitchJumpTime, repeatTime, noise, bitCrush, delay
+// Exposed via window globals so the rest of the file (and the demo player) can
+// reach them. Tune by ear during polish — these are starting points.
+function setupSounds()
+{
+    // Match the engine's master volume to whatever the options slider starts at,
+    // so the very first menu sound plays at the user-visible volume.
+    setSoundVolume(.8);
+    window.sndPickup     = new SoundGenerator({ frequency: 400, attack: 0, release: 0.005, volume: 0.4, noise:2 });
+    window.sndPlace      = new SoundGenerator({ frequency: 200, attack: 0, release: 0.01, volume: 0.4, noise:2 });
+    window.sndInvalid    = new SoundGenerator({ frequency: 110, attack: 0.005, release: 0.14, shapeCurve: 2, noise: 0.4, slide: -2, volume: 0.4 });
+    window.sndFoundation = new SoundGenerator({ frequency: 880, attack: 0.002, release: 0.08, volume: 0.4 });
+    window.sndWin        = new SoundGenerator({ frequency: 440, attack: 0.02, release: 0.5, pitchJump: 660, pitchJumpTime: 0.2, repeatTime: 0.25, volume: 0.5 });
+}
 
 async function gameInit()
 {
@@ -135,15 +153,27 @@ async function gameInit()
     setupLayout();
     initCardAtlas();
 
+    // Undo/redo + autosave. snapshot()/loadState() are the game-specific hooks.
+    history = new CardHistory({ serialize: snapshot, deserialize: loadState });
+
+    setupSounds();   // window.sndPickup..sndWin — used by both normal play and demo
+
+    // Attract / hero-cabinet mode (#demo): a self-playing AI solves a fresh
+    // random deal and plays it out, looping forever. It never reads or writes
+    // save data and shows no menus (menus.js already hides chrome in #demo).
+    if (isDemoMode())
+    {
+        history.save = () => {};   // belt-and-suspenders: zero persistence in demo
+        setupDemo();               // build the self-player (deals lazily once solved)
+        return;
+    }
+
     // Read any in-progress saved game BEFORE newGame() — newGame calls
     // saveState() at the end which overwrites the save data with the
     // fresh-deal snapshot, so we'd otherwise lose the previous session.
     let savedSnap = null;
     const raw = getSaveData().saveState;
     if (raw) savedSnap = raw;
-
-    // Undo/redo + autosave. snapshot()/loadState() are the game-specific hooks.
-    history = new CardHistory({ serialize: snapshot, deserialize: loadState });
 
     newGame();
 
@@ -159,27 +189,6 @@ async function gameInit()
             resumedGame = true;
         }
     }
-
-    // Match the engine's master volume to whatever the options slider starts at,
-    // so the very first menu sound plays at the user-visible volume.
-    setSoundVolume(.8);
-
-    // SoundGenerator options (from templates/gameFx.js):
-    //   volume, randomness, frequency, attack, release, shapeCurve, slide,
-    //   pitchJump, pitchJumpTime, repeatTime, noise, bitCrush, delay
-    // Tune by ear during polish — these are starting points.
-    const sndPickup     = new SoundGenerator({ frequency: 400, attack: 0, release: 0.005, volume: 0.4, noise:2 });
-    const sndPlace      = new SoundGenerator({ frequency: 200, attack: 0, release: 0.01, volume: 0.4, noise:2 });
-    const sndInvalid    = new SoundGenerator({ frequency: 110, attack: 0.005, release: 0.14, shapeCurve: 2, noise: 0.4, slide: -2, volume: 0.4 });
-    const sndFoundation = new SoundGenerator({ frequency: 880, attack: 0.002, release: 0.08, volume: 0.4 });
-    const sndWin        = new SoundGenerator({ frequency: 440, attack: 0.02, release: 0.5, pitchJump: 660, pitchJumpTime: 0.2, repeatTime: 0.25, volume: 0.5 });
-
-    // Expose for the rest of the file via window globals (simple).
-    window.sndPickup     = sndPickup;
-    window.sndPlace      = sndPlace;
-    window.sndInvalid    = sndInvalid;
-    window.sndFoundation = sndFoundation;
-    window.sndWin        = sndWin;
 
     // Pause whenever a menu is up during a run. Title menu sits over the
     // canvas without freezing anything.
@@ -500,6 +509,9 @@ function redoState() { history.redoMove(); }
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdate()
 {
+    // Attract mode drives everything through the self-player; no human input.
+    if (isDemoMode()) { demoPlayer && demoPlayer.update(); return; }
+
     if (bindPauseKey({ when: () => isPlaying() && !won })) return;
     if (!isPlaying() || won) return;
 
@@ -695,6 +707,444 @@ function gameRender()
         drawCard(c.pos, c.value, c.suit);
 }
 function gameRenderPost() {}
+
+///////////////////////////////////////////////////////////////////////////////
+// DEMO / ATTRACT MODE — self-playing AI (only active when the URL has #demo)
+//
+// FreecellSolver is a pure, engine-independent FreeCell solver: a weighted-A*
+// best-first search with a transposition table and an expansion budget, exposed
+// as a stepper so the search can be spread across frames. It operates on an
+// abstract 16-stack state that mirrors cardStacks' index order:
+//   [0..3] free cells   [4..7] foundations   [8..15] cascades
+// so the {from, count, to} move list it returns replays 1:1 on the live board.
+//
+// Card code 0..51:  suit = code/13|0 (0=H,1=S,2=D,3=C),  value = code%13,
+//                   color = suit%2 (matches Card.suit / freecell rules above).
+//
+// Verified headlessly (local/temp/freecellSolver.js): at weight 6 / cap 8000,
+// ~81% of random deals solve in a median ~1100 nodes (~99 moves), and every
+// "won" plan was replayed to a real 52-card finish (zero false wins). The demo
+// player just discards the unsolvable minority and reshuffles, so the viewer
+// only ever sees deals that win.
+///////////////////////////////////////////////////////////////////////////////
+const FreecellSolver = (function()
+{
+    const FREE0 = 0, FOUND0 = 4, CASC0 = 8, NCASC = 8;
+    const val   = c => c % 13;
+    const suit  = c => (c / 13) | 0;
+    const color = c => ((c / 13) | 0) % 2;
+    const clone = st => st.map(a => a.slice());
+
+    function isSolved(st)
+    {
+        let n = 0;
+        for (let f = FOUND0; f < FOUND0 + 4; ++f) n += st[f].length;
+        return n === 52;
+    }
+    function foundationCount(st)
+    {
+        let n = 0;
+        for (let f = FOUND0; f < FOUND0 + 4; ++f) n += st[f].length;
+        return n;
+    }
+    function canFound(fcol, code)
+    {
+        if (!fcol.length) return val(code) === 0;          // Ace on empty foundation
+        const t = fcol[fcol.length - 1];
+        return suit(t) === suit(code) && val(t) + 1 === val(code);
+    }
+    function foundValueOfSuit(st, s)
+    {
+        for (let f = FOUND0; f < FOUND0 + 4; ++f)
+        {
+            const col = st[f];
+            if (col.length && suit(col[col.length - 1]) === s)
+                return val(col[col.length - 1]);
+        }
+        return -1;
+    }
+    // Standard FreeCell "safe autoplay": this card can never again help in the
+    // tableau, so sending it home preserves solvability.
+    function safeToAutoplay(st, code)
+    {
+        const v = val(code);
+        if (v <= 1) return true;                           // aces & twos always safe
+        const c = color(code), s = suit(code);
+        let oppMin = 99, sameOther = -1;
+        for (let sl = 0; sl < 4; ++sl)
+        {
+            if (sl === s) continue;
+            const fv = foundValueOfSuit(st, sl);
+            if ((sl % 2) !== c) oppMin = Math.min(oppMin, fv);
+            else                sameOther = fv;
+        }
+        return oppMin >= v - 1 && sameOther >= v - 2;
+    }
+    function autoplay(st)
+    {
+        const moves = [];
+        let progressed = true;
+        while (progressed)
+        {
+            progressed = false;
+            const sources = [];
+            for (let c = FREE0; c < FREE0 + 4; ++c) if (st[c].length) sources.push(c);
+            for (let i = CASC0; i < CASC0 + NCASC; ++i) if (st[i].length) sources.push(i);
+            for (const sIdx of sources)
+            {
+                const col = st[sIdx], card = col[col.length - 1];
+                if (!safeToAutoplay(st, card)) continue;
+                let target = -1;
+                for (let f = FOUND0; f < FOUND0 + 4; ++f)
+                    if (canFound(st[f], card)) { target = f; break; }
+                if (target < 0) continue;
+                col.pop();
+                st[target].push(card);
+                moves.push({ from: sIdx, count: 1, to: target });
+                progressed = true;
+                break;
+            }
+        }
+        return moves;
+    }
+    function topRunLength(col)
+    {
+        const n = col.length;
+        if (!n) return 0;
+        let len = 1;
+        for (let k = n - 1; k > 0; --k)
+        {
+            const below = col[k - 1], above = col[k];
+            if (color(below) !== color(above) && val(below) === val(above) + 1) ++len;
+            else break;
+        }
+        return len;
+    }
+    function capacity(freeOpen, emptyCascades, exclIdx)
+    {
+        let ec = emptyCascades.length;
+        if (emptyCascades.includes(exclIdx)) --ec;
+        return (1 + freeOpen) * (2 ** ec);
+    }
+    function generateMoves(st)
+    {
+        const moves = [];
+        let freeOpen = 0, firstFree = -1;
+        for (let c = FREE0; c < FREE0 + 4; ++c)
+            if (!st[c].length) { ++freeOpen; if (firstFree < 0) firstFree = c; }
+        const emptyCasc = [];
+        for (let i = CASC0; i < CASC0 + NCASC; ++i) if (!st[i].length) emptyCasc.push(i);
+        const firstEmptyCasc = emptyCasc.length ? emptyCasc[0] : -1;
+
+        for (let i = CASC0; i < CASC0 + NCASC; ++i)
+        {
+            const col = st[i], n = col.length;
+            if (!n) continue;
+            const top = col[n - 1];
+            for (let f = FOUND0; f < FOUND0 + 4; ++f)
+                if (canFound(st[f], top)) { moves.push({ from: i, count: 1, to: f }); break; }
+            if (firstFree >= 0) moves.push({ from: i, count: 1, to: firstFree });
+
+            const R = topRunLength(col);
+            // Onto a non-empty column: at most one run length continues a given top.
+            for (let j = CASC0; j < CASC0 + NCASC; ++j)
+            {
+                if (j === i) continue;
+                const tcol = st[j];
+                if (!tcol.length) continue;
+                const t = tcol[tcol.length - 1];
+                for (let L = 1; L <= R; ++L)
+                {
+                    const bottom = col[n - L];
+                    if (val(bottom) === val(t) - 1 && color(bottom) !== color(t))
+                    {
+                        if (L <= capacity(freeOpen, emptyCasc, j))
+                            moves.push({ from: i, count: L, to: j });
+                        break;
+                    }
+                }
+            }
+            // Onto the (interchangeable) first empty column: any suffix run capacity allows.
+            if (firstEmptyCasc >= 0)
+            {
+                const capE = capacity(freeOpen, emptyCasc, firstEmptyCasc);
+                for (let L = 1; L <= R && L <= capE; ++L)
+                    moves.push({ from: i, count: L, to: firstEmptyCasc });
+            }
+        }
+        for (let c = FREE0; c < FREE0 + 4; ++c)
+        {
+            const col = st[c];
+            if (!col.length) continue;
+            const card = col[0];
+            for (let f = FOUND0; f < FOUND0 + 4; ++f)
+                if (canFound(st[f], card)) { moves.push({ from: c, count: 1, to: f }); break; }
+            for (let j = CASC0; j < CASC0 + NCASC; ++j)
+            {
+                const tcol = st[j];
+                if (!tcol.length)
+                {
+                    if (j === firstEmptyCasc) moves.push({ from: c, count: 1, to: j });
+                }
+                else
+                {
+                    const t = tcol[tcol.length - 1];
+                    if (color(t) !== color(card) && val(t) === val(card) + 1)
+                        moves.push({ from: c, count: 1, to: j });
+                }
+            }
+        }
+        return moves;
+    }
+    function orderMoves(moves, st)
+    {
+        const scoreOf = m =>
+        {
+            let s = 0;
+            if (m.to >= FOUND0 && m.to < FOUND0 + 4) s += 1000;        // send home
+            const src = st[m.from];
+            if (m.from >= CASC0 && src.length === m.count) s += 120;   // empties a column
+            if (m.to >= CASC0 && st[m.to].length) s += 60;            // builds on a card
+            if (m.to >= FREE0 && m.to < FREE0 + 4) s -= 60;           // parking is last resort
+            if (m.to >= CASC0 && !st[m.to].length) s -= 15;           // spends an empty column
+            return s;
+        };
+        return moves.map(m => [scoreOf(m), m]).sort((a, b) => b[0] - a[0]).map(p => p[1]);
+    }
+    function heuristic(st)
+    {
+        let h = 52 - foundationCount(st);
+        for (let s = 0; s < 4; ++s)
+        {
+            const next = foundValueOfSuit(st, s) + 1;
+            if (next > 12) continue;
+            const targetCode = s * 13 + next;
+            for (let i = CASC0; i < CASC0 + NCASC; ++i)
+            {
+                const idx = st[i].indexOf(targetCode);
+                if (idx >= 0) { h += st[i].length - 1 - idx; break; }
+            }
+        }
+        for (let c = FREE0; c < FREE0 + 4; ++c) if (st[c].length) h += 0.5;
+        return h;
+    }
+
+    const HASH_SEP = String.fromCharCode(252), HASH_GRP = String.fromCharCode(253);
+    function canonicalHash(st)
+    {
+        const fcc = String.fromCharCode;
+        const casc = [];
+        for (let i = CASC0; i < CASC0 + NCASC; ++i) casc.push(fcc.apply(null, st[i]));
+        const free = [];
+        for (let c = FREE0; c < FREE0 + 4; ++c) free.push(fcc.apply(null, st[c]));
+        const found = [];
+        for (let f = FOUND0; f < FOUND0 + 4; ++f) found.push(fcc.apply(null, st[f]));
+        casc.sort(); free.sort(); found.sort();
+        return casc.join(HASH_SEP) + HASH_GRP + free.join(HASH_SEP) + HASH_GRP + found.join(HASH_SEP);
+    }
+    function applyMoveToState(st, m)
+    {
+        const from = st[m.from], to = st[m.to];
+        const moving = from.splice(from.length - m.count);
+        for (const c of moving) to.push(c);
+    }
+
+    class MinHeap
+    {
+        constructor() { this.a = []; }
+        get size() { return this.a.length; }
+        push(item)
+        {
+            const a = this.a; a.push(item);
+            let i = a.length - 1;
+            while (i > 0)
+            {
+                const p = (i - 1) >> 1;
+                if (a[p].prio <= a[i].prio) break;
+                [a[p], a[i]] = [a[i], a[p]]; i = p;
+            }
+        }
+        pop()
+        {
+            const a = this.a, top = a[0], last = a.pop();
+            if (a.length) { a[0] = last; this._down(0); }
+            return top;
+        }
+        _down(i)
+        {
+            const a = this.a, n = a.length;
+            for (;;)
+            {
+                let s = i; const l = 2 * i + 1, r = 2 * i + 2;
+                if (l < n && a[l].prio < a[s].prio) s = l;
+                if (r < n && a[r].prio < a[s].prio) s = r;
+                if (s === i) break;
+                [a[s], a[i]] = [a[i], a[s]]; i = s;
+            }
+        }
+    }
+
+    // Steppable weighted-A* search. step(budget) returns true when finished;
+    // getResult() then yields { moves, won, nodes }.
+    function createSolver(initial, opts = {})
+    {
+        const expandCap = opts.expandCap || 8000;
+        const W = opts.weight || 6;
+
+        const root = clone(initial);
+        const rootAuto = autoplay(root);
+        const rootHash = canonicalHash(root);
+        const cameFrom = new Map([[rootHash, { moves: rootAuto, parent: null }]]);
+        const gScore   = new Map([[rootHash, rootAuto.length]]);
+        const closed   = new Set();
+        const open     = new MinHeap();
+        const rootH    = heuristic(root);
+        open.push({ prio: rootAuto.length + W * rootH, st: root, hash: rootHash, h: rootH });
+
+        let expansions = 0;
+        let best = { h: Infinity, hash: rootHash };
+        let result = null;
+
+        const buildPath = hash =>
+        {
+            const out = [];
+            for (let h = hash; h !== null; )
+            {
+                const e = cameFrom.get(h);
+                for (let k = e.moves.length - 1; k >= 0; --k) out.push(e.moves[k]);
+                h = e.parent;
+            }
+            return out.reverse();
+        };
+
+        function step(budget = 400)
+        {
+            if (result) return true;
+            let count = 0;
+            while (open.size && count < budget)
+            {
+                const cur = open.pop();
+                if (closed.has(cur.hash)) continue;
+                closed.add(cur.hash);
+                ++expansions; ++count;
+
+                if (isSolved(cur.st))
+                { result = { moves: buildPath(cur.hash), won: true, nodes: expansions }; return true; }
+
+                if (cur.h < best.h) best = { h: cur.h, hash: cur.hash };
+                if (expansions >= expandCap)
+                { result = { moves: buildPath(best.hash), won: false, nodes: expansions }; return true; }
+
+                const g = gScore.get(cur.hash);
+                const moves = orderMoves(generateMoves(cur.st), cur.st);
+                for (const m of moves)
+                {
+                    const ns = clone(cur.st);
+                    applyMoveToState(ns, m);
+                    const auto = autoplay(ns);
+                    const childMoves = auto.length ? [m, ...auto] : [m];
+                    const nh = canonicalHash(ns);
+                    if (closed.has(nh)) continue;
+                    const ng = g + childMoves.length;
+                    if (gScore.has(nh) && gScore.get(nh) <= ng) continue;
+                    gScore.set(nh, ng);
+                    cameFrom.set(nh, { moves: childMoves, parent: cur.hash });
+                    const nHeu = heuristic(ns);
+                    open.push({ prio: ng + W * nHeu, st: ns, hash: nh, h: nHeu });
+                }
+            }
+            if (!open.size && !result)
+                result = { moves: buildPath(best.hash), won: false, nodes: expansions };
+            return result !== null;
+        }
+
+        return { step, getResult: () => result };
+    }
+
+    // Build the abstract solver state from a freecell deck (array of 52 Card),
+    // dealt exactly as newGame deals it: cascades get 7,7,7,7,6,6,6,6.
+    function abstractFromDeck(deck)
+    {
+        const st = [];
+        for (let i = 0; i < 16; ++i) st.push([]);
+        let idx = 0;
+        for (let col = 0; col < 8; ++col)
+            for (let row = 0, n = (col < 4 ? 7 : 6); row < n; ++row)
+            {
+                const c = deck[idx++];
+                st[CASC0 + col].push(c.suit * 13 + c.value);
+            }
+        return st;
+    }
+
+    return { createSolver, abstractFromDeck };
+})();
+
+// --- Demo pacing (seconds) — tweak these to taste -------------------------
+// Two different "speeds":
+//   DEMO_TWEEN_TIME — how long a card takes to SLIDE to its new spot (the
+//                     animation itself). Raise this to make the cards glide
+//                     more slowly. Keep it <= DEMO_MOVE_DELAY so each slide
+//                     finishes before the next move starts.
+//   DEMO_MOVE_DELAY — the gap between successive moves (the AI's "thinking"
+//                     rhythm). At ~99 moves/game, 0.7s ≈ a ~70s game.
+const DEMO_TWEEN_TIME  = 1.5;   // card slide animation duration (raise = slower glide)
+const DEMO_MOVE_DELAY  = 1.8;   // pause between each card move (raise to slow down)
+const DEMO_DEAL_PAUSE  = 1.8;   // hold on a finished game before dealing the next
+const DEMO_START_DELAY = 0.7;   // pause after a fresh deal before the first move
+
+// Wire up the attract self-player. Called once from gameInit when #demo is set.
+function setupDemo()
+{
+    let curDeck = null;     // the deck currently being solved / last solved
+    let solver  = null;     // active stepper, or null between deals
+
+    // Advance the solver a little each frame. Returns a winning move list once a
+    // solvable deal is ready, else null (still searching, or just discarded an
+    // unsolvable deal and will start a fresh one next frame).
+    const planStep = budget =>
+    {
+        if (!solver)
+        {
+            curDeck = shuffledDeck();
+            solver = FreecellSolver.createSolver(
+                FreecellSolver.abstractFromDeck(curDeck), { weight: 6, expandCap: 8000 });
+        }
+        if (solver.step(budget))
+        {
+            const res = solver.getResult();
+            solver = null;                       // either way, this attempt is done
+            return res.won ? res.moves : null;   // null => discard, reshuffle next frame
+        }
+        return null;
+    };
+
+    // Deal the solved deck onto the live board (move list replays against it).
+    const deal = () => newGame(curDeck);
+
+    // Execute one planned move, animated. `count` cards from the top of `from`
+    // slide together onto `to` (supermoves are one stack-slide, as requested).
+    const applyMove = m =>
+    {
+        const from = cardStacks[m.from], to = cardStacks[m.to];
+        if (!from || !to) return;
+        const startIdx = from.cards.length - m.count;
+        const startCard = from.cards[startIdx];
+        if (!startCard) return;
+        // Slow the slide for the demo: each Card tweens for its own tweenDuration
+        // (default 0.2s in cards.js), read when the move starts — so set it on the
+        // cards about to move before handing them to moveManyToStack.
+        for (let k = startIdx; k < from.cards.length; ++k)
+            from.cards[k].tweenDuration = DEMO_TWEEN_TIME;
+        from.moveManyToStack(to, startCard, true);
+        const snd = to.type === StackType.Foundation ? window.sndFoundation : window.sndPlace;
+        const land = to.topCard();
+        if (snd && land) snd.play(land.pos);
+    };
+
+    demoPlayer = new CardDemoPlayer({ planStep, deal, applyMove,
+        moveDelay: DEMO_MOVE_DELAY, dealPause: DEMO_DEAL_PAUSE, startDelay: DEMO_START_DELAY });
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);

@@ -652,3 +652,86 @@ class CardHistory
         this.deserialize(snap);
     }
 }
+
+// =============================================================================
+// CardDemoPlayer — drives a self-playing "attract" demo for a solitaire game.
+// The host supplies a few callbacks; this harness owns the pacing and the
+// solve -> deal -> play -> pause loop, so multiple card games can share it
+// (FreeCell now, Klondike later). It treats moves as opaque tokens.
+//
+//   planStep(budget)  Advance the host's time-sliced solver by up to `budget`
+//                     work units. Return a non-empty move list once a SOLVABLE
+//                     deal is ready, or null while still searching. The host
+//                     silently discards unsolvable deals and reshuffles, so the
+//                     viewer only ever sees deals that win — no on-screen
+//                     give-ups, and the search never blocks a frame.
+//   deal()            Build the live board for the deal planStep just solved
+//                     (the returned move list is replayed against it).
+//   applyMove(move)   Execute one planned move on the live board, animated.
+//
+// Usage:
+//   const demo = new CardDemoPlayer({ planStep, deal, applyMove });
+//   function gameUpdate(){ if (isDemoMode()){ demo.update(); return; } ... }
+//
+// Options: moveDelay (s between moves, .35), dealPause (s to admire a finished
+// game, 1.4), solveBudget (solver work units per frame, 400), startDelay (s
+// after dealing before the first move, .5).
+// =============================================================================
+class CardDemoPlayer
+{
+    constructor({ planStep, deal, applyMove,
+        moveDelay = .35, dealPause = 1.4, solveBudget = 400, startDelay = .5 })
+    {
+        this.planStep    = planStep;
+        this.deal        = deal;
+        this.applyMove   = applyMove;
+        this.moveDelay   = moveDelay;
+        this.dealPause   = dealPause;
+        this.solveBudget = solveBudget;
+        this.startDelay  = startDelay;
+
+        this.state    = 'solve';   // 'solve' | 'play' | 'pause'
+        this.moveList = null;
+        this.moveIdx  = 0;
+        this.timer    = new Timer();
+    }
+    update()
+    {
+        if (this.state === 'solve')
+        {
+            // Time-sliced: search a little each frame until a solvable deal is
+            // ready. Whatever's on the table (an empty felt at start, or the
+            // previous finished game) just sits there meanwhile.
+            const plan = this.planStep(this.solveBudget);
+            if (plan && plan.length)
+            {
+                this.deal();
+                this.moveList = plan;
+                this.moveIdx  = 0;
+                this.timer.set(this.startDelay);
+                this.state    = 'play';
+            }
+        }
+        else if (this.state === 'play')
+        {
+            if (this.timer.elapsed())
+            {
+                if (this.moveIdx < this.moveList.length)
+                {
+                    this.applyMove(this.moveList[this.moveIdx++]);
+                    this.timer.set(this.moveDelay);
+                }
+                else
+                {
+                    this.timer.set(this.dealPause);
+                    this.state = 'pause';
+                }
+            }
+        }
+        else // 'pause' — admire the win, then go find the next deal
+        {
+            if (this.timer.elapsed())
+                this.state = 'solve';
+        }
+    }
+}
