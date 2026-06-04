@@ -42,6 +42,11 @@ const gapSize = 6.5;
 const pipeInterval = 1.45;  // seconds
 const pipeSpawnX = worldSize.x/2 + 10;
 const pipeDespawnX = -worldSize.x/2 - 14;
+// the first pipe of a run starts at the screen edge (same place later pipes
+// first appear, so it gives full reaction time), and the first timer is
+// shortened so pipe #2 follows at the normal spacing instead of a big gap
+const firstPipeX = worldSize.x/2;
+const firstPipeTimer = pipeInterval + (firstPipeX - pipeSpawnX)/pipeSpeed;
 
 // visuals
 // base sky colors (we'll shift them warmer as score increases)
@@ -547,7 +552,7 @@ function startGame()
     resetRun(true);
     initScenery();
     spawnPipe();
-    pipes[0].x = 6;
+    pipes[0].x = firstPipeX;
     setPlaying(true);
     clearSubmenuStack();
     hideAllMenus();
@@ -560,8 +565,8 @@ function startDemo()
     resetRun(false); // STATE_PLAY, no ready/tap-to-start gate
     initScenery();
     spawnPipe();
-    pipes[0].x = 6;
-    pipeTimer = pipeInterval;
+    pipes[0].x = firstPipeX;
+    pipeTimer = firstPipeTimer;
     demoDeadTimer = 0;
 }
 
@@ -657,7 +662,7 @@ function gameUpdate()
             // begin the run WITHOUT resetting the level: keep the preview
             // pipe in place so the first tap just starts the bird flying
             state = STATE_PLAY;
-            pipeTimer = pipeInterval;
+            pipeTimer = firstPipeTimer;
             // fall through to apply the flap on this same tap
         }
 
@@ -671,7 +676,7 @@ function gameUpdate()
         {
             resetRun(true);
             spawnPipe();
-            pipes[0].x = 6;
+            pipes[0].x = firstPipeX;
         }
     }
 
