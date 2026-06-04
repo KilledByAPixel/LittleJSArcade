@@ -179,6 +179,10 @@ function paintPlus(ctx)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Arcade cabinet (#demo): an auto-solver plays the board for a self-running demo.
+const inCabinet = /demo/.test(location.hash);
+let demoMoveTimer = 0;
+
 async function gameInit()
 {
     saveDataInit('match3');
@@ -257,6 +261,14 @@ async function gameInit()
 
     // No attachClickToReveal — surface the title menu right away.
     showMenu('title');
+
+    if (inCabinet)
+    {
+        // self-run the auto-solver demo behind the (hidden) menu chrome
+        gameReset();
+        setPlaying(true);
+        if (typeof hideAllMenus === 'function') hideAllMenus();
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -291,6 +303,51 @@ function gameReset()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Cabinet demo: read-only check for any 3-in-a-row anywhere on the visible board.
+function boardHasMatch()
+{
+    const pos = vec2();
+    for (pos.y = 0; pos.y < levelSize.y; pos.y++)
+    for (pos.x = 0; pos.x < levelSize.x - 2; pos.x++)
+    {
+        const t = getTile(pos);
+        if (t >= 0 && t == getTile(pos.add(vec2(1,0))) && t == getTile(pos.add(vec2(2,0))))
+            return true;
+    }
+    for (pos.x = 0; pos.x < levelSize.x; pos.x++)
+    for (pos.y = 0; pos.y < levelSize.y - 2; pos.y++)
+    {
+        const t = getTile(pos);
+        if (t >= 0 && t == getTile(pos.add(vec2(0,1))) && t == getTile(pos.add(vec2(0,2))))
+            return true;
+    }
+    return false;
+}
+
+// Cabinet demo: find a random adjacent swap that would create a match (or null).
+function findDemoSwap()
+{
+    const candidates = [], pos = vec2();
+    for (pos.x = 0; pos.x < levelSize.x; pos.x++)
+    for (pos.y = 0; pos.y < levelSize.y; pos.y++)
+    {
+        const a = getTile(pos);
+        if (a < 0) continue;
+        for (const d of [vec2(1,0), vec2(0,1)])
+        {
+            const bPos = pos.add(d);
+            if (!bPos.arrayCheck(levelSize)) continue;
+            const b = getTile(bPos);
+            if (b < 0) continue;
+            setTile(pos, b); setTile(bPos, a);   // simulate the swap
+            const ok = boardHasMatch();
+            setTile(pos, a); setTile(bPos, b);   // restore
+            if (ok) candidates.push({ a: pos.copy(), b: bPos.copy() });
+        }
+    }
+    return candidates.length ? candidates[randInt(candidates.length)] : null;
+}
+
 function gameUpdate()
 {
     if (!isPlaying()) return;
@@ -374,6 +431,24 @@ function gameUpdate()
     else
     {
         clearMatches();
+
+        // Cabinet (#demo): the auto-solver makes the moves; humans use the mouse.
+        if (inCabinet)
+        {
+            if (!fallTimer.isSet())
+            {
+                demoMoveTimer -= timeDelta;
+                if (demoMoveTimer <= 0)
+                {
+                    const mv = findDemoSwap();
+                    if (mv) swapAnim = { a: mv.a, b: mv.b, t: 0, reversing: false };
+                    else gameReset();   // no moves left — reshuffle the board
+                    demoMoveTimer = .5;
+                }
+            }
+            return;   // skip mouse input + best-score submit in the demo
+        }
+
         if (!fallTimer.isSet())
         {
             const mouseTilePos = mousePos.floor();
@@ -407,7 +482,7 @@ function gameUpdate()
         }
     }
 
-    submitBestScore(score);
+    if (!inCabinet) submitBestScore(score);   // the demo never banks a best
 
     if (keyWasPressed('KeyR'))
         gameReset();

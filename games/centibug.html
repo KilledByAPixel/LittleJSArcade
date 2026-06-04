@@ -48,6 +48,8 @@ const BONUS_LIFE_AT = 12000;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Game state
+// Arcade cabinet (#demo): the ship is auto-driven by an AI for a self-running demo.
+const inCabinet = /demo/.test(location.hash);
 let player;
 let mushrooms;          // Map<key, Mushroom>
 let centipedes;         // Array<CentipedeChain>
@@ -496,9 +498,45 @@ class Player extends EngineObject
                 this.cooldown = 0;
                 this.hidden = false;
         }
+        // Cabinet demo: slide under the nearest threat and hold fire.
+        demoControl()
+        {
+                let targetX = this.pos.x, bestY = 1e9, bestD = 1e9;
+                const consider = (p) =>
+                {
+                        const d = abs(p.x - this.pos.x);
+                        if (p.y < bestY - .6 || (abs(p.y - bestY) <= .6 && d < bestD))
+                        { bestY = p.y; bestD = d; targetX = p.x; }
+                };
+                for (const chain of centipedes)
+                        for (const seg of chain.segments)
+                                consider(seg.pos);
+                if (spider) consider(spider.pos);
+
+                // sidestep if the spider is right on top of the ship
+                if (spider && spider.pos.distance(this.pos) < 2.5)
+                        targetX = this.pos.x + (this.pos.x < spider.pos.x ? -4 : 4);
+
+                // glide toward the target column, then clamp to the play area
+                this.pos.x += clamp(targetX - this.pos.x, -1, 1) * playerSpeed * timeDelta;
+                this.pos.x = clamp(this.pos.x, .6, levelSize.x - .6);
+                this.pos.y = clamp(this.pos.y, playerMinY + .5, playerMaxY + .5);
+
+                // hold fire on cooldown
+                this.cooldown = max(0, this.cooldown - timeDelta);
+                if (!gameOver && !gameWon && this.cooldown <= 0)
+                {
+                        this.cooldown = .12;
+                        new Bullet(this.pos.add(vec2(0, .7)));
+                        sShoot.play(this.pos, 1);
+                }
+        }
         update()
         {
                 if (respawnTimer > 0) return; // dead/exploding — ship is hidden, no control
+
+                // Cabinet (#demo): the AI auto-aims under the nearest enemy and fires.
+                if (inCabinet) { this.demoControl(); return; }
 
                 // movement: keyboard 8-dir, OR analog stick (gamepad/touch), OR mouse-follow
                 let move = keyDirection();
@@ -1104,6 +1142,13 @@ async function gameInit()
 
         resetGame();
         buildMenus();
+
+        if (inCabinet)
+        {
+                // self-run the AI demo behind the (hidden) menu chrome
+                startGame();
+                if (typeof hideAllMenus === 'function') hideAllMenus();
+        }
 }
 
 function startGame()
@@ -1214,8 +1259,12 @@ function gameUpdate()
                 gameOverHoldTimer -= timeDelta;
                 if (gameOverHoldTimer <= 0)
                 {
-                        submitBestScore(score);
-                        if (typeof showMenu === 'function') showMenu('gameOver');
+                        if (inCabinet) { startGame(); }   // loop the demo; no menu, no best-score
+                        else
+                        {
+                                submitBestScore(score);
+                                if (typeof showMenu === 'function') showMenu('gameOver');
+                        }
                 }
         }
 

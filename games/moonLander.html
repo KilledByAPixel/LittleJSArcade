@@ -12,6 +12,10 @@
 // engine settings
 canvasMaxSize = vec2(2048);
 
+// The arcade cabinet loads the game with #demo: there the autopilot flies + lands
+// the lander, looping. A normal launch shows a calm static lander resting on the pad.
+const inCabinet = /demo/.test(location.hash);
+
 // on-screen touch pad
 touchGamepadEnable = true;
 touchGamepadAnalog = true;
@@ -352,7 +356,8 @@ class Player extends EngineObject
         if (isPlaying())
         {
             totalScore += lastLevelScore;
-            submitBestScore(totalScore);
+            // never bank the autopilot demo's score (the cabinet runs isPlaying=true)
+            if (!inCabinet) submitBestScore(totalScore);
         }
         messageTimer.set(.6);   // brief beat to admire the landing, then the menu
     }
@@ -371,6 +376,30 @@ class Player extends EngineObject
         this.destroy();
     }
 
+    // demo autopilot: steer toward the pad and brake before touchdown.
+    // returns {rotate:-1..1, thrust:bool}. Not meant to play perfectly, just alive.
+    autoInput()
+    {
+        const dx = padX - this.pos.x;                 // horizontal offset to pad
+        const dy = this.pos.y - (padY + PAD_THICK + 1.5);
+        const v = this.velocity;
+
+        // desired tilt: lean toward the pad horizontally, but go upright when low/slow
+        let wantAngle = clamp(-dx*.05 - v.x*3, -.5, .5);
+        if (dy < 6) wantAngle = clamp(-dx*.02 - v.x*4, -SAFE_ANGLE*.6, SAFE_ANGLE*.6);
+
+        // rotate toward wantAngle, damping out spin (negated: the engine's turn
+        // direction is mirrored from when this controller was first written)
+        const rotate = -clamp((wantAngle - this.angle)*8 - this.angleVelocity*40, -1, 1);
+
+        // thrust to arrest descent / climb back up; ease off near a soft touchdown
+        const targetFall = dy < 4 ? -.03 : (dy < 12 ? -.06 : -.10);
+        let thrust = v.y < targetFall && abs(this.angle) < .55;
+        if (dy < 1 && v.length() < SAFE_SPEED*.7) thrust = false; // settle onto pad
+
+        return {rotate, thrust};
+    }
+
     update()
     {
         if (gameState) return;
@@ -387,9 +416,16 @@ class Player extends EngineObject
         // main thrust (Up/W/Space + gamepad A + touch button)
         let thrustHeld = moveInput.y > 0 || keyIsDown('Space') || gamepadIsDown(0);
 
-        // attract: at the title (not playing) the lander rests idle on the pad —
-        // no autopilot, no input drives it (just a calm static scene behind the menu)
-        if (!isPlaying())
+        // demo (cabinet #demo): the autopilot supplies all input — fly and land
+        if (inCabinet)
+        {
+            const ai = this.autoInput();
+            rotateInput = ai.rotate;
+            thrustHeld = ai.thrust;
+        }
+        // menu mode (title, not playing): the lander rests idle on the pad — no
+        // autopilot, no input drives it (a calm static scene behind the menu)
+        else if (!isPlaying())
         {
             rotateInput = 0;
             thrustHeld = false;
@@ -594,9 +630,14 @@ function gameInit()
     // mute all game audio while sitting at the title (menu clicks still play)
     setSilentAttract(true);
 
-    // the title is a calm idle scene: the lander rests on the pad behind the menu
-    // (no autopilot, nothing flying) until the player presses PLAY to start a game
-    showMenu('title');
+    if (inCabinet)
+        // cabinet: skip the title and self-run a live game — the autopilot flies
+        // and lands the lander; gameUpdate loops it (next level / restart on crash).
+        startGame();
+    else
+        // normal launch: a calm idle scene — the lander rests on the pad behind the
+        // menu (nothing flying) until the player presses PLAY to start a game.
+        showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -611,6 +652,18 @@ function gameUpdate()
 
     if (keyWasPressed('KeyR'))
         startGame();
+
+    // cabinet demo loops itself with no menus: next level on a landing, restart
+    // on a crash (once the landing/explosion message has played out)
+    if (inCabinet)
+    {
+        if (gameState && messageTimer.elapsed())
+        {
+            if (gameState === 1) startLevel(level + 1);
+            else                 startGame();
+        }
+        return;
+    }
 
     // once the landing/explosion has played, surface the end-of-round menu;
     // it handles continue on every device (keyboard, mouse, gamepad, touch)
@@ -760,7 +813,7 @@ function hudBar(x, y, w, label, frac, color, tickFrac)
 
 function gameRenderPost()
 {
-    if (!isPlaying()) return;   // hide the instrument panel on the idle/demo title
+    if (!isPlaying() || inCabinet) return;   // no instrument panel on the idle title or the demo
 
     const alive = player && !player.destroyed;
     const fuel = alive ? player.fuel : 0;

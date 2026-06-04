@@ -63,6 +63,10 @@ let bankedCities = 0;
 let bonusCityToast = 0;
 
 let aiMode = false;
+// Arcade cabinet (#demo): self-running attract demo — the AI defends against an
+// occasional trickle of missiles, aiming a virtual (unrendered) cursor.
+const inCabinet = /demo/.test(location.hash);
+let demoAim;   // the cabinet's invisible aim point the turrets track
 let aiCooldown = 0;
 
 let sShoot, sBoom, sEnemyHit, sCityHit, sWave, sBonusCity, sBonusTick;
@@ -1077,6 +1081,15 @@ function gameInit()
     // gameUpdate skips all gameplay and only runs the cosmetic sky.
     newGame();
     setPlaying(false);
+
+    if (inCabinet)
+    {
+        // self-run a calm AI defense demo behind the (hidden) menu chrome
+        startGame();
+        if (typeof hideAllMenus === 'function') hideAllMenus();
+        aiMode = true;
+        demoAim = levelSize.scale(.5);
+    }
 }
 
 function startGame()
@@ -1227,14 +1240,28 @@ function gameUpdate()
     if (!gameOver && !betweenWaves && !tally && aiMode)
         updateAI();
 
+    // Cabinet: glide the invisible aim cursor toward the nearest threat so the
+    // turrets visibly track it (the cursor itself is never drawn).
+    if (inCabinet)
+    {
+        let tgt = null, td = 1e9;
+        for (const m of enemyMissiles)
+        {
+            if (!m.alive) continue;
+            const d = m.pos.distance(demoAim);
+            if (d < td) { td = d; tgt = m.pos; }
+        }
+        demoAim = demoAim.lerp(tgt || vec2(levelSize.x/2, levelSize.y*.45), .08);
+    }
+
     for (const b of bases)
     {
         b.flash = Math.max(0, b.flash - timeDelta);
         b.recoil = Math.max(0, b.recoil - timeDelta * 1.5);
         if (b.alive)
         {
-            // Cannon tracks the mouse aim.
-            const aim = mousePos;
+            // Cannon tracks the aim point (the AI's virtual cursor in the cabinet).
+            const aim = inCabinet ? demoAim : mousePos;
             const dx = aim.x - b.pos.x;
             const dy = Math.max(.2, aim.y - (b.pos.y + .4));
             b.cannonAngle = Math.atan2(dx, dy);
@@ -1249,6 +1276,13 @@ function gameUpdate()
     if (gameOver)
     {
         updateExplosions();
+        if (inCabinet)
+        {
+            // loop the demo: brief hold on the wreckage, then a fresh defense
+            gameOverHoldTimer -= timeDelta;
+            if (gameOverHoldTimer <= 0) { startGame(); aiMode = true; }
+            return;
+        }
         // Brief on-canvas hold (lets the final explosions play out) before the
         // GAME OVER menu surfaces.
         if (!gameOverShowing)
@@ -1260,7 +1294,19 @@ function gameUpdate()
         return;
     }
 
-    if (!betweenWaves && !tally)
+    if (inCabinet)
+    {
+        // calm trickle: occasional single missiles, never a full wave (the wave
+        // system stays dormant since missilesToSpawn is left untouched here)
+        spawnTimer -= timeDelta;
+        if (spawnTimer <= 0)
+        {
+            if (enemyMissiles.reduce((a, m) => a + (m.alive ? 1 : 0), 0) < 2)
+                spawnEnemyMissile(false);
+            spawnTimer = rand(2.5, 4.5);
+        }
+    }
+    else if (!betweenWaves && !tally)
     {
         spawnTimer -= timeDelta;
         if (spawnTimer <= 0 && missilesToSpawn > 0)
@@ -1351,7 +1397,7 @@ function gameUpdate()
         gameOver = true;
         gameOverHoldTimer = 1.6;
         // Only record a best from a real game — the attract demo never saves.
-        if (isPlaying())
+        if (isPlaying() && !inCabinet)
             submitBestScore(score);
     }
 }
@@ -1762,7 +1808,7 @@ function gameRender()
     drawFliers();
     drawExplosions();
     drawParticles();
-    if (isPlaying())
+    if (isPlaying() && !inCabinet)
         drawCrosshair();
     // Attract demo: the virtual cursor stays invisible — the turrets just track it.
 }
@@ -1779,7 +1825,7 @@ function gameRenderPost()
     if (!gameOver && !anyBasesAliveWithAmmo())
         drawTextScreen('NO AMMO! (protect what\'s left)', vec2(mainCanvasSize.x/2, 30), 22, hsl(.06,1,.65), 4, hsl(0,0,0,.7));
 
-    if (aiMode)
+    if (aiMode && !inCabinet)
         drawTextScreen('AI MODE  [T]', vec2(mainCanvasSize.x/2, 58), 22, hsl(.55,1,.85), 3, hsl(0,0,0,.7));
 
     if (tally && !gameOver)

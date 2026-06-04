@@ -25,6 +25,10 @@ paused = false;
 
 // world settings
 gravity = vec2(0, -42);
+
+// Arcade cabinet (#demo): an AI takes paced free throws for a self-running demo.
+const inCabinet = /demo/.test(location.hash);
+let demoShootTimer = 0;
 cameraPos = vec2(0, -1);
 cameraScale = 60;
 
@@ -366,8 +370,9 @@ function startGame()
 
 function endGame()
 {
-    gamePhase = 'gameover';
     dragging = false;
+    if (inCabinet) { startGame(); return; }   // loop the demo; no menu, no best-score
+    gamePhase = 'gameover';
     submitBestScore(score);
     // surface game-over menu (refresh its labels first)
     const m = getMenu('gameover');
@@ -489,10 +494,37 @@ async function gameInit()
     installDefaultToolbar();
 
     showMenu('title');
+
+    if (inCabinet)
+    {
+        // self-run the AI demo behind the (hidden) menu chrome
+        startGame();
+        if (typeof hideAllMenus === 'function') hideAllMenus();
+    }
 }
 
 //------------------------------------------------------------------------------
 // update
+
+// Cabinet demo: launch a free throw that leads the moving hoop (usually scores).
+function demoLaunch()
+{
+    const T = 1.0;   // flight time (s)
+    // Predict the hoop's position when the ball arrives — the offset formula is
+    // evaluated at the future elapsed time, matching updateHoopMotion exactly.
+    const futureElapsed = hoopElapsed + T;
+    const ft = clamp(futureElapsed / TIME_LIMIT, 0, 1);
+    const famp = 1.2 + ft * 1.8;
+    const ffreq = 0.7 + ft * 1.2;
+    const targetX = HOOP_BASE_X + Math.sin(futureElapsed * ffreq) * famp;
+
+    const dx = targetX - SPAWN_POS.x;
+    const dy = HOOP_Y - SPAWN_POS.y;
+    const vx = dx / T + rand(-.3, .3);
+    const vy = (dy - .5 * gravity.y * T * T) / T + rand(-.3, .3);
+    launchBall(SPAWN_POS, vec2(vx, vy));
+    rackAnim = { t: 0 };   // bring the next ball up, same as a real shot
+}
 
 function gameUpdate()
 {
@@ -543,6 +575,17 @@ function gameUpdate()
         {
             rackAnim.t += timeDelta;
             if (rackAnim.t >= RACK_TRANSIT) rackAnim = null;
+        }
+
+        // Cabinet (#demo): the AI takes paced free throws instead of mouse drags.
+        if (inCabinet)
+        {
+            if (balls.length === 0 && !rackAnim)
+            {
+                demoShootTimer -= timeDelta;
+                if (demoShootTimer <= 0) { demoLaunch(); demoShootTimer = 1.0; }
+            }
+            return;
         }
 
         // record mouse trail (for release velocity)

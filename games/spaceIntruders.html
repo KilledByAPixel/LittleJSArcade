@@ -61,6 +61,8 @@ let gameOver = false;
 let gameWin = false;
 let levelAnnounce = 0; // frames to show level announcement
 let respawnTimer = 0; // frames to wait before respawning
+// Arcade cabinet (#demo): the ship is auto-driven by an AI for a self-running demo.
+const inCabinet = /demo/.test(location.hash);
 let playerHidden = false; // true when player is dead and waiting to respawn
 let gameOverTimer = 0; // frames before can click to return to title
 let inputMode = 'mouse'; // 'mouse' or 'keyboard'
@@ -425,6 +427,43 @@ class Player extends RectObject
         this.renderOrder = 10;
         this.shotCooldown = 0; // minimum frames between shots even when last bullet died
     }
+    // Cabinet demo: slide under the lowest invader, fire when lined up, dodge bombs.
+    demoControl()
+    {
+        let targetX = this.pos.x, bestY = 1e9, bestD = 1e9;
+        for (const a of aliens)
+        {
+            if (a.destroyed) continue;
+            const d = abs(a.pos.x - this.pos.x);
+            if (a.pos.y < bestY - 1 || (abs(a.pos.y - bestY) <= 1 && d < bestD))
+            { bestY = a.pos.y; bestD = d; targetX = a.pos.x; }
+        }
+
+        // dodge a bomb that's close in x and getting low
+        for (const bomb of bombs)
+        {
+            if (bomb.destroyed) continue;
+            if (abs(bomb.pos.x - this.pos.x) < 1.6 && bomb.pos.y < this.pos.y + 8)
+            { targetX = this.pos.x + (bomb.pos.x < this.pos.x ? 3 : -3); break; }
+        }
+
+        // glide toward the target column
+        this.pos.x += clamp(targetX - this.pos.x, -1, 1) * .55;
+        clampToPlayfield(this.pos, this.size.scale(.5));
+
+        // fire when lined up (single-bullet arcade rule + cooldown)
+        if (this.shotCooldown > 0) this.shotCooldown--;
+        const hasActiveBullet = bullets.some(b => !b.destroyed && b.fromPlayer);
+        if (abs(targetX - this.pos.x) < 1.2 && !hasActiveBullet && this.shotCooldown === 0)
+        {
+            this.shotCooldown = 12;
+            playerShotsFired++;
+            const b = new Bullet(this.pos.add(vec2(0, 0.1)), vec2(0, 1.2), true);
+            b.shotIndex = playerShotsFired;
+            bullets.push(b);
+            sfxShoot.play(this.pos);
+        }
+    }
     update()
     {
         if (gameOver || gameWin || levelAnnounce > 0 || respawnTimer > 0)
@@ -434,6 +473,13 @@ class Player extends RectObject
         // with no player ship — nothing to drive here.
         if (!isPlaying())
             return;
+
+        // Cabinet (#demo): the AI drives the ship instead of human input.
+        if (inCabinet)
+        {
+            this.demoControl();
+            return;
+        }
 
         // Switch input mode based on most recent activity. Stick/D-pad press
         // counts as keyboard-mode (uses the same "compute X delta" path).
@@ -833,6 +879,13 @@ function gameInit()
     // Set up a level immediately so the title has the calm marching formation
     // running behind the menu. isPlaying() stays false until PLAY.
     resetGame();
+
+    if (inCabinet)
+    {
+        // self-run the AI demo behind the (hidden) menu chrome
+        startGame();
+        if (typeof hideAllMenus === 'function') hideAllMenus();
+    }
 }
 
 function startGame()
@@ -939,6 +992,11 @@ function gameUpdate()
     {
         // Attract demo (not playing): the run ended, so just loop — restart a
         // fresh demo level, staying at the title. No menu, no score submit.
+        if (inCabinet)
+        {
+            startGame();   // loop the demo with a fresh ship; no menu, no best-score
+            return;
+        }
         if (!isPlaying())
         {
             resetGame();

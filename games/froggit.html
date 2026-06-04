@@ -33,6 +33,10 @@ const LEVEL_W = 30;
 const LEVEL_H = 20;
 const DT = 1/60;
 
+// Arcade cabinet (#demo): an AI auto-crosses the frog for a self-running demo.
+const inCabinet = /demo/.test(location.hash);
+let demoHopTimer = 0;
+
 // Generous off-screen padding so cars/logs spawn and wrap
 // well outside the visible camera area (no pop-in).
 const OFFSCREEN_PAD = 10;
@@ -278,11 +282,13 @@ function killFrog() {
     if (lives < 0) {
         gameOver = true;
         gameOverHoldTimer = 1.4;
-        if (level > bestLevel) {
-            bestLevel = level;
-            saveData({bestLevel});
+        if (!inCabinet) {   // the demo never banks progress
+            if (level > bestLevel) {
+                bestLevel = level;
+                saveData({bestLevel});
+            }
+            newHighScore = (typeof submitBestScore === 'function') ? submitBestScore(score) : false;
         }
-        newHighScore = (typeof submitBestScore === 'function') ? submitBestScore(score) : false;
     }
 }
 
@@ -498,6 +504,12 @@ function gameInit() {
     buildLanes();
     resetRun(true);
     buildMenus();
+
+    if (inCabinet) {
+        // self-run the AI demo behind the (hidden) menu chrome
+        startGame();
+        if (typeof hideAllMenus === 'function') hideAllMenus();
+    }
 }
 
 function startGame() {
@@ -600,6 +612,39 @@ function buildMenus() {
     showMenu('title');
 }
 
+// Cabinet demo: hop the frog forward whenever the next row is safe (a clear road
+// lane, or a log under the landing column on the river); otherwise wait a beat.
+function demoFrogAI() {
+    if (respawnTimer.active()) return;
+    demoHopTimer -= DT;
+    if (demoHopTimer > 0) return;
+
+    const ny = frog.grid.y + 1;                  // row we'd advance into
+    const landX = gridToWorld(frog.grid.x, ny).x;
+
+    let canGoUp = true;
+    if (ny >= ROAD_MIN_Y && ny <= ROAD_MAX_Y) {
+        // road: wait if a car is at the landing column now or arrives soon
+        for (const c of cars) {
+            if (Math.round(c.pos.y - .5) !== ny) continue;
+            const half = c.size.x/2 + .7;
+            if (abs(c.pos.x - landX) < half || abs((c.pos.x + c.vx*.45) - landX) < half)
+            { canGoUp = false; break; }
+        }
+    } else if (ny >= RIVER_MIN_Y && ny <= RIVER_MAX_Y) {
+        // river: only advance if a log sits under the landing column
+        let onLog = false;
+        for (const l of logs) {
+            if (Math.round(l.pos.y - .5) !== ny) continue;
+            if (abs(l.pos.x - landX) < l.size.x/2 - .3) { onLog = true; break; }
+        }
+        canGoUp = onLog;
+    }
+
+    if (canGoUp) { tryMove(0, 1); demoHopTimer = .26; }
+    else demoHopTimer = .1;   // re-check soon
+}
+
 function gameUpdate() {
     // Pin the camera here (before plugins run) so the gameFx screen-shake
     // plugin — which nudges cameraPos after gameUpdate — isn't wiped by a
@@ -635,6 +680,11 @@ function gameUpdate() {
             p.pos.y += p.vel.y * DT;
             if (p.life >= p.maxLife) particles.splice(i, 1);
         }
+        if (inCabinet) {
+            gameOverHoldTimer -= DT;
+            if (gameOverHoldTimer <= 0) startGame();   // loop the demo, no menu
+            return;
+        }
         if (!endMenuShowing) {
             gameOverHoldTimer -= DT;
             if (gameOverHoldTimer <= 0 && typeof showMenu === 'function')
@@ -648,7 +698,7 @@ function gameUpdate() {
         resetRun(false);
     }
 
-    handleInput();
+    if (inCabinet) demoFrogAI(); else handleInput();
     updateObstacles(cars);
     updateObstacles(logs);
     frogWorldChecks();

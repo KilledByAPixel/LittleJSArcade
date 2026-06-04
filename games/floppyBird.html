@@ -45,10 +45,10 @@ const gapSize = 6.5;
 const pipeInterval = 1.45;  // seconds
 const pipeSpawnX = worldSize.x/2 + 10;
 const pipeDespawnX = -worldSize.x/2 - 14;
-// the first pipe of a run starts at the screen edge (same place later pipes
-// first appear, so it gives full reaction time), and the first timer is
-// shortened so pipe #2 follows at the normal spacing instead of a big gap
-const firstPipeX = worldSize.x/2;
+// the first pipe of a run starts just inside the right edge (fully on-screen,
+// not clipped at the edge), and the first timer is shortened so pipe #2 follows
+// at the normal spacing instead of a big gap
+const firstPipeX = worldSize.x/2 - 3;
 const firstPipeTimer = pipeInterval + (firstPipeX - pipeSpawnX)/pipeSpeed;
 
 // visuals
@@ -578,9 +578,14 @@ function startDemo()
 // auto-plays; clicking PLAY starts a real game.
 function startMenuScene()
 {
-    resetRun(true);    // STATE_READY: sets birdPos/pipes/scroll; no gameplay runs
+    resetRun(true);    // STATE_READY: sets birdPos/scroll; no gameplay runs
     initScenery();
-    pipes = [];        // no pipes on the static backdrop
+    // a few static pipes across the scene (at gameplay spacing) so the title
+    // reads as a real level rather than empty sky — the bird just isn't drawn here
+    pipes = [];
+    const spacing = pipeInterval * pipeSpeed;  // ~14.5 world units, as in play
+    for (let x = firstPipeX; x > -worldSize.x/2 - 2; x -= spacing)
+        pipes.push({ x, gapY: clampGapY(rand(ceilY-2, floorY+2)), passed:false });
 }
 
 function buildMenus()
