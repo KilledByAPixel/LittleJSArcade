@@ -294,6 +294,11 @@
         text-transform: lowercase;
         letter-spacing: .3px;
     }
+    /* Touch only: floor / recently-played / top-pick tiles drop their tag chips
+       (incl. 🎮 + ↗ off-site) so the grid reads cleaner on cramped screens.
+       Non-touch keeps the chips on the tiles — there's room for them there. Tags
+       also show in the featured hero cabinet and the sidebar card on any device. */
+    body.touch .tile .chips { display: none; }
     .empty { padding: 20px 16px; color: var(--muted); font-size: 13px; text-align: center; }
 
     /* High-score badge — gold accent, used on tiles + sidebar cards. */
@@ -848,23 +853,31 @@
     @media (orientation: portrait) { html.ios-topbar #about-btn { top: 48px; } }
 
     /* ---- Hero attract cabinet: 16:9 screen + side info/controls panel ---- */
+    /* The cabinet itself is NOT a button — only the screen and the INSERT COIN
+          button launch the game (see .hero-screen / .hero-coin below). So no
+          whole-cabinet cursor:pointer or hover highlight. */
     #hero-cabinet {
         display: flex; align-items: stretch; margin: 0 auto 28px; max-width: 1100px;
         border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
-        cursor: pointer; background: var(--panel);
+        background: var(--panel);
         box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(88,166,255,.15);
-        transition: border-color .15s, box-shadow .15s, transform .15s;
     }
-    #hero-cabinet:hover {
-        border-color: var(--accent);
-        box-shadow: 0 14px 50px rgba(0,0,0,.6), 0 0 0 1px var(--accent);
-        transform: translateY(-2px);
+    /* The screen holds the attract iframe at a locked 16:9 aspect ratio. It is
+          one of the two play surfaces (with INSERT COIN) — clicking it launches
+          the game, so it gets the pointer cursor + a hover ring. */
+    .hero-screen { position: relative; flex: 0 0 62%; aspect-ratio: 16 / 9; background: #000; border-right: 1px solid var(--border); cursor: pointer; }
+    /* Accent ring on hover, layered above the iframe (an inset shadow on the
+          screen itself would be hidden behind the frame). Pointer-events off so
+          it never eats the click. Gated to hover-capable devices so it can't
+          stick after a tap on touch. */
+    .hero-screen::after {
+        content: ''; position: absolute; inset: 0; pointer-events: none;
+        box-shadow: inset 0 0 0 2px var(--accent); opacity: 0; transition: opacity .15s;
     }
-    /* The screen holds the attract iframe at a locked 16:9 aspect ratio. */
-    .hero-screen { position: relative; flex: 0 0 62%; aspect-ratio: 16 / 9; background: #000; border-right: 1px solid var(--border); }
-    /* The attract iframe is purely visual — pointer-events off so the whole
-          cabinet acts as one big PLAY button. Starts transparent and fades in
-          once the attract is clean (no white flash, no menu flicker). */
+    @media (hover: hover) { .hero-screen:hover::after { opacity: 1; } }
+    /* The attract iframe is purely visual — pointer-events off so a click on the
+          screen lands on .hero-screen (which launches). Starts transparent and
+          fades in once the attract is clean (no white flash, no menu flicker). */
     #hero-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; pointer-events: none; background: #000; opacity: 0; transition: opacity .35s ease; }
     /* Info + controls panel beside the screen, like a cabinet marquee. */
     .hero-bar {
@@ -877,12 +890,17 @@
     .hero-name { font-size: 30px; font-weight: 800; line-height: 1.1; color: var(--text); }
     .hero-bar .hero-score { align-self: flex-start; }
     .hero-bar .hero-score[hidden] { display: none; }
+    /* INSERT COIN is now a real button (the other play surface besides the
+          screen) — it takes pointer events, a pointer cursor, and a hover lift. */
     .hero-coin {
         align-self: flex-start; margin-top: 4px;
         background: linear-gradient(135deg, var(--accent), #2978d3); border: 1px solid var(--accent);
         color: #fff; font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 9px;
-        box-shadow: 0 4px 16px rgba(88,166,255,.4); white-space: nowrap; pointer-events: none;
+        box-shadow: 0 4px 16px rgba(88,166,255,.4); white-space: nowrap; cursor: pointer;
+        transition: filter .12s, box-shadow .12s, transform .12s;
     }
+    .hero-coin:hover { filter: brightness(1.08); box-shadow: 0 6px 22px rgba(88,166,255,.55); transform: translateY(-1px); }
+    .hero-coin:active { transform: translateY(0); }
     .hero-shuffle {
         align-self: flex-start; margin-top: 2px;
         background: rgba(127,127,127,.10); border: 1px solid var(--border);
@@ -919,6 +937,10 @@
     .floor-chip.on { background: var(--cat-bg, var(--accent-bg)); color: var(--text); border-color: var(--cat-color, var(--accent)); }
 
     .floor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 14px; padding-bottom: 36px; }
+    /* Narrow phones (e.g. iPhone SE): smaller min column so two cards fit per row. */
+    @media (max-width: 480px) {
+        .floor-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+    }
     /* Reuse the existing .tile look, but let it flex to the grid cell width. */
     .floor-grid .tile { width: auto; min-height: 104px; }
     /* Full-width divider before the Under Construction section (mirrors sidebar). */
@@ -1045,7 +1067,7 @@ const GAMES = [
 
     // ---- Local URLs. ----
     { file:'2048.html',           name:'2048',            emoji:'🔢',  category:'puzzle',       desc:'Slide tiles, combine the numbers.',       scoreKey:'2048.bestScore',            tags:['grid','merge'],                           keywords:['threes','merge','numbers'] },
-    { file:'asterblast.html',      name:'Asterblast',      emoji:'🌑',  category:'shooter',      desc:'Thrust and blast the rocks.',    scoreKey:'asteroids.bestScore',       tags:['retro','space'],                 keywords:['asteroids','rocks','vector shooter'], top:10 },
+    { file:'astroblast.html',      name:'Astroblast',      emoji:'🌑',  category:'shooter',      desc:'Thrust and blast the rocks.',    scoreKey:'asteroids.bestScore',       tags:['retro','space'],                 keywords:['asteroids','rocks','vector shooter'], top:10 },
     { file:'homerDerby.html',       name:'Home Run Derby',     emoji:'⚾',  category:'sports',       desc:'Swing for the fences.',                   tags:['one-button','timing'],                     keywords:['baseball','home run derby','bat'] },
     { file:'freeThrow.html',     name:'Free Throw',      emoji:'🏀',  category:'sports',       desc:'Sink free throws before time runs out.',  scoreKey:'basketball.bestScore',      tags:['timing','aim'],                keywords:['basketball','hoops','nba jam','dunk'] },
     { file:'brickout.html',       name:'Brickout',        emoji:'🧱',  category:'arcade',       desc:'Bounce the ball, break the bricks.',      scoreKey:'breakout.bestScore',        tags:['paddle','retro'],                 keywords:['breakout','arkanoid','bricks'] },
@@ -1139,7 +1161,7 @@ const debugMode = () => { try { return localStorage.getItem('littlejs-build') ==
 
 // Games whose source uses the gamepad API — drives the 🎮 chip on cards/tiles.
 const GAMEPAD_GAMES = new Set([
-    '2048.html','asterblast.html','bobblePop.html','boomer.html','brickout.html',
+    '2048.html','astroblast.html','bobblePop.html','boomer.html','brickout.html',
     'centibug.html','drPill.html','emojiSurvivors.html','floppyBird.html','froggit.html',
     'gemFighter.html','geometryJump.html','homerDerby.html','jetdash.html','jouster.html',
     'jumpman.html','microRacer.html','missileDefense.html','moonLander.html','moonbuggy.html',
@@ -1270,6 +1292,23 @@ function pushRecent(file) {
     localStorage.setItem(RECENT_KEY, JSON.stringify(next));
 }
 
+// Append a game's tag chips — plus a 🎮 chip when it supports a gamepad and an
+// ↗ off-site chip when it loads externally — to a `.chips` container. Shared by
+// the sidebar card and the hero cabinet so the two always show the same set.
+// (Floor tiles hide their chips via CSS, so they don't use this.)
+function appendGameChips(el, g) {
+    const chip = (text, title) => {
+        const c = document.createElement('span');
+        c.className = 'chip';
+        c.textContent = text;
+        if (title) c.title = title;
+        el.appendChild(c);
+    };
+    for (const t of g.tags) chip(t);
+    if (hasGamepad(g)) chip('🎮', 'Gamepad supported');
+    if (g.url) chip('↗ off-site', 'Loads from an external site');
+}
+
 function makeCard(g) {
     const card = document.createElement('div');
     card.className = 'card';
@@ -1294,28 +1333,20 @@ function makeCard(g) {
         badge.textContent = scoreEmoji(g) + ' ' + formatScore(g, score);
         body.insertBefore(badge, body.firstChild);
     }
-    const chipsEl = card.querySelector('.chips');
-    for (const t of g.tags) {
-        const chip = document.createElement('span');
-        chip.className = 'chip';
-        chip.textContent = t;
-        chipsEl.appendChild(chip);
-    }
-    if (hasGamepad(g)) {
-        const chip = document.createElement('span');
-        chip.className = 'chip';
-        chip.textContent = '🎮';
-        chip.title = 'Gamepad supported';
-        chipsEl.appendChild(chip);
-    }
-    if (g.url) {
-        const chip = document.createElement('span');
-        chip.className = 'chip';
-        chip.textContent = '↗ off-site';
-        chip.title = 'Loads from an external site';
-        chipsEl.appendChild(chip);
-    }
-    card.addEventListener('click', () => selectGame(g.file));
+    appendGameChips(card.querySelector('.chips'), g);
+    card.addEventListener('click', () => {
+        // Touch: the first tap only PREVIEWS the card (expands it so you can read
+        // the description — only one open at a time); a second tap on the already-
+        // open card launches it. Non-touch launches at once (hover reveals the
+        // description there, so there's nothing to preview).
+        if (isTouch && !card.classList.contains('selected')) {
+            for (const c of listEl.querySelectorAll('.card.selected')) c.classList.remove('selected');
+            card.classList.add('selected');
+            return;
+        }
+        selectGame(g.file);
+        if (isTouch) setDrawer(false);   // launching from the drawer closes it
+    });
     return card;
 }
 
@@ -1493,7 +1524,7 @@ function makeTile(g, index) {
 // through these, loading each with #demo so it runs menu-less and self-running.
 // Add a game here once it's been wired for demo mode.
 const DEMO_GAMES = [
-    'pong.html', 'asterblast.html', 'missileDefense.html', 'roboRescue.html',
+    'pong.html', 'astroblast.html', 'missileDefense.html', 'roboRescue.html',
     'tetrix.html', 'spaceIntruders.html', 'froggit.html', 'checkers.html',
     'reversi.html', 'connect4.html', 'chess.html',
     'boomer.html', 'brickout.html', 'floppyBird.html', 'geometryJump.html',
@@ -1621,11 +1652,19 @@ function setHero(file) {
     if (nameEl) nameEl.textContent = g ? g.name : '';
     // Flag featured games in the cabinet's status line.
     if (nowEl) nowEl.textContent = isFeatured(file) ? '★ FEATURED' : '▸ NOW PLAYING';
-    // Personal best for this game, if one exists (e.g. Asterblast); else hidden.
+    // Personal best for this game, if one exists (e.g. Astroblast); else hidden.
     if (scoreEl) {
         const sc = g ? getHighScore(g) : null;
         if (sc != null) { scoreEl.textContent = scoreEmoji(g) + ' ' + formatScore(g, sc); scoreEl.hidden = false; }
         else scoreEl.hidden = true;
+    }
+    // Tag chips for the featured game (same set the sidebar card shows). Hidden
+    // when there are none so it doesn't leave an empty gap in the marquee.
+    const tagsEl = document.querySelector('#hero-cabinet .hero-tags');
+    if (tagsEl) {
+        tagsEl.innerHTML = '';
+        if (g) appendGameChips(tagsEl, g);
+        tagsEl.style.display = tagsEl.children.length ? '' : 'none';
     }
     if (frame && file) {
         let prevDoc = null;
@@ -1688,9 +1727,8 @@ function tickHeroTimer() {
 function buildHero() {
     const wrap = document.createElement('div');
     wrap.id = 'hero-cabinet';
-    wrap.title = 'Click to play';
     wrap.innerHTML =
-        '<div class="hero-screen">' +
+        '<div class="hero-screen" title="Click to play">' +
             '<iframe id="hero-frame" title="Attract mode" tabindex="-1" scrolling="no" ' +
                 'allow="autoplay *; gamepad *"></iframe>' +
         '</div>' +
@@ -1698,16 +1736,19 @@ function buildHero() {
             '<span class="hero-now">▸ NOW PLAYING</span>' +
             '<span class="hero-name"></span>' +
             '<span class="hero-score score-badge" hidden></span>' +
-            '<span class="hero-coin">▶ INSERT COIN</span>' +
+            '<div class="hero-tags chips"></div>' +
+            '<button class="hero-coin" title="Play this game" aria-label="Insert coin and play">▶ INSERT COIN</button>' +
             '<button class="hero-shuffle" title="Show a different game" aria-label="Show a different game">🔀 Show a different game</button>' +
         '</div>';
-    // The whole cabinet is one big PLAY button; the iframe ignores pointer events.
-    wrap.addEventListener('click', () => { if (heroFile) selectGame(heroFile); });
+    // Only the screen and the INSERT COIN button launch the game — NOT the
+    // surrounding marquee/empty space. This keeps the coin button meaningful and
+    // stops a stray tap on the info panel from booting you into the game (esp. on
+    // mobile, where the whole cabinet was easy to hit by accident).
+    const launch = () => { if (heroFile) selectGame(heroFile); };
+    wrap.querySelector('.hero-screen').addEventListener('click', launch);
+    wrap.querySelector('.hero-coin').addEventListener('click', launch);
     // Steps through the shuffled demo order, wrapping — repeated clicks cycle all.
-    wrap.querySelector('.hero-shuffle').addEventListener('click', e => {
-        e.stopPropagation();
-        advanceDemo();
-    });
+    wrap.querySelector('.hero-shuffle').addEventListener('click', () => advanceDemo());
     // Hovering the cabinet pauses + resets the auto-advance countdown.
     wrap.addEventListener('mouseenter', () => { heroHover = true; });
     wrap.addEventListener('mouseleave', () => { heroHover = false; });
@@ -2232,9 +2273,9 @@ function setDrawer(open) {
 }
 hamburgerBtn.addEventListener('click', () => setDrawer(!sidebarOpen));
 backdropEl.addEventListener('click', () => setDrawer(false));
-// Touch: picking a game from the drawer closes it so you land on the game.
-// (Non-touch's side panel is persistent — nothing to close on pick.)
-listEl.addEventListener('click', e => { if (isTouch && e.target.closest('.card')) setDrawer(false); });
+// (Touch: launching a game from the drawer closes it — handled in each card's
+// click handler, since the first tap there only previews the card. Non-touch's
+// side panel is persistent, so there's nothing to close on pick.)
 // Home logo closes the touch drawer and returns to the floor.
 sidebarLogoWrap.addEventListener('click', () => setDrawer(false));
 
