@@ -854,22 +854,20 @@ function installDefaultToolbar(opts)
             id:   'fs',
             label: buildSvgIcon('fullscreen'),
             title: 'Toggle fullscreen',
-            onClick: toggleFullscreen,
+            onClick: _toolbarToggleFullscreen,
             hideOnTouch: true,
         });
     }
 
     items.push(...opts.extraItemsAfter);
 
-    // Library button (2×2 grid icon) — reopens the arcade's library drawer on
-    // mobile, where the launcher hides its own drawer toggle in-game. Only
-    // meaningful when
-    // (a) we're on a touch device and (b) we're embedded in the arcade iframe,
-    // so it's gated on both here and only revealed once the launcher answers
-    // the handshake below (see _arcadePanelHandshake). Standalone games and
-    // games iframed on some other site never see it.
-    const _wantPanelButton = opts.panelButton && isTouchDevice
-        && window.self !== window.top;
+    // Library button (2×2 grid icon) — toggles the arcade's library sidebar
+    // (a slide-in drawer on touch, the persistent side panel on desktop). Shown
+    // on ALL devices, but only when we're embedded in the arcade iframe — so it's
+    // gated on that here and only revealed once the launcher answers the
+    // handshake below (see _arcadeHandshake). Standalone games and games iframed
+    // on some other site never see it.
+    const _wantPanelButton = opts.panelButton && window.self !== window.top;
     if (_wantPanelButton)
     {
         items.push({
@@ -877,7 +875,7 @@ function installDefaultToolbar(opts)
             id:    'panel',
             label: buildSvgIcon('grid'),   // filled 2×2 squares, sized like its neighbors
             title: 'Library',
-            onClick: _arcadeOpenPanel,
+            onClick: _arcadeTogglePanel,
         });
     }
 
@@ -917,16 +915,20 @@ function installDefaultToolbar(opts)
 
     // The Library button starts hidden and only appears once the launcher
     // answers our handshake — guarantees it never shows unless a real arcade
-    // is listening (and ready to act on the open-panel message).
+    // is listening (and ready to act on the toggle-panel message).
     if (_wantPanelButton)
     {
         const panelItem = toolbar.getItem('panel');
         if (panelItem)
         {
             panelItem.setVisible(false);
-            _arcadePanelHandshake(() => panelItem.setVisible(true));
+            _arcadeHandshake(() => panelItem.setVisible(true));
         }
     }
+    // Even without a Library button, start the handshake when embedded so the
+    // fullscreen button learns the launcher's page fullscreen state.
+    else if (opts.fullscreen && window.self !== window.top)
+        _arcadeHandshake();
 
     // Keep handle to opts so refreshDefaultToolbar can re-evaluate later
     // when the game's underlying state (driving grayedWhen) changes.
@@ -970,34 +972,69 @@ function refreshDefaultToolbar(id)
     }
 }
 
-// Arcade-launcher handshake for the Library button. The game posts a
-// 'hello' to its parent frame and reveals the button only when the launcher
-// replies 'here'. Game-initiated (rather than launcher-initiated) so there's
-// no load-timing race: whenever a toolbar inits it asks, and the launcher
-// answers immediately. The confirmation is cached so a second toolbar (or a
-// re-init) reveals its button right away.
-let _arcadePanelConfirmed = false;
-// Ask the launcher to open its library drawer. No-op (silently caught) when
+// Arcade-launcher handshake. The game posts a 'hello' to its parent frame; the
+// launcher replies 'here' (and includes its current page-level fullscreen
+// state). Game-initiated (rather than launcher-initiated) so there's no
+// load-timing race: whenever a toolbar inits it asks, and the launcher answers
+// immediately. Results are cached so later toolbars/buttons react right away.
+//
+// Two things ride on this:
+//   • the Library button reveals itself only once a real launcher answers.
+//   • the fullscreen button tracks the launcher's PAGE fullscreen state so it
+//     can exit a launcher-owned fullscreen (started from the arcade's own
+//     page-level button) instead of just covering it with the game canvas.
+let _arcadeConfirmed = false;
+let _arcadeParentFullscreen = false;
+const _arcadeConfirmCbs = [];
+let _arcadeHandshakeStarted = false;
+// Ask the launcher to toggle its library sidebar. No-op (silently caught) when
 // there's no parent or it isn't the arcade — callers gate on the handshake.
-function _arcadeOpenPanel()
+function _arcadeTogglePanel()
 {
-    try { window.parent.postMessage({ type: 'littlejsArcadeOpenPanel' }, '*'); }
+    try { window.parent.postMessage({ type: 'littlejsArcadeTogglePanel' }, '*'); }
     catch (e) {}
 }
-function _arcadePanelHandshake(onConfirm)
+// Ask the launcher to exit its page-level fullscreen.
+function _arcadeExitFullscreen()
 {
-    if (_arcadePanelConfirmed) { onConfirm(); return; }
+    try { window.parent.postMessage({ type: 'littlejsArcadeExitFullscreen' }, '*'); }
+    catch (e) {}
+}
+// Start the handshake once; run onConfirm now if already confirmed, else queue it.
+function _arcadeHandshake(onConfirm)
+{
+    if (onConfirm)
+    {
+        if (_arcadeConfirmed) onConfirm();
+        else _arcadeConfirmCbs.push(onConfirm);
+    }
+    if (_arcadeHandshakeStarted) return;
+    _arcadeHandshakeStarted = true;
     window.addEventListener('message', e =>
     {
         const d = e.data;
-        if (d && d.type === 'littlejsArcadeHere')
+        if (!d || typeof d !== 'object') return;
+        if (d.type === 'littlejsArcadeHere')
         {
-            _arcadePanelConfirmed = true;
-            onConfirm();
+            _arcadeConfirmed = true;
+            if (typeof d.fullscreen === 'boolean') _arcadeParentFullscreen = d.fullscreen;
+            while (_arcadeConfirmCbs.length) _arcadeConfirmCbs.shift()();
         }
+        else if (d.type === 'littlejsArcadeFullscreenState')
+            _arcadeParentFullscreen = !!d.fullscreen;
     });
     try { window.parent.postMessage({ type: 'littlejsArcadeHello' }, '*'); }
     catch (e) {}
+}
+// Toolbar fullscreen button. Inside the arcade, when the launcher's PAGE is
+// fullscreen (started from the arcade's own fullscreen button), ask the launcher
+// to exit — so this button works like Escape instead of just stacking the game
+// canvas on top. Otherwise toggle the game's own fullscreen as usual (standalone
+// games are unaffected — _arcadeParentFullscreen stays false there).
+function _toolbarToggleFullscreen()
+{
+    if (_arcadeParentFullscreen) { _arcadeExitFullscreen(); return; }
+    toggleFullscreen();
 }
 
 // ============================================================================
@@ -2081,15 +2118,15 @@ function ensureOrientationOverlay()
     // who launched an orientation-locked game on a device they can't/won't
     // rotate. The overlay covers the toolbar (so its Library button is hidden),
     // hence this dedicated copy. Only shown inside the launcher: starts hidden
-    // and is revealed by the same handshake, and reuses the open-panel message.
+    // and is revealed by the same handshake, and reuses the toggle-panel message.
     const panelBtn = document.createElement('button');
     panelBtn.className = 'ljs-orient-panel-btn';
     panelBtn.title = 'Library';
     panelBtn.appendChild(buildGridIcon());
     panelBtn.style.display = 'none';
-    panelBtn.addEventListener('click', () => { _arcadeOpenPanel(); panelBtn.blur(); });
+    panelBtn.addEventListener('click', () => { _arcadeTogglePanel(); panelBtn.blur(); });
     el.appendChild(panelBtn);
-    _arcadePanelHandshake(() => { panelBtn.style.display = ''; });
+    _arcadeHandshake(() => { panelBtn.style.display = ''; });
 
     menuSystemRoot.appendChild(el);
     orientationOverlay = el;

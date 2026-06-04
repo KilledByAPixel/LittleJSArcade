@@ -121,6 +121,11 @@
     }
     /* Non-touch: no sidebar on the welcome floor (the base rule shows it in-game). */
     body:not(.touch):not(.in-game) #sidebar { display: none; }
+    /* Non-touch: the persistent side panel can be collapsed for more game space
+          via the game's Library button (toggles body.sidebar-collapsed); the
+          stage flexes to fill the freed width. Touch uses the slide-in drawer
+          instead, so this only applies to non-touch. */
+    body:not(.touch).in-game.sidebar-collapsed #sidebar { display: none; }
     /* Touch: overlay drawer at all widths, hidden off-screen until opened. */
     body.touch #sidebar {
         position: fixed;
@@ -852,6 +857,25 @@
     body.in-game #about-btn { display: none; }
     @media (orientation: portrait) { html.ios-topbar #about-btn { top: 48px; } }
 
+    /* Fourth top-right icon: Fullscreen (⛶). Left of about. Toggles the whole
+          page in/out of fullscreen on the welcome screen; hidden in-game (the
+          game's own toolbar owns fullscreen there, like the theme/about icons). */
+    #fullscreen-toggle {
+        position: fixed; top: 12px; right: 118px; z-index: 100;
+        width: 40px; height: 40px;
+        display: flex; align-items: center; justify-content: center;
+        padding: 0; background: var(--panel-2); border: 1px solid var(--border);
+        border-radius: 8px; font-size: 19px; line-height: 1;
+        color: var(--text);
+        transition: background .15s, border-color .15s, transform .15s;
+    }
+    #fullscreen-toggle:hover { border-color: var(--accent); transform: scale(1.08); }
+    body.in-game #fullscreen-toggle { display: none; }
+    /* Touch devices: browser fullscreen is unreliable on mobile, so hide it
+          (matches the game toolbar's hideOnTouch fullscreen button). */
+    body.touch #fullscreen-toggle { display: none; }
+    @media (orientation: portrait) { html.ios-topbar #fullscreen-toggle { top: 48px; } }
+
     /* ---- Hero attract cabinet: 16:9 screen + side info/controls panel ---- */
     /* The cabinet itself is NOT a button — only the screen and the INSERT COIN
           button launch the game (see .hero-screen / .hero-coin below). So no
@@ -990,6 +1014,7 @@
 <div id="backdrop"></div>
 <button id="theme-toggle" aria-label="Toggle light/dark theme"></button>
 <button id="about-btn" aria-label="About the LittleJS Arcade" title="About">?</button>
+<button id="fullscreen-toggle" aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
 
 <aside id="sidebar">
     <div id="sidebar-header">
@@ -2244,6 +2269,28 @@ fullscreenBtn.addEventListener('click', () => {
     }
 });
 
+// Top-bar fullscreen icon — only shown on the welcome screen (hidden in-game),
+// so it always does the library-view toggle: whole page in/out of fullscreen.
+const fullscreenToggle = document.getElementById('fullscreen-toggle');
+if (fullscreenToggle) {
+    fullscreenToggle.addEventListener('click', () => {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
+    });
+    // Keep the tooltip/label in sync with the actual fullscreen state, and tell
+    // the loaded game so its toolbar fullscreen button can exit a launcher-owned
+    // (page-level) fullscreen instead of just covering it with the game canvas.
+    document.addEventListener('fullscreenchange', () => {
+        const fs = !!document.fullscreenElement;
+        fullscreenToggle.title = fs ? 'Exit fullscreen' : 'Toggle fullscreen';
+        fullscreenToggle.setAttribute('aria-label', fullscreenToggle.title);
+        try {
+            if (frameEl && frameEl.contentWindow)
+                frameEl.contentWindow.postMessage({ type: 'littlejsArcadeFullscreenState', fullscreen: fs }, '*');
+        } catch (err) {}
+    });
+}
+
 // Share — uses the native share sheet on mobile/Safari, falls back to copying
 // the URL to the clipboard with a brief "Copied!" label swap.
 shareBtn.addEventListener('click', async () => {
@@ -2284,6 +2331,14 @@ function setDrawer(open) {
     sidebarEl.classList.toggle('open', open);
     backdropEl.classList.toggle('show', open);
 }
+// Toggle the library sidebar from a game's Library button (works on every
+// device): touch slides the overlay drawer in/out; non-touch collapses/restores
+// the persistent side panel (body.sidebar-collapsed hides it so the game fills
+// the stage).
+function toggleSidebar() {
+    if (isTouch) setDrawer(!sidebarOpen);
+    else document.body.classList.toggle('sidebar-collapsed');
+}
 hamburgerBtn.addEventListener('click', () => setDrawer(!sidebarOpen));
 backdropEl.addEventListener('click', () => setDrawer(false));
 // (Touch: launching a game from the drawer closes it — handled in each card's
@@ -2294,20 +2349,28 @@ sidebarLogoWrap.addEventListener('click', () => setDrawer(false));
 
 // ===================== In-game Library button (iframe handshake) =====================
 // Games running inside this iframe show a Library button in their toolbar to
-// reopen the drawer on mobile (the launcher's own #hamburger is hidden in-game).
-// The game posts a 'hello' first; we answer 'here' so the button only appears
-// when a real launcher is listening. A click then posts 'openPanel'.
+// toggle the library sidebar (the slide-in drawer on touch, the persistent side
+// panel on desktop). The game posts a 'hello' first; we answer 'here' (with our
+// page fullscreen state) so the button only appears when a real launcher is
+// listening. A click then posts 'togglePanel'; the game's fullscreen button may
+// post 'exitFullscreen' to exit a launcher-owned fullscreen.
 window.addEventListener('message', e => {
     const d = e.data;
     if (!d || typeof d !== 'object') return;
     if (d.type === 'littlejsArcadeHello') {
-        // Echo back to the sender. file:// iframes report origin 'null', which
-        // postMessage rejects as a target — fall back to '*' there.
+        // Echo back to the sender, including our current page fullscreen state so
+        // the game's fullscreen button can exit a launcher-owned fullscreen.
+        // file:// iframes report origin 'null', which postMessage rejects as a
+        // target — fall back to '*' there.
         const target = (e.origin && e.origin !== 'null') ? e.origin : '*';
-        try { e.source && e.source.postMessage({ type: 'littlejsArcadeHere' }, target); }
+        try { e.source && e.source.postMessage({ type: 'littlejsArcadeHere', fullscreen: !!document.fullscreenElement }, target); }
         catch (err) {}
+    } else if (d.type === 'littlejsArcadeTogglePanel') {
+        toggleSidebar();
     } else if (d.type === 'littlejsArcadeOpenPanel') {
-        setDrawer(true);
+        setDrawer(true);   // legacy open-only message (kept for older games)
+    } else if (d.type === 'littlejsArcadeExitFullscreen') {
+        if (document.fullscreenElement) document.exitFullscreen();
     }
 });
 
