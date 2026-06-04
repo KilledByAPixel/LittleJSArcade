@@ -938,6 +938,8 @@
         transition: border-color .12s, background .12s, color .12s;
     }
     .hero-shuffle:hover { border-color: var(--accent); background: rgba(127,127,127,.20); color: var(--text); }
+    /* Touch: drop the "show a different game" button (cycling is glitchy there). */
+    body.touch .hero-shuffle { display: none; }
     /* While the auto-advance counts down, the NOW PLAYING / FEATURED line shows it. */
     .hero-now.counting { color: var(--accent-2); }
     /* Narrow viewports: stack the screen above the panel. */
@@ -1799,7 +1801,9 @@ function buildHero() {
     // Hovering the cabinet pauses + resets the auto-advance countdown.
     wrap.addEventListener('mouseenter', () => { heroHover = true; });
     wrap.addEventListener('mouseleave', () => { heroHover = false; });
-    if (!_heroTimerStarted) { _heroTimerStarted = true; setInterval(tickHeroTimer, 250); }
+    // Touch devices stay on the initial hero — no auto-rotation, so don't start
+    // the countdown/advance timer at all (the 🔀 button is also hidden there).
+    if (!_heroTimerStarted && !isTouch) { _heroTimerStarted = true; setInterval(tickHeroTimer, 250); }
     // Show the current game in the shuffled order once the element is in the DOM
     // (builds the shuffle on first run; preserves position when returning here).
     setTimeout(() => {
