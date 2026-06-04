@@ -9,10 +9,11 @@
 <script>
 'use strict';
 
-// demo/attract mode: when launched in the arcade with #demo, run self-playing
-// (auto-jumping bot, auto-restart on crash/clear) with no menus.
-const demoMode = /demo/.test(location.hash);
-let demoRestartTimer = 0;   // counts down frames before auto-restarting a finished run
+// Attract / title demo: while !isPlaying() the game auto-plays behind the menu
+// (auto-jumping bot, auto-restart on crash/clear). Clicking PLAY hands control
+// to the player. `demoRestartTimer` counts down frames before the attract reel
+// auto-restarts a finished run.
+let demoRestartTimer = 0;
 
 // engine settings
 
@@ -223,7 +224,7 @@ function killPlayer()
 {
     if (state !== 'play') return;
     state = 'dead';
-    if (demoMode) demoRestartTimer = 90;    // ~1.5s before the attract retries the level
+    if (!isPlaying()) demoRestartTimer = 90; // ~1.5s before the attract retries the level
     sDie.play();
     addScreenShake(.7, .4);
     trail.length = 0;
@@ -266,13 +267,14 @@ function winGame()
 {
     if (state !== 'play') return;
     state = 'win';
-    if (demoMode) demoRestartTimer = 90;    // ~1.5s before the attract moves to the next level
+    if (!isPlaying()) demoRestartTimer = 90; // ~1.5s before the attract moves to the next level
     campaignComplete = (levelIndex + 1 >= TOTAL_LEVELS);
     sWin.play();
     addScreenShake(.4, .3);
 
-    // unlock the next level for this mode (Daily isn't an unlockable campaign)
-    if (mode !== 'daily' && levelIndex + 2 <= TOTAL_LEVELS)
+    // unlock the next level for this mode (Daily isn't an unlockable campaign).
+    // Skip while at the title: the attract reel must not award progress/save.
+    if (isPlaying() && mode !== 'daily' && levelIndex + 2 <= TOTAL_LEVELS)
     {
         const next = levelIndex + 2;
         if (next > (unlocked[mode] || 1)) { unlocked[mode] = next; saveData({unlocked}); }
@@ -378,8 +380,8 @@ function playerStep()
     // auto-run (constant speed, even while jumping)
     player.pos.x += runSpeed;
 
-    // jump (demo mode lets the auto-player trigger it)
-    if (player.grounded && (wantJump() || (demoMode && demoWantsJump())))
+    // jump: the player drives a real game; the attract auto-player drives the title
+    if (player.grounded && (isPlaying() ? wantJump() : demoWantsJump()))
     {
         player.velY = JUMP_VEL;
         player.grounded = false;
@@ -756,8 +758,9 @@ function buildMenus()
 {
     if (typeof createMenu !== 'function') return;
 
-    // pause gameplay only while a run is active (title sits over a frozen backdrop)
-    installAutoPause();
+    // pause gameplay only while a real run is active; the title's live attract
+    // demo must keep simulating behind the menu, so gate the pause on isPlaying()
+    installAutoPause(() => isPlaying());
 
     // ----- title: three modes -----
     createMenu({
@@ -839,6 +842,7 @@ function buildMenus()
 function gameInit()
 {
     saveDataInit('geometryDash');
+    setSilentAttract(true);     // mute all game audio at the title; menu sfx still play
     const sd = getSaveData();
     unlocked = sd.unlocked ?? {classic: 1, remix: 1};
     unlocked.classic = unlocked.classic ?? 1;
@@ -856,44 +860,52 @@ function gameInit()
     sDie  = new Sound([1.39,,663,.02,.17,.42,1,.29,-6.4,1.1,,,.12,,,.2,,.53,.19,,-2303]); // Powerup 401
     sWin  = new Sound([,,517,.04,.3,.8,1,.67,,,118,.01,.15,,,,.113]);
 
+    // set up a live world so the title's attract demo has something to drive
     buildLevel();
     resetGame();
 
     buildMenus();
 
-    if (demoMode)
-        startRun('classic', 0);     // self-running attract: kick off level 1 (no title menu)
-    else
-        showMenu('title');
+    showMenu('title');     // attract demo auto-plays behind the menu (see gameUpdate)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdate()
 {
     if (bindPauseKey({when: () => isPlaying() && state === 'play'})) return;
-    if (!isPlaying()) return;
 
-    if (state !== 'play')
+    // ----- title attract demo: auto-play behind the menu while not playing -----
+    // Loops forever (retry on crash, advance on clear) and NEVER touches menus,
+    // setPlaying, or saved progress — it just animates the title backdrop.
+    if (!isPlaying())
     {
-        updateParticles();
-
-        // demo attract loop: auto-advance after a short pause so the reel never stalls
-        if (demoMode)
+        if (state !== 'play')
         {
+            updateParticles();
             if (--demoRestartTimer <= 0)
             {
                 if (state === 'win')
                 {
-                    if (levelIndex + 1 < TOTAL_LEVELS)
-                        startRun('classic', levelIndex + 1);   // next level
-                    else
-                        startRun('classic', 0);                // loop back to level 1
+                    // advance the curated campaign, looping back to level 1
+                    mode = 'classic';
+                    levelIndex = (levelIndex + 1) % TOTAL_LEVELS;
+                    buildLevel();
+                    resetGame();
                 }
                 else
-                    resetGame();                               // crashed -> retry this level
+                    resetGame();        // crashed -> retry this level layout
             }
             return;
         }
+
+        playerStep();           // demoWantsJump() drives the cube (see playerStep)
+        updateParticles();
+        return;
+    }
+
+    if (state !== 'play')
+    {
+        updateParticles();
 
         if (wantJump() || keyWasPressed('KeyR'))
         {

@@ -11,19 +11,28 @@
 <script>
 'use strict';
 
-// engine settings, do not remove
-paused = false;
-
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
-cameraScale = 80;
-canvasFixedSize = vec2(720, 1080);
+// engine settings
+canvasMaxSize = vec2(2048);
 
 ///////////////////////////////////////////////////////////////////////////////
 // CHESS GAME
 
 const BOARD_SIZE = 8;
 const SQUARE_SIZE = 1.0;
+
+// The arcade launcher loads the hero/cabinet box with "#demo" in the URL; a
+// normal launch does not. In the cabinet we run an AI-vs-AI attract behind the
+// title; on a normal launch the title shows a static, freshly set-up board.
+const inCabinet = /demo/.test(location.hash);
+
+// Normal real-play camera scale (board + HUD margins). Restored on PLAY.
+const PLAY_CAMERA_SCALE = 80;
+
+// Attract state (title only). AI-vs-AI demo loops in the cabinet; auto-restarts
+// a fresh match a couple seconds after game over.
+let attractRunning = false;       // true while an AI-vs-AI attract match is live
+let attractRestartTimer = 0;      // counts up after attract game over before re-deal
+const ATTRACT_RESTART_DELAY = 2.5;
 
 // Piece types
 const PIECE_PAWN   = 'P';
@@ -955,6 +964,18 @@ function worldPosToSquare(worldPos)
     return null;
 }
 
+// Fit the camera tightly to the board for the title/attract view: the board
+// frame (plus a little padding) fills the viewport. The board is square and the
+// canvas is portrait, so width is the limiting axis. Recomputed from the live
+// canvas size so it's robust to any actual on-screen scaling.
+function fitCameraToBoard()
+{
+    const span = BOARD_SIZE * SQUARE_SIZE + 0.4 + 0.6; // frame + small padding
+    const w = mainCanvasSize.x || 720, h = mainCanvasSize.y || 1080;
+    cameraPos = vec2(0, 0);
+    cameraScale = Math.min(w / span, h / span);
+}
+
 // Bake every piece glyph + a reusable circle into the texture atlas. Called
 // once from gameInit. 12 piece tiles + 1 circle fit easily in a 16-tile sheet.
 function bakePieceSprites()
@@ -1193,10 +1214,46 @@ function refreshDifficultyUI()
     title?.getItem('aiVsAi')?.setLabel(`AI VS AI · ${upper}`);
 }
 
+// Set up the title attract behind the menu.
+//  - CABINET: deal a fresh board and run AI vs AI (medium) on both sides; it
+//    loops via the restart logic in gameUpdate.
+//  - NORMAL launch: just the freshly set-up starting position, completely
+//    static (no AI, nobody to move).
+// In both cases the camera fits tightly to the board.
+function startAttract()
+{
+    initBoard();
+    attractRestartTimer = 0;
+    if (inCabinet) {
+        // Drive both sides with the game's own AI at medium difficulty. This
+        // overrides any persisted difficulty only for the demo; a real game
+        // restores the player's choice in startGame().
+        gameMode = 'aivai';
+        difficulty = 'medium';
+        attractRunning = true;
+    } else {
+        // Static board — no AI, no moves.
+        gameMode = 'pvp';
+        attractRunning = false;
+    }
+    fitCameraToBoard();
+}
+
 function startGame(mode)
 {
+    attractRunning = false;
+    // Cancel any in-flight attract AI search so its move can't land mid-deal.
+    aiGeneration++;
+    aiSearching = false;
+    aiProgress = '';
     gameMode = mode;
+    // Real games use the player's saved difficulty (the attract may have
+    // forced 'medium' on the shared global).
+    difficulty = getSaveData().difficulty ?? 'medium';
+    refreshDifficultyUI();
     aiThinkTimer = 0;
+    cameraPos = vec2(0, 0);
+    cameraScale = PLAY_CAMERA_SCALE;
     initBoard();
     setPlaying(true);
     hideMenu('title');
@@ -1204,7 +1261,11 @@ function startGame(mode)
 
 function quitToTitleWithCleanup()
 {
-    quitToTitle(() => { aiGeneration++; aiSearching = false; aiProgress = ''; });
+    quitToTitle(() => {
+        aiGeneration++; aiSearching = false; aiProgress = '';
+        // Reset the board behind the title to a clean attract state.
+        startAttract();
+    });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1217,7 +1278,12 @@ async function gameInit()
     bakePieceSprites();
     difficulty = getSaveData().difficulty ?? 'medium';
     setSoundVolume(.8);
-    installAutoPause();
+    // Pause gameplay only while actually playing — so the AI-vs-AI attract can
+    // keep running behind the title menu in the cabinet.
+    installAutoPause(() => isPlaying());
+    // Mute game audio at the title (menu clicks still play). Required so the
+    // attract demo stays silent.
+    setSilentAttract(true);
 
     // Gameplay sounds
     sfxMove    = new SoundGenerator({frequency: 250, release: 0.06, volume: 0.3});
@@ -1301,8 +1367,8 @@ async function gameInit()
         ],
     });
 
-    initBoard();
     setPlaying(false);
+    startAttract();
     showMenu('title');
     refreshDifficultyUI();
 }
@@ -1310,29 +1376,10 @@ async function gameInit()
 ///////////////////////////////////////////////////////////////////////////////
 // GAME LOOP
 
-function gameUpdate()
+// AI move stepper — covers 'ai' mode (AI is BLACK) and 'aivai' mode (AI plays
+// both sides). Shared by real play and the cabinet AI-vs-AI attract.
+function updateAIMove()
 {
-    if (bindPauseKey({when: () => isPlaying()})) return;
-    if (!isPlaying()) return;
-
-    if (keyWasPressed('KeyR')) { initBoard(); aiThinkTimer = 0; }
-    if (keyWasPressed('KeyU')) undoMove();
-
-    // Smooth-creep the AI thinking percent so the display moves even when no
-    // new depth-iteration has completed. Real progress events bump it up to the
-    // real percent; this just fills in the gaps. Capped at 95 so it never
-    // falsely shows 100% before the move actually plays.
-    if (aiSearching) {
-        aiDisplayProgress = Math.min(95, aiDisplayProgress + timeDelta * 1.5);
-        aiProgress = `AI Thinking... ${Math.round(aiDisplayProgress)}%`;
-    }
-
-    // Show the undo button only when there's a move to take back.
-    getToolbar('hud')?.getItem('undo')?.setVisible(moveHistory.length > 0);
-
-    hoverSquare = worldPosToSquare(mousePos);
-
-    // AI move — covers 'ai' mode (AI is BLACK) and 'aivai' mode (AI plays both sides)
     const isAITurn = (gameMode === 'ai' && currentPlayer === COLOR_BLACK) || gameMode === 'aivai';
     if (isAITurn && !aiSearching && !gameOver && !promotingMove) {
         const delay = gameMode === 'aivai' ? AI_VS_AI_DELAY : AI_THINK_DELAY;
@@ -1375,6 +1422,46 @@ function gameUpdate()
             });
         }
     }
+}
+
+// Cabinet attract: drive AI vs AI behind the title, looping a fresh match a
+// couple seconds after each game ends. Runs only while NOT playing.
+function updateAttract()
+{
+    if (!attractRunning) return; // normal launch: static board, nothing to do
+    if (gameOver) {
+        // Hold the finished position briefly, then deal a fresh match.
+        attractRestartTimer += timeDelta;
+        if (attractRestartTimer >= ATTRACT_RESTART_DELAY) startAttract();
+        return;
+    }
+    updateAIMove();
+}
+
+function gameUpdate()
+{
+    if (bindPauseKey({when: () => isPlaying()})) return;
+
+    if (!isPlaying()) { updateAttract(); return; }
+
+    if (keyWasPressed('KeyR')) { initBoard(); aiThinkTimer = 0; }
+    if (keyWasPressed('KeyU')) undoMove();
+
+    // Smooth-creep the AI thinking percent so the display moves even when no
+    // new depth-iteration has completed. Real progress events bump it up to the
+    // real percent; this just fills in the gaps. Capped at 95 so it never
+    // falsely shows 100% before the move actually plays.
+    if (aiSearching) {
+        aiDisplayProgress = Math.min(95, aiDisplayProgress + timeDelta * 1.5);
+        aiProgress = `AI Thinking... ${Math.round(aiDisplayProgress)}%`;
+    }
+
+    // Show the undo button only when there's a move to take back.
+    getToolbar('hud')?.getItem('undo')?.setVisible(moveHistory.length > 0);
+
+    hoverSquare = worldPosToSquare(mousePos);
+
+    updateAIMove();
 
     // Human input — PvP, or human's turn in PvAI. Never in aivai.
     const isHumanTurn = gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === COLOR_WHITE);

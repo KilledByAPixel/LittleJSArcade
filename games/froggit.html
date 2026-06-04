@@ -1164,8 +1164,10 @@ function gameRender() {
     for (const l of logs) drawables.push({ y: l.pos.y, draw: () => drawLog(l) });
     for (const c of cars) drawables.push({ y: c.pos.y, draw: () => drawCar(c) });
 
-    // Alive player frog — disappears on death (particles play instead) and on title.
-    if (isPlaying() && !gameOver && !respawnTimer.active()) {
+    // Alive frog — hidden on death (particles play instead). Drawn even at the
+    // title so the attract screen shows the frog sitting idle at its start tile
+    // while the traffic scrolls behind the menu (no AI, no input — just sits).
+    if (!gameOver && !respawnTimer.active()) {
         const logBump = frog.onLog ? logBumpY(frog.onLog) : 0;
         // tiny bias so the frog draws in front of a log it's riding at the same row
         drawables.push({ y: frog.pos.y - .001,

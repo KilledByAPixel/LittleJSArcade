@@ -11,16 +11,8 @@
 <script>
 'use strict';
 
-// Demo/attract mode: launcher loads the game with #demo and hides all menus.
-const demoMode = /demo/.test(location.hash);
-
-// engine settings, do not remove
-paused = false;
-
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
-cameraScale = 46;
-canvasFixedSize = vec2(700, 1080);
+// engine settings
+canvasMaxSize = vec2(2048);
 
 ///////////////////////////////////////////////////////////////////////////////
 // CHECKERS GAME
@@ -40,6 +32,11 @@ const PLAYER_BLACK = 2;
 
 const PLAYER_HUMAN = PLAYER_RED;
 const PLAYER_AI = PLAYER_BLACK;
+
+// The arcade launcher loads the cabinet/hero view with "#demo" in the URL; a
+// normal launch has no such hash. Cabinet runs AI-vs-AI attract; a normal
+// launch shows a static set-up board behind the title menu.
+const inCabinet = /demo/.test(location.hash);
 
 // Game state
 let board = [];
@@ -698,7 +695,7 @@ function drawPiece(pos, piece, scale = 1)
 
     if (isKing(piece))
     {
-        drawTile(pos, vec2(r * 2 * 0.42), icons.circle, hsl(.12, 1, .55));
+        drawTile(pos, vec2(r * 2 * 0.5), icons.circle, hsl(.12, 1, .55));
         drawText('K', pos.add(vec2(0, -0.04)), r * 1.05, rgb(.2, .1, 0), 0.08, hsl(.13, 1, .8));
     }
 }
@@ -899,8 +896,12 @@ async function gameInit()
 
     icons = initDefaultAtlas(); // bake 16 white-on-transparent icons into tiles 0-15
 
-    // One callback drives `paused` for every menu (including dialogs).
-    installAutoPause();
+    // Keep the title UNPAUSED so the attract demo runs behind the menu;
+    // only a real game (isPlaying()) pauses when a menu/dialog is shown.
+    installAutoPause(() => isPlaying());
+
+    // Mute all game audio while at the title (attract demo); menu clicks still play.
+    setSilentAttract(true);
 
     // Sounds (gameplay)
     sfxMove    = new SoundGenerator({frequency: 320, release: 0.06, volume: 0.25});
@@ -967,28 +968,46 @@ async function gameInit()
     // ----- HUD toolbar -----
 installDefaultToolbar({landscapeStack:true});
 
-    initBoard();
     refreshDifficultyUI();
 
-    if (demoMode)
-    {
-        // Attract mode: run AI vs AI on medium so it self-plays and loops.
-        difficulty = 'medium';
-        startGame('aivai');
-        return;
-    }
-
+    // Set up the attract demo so the board self-plays behind the title.
+    startDemo();
     setPlaying(false);
     showMenu('title');
 }
 
+// Title attract setup. CABINET (inCabinet): AI vs AI on MEDIUM self-plays
+// behind the title and loops. NORMAL launch: a STATIC freshly-set-up board with
+// nobody playing. Difficulty is set in-memory directly (NOT via setDifficulty)
+// so the player's saved choice is untouched; startGame() reloads it on PLAY.
+function startDemo()
+{
+    if (inCabinet)
+    {
+        gameMode = 'aivai';
+        difficulty = 'medium';
+    }
+    else
+    {
+        // Static set-up board — no AI drives either side.
+        gameMode = 'pvp';
+    }
+    initBoard();
+    aiThinkTimer = 0;
+    demoRestartTimer = 0;
+}
+
 function quitToTitleWithCleanup()
 {
-    quitToTitle(() => { aiGeneration++; aiSearching = false; aiProgress = ''; });
+    // Cancel any in-flight search, then restart the attract demo so the title
+    // shows a clean self-playing board (not the abandoned real game).
+    quitToTitle(() => { aiGeneration++; aiSearching = false; aiProgress = ''; startDemo(); });
 }
 
 function startGame(mode)
 {
+    // Restore the player's saved difficulty (the attract demo forces medium in memory).
+    difficulty = getSaveData().difficulty ?? 'hard';
     gameMode = mode;
     initBoard();
     aiThinkTimer = 0;
@@ -999,23 +1018,22 @@ function startGame(mode)
 function gameUpdate()
 {
     if (bindPauseKey({when: () => isPlaying()})) return;
-    if (!isPlaying()) return;
 
-    // Advance move animation
+    // Advance move animation (runs in both the real game and the title demo)
     if (movingPiece)
     {
         movingPiece.progress += timeDelta / MOVE_DURATION;
         if (movingPiece.progress >= 1) movingPiece = null;
     }
 
-    // Keyboard controls
-    if (keyWasPressed('KeyR'))
+    // Keyboard controls (real game only)
+    if (isPlaying() && keyWasPressed('KeyR'))
     {
         initBoard();
         aiThinkTimer = 0;
     }
 
-    if (keyWasPressed('KeyU'))
+    if (isPlaying() && keyWasPressed('KeyU'))
     {
         undoMove();
         aiThinkTimer = 0;
@@ -1023,15 +1041,13 @@ function gameUpdate()
 
     if (gameOver)
     {
-        // Attract mode: pause on the result a moment, then start a fresh match so it loops.
-        if (demoMode)
+        // Attract demo: pause on the result a moment, then start a fresh match so
+        // it loops. Stay at the title — no setPlaying, no menu, no score submit.
+        if (!isPlaying())
         {
             demoRestartTimer += timeDelta;
             if (demoRestartTimer >= DEMO_RESTART_DELAY)
-            {
-                demoRestartTimer = 0;
-                startGame('aivai');
-            }
+                startDemo();
         }
         return;
     }
@@ -1066,8 +1082,9 @@ function gameUpdate()
         return;
     }
 
-    // Human input — PvP always, or PvAI when it's the human's turn. Never in aivai.
-    const isHumanTurn = gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN);
+    // Human input — PvP always, or PvAI when it's the human's turn. Never in
+    // aivai, and never during the title attract demo.
+    const isHumanTurn = isPlaying() && (gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN));
     if (isHumanTurn && mouseWasPressed(0))
     {
         const cell = worldPosToCell(mousePos);
@@ -1111,6 +1128,16 @@ function gameUpdate()
 function gameUpdatePost()
 {
     cameraPos = vec2(0, 0);
+
+    // Title attract demo: fit the camera tightly to the board (zoomed-in
+    // framing with a little padding). Restore the normal play scale on PLAY.
+    if (!isPlaying())
+    {
+        const boardSpan = BOARD_SIZE * CELL_SIZE + 1.2; // board + frame + padding
+        cameraScale = min(mainCanvasSize.x / boardSpan, mainCanvasSize.y / boardSpan);
+    }
+    else
+        cameraScale = 46;
 }
 
 function gameRender()

@@ -10,9 +10,10 @@
 <script>
 'use strict';
 
-// demo/attract mode — launcher loads the game with #demo and hides all menu chrome.
-// In demo mode we auto-run an AI-driven classic game that loops forever.
-const demoMode = /demo/.test(location.hash);
+// attract/demo mode — at the title (isPlaying() === false) the AI auto-plays a
+// classic game behind the menu and loops forever. Clicking PLAY starts a real,
+// player-controlled run. The launcher cabinet merely hides the menu chrome over
+// this same live title, so no URL flag is needed.
 let demoRestartTimer = 0; // counts down after a demo round ends, then restarts
 
 // engine settings, do not remove
@@ -466,7 +467,7 @@ function checkRoundEnd()
         {
             roundOver = true;
             deathFreezeTimer = deathFreezeTime;
-            submitBestScore(score);
+            if (isPlaying()) submitBestScore(score); // never bank attract-mode scores
         }
         return;
     }
@@ -482,7 +483,7 @@ function checkRoundEnd()
     roundOver = true;
     versusResult = result;
     deathFreezeTimer = deathFreezeTime;
-    if (result === 'win')
+    if (result === 'win' && isPlaying()) // never bank attract-mode versus wins
     {
         const wins = (getSaveData().versusWins || 0) + 1;
         saveData({versusWins: wins});
@@ -702,7 +703,6 @@ function startClassic()
     resetGame();
     setPlaying(true);
     hideAllMenus();
-    demoRestartTimer = 1.8; // attract-mode loop delay after a round ends (armed at death)
 }
 
 function startVersus()
@@ -713,10 +713,10 @@ function startVersus()
     hideAllMenus();
 }
 
-// quit back to a clean classic title backdrop
+// quit back to a clean classic title backdrop (the AI resumes the attract demo)
 function goTitle()
 {
-    quitToTitle(() => { versus = false; resetGame(); });
+    quitToTitle(() => { versus = false; resetGame(); demoRestartTimer = 1.8; });
 }
 
 function buildMenus()
@@ -828,25 +828,25 @@ async function gameInit()
     sDie    = new SoundGenerator({volume:1,  frequency:90,  release:.35, noise:.25, shapeCurve:.6, slide:-.4, delay:.03});
     sStep   = new SoundGenerator({volume:.10, frequency:380, release:.015, shapeCurve:1.4});
 
-    // Pause whenever a gameplay menu (pause/dialog) is up. Title menu sits
-    // over the frozen board without freezing the engine. Default menu sounds
-    // ship in menus.js — no per-game setMenuSounds needed.
-    installAutoPause();
+    // Pause only when a gameplay menu (pause/dialog) is up DURING a real run.
+    // The title menu must NOT freeze the engine — the AI auto-plays a live
+    // classic game behind it (attract mode), so gate the pause on isPlaying().
+    // Default menu sounds ship in menus.js — no per-game setMenuSounds needed.
+    installAutoPause(() => isPlaying());
 
-    // initial state — title up, no run in progress, classic backdrop
+    // Mute all game audio while sitting at the title (attract mode); menu
+    // click sounds still play. Un-mutes automatically once a real game starts.
+    setSilentAttract(true);
+
+    // initial state — title up, no run in progress, classic backdrop that the
+    // AI drives live (the demo loops while !isPlaying()).
     setPlaying(false);
     versus = false;
     resetGame();
+    demoRestartTimer = 1.8; // attract-mode loop delay, armed for the first death
 
     buildMenus();
-
-    if (demoMode)
-    {
-        // attract mode: auto-run an AI-driven classic game (no title menu)
-        startClassic();
-    }
-    else
-        showMenu('title');
+    showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -861,7 +861,9 @@ function gameUpdate()
 
     if (!roundOver)
     {
-        if (demoMode) demoChooseDir(player); // auto-steer the player snake in attract mode
+        // At the title (!isPlaying) the AI auto-steers the player snake (attract
+        // mode); during a real run the human steers.
+        if (!isPlaying()) demoChooseDir(player);
         else handleInput();
     }
 
@@ -902,12 +904,17 @@ function gameUpdate()
 
     if (roundOver)
     {
-        if (demoMode)
+        if (!isPlaying())
         {
-            // attract mode: pause on the dead board a moment, then loop a fresh run
+            // attract mode: pause on the dead board a moment, then loop a fresh
+            // run WITHOUT touching menus or scores — we stay at the title.
             demoRestartTimer -= timeDelta;
             if (demoRestartTimer <= 0)
-                startClassic();
+            {
+                versus = false;
+                resetGame();
+                demoRestartTimer = 1.8;
+            }
             return;
         }
 

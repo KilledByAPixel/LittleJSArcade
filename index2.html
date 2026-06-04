@@ -882,13 +882,13 @@
         color: #fff; font-weight: 700; font-size: 14px; padding: 10px 18px; border-radius: 9px;
         box-shadow: 0 4px 16px rgba(88,166,255,.4); white-space: nowrap; pointer-events: none;
     }
-    .hero-shuffle, .hero-next {
+    .hero-shuffle {
         align-self: flex-start; margin-top: 2px;
         background: rgba(127,127,127,.10); border: 1px solid var(--border);
         color: var(--muted); padding: 7px 12px; border-radius: 8px; font-size: 12px;
         transition: border-color .12s, background .12s, color .12s;
     }
-    .hero-shuffle:hover, .hero-next:hover { border-color: var(--accent); background: rgba(127,127,127,.20); color: var(--text); }
+    .hero-shuffle:hover { border-color: var(--accent); background: rgba(127,127,127,.20); color: var(--text); }
     /* Narrow viewports: stack the screen above the panel. */
     @media (max-width: 720px) {
         #hero-cabinet { flex-direction: column; }
@@ -1474,10 +1474,13 @@ function makeTile(g, index) {
 const DEMO_GAMES = [
     'pong.html', 'asterblast.html', 'missileDefense.html', 'roboRescue.html',
     'tetrix.html', 'spaceIntruders.html', 'froggit.html', 'checkers.html',
+    'reversi.html', 'connect4.html', 'chess.html',
     'boomer.html', 'brickout.html', 'floppyBird.html', 'geometryJump.html',
     'pucMan.html', 'moonLander.html', 'snake.html',
 ];
 let heroFile = null;
+let _demoOrder = [];   // DEMO_GAMES shuffled once per page load
+let _demoIndex = 0;    // position in _demoOrder currently shown in the cabinet
 
 // Navigate any iframe without polluting browser history (same trick as loadIframe).
 function loadFrame(frame, url) {
@@ -1485,18 +1488,19 @@ function loadFrame(frame, url) {
     else frame.src = url;
 }
 
-// Pick a hero game at random, avoiding an immediate repeat when possible.
-function pickHero(exclude) {
-    const pool = DEMO_GAMES.filter(f => gameByFile[f] && f !== exclude);
-    const list = pool.length ? pool : DEMO_GAMES.filter(f => gameByFile[f]);
-    return list.length ? list[Math.floor(Math.random() * list.length)] : null;
+// Shuffle the demo list once (per page load) so the cabinet opens on a random
+// game. "Show a different game" then steps through this shuffled order, wrapping
+// at the end — so clicking it repeatedly walks past every game before repeating.
+function buildDemoOrder() {
+    _demoOrder = shuffledCopy(DEMO_GAMES.filter(f => gameByFile[f]), Math.random);
+    _demoIndex = 0;
 }
 
-// Step to the NEXT demo game in DEMO_GAMES order (wraps) — lets you cycle all.
-function nextDemo(current) {
-    const list = DEMO_GAMES.filter(f => gameByFile[f]);
-    if (!list.length) return null;
-    return list[(list.indexOf(current) + 1) % list.length];
+// Advance the cabinet to the next game in the shuffled order (wraps to start).
+function advanceDemo() {
+    if (!_demoOrder.length) buildDemoOrder();
+    else _demoIndex = (_demoIndex + 1) % _demoOrder.length;
+    setHero(_demoOrder[_demoIndex]);
 }
 
 // Hide menus.js chrome (#littlejs-menus root: title menu, toolbar, dialogs,
@@ -1607,20 +1611,20 @@ function buildHero() {
             '<span class="hero-score score-badge" hidden></span>' +
             '<span class="hero-coin">▶ INSERT COIN</span>' +
             '<button class="hero-shuffle" title="Show a different game" aria-label="Show a different game">🔀 Show a different game</button>' +
-            '<button class="hero-next" title="Show next game" aria-label="Show next game">⏭ Show next game</button>' +
         '</div>';
     // The whole cabinet is one big PLAY button; the iframe ignores pointer events.
     wrap.addEventListener('click', () => { if (heroFile) selectGame(heroFile); });
+    // Steps through the shuffled demo order, wrapping — repeated clicks cycle all.
     wrap.querySelector('.hero-shuffle').addEventListener('click', e => {
         e.stopPropagation();
-        setHero(pickHero(heroFile));
+        advanceDemo();
     });
-    wrap.querySelector('.hero-next').addEventListener('click', e => {
-        e.stopPropagation();
-        setHero(nextDemo(heroFile));
-    });
-    // Load the initial attract game after the element lands in the DOM.
-    setTimeout(() => setHero(pickHero(heroFile)), 0);
+    // Show the current game in the shuffled order once the element is in the DOM
+    // (builds the shuffle on first run; preserves position when returning here).
+    setTimeout(() => {
+        if (!_demoOrder.length) buildDemoOrder();
+        setHero(_demoOrder[_demoIndex]);
+    }, 0);
     return wrap;
 }
 

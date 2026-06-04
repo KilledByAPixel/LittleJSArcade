@@ -18,9 +18,6 @@
 <script>
 'use strict';
 
-// Demo/attract mode: gated behind the #demo hash so standalone play is untouched.
-const demoMode = /demo/.test(location.hash);
-
 // engine settings
 
 // ------------------------------------------------------------
@@ -393,8 +390,7 @@ function resetWaveState(newWaveIndex)
 
     flierCooldown = 5;
     smartBombsToSpawn = clamp(waveIndex - 4, 0, 5) | 0;
-    if (isPlaying())
-        sWave && sWave.play();
+    sWave && sWave.play();
 }
 
 function newGame()
@@ -661,11 +657,12 @@ function launchPlayerMissile(target)
     return true;
 }
 
-function updateAI()
+// Find the best aim point to intercept incoming threats: cluster nearby
+// predicted positions and return the highest-value centroid that isn't
+// already covered by an in-flight ABM. Returns null when nothing's worth
+// shooting. Shared by the real-play AI assist and the title attract cursor.
+function pickAbmAimPoint()
 {
-    aiCooldown -= timeDelta;
-    if (aiCooldown > 0) return;
-
     // Threats aimed at already-destroyed targets will land in a crater
     // and don't need an ABM. Skip them.
     const deadTargets = [];
@@ -700,7 +697,7 @@ function updateAI()
         if (!f.alive) continue;
         threats.push({ pos: f.pos.add(f.vel.scale(horizon)), altitude: f.pos.y });
     }
-    if (!threats.length) return;
+    if (!threats.length) return null;
 
     const inFlight = playerMissiles.filter(p => p.alive).map(p => p.target);
 
@@ -745,6 +742,15 @@ function updateAI()
                 (score === best.score && minAlt < best.minAlt))
             best = { centroid, size: members.length, minAlt, score, onlyMirvParent };
     }
+    return best;
+}
+
+function updateAI()
+{
+    aiCooldown -= timeDelta;
+    if (aiCooldown > 0) return;
+
+    const best = pickAbmAimPoint();
     if (!best) return;
 
     // Defer solo high threats so clusters can form — but never a MIRV
@@ -758,6 +764,11 @@ function updateAI()
     if (launchPlayerMissile(best.centroid))
         aiCooldown = .35;
 }
+
+// Title attract is now a CALM backdrop: cities and bases just sit there
+// peacefully. No incoming enemy missiles, no AI defense, no aiming cursor —
+// only the cosmetic shooting stars streak across the sky (see
+// maybeSpawnShootingStar). All gameplay below is gated on isPlaying().
 
 function addExplosion(pos, friendly)
 {
@@ -1052,24 +1063,20 @@ function gameInit()
     sBonusCity = new SoundGenerator({volume:.7, frequency:660, attack:0, release:.4, shapeCurve:1.6, pitchJump:540, pitchJumpTime:.05});
     sBonusTick = new SoundGenerator({volume:.45, frequency:780, attack:0, release:.06, shapeCurve:1.6});
 
-    installAutoPause();
+    // Keep the title UNPAUSED so the attract demo runs behind the menu;
+    // real games still pause when a menu (pause/options/etc.) is shown.
+    installAutoPause(() => isPlaying());
+    // Mute all game audio at the title; menu clicks still sound.
+    setSilentAttract(true);
     setOrientationLock('landscape');
 
     buildMenus();
 
-    // Attract mode: build a layout (cities, mountains, stars) but don't spawn waves.
+    // Title attract: build the layout (cities, bases) so the title shows a
+    // calm, intact backdrop behind the menu. isPlaying() stays false, so
+    // gameUpdate skips all gameplay and only runs the cosmetic sky.
     newGame();
     setPlaying(false);
-
-    if (demoMode)
-    {
-        // Self-running attract: the launcher hides all menu chrome, so start a
-        // live game immediately and let the built-in AI play both ends (it only
-        // controls the defenders; enemy waves spawn on their own). installAutoPause
-        // keeps paused=false while no menu is visible.
-        aiMode = true;
-        startGame();
-    }
 }
 
 function startGame()
@@ -1158,11 +1165,9 @@ function buildMenus()
 
     installDefaultToolbar();
 
-    // Show the title menu immediately — no click-to-reveal step.
-    // In demo mode skip it: a visible title menu would pause the game via
-    // installAutoPause, and gameInit starts a live attract game instead.
-    if (!demoMode)
-        showMenu('title');
+    // Show the title menu immediately — no click-to-reveal step. The attract
+    // demo runs live behind it (installAutoPause keeps the title unpaused).
+    showMenu('title');
 }
 
 function gameUpdate()
@@ -1170,6 +1175,27 @@ function gameUpdate()
     // Reset camera to playfield center each frame so the gameFx screen-shake
     // plugin (between gameUpdate and gameUpdatePost) can nudge cameraPos.
     setCameraPos(levelSize.scale(.5));
+
+    // Title attract: a CALM backdrop. The cities and bases just sit there
+    // peacefully — no incoming missiles, no AI/cursor, no aiming or firing.
+    // Only cosmetic shooting stars streak across the sky. Bail out before any
+    // gameplay below.
+    if (!isPlaying())
+    {
+        for (const b of bases)
+        {
+            b.flash = Math.max(0, b.flash - timeDelta);
+            b.recoil = Math.max(0, b.recoil - timeDelta * 1.5);
+            if (b.alive)
+                b.cannonAngle = 0;  // cannons rest pointing straight up
+        }
+        for (const c of cities)
+            c.hitFlash = Math.max(0, c.hitFlash - timeDelta);
+
+        maybeSpawnShootingStar();
+        updateParticles();
+        return;
+    }
 
     // Pause hotkey: Esc or gamepad Start. Gated on isPlaying so it doesn't fire
     // from the title screen.
@@ -1184,26 +1210,21 @@ function gameUpdate()
         return;
     }
 
-    // Attract mode: stars + shooting stars keep moving, but no gameplay.
-    if (!isPlaying())
-    {
-        maybeSpawnShootingStar();
-        updateParticles();
-        return;
-    }
-
+    // While playing, dev keys: R restarts, T toggles AI assist.
     if (isPlaying() && !gameOver && keyWasPressed('KeyR'))
         return startGame();
 
     if (isPlaying() && !gameOver && keyWasPressed('KeyT'))
         aiMode = !aiMode;
 
+    // Manual fire.
     if (!gameOver && !betweenWaves && !tally && mouseWasPressed(0))
     {
         launchPlayerMissile(mousePos);
     }
 
-    if (aiMode && !gameOver && !betweenWaves && !tally)
+    // Optional AI assist (T) uses the instant-react AI.
+    if (!gameOver && !betweenWaves && !tally && aiMode)
         updateAI();
 
     for (const b of bases)
@@ -1212,8 +1233,10 @@ function gameUpdate()
         b.recoil = Math.max(0, b.recoil - timeDelta * 1.5);
         if (b.alive)
         {
-            const dx = mousePos.x - b.pos.x;
-            const dy = Math.max(.2, mousePos.y - (b.pos.y + .4));
+            // Cannon tracks the mouse aim.
+            const aim = mousePos;
+            const dx = aim.x - b.pos.x;
+            const dy = Math.max(.2, aim.y - (b.pos.y + .4));
             b.cannonAngle = Math.atan2(dx, dy);
         }
     }
@@ -1226,15 +1249,8 @@ function gameUpdate()
     if (gameOver)
     {
         updateExplosions();
-        // Brief on-canvas hold (lets the final explosions play out), then surface menu.
-        // In demo mode there is no menu — auto-restart so the attract loops forever.
-        if (demoMode)
-        {
-            gameOverHoldTimer -= timeDelta;
-            if (gameOverHoldTimer <= 0)
-                startGame();
-            return;
-        }
+        // Brief on-canvas hold (lets the final explosions play out) before the
+        // GAME OVER menu surfaces.
         if (!gameOverShowing)
         {
             gameOverHoldTimer -= timeDelta;
@@ -1334,7 +1350,9 @@ function gameUpdate()
     {
         gameOver = true;
         gameOverHoldTimer = 1.6;
-        submitBestScore(score);
+        // Only record a best from a real game — the attract demo never saves.
+        if (isPlaying())
+            submitBestScore(score);
     }
 }
 
@@ -1719,19 +1737,21 @@ function drawExplosions()
     setBlendMode(false);
 }
 
-function drawCrosshair()
+function drawCrosshair(atPos, alpha)
 {
-    const p = vec2(clamp(mousePos.x, 0, levelSize.x),
-                                  clamp(mousePos.y, groundHeight, levelSize.y+2.5));
+    alpha = alpha === undefined ? 1 : alpha;
+    const src = atPos || mousePos;
+    const p = vec2(clamp(src.x, 0, levelSize.x),
+                                  clamp(src.y, groundHeight, levelSize.y+2.5));
     const s = .55;
-    const c = hsl(.55, .85, .95, .85);
+    const c = hsl(.55, .85, .95, .85 * alpha);
     // gapped cross
     drawLine(p.add(vec2(-s, 0)), p.add(vec2(-.2, 0)), .06, c);
     drawLine(p.add(vec2(.2, 0)), p.add(vec2(s, 0)),  .06, c);
     drawLine(p.add(vec2(0, -s)), p.add(vec2(0, -.2)), .06, c);
     drawLine(p.add(vec2(0, .2)), p.add(vec2(0, s)),  .06, c);
-    drawTile(p, vec2(.14), icons.circle, hsl(.55, 1, .95, .9));
-    drawTile(p, vec2(.4), icons.glow, hsl(.55, 1, .95, .12));
+    drawTile(p, vec2(.14), icons.circle, hsl(.55, 1, .95, .9 * alpha));
+    drawTile(p, vec2(.4), icons.glow, hsl(.55, 1, .95, .12 * alpha));
 }
 
 function gameRender()
@@ -1744,6 +1764,7 @@ function gameRender()
     drawParticles();
     if (isPlaying())
         drawCrosshair();
+    // Attract demo: the virtual cursor stays invisible — the turrets just track it.
 }
 
 function gameRenderPost()

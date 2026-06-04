@@ -12,11 +12,13 @@
 <script>
 'use strict';
 
-// Attract / demo mode: the arcade launcher loads the game in an iframe with
-// "#demo" and hides all menus.js chrome. When set, the game skips the title
-// menu, auto-starts a level, drives the ship with a simple auto-player, and
-// loops forever. Standalone play (no #demo) is completely unaffected.
-const demoMode = /demo/.test(location.hash);
+// Attract / demo: the title screen shows a CALM marching formation behind the
+// menu. While the game sits at its title (isPlaying() === false) the aliens
+// simply march left/right — no player ship, no descending, no firing — looping
+// forever and silent (setSilentAttract). Clicking PLAY starts a fresh,
+// player-controlled game (isPlaying() true) and normal gameplay resumes. This
+// is identical on a normal launch and inside the arcade cabinet (the launcher
+// merely hides the menu chrome over the same live title).
 
 // engine settings
 // (menus.js auto-moves the debug-overlay key off Escape to ` on first createMenu)
@@ -57,14 +59,11 @@ let currentLevel = 1;
 
 let gameOver = false;
 let gameWin = false;
-let titleScreen = true;
-let titleAliens = [];
 let levelAnnounce = 0; // frames to show level announcement
 let respawnTimer = 0; // frames to wait before respawning
 let playerHidden = false; // true when player is dead and waiting to respawn
 let gameOverTimer = 0; // frames before can click to return to title
 let inputMode = 'mouse'; // 'mouse' or 'keyboard'
-let titleTimer = 0;
 
 let invaderDir = 1;
 let invaderSpeed = .12;        // wu/frame; recomputed each frame from alien count
@@ -308,21 +307,12 @@ function spawnSpriteExplosion(centerPos, bitmap, pixelSize, color, spreadScale =
     }
 }
 
+// Return to the title: the title is a calm marching formation, so just start a
+// fresh demo level. setPlaying(false) is handled by quitToTitle before this
+// runs, so no ship spawns, the aliens stop firing/descending, and audio is muted.
 function goToTitleScreen()
 {
-    // Clean up all game objects
-    engineObjectsDestroy(true);
-    aliens.length = 0;
-    bullets.length = 0;
-    bombs.length = 0;
-    barriers.length = 0;
-    ufo = null;
-    player = null;
-    levelAnnounce = 0;
-    respawnTimer = 0;
-    playerHidden = false;
-    gameOverTimer = 0;
-    initTitleScreen();
+    resetGame();
 }
 
 function resetInvaderState()
@@ -387,10 +377,19 @@ function startLevel()
     
     ufoSpawnTimer = randIntInclusive(300, 600);
 
-    if (!player || player.destroyed)
-        player = new Player(vec2(levelSize.x/2, playerY));
-    else
-        player.pos = vec2(levelSize.x/2, playerY);
+    // Attract title (not playing) is a calm marching formation — no player ship.
+    if (isPlaying())
+    {
+        if (!player || player.destroyed)
+            player = new Player(vec2(levelSize.x/2, playerY));
+        else
+            player.pos = vec2(levelSize.x/2, playerY);
+    }
+    else if (player && !player.destroyed)
+    {
+        player.destroy();
+        player = null;
+    }
     
     // Show level announcement for 2 seconds (120 frames)
     levelAnnounce = 120;
@@ -429,13 +428,10 @@ class Player extends RectObject
         if (gameOver || gameWin || levelAnnounce > 0 || respawnTimer > 0)
             return;
 
-        // Demo mode: auto-pilot the ship — track the lowest threatening alien
-        // (or UFO), fire on a cooldown. Doesn't play well; just looks alive.
-        if (demoMode)
-        {
-            demoAutoPlay(this);
+        // At the title (not playing) the attract is a calm marching formation
+        // with no player ship — nothing to drive here.
+        if (!isPlaying())
             return;
-        }
 
         // Switch input mode based on most recent activity. Stick/D-pad press
         // counts as keyboard-mode (uses the same "compute X delta" path).
@@ -816,79 +812,33 @@ function gameInit()
     cameraScale = 16; // pixels per world unit
 
     setSoundVolume(.8);
-    // Title screen runs an attract-mode demo (animated wave / falling
-    // letters), so don't pause the engine while it's up — only pause once
-    // the player has actually started a run.
-    installAutoPause(() => !titleScreen);
+    // The title shows a live marching formation behind the menu, so the engine
+    // must keep simulating while at the title — only pause once a real game is
+    // running (and a menu is up). Pausing is driven by menu visibility AND
+    // isPlaying(): at the title isPlaying() is false, so the attract never pauses.
+    installAutoPause(() => isPlaying());
+
+    // Mute ALL game audio while at the title (the attract demo); menu click
+    // sounds still play. Un-mutes automatically on setPlaying(true).
+    setSilentAttract(true);
 
     // CRT vibe: scanlines + bloom + static + vignette over the whole frame
     // (includeMainCanvas=true pulls HUD text/menus through the shader too)
     new PostProcessPlugin(tvShader, true);
 
     buildMenus();
-    initTitleScreen();
 
-    // Demo mode: skip the (hidden) title menu and auto-start a run. titleScreen
-    // becomes false in startGame, so installAutoPause keeps the engine running.
-    if (demoMode)
-    {
-        if (typeof hideAllMenus === 'function') hideAllMenus();
-        startGame();
-    }
+    // Set up a level immediately so the title has the calm marching formation
+    // running behind the menu. isPlaying() stays false until PLAY.
+    resetGame();
 }
 
 function startGame()
 {
-    // Destroy title-screen aliens before starting fresh.
-    for (const a of titleAliens) a.destroy();
-    titleAliens = [];
-    titleScreen = false;
+    // PLAY: spawn the player and start a real game. setPlaying(true) makes
+    // resetGame build a ship + arm alien firing/descent, and un-mutes audio.
+    setPlaying(true);
     resetGame();
-}
-
-// Demo-mode auto-player. Picks a target (active UFO, else the lowest alien),
-// glides the ship toward its X, and fires whenever a player bullet isn't in
-// flight. Reuses the same shot path/cooldown as manual play.
-function demoAutoPlay(p)
-{
-    // Choose a target X to chase
-    let targetX = p.pos.x;
-    if (ufo && !ufo.destroyed)
-        targetX = ufo.pos.x;
-    else if (aliens.length)
-    {
-        // Aim at the lowest alien (most threatening), break ties by closeness.
-        let best = null, bestY = 1e9;
-        for (const a of aliens)
-        {
-            if (a.destroyed) continue;
-            if (a.pos.y < bestY ||
-                (a.pos.y === bestY && abs(a.pos.x - p.pos.x) < abs(best.pos.x - p.pos.x)))
-            {
-                bestY = a.pos.y;
-                best = a;
-            }
-        }
-        if (best) targetX = best.pos.x;
-    }
-
-    // Glide toward target, capped at the manual top speed (.55 wu/frame).
-    const dx = clamp(targetX - p.pos.x, -.55, .55);
-    p.pos.x += dx;
-    clampToPlayfield(p.pos, p.size.scale(.5));
-
-    // Fire on the same single-bullet + cooldown rule manual play uses.
-    if (p.shotCooldown > 0) p.shotCooldown--;
-    const hasActiveBullet = bullets.some(b => !b.destroyed && b.fromPlayer);
-    if (!hasActiveBullet && p.shotCooldown === 0 && abs(dx) < .35)
-    {
-        p.shotCooldown = 12;
-        playerShotsFired++;
-        const b = new Bullet(p.pos.add(vec2(0, 0.1)), vec2(0, 1.2), true);
-        b.shotIndex = playerShotsFired;
-        bullets.push(b);
-        sfxShoot.play(p.pos);
-    }
 }
 
 function quitToTitleWithCleanup()
@@ -900,14 +850,13 @@ function buildMenus()
 {
     if (typeof createMenu !== 'function') return;
 
-    // Title is canvas-drawn (LITTLEJS / INVADERS with glow). Suppress the DOM
-    // title so the menu panel doesn't double up on the heading.
     setMenuTheme({accent:'#46d846', radius:0});
     createTitleMenu({
-        title: '',
+        title: 'Space Intruders',
+        titleFx: {fill:'neon', motion:'float', sparkle:true, color:'#3f3'},
         onPlay: startGame,
         revealOnClick: false,
-        canReveal: () => titleScreen,
+        canReveal: () => !isPlaying(),
         itemsBefore: [
             {type:'label', id:'hiLabel', text:`HI-SCORE ${getBestScore()}`},
         ],
@@ -968,47 +917,12 @@ function buildMenus()
     showMenu('title');
 }
 
-function initTitleScreen()
-{
-    titleScreen = true;
-    titleTimer = 0;
-    titleAliens = [];
-    
-    // Create floating aliens for title screen using real Alien objects
-    for (let i = 0; i < 15; i++)
-    {
-        const row = randIntInclusive(0, 4);
-        const worldX = rand(5, 55);
-        const worldY = rand(20, 32);
-        const alien = new Alien(vec2(worldX, worldY), row);
-        alien.titleSpeed = rand(0.02, 0.06);
-        alien.titlePhase = rand(0, PI*2);
-        titleAliens.push(alien);
-    }
-}
-
 function gameUpdate()
 {
-    // Title screen — menu PLAY button drives startGame; we just keep the
-    // attract animation alive here.
-    if (titleScreen)
-    {
-        titleTimer++;
-        invaderAnimTick++; // Keep animation running
-
-        // Update floating aliens (real Alien objects)
-        for (const a of titleAliens)
-        {
-            a.pos.x += a.titleSpeed;
-            a.pos.y += Math.sin(titleTimer * 0.02 + a.titlePhase) * 0.02;
-            if (a.pos.x > 65) a.pos.x = -5;
-        }
-        return;
-    }
-
-    // Pause hotkey: Esc / gamepad Start. Skipped if gameOver menu already up.
+    // Pause hotkey: Esc / gamepad Start. Only while actually playing (at the
+    // title the menu is already up). Skipped if gameOver menu already up.
     const endMenuShowing = (typeof getTopMenu === 'function') && getTopMenu()?.id === 'gameOver';
-    if (!endMenuShowing &&
+    if (isPlaying() && !endMenuShowing &&
         (keyWasPressed('Escape') || gamepadWasPressed(9)))
     {
         if (typeof playMenuSound === 'function') playMenuSound('activate');
@@ -1021,11 +935,11 @@ function gameUpdate()
     // Surface gameOver menu once the on-canvas delay (gameOverTimer) elapses.
     if (gameOver && gameOverTimer <= 0 && !endMenuShowing)
     {
-        // Demo mode: the gameOver menu is hidden, so just restart the attract
-        // run after the on-canvas banner has shown for a moment.
-        if (demoMode)
+        // Attract demo (not playing): the run ended, so just loop — restart a
+        // fresh demo level, staying at the title. No menu, no score submit.
+        if (!isPlaying())
         {
-            startGame();
+            resetGame();
             return;
         }
         submitBestScore(score);
@@ -1096,71 +1010,20 @@ function gameRender()
 {
     drawRect(cameraPos, levelSize.add(vec2(20,20)), rgb(0,0,0));
 
-    if (titleScreen)
-    {
-        // WebGL-batched parallax starfield, drawn under everything else
-        drawTitleStars(titleTimer);
-        return;
-    }
-
-    // playfield
+    // playfield (always — the live demo runs behind the title menu too)
     drawRect(cameraPos, levelSize, rgb(0,0,0));
 
     // Red floor line right below the player
     drawRect(vec2(levelSize.x/2, playerY - 0.8), vec2(levelSize.x, .15), rgb(1, 0, 0));
 }
 
-// 32-bit hash → [0,1) — used so each star index gets a deterministic position/tint
-function starHash(i, salt)
-{
-    let h = (i * 2654435761 + salt * 1597334677) | 0;
-    h ^= h >>> 13; h = (h * 1274126177) | 0; h ^= h >>> 16;
-    return ((h >>> 0) / 4294967296);
-}
-
-function drawTitleStars(timer)
-{
-    const w = mainCanvasSize.x;
-    const h = mainCanvasSize.y;
-    // 4 parallax layers — far/dim/slow → near/bright/fast
-    const layers = [
-        { count: 320, size: 1, speed: 0.06, alpha: 0.45 },
-        { count: 180, size: 2, speed: 0.18, alpha: 0.70 },
-        { count: 80,  size: 2, speed: 0.42, alpha: 0.95 },
-        { count: 30,  size: 3, speed: 0.85, alpha: 1.00 }
-    ];
-    let i = 1;
-    for (const L of layers)
-    {
-        const sz = vec2(L.size, L.size);
-        for (let n = 0; n < L.count; n++, i++)
-        {
-            const sx = (starHash(i, 1) * w + timer * L.speed) % w;
-            const sy = starHash(i, 2) * h;
-            const tint = starHash(i, 3);
-            let col;
-            if (tint < 0.08)      col = rgb(1.0, 0.78, 0.55, L.alpha);     // amber
-            else if (tint < 0.18) col = rgb(0.70, 0.85, 1.00, L.alpha);    // blue-white
-            else                  col = rgb(1, 1, 1, L.alpha);
-            // screenSpace=true → WebGL pipeline batches all stars
-            drawRect(vec2(sx, sy), sz, col, 0, true, true);
-
-            // Occasional twinkle on the brightest layer
-            if (L.size > 2 && Math.sin(timer * 0.08 + n) > 0.85)
-                drawRect(vec2(sx, sy), vec2(L.size + 2, 1), col, 0, true, true);
-        }
-    }
-}
-
 function gameRenderPost()
 {
-    // Title screen
-    if (titleScreen)
-    {
-        renderTitleScreen();
+    // At the title, skip the in-game HUD — the menu's title + PLAY button is the
+    // call to action over the live attract demo.
+    if (!isPlaying())
         return;
-    }
-    
+
     // Classic arcade HUD
     const hudY = 30;
     const color = rgb(.2,.95,.25);
@@ -1197,136 +1060,6 @@ function gameRenderPost()
     {
         drawTextScreen('GAME OVER', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 - 20), 80, rgb(.95,.25,.25), 8, rgb(0,0,0));
     }
-}
-
-// ------------------------------------------------------------
-// Title Screen
-
-function renderTitleScreen()
-{
-    const ctx = mainContext;
-    const w = mainCanvasSize.x;
-    const h = mainCanvasSize.y;
-    const t = titleTimer * 0.02;
-
-    // Stars are drawn in gameRender via WebGL drawRect (under the engine objects)
-
-    // Planet ring — wide Saturn-style annulus (filled band)
-    const ringCX = w * 0.8, ringCY = h * 0.55;
-    const ringTilt = -0.3;
-    const ringOuterRX = 215, ringOuterRY = 48;
-    const ringInnerRX = 92,  ringInnerRY = 20;
-    // Cassini gap (thin dark stripe roughly 2/3 of the way out)
-    const gapRX = 165, gapRY = 36;
-    // Overlap each half slightly past the major-axis seam to hide the join
-    const ringSeamEps = 0.06;
-
-    // Back half — drawn before planet
-    ctx.fillStyle = '#96c896';
-    ctx.beginPath();
-    ctx.ellipse(ringCX, ringCY, ringOuterRX, ringOuterRY, ringTilt, PI - ringSeamEps, PI * 2 + ringSeamEps);
-    ctx.ellipse(ringCX, ringCY, ringInnerRX, ringInnerRY, ringTilt, PI * 2 + ringSeamEps, PI - ringSeamEps, true);
-    ctx.closePath();
-    ctx.fill();
-    // Gap stripe on back half
-    ctx.strokeStyle = '#284';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.ellipse(ringCX, ringCY, gapRX, gapRY, ringTilt, PI - ringSeamEps, PI * 2 + ringSeamEps);
-    ctx.stroke();
-
-    // Planet in background (right side)
-    const gradient = ctx.createRadialGradient(ringCX, ringCY, 0, ringCX, ringCY, 100);
-    gradient.addColorStop(0, '#4a6');
-    gradient.addColorStop(0.5, '#284');
-    gradient.addColorStop(1, '#051');
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(ringCX, ringCY, 80, 0, PI * 2);
-    ctx.fill();
-
-    // Front half — drawn after planet
-    ctx.fillStyle = '#96c896';
-    ctx.beginPath();
-    ctx.ellipse(ringCX, ringCY, ringOuterRX, ringOuterRY, ringTilt, -ringSeamEps, PI + ringSeamEps);
-    ctx.ellipse(ringCX, ringCY, ringInnerRX, ringInnerRY, ringTilt, PI + ringSeamEps, -ringSeamEps, true);
-    ctx.closePath();
-    ctx.fill();
-    // Gap stripe on front half
-    ctx.strokeStyle = '#284';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.ellipse(ringCX, ringCY, gapRX, gapRY, ringTilt, -ringSeamEps, PI + ringSeamEps);
-    ctx.stroke();
-    
-    // Player ship in foreground (large, bottom left) — same bitmap as in-game
-    const shipX = w * 0.22;
-    const shipY = h * 0.72;
-    const shipBob = Math.sin(t * 2) * 5;
-    const shipPx = 12; // pixel size — sprite is 13x8 → 156x96 image
-    drawSpriteBitmapScreen(shipX, shipY + shipBob, SPRITE_PLAYER, shipPx, rgb(.2,.9,.95));
-
-    // Engine exhaust: soft ambient halo under the ship, then a tapered flame
-    // from each nozzle with hot white core → blue → yellow → orange → transparent.
-    const flameTop = shipY + shipBob + 4 * shipPx;
-    const flameH = shipPx * 4;
-    const flameW = shipPx * 2;
-
-    // Ambient halo
-    const haloR = shipPx * 5;
-    const haloY = flameTop + flameH * .3;
-    const halo = ctx.createRadialGradient(shipX, haloY, 0, shipX, haloY, haloR);
-    halo.addColorStop(0, 'rgba(120,190,255,0.30)');
-    halo.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = halo;
-    ctx.beginPath();
-    ctx.arc(shipX, haloY, haloR, 0, PI * 2);
-    ctx.fill();
-
-    const drawFlame = (cx, seed) =>
-    {
-        const flicker = 1 + Math.sin(t * 14 + seed) * .12 + Math.sin(t * 23 + seed * 2) * .06;
-        const w = flameW * flicker;
-        const tipW = w * .22;
-        const tipSway = Math.sin(t * 8 + seed * 1.7) * w * .15;
-        const grad = ctx.createLinearGradient(0, flameTop, 0, flameTop + flameH);
-        grad.addColorStop(0,    'rgba(255,255,255,0.95)');
-        grad.addColorStop(0.18, 'rgba(180,225,255,0.85)');
-        grad.addColorStop(0.40, 'rgba(255,210,100,0.78)');
-        grad.addColorStop(0.70, 'rgba(255,90,40,0.50)');
-        grad.addColorStop(1,    'rgba(120,0,0,0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.moveTo(cx - w/2, flameTop);
-        ctx.lineTo(cx + w/2, flameTop);
-        ctx.lineTo(cx + tipSway + tipW/2, flameTop + flameH);
-        ctx.lineTo(cx + tipSway - tipW/2, flameTop + flameH);
-        ctx.closePath();
-        ctx.fill();
-    };
-    drawFlame(shipX - shipPx * 3, 1.0);
-    drawFlame(shipX + shipPx * 3, 2.5);
-    
-    // Title text with glow
-    const titleY = 90;
-    const pulse = 0.8 + Math.sin(t * 3) * 0.2;
-    
-    // Glow effect
-    ctx.shadowColor = '#0f0';
-    ctx.shadowBlur = 20 * pulse;
-    
-    // SPACE
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 72px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('LITTLEJS', w/2, titleY);
-    
-    // INTRUDERS
-    ctx.fillStyle = '#3f3';
-    ctx.font = 'bold 84px Arial';
-    ctx.fillText('INTRUDERS', w/2, titleY + 80);
-    
-    ctx.shadowBlur = 0;
 }
 
 // ------------------------------------------------------------
@@ -1371,16 +1104,23 @@ function updateInvaders()
     if (invaderDir > 0 && nextMaxX > playMax.x - 1.2) hitEdge = true;
     if (invaderDir < 0 && nextMinX < playMin.x + 1.2) hitEdge = true;
 
+    // Attract title (not playing): calm marching only — reverse at the walls but
+    // never descend (and skip the fire-rate tightening that descent triggers).
+    const attract = !isPlaying();
+
     if (hitEdge)
     {
         invaderDir *= -1;
-        for (const a of aliens)
-            a.pos.y -= invaderDrop;
+        if (!attract)
+        {
+            for (const a of aliens)
+                a.pos.y -= invaderDrop;
 
-        // Descent no longer affects march speed (count does), but it still
-        // tightens the fire rate so a low formation is more dangerous.
-        alienShootMin = max(alienShootMin - 1, 3);
-        alienShootMax = max(alienShootMax - 2, 8);
+            // Descent no longer affects march speed (count does), but it still
+            // tightens the fire rate so a low formation is more dangerous.
+            alienShootMin = max(alienShootMin - 1, 3);
+            alienShootMax = max(alienShootMax - 2, 8);
+        }
     }
     else
     {
@@ -1389,7 +1129,7 @@ function updateInvaders()
     }
 
     // lose if invaders reach the player line
-    if (minY < playerY + 2.5)
+    if (!attract && minY < playerY + 2.5)
         doGameOver();
 
     // Aliens marching into a shield wipe any pixels they overlap.
@@ -1404,7 +1144,9 @@ function updateInvaders()
         }
     }
 
-    // invader shooting - scale rate by number of aliens alive
+    // invader shooting - scale rate by number of aliens alive (no firing at title)
+    if (attract)
+        return;
     if (alienShootTimer > 0) alienShootTimer--;
     if (alienShootTimer === 0)
     {
@@ -1420,6 +1162,10 @@ function updateInvaders()
 
 function updateUFO()
 {
+    // No UFO at the title — the attract is just the marching formation.
+    if (!isPlaying())
+        return;
+
     // Spawn UFO randomly
     if (!ufo || ufo.destroyed)
     {

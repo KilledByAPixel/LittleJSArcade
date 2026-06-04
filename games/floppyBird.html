@@ -9,9 +9,9 @@
 <script>
 'use strict';
 
-// attract/demo mode: when the launcher loads this game with #demo it hides all
-// menu chrome, so we run the game self-playing instead of waiting for a tap.
-const demoMode = /demo/.test(location.hash);
+// attract mode: while at the title (isPlaying() === false) the auto-pilot flies
+// the bird behind the menu and loops on crash. Clicking PLAY starts a real game.
+function isAttract() { return !isPlaying(); }
 
 // engine settings, do not remove
 paused = false; // Start unpaused
@@ -169,8 +169,10 @@ function demoWantsFlap()
     {
         if (p.x + pipeWidth/2 > birdX - 1)
         {
-            // aim slightly above the gap center to counter gravity drop
-            target = p.gapY + .5;
+            // a single flap shoves the bird up a lot, so wait until it has
+            // dropped into the LOWER part of the gap before flapping — aiming
+            // below the gap center keeps it from clipping the top pipe.
+            target = p.gapY - gapSize*.3;
             break;
         }
     }
@@ -225,7 +227,7 @@ function killBird()
         false               // additive
     );
 
-    if (!demoMode) // don't let the auto-pilot pollute the player's best score
+    if (!isAttract()) // don't let the auto-pilot pollute the player's best score
         submitBestScore(score);
 }
 
@@ -543,7 +545,8 @@ function startGame()
     hideAllMenus();
 }
 
-// attract mode: jump straight into a live run with the auto-pilot flying
+// attract mode: set up a live run for the auto-pilot to fly behind the title.
+// Does NOT call setPlaying — this runs while isPlaying() is false.
 function startDemo()
 {
     resetRun(false); // STATE_PLAY, no ready/tap-to-start gate
@@ -552,7 +555,6 @@ function startDemo()
     pipes[0].x = 6;
     pipeTimer = pipeInterval;
     demoDeadTimer = 0;
-    setPlaying(true);
 }
 
 function buildMenus()
@@ -560,8 +562,8 @@ function buildMenus()
     if (typeof createMenu !== 'function') return;
 
     // Only pause when a game is actually running. Title menu sits over
-    // the canvas without freezing anything.
-    installAutoPause();
+    // the canvas without freezing anything, so the attract demo keeps flying.
+    installAutoPause(() => isPlaying());
 
     setMenuTheme({accent:'#f2c014'});
     createTitleMenu({
@@ -585,7 +587,8 @@ function buildMenus()
 
     createPauseMenu({
         onRestart: startGame,
-        onQuit:    quitToTitle,
+        // back to a fresh, live attract demo behind the title
+        onQuit:    () => quitToTitle(startDemo),
     });
 
     installDefaultToolbar();
@@ -595,6 +598,8 @@ function buildMenus()
 async function gameInit()
 {
     saveDataInit('flappyBird');
+    // mute all gameplay audio while at the title; menu clicks still play
+    setSilentAttract(true);
     // fixed resolution for consistent feel
     setCanvasFixedSize(vec2(900, 540));
     cameraScale = 32;
@@ -604,26 +609,17 @@ async function gameInit()
 
     runSelfTests();
 
-    resetRun(true);
-    initScenery();
-
-    // small initial pipe preview in ready state
-    spawnPipe();
-    pipes[0].x = 6;
-
     buildMenus();
 
-    if (demoMode)
-        startDemo(); // self-running attract loop; menus stay hidden
-    else
-        showMenu('title');
+    // start the live attract demo behind the title (isPlaying() is false here)
+    startDemo();
+    showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdate()
 {
     if (bindPauseKey({when: () => isPlaying() && state !== STATE_DEAD})) return;
-    if (!isPlaying()) return;
 
     const dt = timeDelta;
 
@@ -631,8 +627,9 @@ function gameUpdate()
     if (state === STATE_PLAY)
         bgScrollX += pipeSpeed * dt;
 
-    // attract mode: auto-pilot the bird, auto-restart a moment after a crash
-    if (demoMode)
+    // attract mode (at the title, isPlaying() === false): auto-pilot the bird and
+    // loop the run on crash. Never touches setPlaying / menus / best score.
+    if (isAttract())
     {
         if (state === STATE_DEAD)
         {

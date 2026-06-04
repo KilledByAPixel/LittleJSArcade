@@ -269,6 +269,7 @@ function quitToTitleWithCleanup()
 // Title-screen attract: a few rocks tumbling behind the menu
 function spawnAttractField()
 {
+    ufoSpawnTimer.set(rand(10, 5));   // first saucer flyby a few seconds in
     for (let i = 0; i < 6; i++)
     {
         const p = randEdgeSpawn(6);
@@ -620,7 +621,7 @@ class Debris extends EngineObject
 
 class Ufo extends EngineObject
 {
-    constructor(small)
+    constructor(small, attract=false)
     {
         const r = small ? .42 : .75;
         const dirX = randBool() ? 1 : -1;
@@ -632,6 +633,7 @@ class Ufo extends EngineObject
         this.setCollision(false, false, false, false);
 
         this.small = small;
+        this.attract = attract;   // title-screen flyby: drifts across, never shoots
         this.r = r;
         this.dirX = dirX;
         this.exitX = dirX > 0 ? cameraPos.x + worldHalf.x + 1.5 : cameraPos.x - worldHalf.x - 1.5;
@@ -670,8 +672,8 @@ class Ufo extends EngineObject
             return;
         }
 
-        // shoot
-        if (this.fireTimer.elapsed())
+        // shoot (attract flyby is a silent passer-by — never fires)
+        if (!this.attract && this.fireTimer.elapsed())
         {
             this.fire();
             this.fireTimer.set(this.small ? rand(1, .5) : rand(1.5, 1));
@@ -805,6 +807,16 @@ function maybeSpawnUfo()
     const t = clamp01(score / 25000);
     const base = lerp(18, 8, t);
     ufoSpawnTimer.set(rand(base + 4, base - 4));
+}
+
+// Title attract: send a saucer across once in a while (classic Asteroids flavor).
+// Reuses the Ufo entity in non-shooting "attract" mode; gated to !isPlaying().
+function maybeSpawnAttractUfo()
+{
+    if (ufos.length) return;
+    if (ufoSpawnTimer.isSet() && !ufoSpawnTimer.elapsed()) return;
+    new Ufo(randBool(.4), true);   // mostly large saucers, occasional small
+    ufoSpawnTimer.set(rand(15, 8));
 }
 
 // ============================================================
@@ -950,8 +962,12 @@ function gameUpdate()
         return;
     }
 
-    // Attract mode: rocks keep tumbling, but no gameplay logic
-    if (!isPlaying()) return;
+    // Attract mode: rocks keep tumbling + an occasional saucer flyby, but no gameplay logic
+    if (!isPlaying())
+    {
+        maybeSpawnAttractUfo();
+        return;
+    }
 
     // Game over: brief on-canvas hold, then surface the menu
     if (gameOver)

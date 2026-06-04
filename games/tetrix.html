@@ -8,10 +8,20 @@
 <script>
 'use strict';
 
-// Demo / attract mode: when launched in the arcade iframe with #demo, run
-// menu-less AI-vs-AI on a loop. Gated everywhere so standalone play is unchanged.
-const demoMode = /demo/.test(location.hash);
+// Attract mode comes in two flavors behind the title menu (isPlaying() === false):
+//  - CABINET (#demo in the URL — the arcade launcher's hero/cabinet box): a live
+//    AI-vs-AI match that loops a fresh round on KO.
+//  - MENU (normal launch): a calm backdrop of large tetromino pieces gently
+//    falling/drifting behind the title — NOT AI-vs-AI gameplay.
+// Real play (after PLAY) is identical in both cases.
+const inCabinet = /demo/.test(location.hash);
 let demoRestartTimer = -1;
+
+// Calm menu backdrop (canvas-drawn large falling pieces, behind the DOM panel)
+let menuBgPieces = [];
+let menuSpawnTimer = 0;
+const MENU_SPAWN_RATE = 0.4; // seconds between spawns
+const MENU_FALL_SPEED = 3;   // cells per second
 
 // engine settings, do not remove
 paused = false;
@@ -131,14 +141,8 @@ const KICKS = [vec2(0,0), vec2(-1,0), vec2(1,0), vec2(0,1), vec2(-2,0), vec2(2,0
 ///////////////////////////////////////////////////////////////////////////////
 // GLOBAL STATE
 
-let gameState = 'menu'; // 'menu' or 'playing'
+// 'playing' vs 'title' is tracked by menus.js via isPlaying().
 let gameMode = 'vs';    // 'single' or 'vs'
-
-// Menu background animation (canvas-drawn, behind the DOM menu panel)
-let menuBgPieces = [];
-let menuSpawnTimer = 0;
-const MENU_SPAWN_RATE = 0.4; // seconds between spawns
-const MENU_FALL_SPEED = 3; // cells per second
 
 let players = []; // [human, ai]
 let particles = [];
@@ -1354,15 +1358,22 @@ async function gameInit()
     sSelect = new SoundGenerator({frequency:440, release:.08, volume:.3});
 
     setSoundVolume(.8);
-    // Title draws an animated TETRIS word over falling blocks — keep the
-    // engine unpaused while the title is up so the attract animation plays.
-    installAutoPause(() => gameState === 'playing');
+    // Keep the engine unpaused while the title is up so the attract behavior
+    // (cabinet AI-vs-AI or the calm menu backdrop) runs behind the menu;
+    // in-game menus (pause/dialogs) still freeze a real game.
+    installAutoPause(() => isPlaying());
+    // Mute all game audio while at the title; menu click sounds still play.
+    setSilentAttract(true);
 
     applyCanvasSize();
 
     buildMenus();
-    spawnMenuBackground();
-    gameState = 'menu';
+
+    // Cabinet: live AI-vs-AI demo. Normal launch: calm large-pieces backdrop.
+    if (inCabinet)
+        startAttract();
+    else
+        spawnMenuBackground();
 }
 
 // Fixed wide landscape canvas in every mode. Portrait play is blocked by the
@@ -1370,24 +1381,6 @@ async function gameInit()
 function applyCanvasSize()
 {
     setCanvasFixedSize(vec2(1440, 1080));
-}
-
-function spawnMenuBackground()
-{
-    menuBgPieces = [];
-    for (let i = 0; i < 30; i++)
-    {
-        const type = randInt(PIECES.length);
-        const rot = randInt(4);
-        menuBgPieces.push({
-            type, rot,
-            x: frand(-12, 12),
-            y: frand(-14, 14),
-            fallSpeed: MENU_FALL_SPEED + frand(-0.5, 1),
-            alpha: frand(0.5, .9),
-            scale: frand(1, 2),
-        });
-    }
 }
 
 function buildMenus()
@@ -1402,7 +1395,7 @@ function buildMenus()
         playLabel: 'SINGLE PLAYER',
         onPlay: () => startGame('single'),
         revealOnClick: false,
-        canReveal: () => gameState === 'menu',
+        canReveal: () => !isPlaying(),
         showBest: true,
         formatBest: n => 'BEST ' + n,
         items: [
@@ -1483,15 +1476,9 @@ function buildMenus()
         },
     });
 
-    // Demo mode: skip the title and run AI-vs-AI on a loop (menus are hidden
-    // by the launcher anyway). Standalone play surfaces the title as normal.
-    if (demoMode)
-    {
-        startGame('aivs');
-        return;
-    }
-
-    // Show the title menu immediately — no click-to-reveal step.
+    // Show the title menu immediately — no click-to-reveal step. The live
+    // AI-vs-AI attract demo (started in gameInit) runs behind it; in the arcade
+    // cabinet the launcher merely hides the menu over the same live title.
     showMenu('title');
 }
 
@@ -1507,9 +1494,13 @@ function gameOverBannerText()
 function quitToTitleWithCleanup()
 {
     quitToTitle(() => {
-        gameState = 'menu';
         applyCanvasSize();
-        spawnMenuBackground();
+        // Cabinet returns to the live AI-vs-AI demo; a normal launch returns to
+        // the calm large-pieces backdrop.
+        if (inCabinet)
+            startAttract();
+        else
+            spawnMenuBackground();
     });
 }
 
@@ -1527,60 +1518,8 @@ function doRestart()
 // pause / the hamburger are meaningless, so the toolbar grays out.
 function isGameFinished()
 {
-    if (gameState !== 'playing' || !players.length) return false;
+    if (!isPlaying() || !players.length) return false;
     return !!(players[0]?.gameOver || players[1]?.gameOver);
-}
-
-function updateMenuBackground(dt)
-{
-    // Spawn new pieces
-    menuSpawnTimer -= dt;
-    if (menuSpawnTimer <= 0)
-    {
-        menuSpawnTimer = MENU_SPAWN_RATE + frand(-0.15, 0.15);
-        
-        // Spawn a random piece at top
-        const type = randInt(PIECES.length);
-        const rot = randInt(4);
-        menuBgPieces.push({
-            type,
-            rot,
-            x: frand(-12, 12),
-            y: 16,
-            fallSpeed: MENU_FALL_SPEED + frand(-0.5, 1),
-            alpha: frand(0.15, 0.35),
-            scale: frand(0.7, 1.1),
-        });
-    }
-    
-    // Update pieces
-    for (let i = menuBgPieces.length - 1; i >= 0; i--)
-    {
-        const p = menuBgPieces[i];
-        p.y -= p.fallSpeed * dt;
-        
-        // Remove if off screen
-        if (p.y < -16)
-            menuBgPieces.splice(i, 1);
-    }
-}
-
-function renderMenuBackground()
-{
-    for (const p of menuBgPieces)
-    {
-        const blocks = getBlocks(p.type, p.rot);
-        const baseColor = PIECES[p.type].color;
-        const color = baseColor.copy();
-        color.a = p.alpha;
-        
-        for (const b of blocks)
-        {
-            const wx = p.x + b.x * p.scale;
-            const wy = p.y + b.y * p.scale;
-            drawRect(vec2(wx, wy), vec2(p.scale * 0.9), color);
-        }
-    }
 }
 
 function renderMenuTitle()
@@ -1605,10 +1544,98 @@ function renderMenuTitle()
     drawText('TETRIX', vec2(0, baseY), 4, WHITE, .6, BLACK);
 }
 
+// Calm menu backdrop: large tetromino pieces gently falling/drifting behind the
+// title menu on a NORMAL launch (not the cabinet, not real play).
+function spawnMenuBackground()
+{
+    menuBgPieces = [];
+    menuSpawnTimer = 0;
+    for (let i = 0; i < 30; i++)
+    {
+        const type = randInt(PIECES.length);
+        const rot = randInt(4);
+        menuBgPieces.push({
+            type, rot,
+            x: frand(-12, 12),
+            y: frand(-14, 14),
+            fallSpeed: MENU_FALL_SPEED + frand(-0.5, 1),
+            alpha: frand(0.5, .9),
+            scale: frand(1, 2),
+        });
+    }
+}
+
+function updateMenuBackground(dt)
+{
+    // Spawn new pieces at the top over time
+    menuSpawnTimer -= dt;
+    if (menuSpawnTimer <= 0)
+    {
+        menuSpawnTimer = MENU_SPAWN_RATE + frand(-0.15, 0.15);
+
+        const type = randInt(PIECES.length);
+        const rot = randInt(4);
+        menuBgPieces.push({
+            type,
+            rot,
+            x: frand(-12, 12),
+            y: 18,
+            fallSpeed: MENU_FALL_SPEED + frand(-0.5, 1),
+            alpha: frand(0.4, 0.7),
+            scale: frand(1, 1.8),
+        });
+    }
+
+    // Drift down; recycle once off the bottom
+    for (let i = menuBgPieces.length - 1; i >= 0; i--)
+    {
+        const p = menuBgPieces[i];
+        p.y -= p.fallSpeed * dt;
+        if (p.y < -18)
+            menuBgPieces.splice(i, 1);
+    }
+}
+
+function renderMenuBackground()
+{
+    for (const p of menuBgPieces)
+    {
+        const blocks = getBlocks(p.type, p.rot);
+        const color = PIECES[p.type].color.copy();
+        color.a = p.alpha;
+
+        for (const b of blocks)
+        {
+            const wx = p.x + b.x * p.scale;
+            const wy = p.y + b.y * p.scale;
+            drawRect(vec2(wx, wy), vec2(p.scale * 0.9), color);
+        }
+    }
+}
+
+// Set up an AI-vs-AI match without entering "playing" — used for the live
+// title attract demo. Reuses the exact same player/board setup as startGame's
+// 'aivs' branch so the demo runs the real AI.
+function startAttract()
+{
+    gameMode = 'aivs';
+    particles = [];
+    demoRestartTimer = -1;
+
+    pieceSeed = randInt(2147483647);
+
+    players = [
+        makePlayer('AI 1', LEFT_CENTER_X, true, false),
+        makePlayer('AI 2',  RIGHT_CENTER_X, true, true),
+    ];
+    resetPlayer(players[0]);
+    resetPlayer(players[1]);
+}
+
 function startGame(mode)
 {
     gameMode = mode;
-    gameState = 'playing';
+    setPlaying(true);
     particles = [];
 
     // Hide menus and the title attract field
@@ -1651,16 +1678,63 @@ function startGame(mode)
     }
 }
 
+// Step the gameplay simulation for both boards (particles, sparkles, clear
+// anims, and the AI/human controllers). Shared by the title attract demo and a
+// real game so the demo runs the exact same AI.
+function simulatePlayers(human, ai)
+{
+    // particles
+    updateParticles(timeDelta);
+
+    // ambient sparkles on active pieces
+    stepPieceSparkles(human, timeDelta);
+    if (ai) stepPieceSparkles(ai, timeDelta);
+
+    // clear anims first (they pause gameplay for that player)
+    if (human.clearAnim) stepClearAnim(human, ai, timeDelta);
+    if (ai && ai.clearAnim) stepClearAnim(ai, human, timeDelta);
+
+    if (!human.clearAnim)
+    {
+        if (gameMode === 'aivs')
+            stepAI(human, timeDelta);  // First player is also AI
+        else
+            humanUpdate(human, timeDelta);
+    }
+
+    if (ai && !ai.clearAnim)
+        stepAI(ai, timeDelta);
+}
+
 function gameUpdate()
 {
     // Reset cameraPos to origin each frame so the gameFx screen-shake plugin
     // (between gameUpdate and gameUpdatePost) can nudge cleanly without drift.
     cameraPos = vec2(0, 0);
 
-    if (gameState === 'menu')
+    const human = players[0];
+    const ai = (gameMode === 'vs' || gameMode === 'aivs') ? players[1] : null;
+
+    if (!isPlaying())
     {
-        // Animate menu background even when no menu DOM panel is showing
-        updateMenuBackground(timeDelta);
+        if (!inCabinet)
+        {
+            // Normal launch: calm large-pieces backdrop, no gameplay.
+            updateMenuBackground(timeDelta);
+            return;
+        }
+
+        // Cabinet attract: live AI-vs-AI behind the menu. On KO, let the boards
+        // sit a moment then loop a fresh match — no menus, no score submit.
+        if (human && (human.gameOver || (ai && ai.gameOver)))
+        {
+            if (demoRestartTimer < 0) demoRestartTimer = 2.5;
+            demoRestartTimer -= timeDelta;
+            if (demoRestartTimer <= 0)
+                startAttract();
+            return;
+        }
+        if (human) simulatePlayers(human, ai);
         return;
     }
 
@@ -1687,37 +1761,9 @@ function gameUpdate()
         players[1].pendingGarbage += 1;
     }
 
-    // particles
-    updateParticles(timeDelta);
-
-    // ambient sparkles on active pieces
-    stepPieceSparkles(players[0], timeDelta);
-    if (gameMode === 'vs' || gameMode === 'aivs') stepPieceSparkles(players[1], timeDelta);
-
-    const human = players[0];
-    const ai = (gameMode === 'vs' || gameMode === 'aivs') ? players[1] : null;
-
-    // clear anims first (they pause gameplay for that player)
-    if (human.clearAnim) stepClearAnim(human, ai, timeDelta);
-    if (ai && ai.clearAnim) stepClearAnim(ai, human, timeDelta);
-
     // If someone is KO'd, pause ALL gameplay input/AI and surface the menu.
     if (human.gameOver || (ai && ai.gameOver))
     {
-        // Demo mode: no menus — let the finished boards sit a moment, then
-        // auto-start a fresh AI-vs-AI round so the attract loops forever.
-        if (demoMode)
-        {
-            if (demoRestartTimer < 0) demoRestartTimer = 2.5;
-            demoRestartTimer -= timeDelta;
-            if (demoRestartTimer <= 0)
-            {
-                demoRestartTimer = -1;
-                startGame('aivs');
-            }
-            return;
-        }
-
         if (!gameOverShowing)
         {
             // Best score: only count human-driven single-player runs.
@@ -1728,16 +1774,7 @@ function gameUpdate()
         return;
     }
 
-    if (!human.clearAnim)
-    {
-        if (gameMode === 'aivs')
-            stepAI(human, timeDelta);  // First player is also AI
-        else
-            humanUpdate(human, timeDelta);
-    }
-
-    if (ai && !ai.clearAnim)
-        stepAI(ai, timeDelta);
+    simulatePlayers(human, ai);
 }
 
 function gameUpdatePost()
@@ -1753,33 +1790,36 @@ function gameRender()
         hsl(.62, .55, .13),   // deep indigo at the top
         hsl(.80, .55, .04));  // near-black violet at the bottom
 
-    if (gameState === 'menu')
-    {
-        // Draw falling pieces background
+    // Calm menu backdrop (normal launch title): large falling pieces behind the
+    // title menu. The cabinet draws the live AI-vs-AI boards instead.
+    if (!isPlaying() && !inCabinet)
         renderMenuBackground();
-        
-        // Draw animated title
+
+    // Draw the boards (real game, or the live AI-vs-AI title demo).
+    if (players.length)
+    {
+        if (gameMode === 'vs' || gameMode === 'aivs')
+        {
+            // center divider
+            drawRect(vec2(0,0), vec2(.15, 28), rgb(.12,.12,.14));
+            drawPlayer(players[0]);  // left player
+            drawPlayer(players[1]);  // right player
+        }
+        else
+        {
+            // single player - just draw one board
+            drawPlayer(players[0]);  // shake via gameFx plugin
+        }
+
+        renderParticles();
+    }
+
+    if (!isPlaying())
+    {
+        // Title: draw the animated TETRIX word over the live demo; the DOM
+        // menu panel renders on top.
         renderMenuTitle();
-        
-        // UI system renders the menu on top
-        return;
     }
-
-    // Playing state
-    if (gameMode === 'vs' || gameMode === 'aivs')
-    {
-        // center divider
-        drawRect(vec2(0,0), vec2(.15, 28), rgb(.12,.12,.14));
-        drawPlayer(players[0]);  // left player
-        drawPlayer(players[1]);  // right player
-    }
-    else
-    {
-        // single player - just draw one board
-        drawPlayer(players[0]);  // shake via gameFx plugin
-    }
-
-    renderParticles();
 
     // The gameOver menu (DOM) now owns the win/lose banner.
 }

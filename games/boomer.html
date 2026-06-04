@@ -23,12 +23,14 @@
 <script>
 'use strict';
 
-// Demo/attract mode: the arcade launcher loads the game in an iframe with
-// "#demo" and hides all menus.js chrome. In demo mode we skip the title menu,
-// auto-start a game, drive the buckets with a simple auto-player, and loop on
-// game over. Standalone play (no #demo) is unchanged.
-const demoMode = /demo/.test(location.hash);
-let demoRestartTimer = 0;   // seconds until the next auto-restart after game over
+// Attract mode: the title screen IS a live self-playing demo. While the title
+// menu is up (isPlaying() === false) the full game simulates behind it — bombs
+// drop, the bomber paces, and an auto-player sweeps the buckets. On death it
+// loops (reset + keep going) WITHOUT the game-over menu or score submit. Press
+// PLAY and isPlaying() flips true, handing control to the human; the auto-player
+// stands down and the normal game-over -> menu path resumes. The arcade cabinet
+// simply hides the menu chrome over this same live title.
+let attractRestartTimer = 0;   // seconds to linger on the wreckage before looping
 
 paused = false;
 gravity = vec2(0, -0.01);   // gentle pull so ParticleEmitter particles arc (only particles are engine objects; applied per-frame to velocity)
@@ -90,6 +92,7 @@ let treeField;       // foreground trees/bushes on the sides of the building
 let windowSeeds;     // stable blink seeds for windows
 let bombsSpawned, bombsCaught, bombsInWave;
 let gameOverShown;
+let pendingGameOver = false;   // a REAL game just died, awaiting the game-over modal
 let waveSpawnTimer;  // seconds until next bomb in current wave
 let waveStartDelay;  // seconds before first bomb of wave
 let waveClearTimer;  // seconds remaining until next wave starts (0 = not waiting)
@@ -158,6 +161,9 @@ function bucketTopY()     { return BUCKET_BOTTOM_Y + (lives - 1) * BUCKET_GAP; }
 ///////////////////////////////////////////////////////////////////////////////
 // GAME FLOW
 
+// Resets all gameplay state and starts wave 1. Does NOT touch setPlaying — the
+// caller owns that: real play (title PLAY / gameover PLAY AGAIN) flips it true
+// first; the attract loop calls this while isPlaying() stays false.
 function startGame() {
     score = 0;
     lives = 3;
@@ -167,8 +173,9 @@ function startGame() {
     clearParticles();
     clearBombs();
     bomber = { x: -BOMBER_RANGE * 0.5, vx: bomberSpeed(1), dropTimer: 0, laughTimer: 0 };
-    setPlaying(true);
     gameOverShown = false;
+    pendingGameOver = false;
+    gameOverDelay = 0;
     waveBannerText = '';
     waveBannerTimer = 0;
     startWave(1);
@@ -294,12 +301,17 @@ function missBomb(missedBomb) {
     clearBombs();
 
     if (lives <= 0) {
-        setPlaying(false);
-        // Defer the game-over dialog until the explosion settles so the
-        // player sees the shake before the modal eats the screen.
-        gameOverShown = false;
-        gameOverDelay = 1.2;
-        demoRestartTimer = 2.0;   // demo mode: pause on the wreckage, then loop
+        if (isPlaying()) {
+            setPlaying(false);
+            // Defer the game-over dialog until the explosion settles so the
+            // player sees the shake before the modal eats the screen.
+            gameOverShown = false;
+            pendingGameOver = true;
+            gameOverDelay = 1.2;
+        } else {
+            // Attract loop: linger on the wreckage, then restart (no menu/score).
+            attractRestartTimer = 2.0;
+        }
     }
 }
 
@@ -342,15 +354,18 @@ function updateBomber(dt) {
 
 function updateBucket(dt) {
     const maxX = FIELD_RIGHT - bucketHalfW(wave) - 0.3;
-    // Demo auto-player: track the lowest in-flight bomb so the bucket looks
-    // alive (it doesn't need to catch every one). Falls through to manual
-    // control when no bombs are falling.
-    if (demoMode && bombs.length) {
-        let target = bombs[0];
-        for (const b of bombs)
-            if (b.pos.y < target.pos.y) target = b;
-        bucketTargetX = clamp(target.pos.x, -maxX, maxX);
-        bucketX = bucketTargetX;
+    // Attract auto-player: while at the title (not playing) the demo drives the
+    // bucket toward the lowest in-flight bomb (the most urgent catch). The bucket
+    // EASES toward the target instead of teleporting, so it glides smoothly.
+    if (!isPlaying()) {
+        if (bombs.length) {
+            let target = bombs[0];
+            for (const b of bombs)
+                if (b.pos.y < target.pos.y) target = b;
+            bucketTargetX = clamp(target.pos.x, -maxX, maxX);
+        }
+        // Frame-rate-independent smoothing toward the target column.
+        bucketX = clamp(lerp(bucketX, bucketTargetX, 1 - Math.pow(0.001, dt)), -maxX, maxX);
         return;
     }
     // One-axis steering: keyboard arrows/WASD or gamepad left stick / d-pad.
@@ -534,18 +549,13 @@ function drawTrees() {
 }
 
 function drawBomber() {
-    // On the title screen, paused = true so gameUpdate doesn't run and
-    // bomber.x is frozen. Drive a slow sinusoidal pace from `timeReal`
-    // (advances through pause) so the attract-mode backdrop stays alive.
-    const onTitle = !isPlaying() && lives > 0;
-    const titlePhase = timeReal * 0.45;
-    const x = onTitle ? Math.sin(titlePhase) * BOMBER_RANGE * 0.65 : bomber.x;
+    // The bomber paces via the real updateBomber both in play AND at the title
+    // (the attract demo runs the full sim), so just draw at his live position.
+    const x = bomber.x;
     const y = ROOF_Y;
-    const moving = isPlaying() && waveClearTimer <= 0 && waveStartDelay <= 0;
-    const facing = onTitle
-        ? (Math.cos(titlePhase) >= 0 ? 1 : -1)
-        : (bomber.vx >= 0 ? 1 : -1);
-    const walkPhase = (onTitle ? timeReal : time) * 6 * (moving || onTitle ? 1 : 0);
+    const moving = waveClearTimer <= 0 && waveStartDelay <= 0;
+    const facing = bomber.vx >= 0 ? 1 : -1;
+    const walkPhase = time * 6 * (moving ? 1 : 0);
     const stepBob = Math.abs(Math.sin(walkPhase)) * 0.08;
 
     // Rounded body part — the atlas roundSquare gives the bomber soft, organic
@@ -603,10 +613,8 @@ function drawBomber() {
     drawTile(holdHand, vec2(0.36), ICON.circle, hsl(.08, .5, .8));
 
     // Pile of remaining bombs in his off-hand — shrinks as he drops them.
-    // On title (attract), show a full pile so he looks menacing.
-    const remainingBombs = isPlaying()
-        ? max(0, bombsInWave - bombsSpawned)
-        : (onTitle ? 5 : 0);
+    // The wave sim runs at the title too, so this count is live in both modes.
+    const remainingBombs = max(0, bombsInWave - bombsSpawned);
     drawBombPile(holdHand.x, holdHand.y + 0.22, min(remainingBombs, 5));
 
     // Head (yellow with mustache + wicked grin)
@@ -722,7 +730,11 @@ async function gameInit() {
     // a tinted default-atlas sprite instead of a raw primitive.
     ICON = initDefaultAtlas();
 
-    installAutoPause();
+    // Pause only during REAL play (a menu over a live game). At the title the
+    // menu is up but isPlaying() is false, so this leaves the game UNPAUSED —
+    // the attract demo keeps simulating behind the visible title menu.
+    installAutoPause(() => isPlaying());
+    setSilentAttract(true);   // mute all game audio at the title; menu clicks still play
 
     // ---- sounds ----
     sfxCatch    = new SoundGenerator({ frequency: 700, release: 0.05, volume: 0.5, shapeCurve: 0.6 });
@@ -794,11 +806,8 @@ async function gameInit() {
             clearSubmenuStack();
             hideAllMenus();
             setPlaying(false);
-            gameOverShown = false;
-            // Reset visuals so title attract loop is clean.
-            clearParticles();
-            clearBombs();
-            lives = 3;
+            // Restart a clean attract demo so the title is live again.
+            startGame();
             showMenu('title');
         },
         extraItems: [
@@ -813,7 +822,7 @@ async function gameInit() {
         titleFx: {fill:'fire', motion:'heartbeat'},
         subtitle: 'Catch the Mad Bomber’s bombs',
         revealOnClick: false,
-        onPlay: () => { startGame(); },
+        onPlay: () => { setPlaying(true); startGame(); },
         canReveal: () => !isPlaying(),
         showBest: true,
         formatBest: n => 'BEST: ' + n,
@@ -836,11 +845,13 @@ async function gameInit() {
             { type: 'separator' },
             { type: 'button', id: 'again', label: 'PLAY AGAIN', onClick: () => {
                 hideMenu('gameover');
+                setPlaying(true);
                 startGame();
             }},
             { type: 'button', label: 'TITLE', onClick: () => {
                 hideMenu('gameover');
-                lives = 3; clearParticles(); clearBombs();
+                // isPlaying() is already false — restart a clean attract demo.
+                startGame();
                 showMenu('title');
             }},
         ],
@@ -850,21 +861,16 @@ async function gameInit() {
     installDefaultToolbar();
 
     // ---- initial state ----
-    // Build a starting world so the title screen has a moving backdrop.
-    clearBombs();
-    lives = 3; wave = 1; bucketX = 0; bucketTargetX = 0;
-    bomber = { x: -BOMBER_RANGE * 0.5, vx: bomberSpeed(1), dropTimer: 0, laughTimer: 0 };
-    bucketsAwarded = 0;
+    // Spin up a full live game so the title screen IS the attract demo: bombs
+    // drop, the bomber paces, and the auto-player sweeps the buckets behind the
+    // menu. setPlaying stays false, so installAutoPause leaves it unpaused while
+    // the title menu is up, the auto-player drives, and a death loops the demo.
     setPlaying(false);
-    gameOverShown = false;
-    waveSpawnTimer = 0; waveStartDelay = 0; waveClearTimer = 0; missFreezeTimer = 0;
-    bombsSpawned = bombsCaught = bombsInWave = 0;
     missShakeTimer = 0;
-
-    if (demoMode)
-        startGame();     // attract mode: skip the title and run a self-playing game
-    else
-        showMenu('title');
+    gameOverDelay = 0;
+    attractRestartTimer = 0;
+    startGame();
+    showMenu('title');
 }
 
 function gameUpdate() {
@@ -878,31 +884,24 @@ function gameUpdate() {
     if (waveBannerTimer > 0) waveBannerTimer -= dt;
     if (missShakeTimer > 0) missShakeTimer = max(0, missShakeTimer - dt);
 
+    // While not playing we're either (a) a REAL game that just ended — surface
+    // the game-over modal once the shake/explosion settle — or (b) the attract
+    // demo at the title, which keeps simulating below and loops on death (no
+    // modal, no score submit).
     if (!isPlaying()) {
         if (gameOverDelay > 0) gameOverDelay -= dt;
-        // Demo mode: instead of the game-over modal, wait for the explosion to
-        // settle then auto-restart a fresh game so the attract loops forever.
-        if (demoMode) {
-            if (lives <= 0 && missShakeTimer <= 0 && gameOverDelay <= 0) {
-                demoRestartTimer -= dt;
-                if (demoRestartTimer <= 0) startGame();
-            }
+        if (pendingGameOver) {
+            // Real game over: show the modal after the explosion plays out.
+            if (!gameOverShown && missShakeTimer <= 0 && gameOverDelay <= 0)
+                showGameOver();
+            return;     // freeze the wreckage under the game-over modal
+        }
+        if (lives <= 0 && missShakeTimer <= 0 && gameOverDelay <= 0) {
+            attractRestartTimer -= dt;
+            if (attractRestartTimer <= 0) startGame();
             return;
         }
-        // Game over modal surfacing — wait until the shake + explosion settle.
-        if (lives <= 0 && !gameOverShown && missShakeTimer <= 0 && gameOverDelay <= 0) {
-            showGameOver();
-        }
-        // Keep the bomber pacing for attract life on the title screen; the engine
-        // auto-updates the ParticleEmitters, so no manual particle tick is needed.
-        if (!gameOverShown) {
-            if (!lives || lives > 0) {
-                bomber.x += bomber.vx * dt * 0.6;
-                if (bomber.x > BOMBER_RANGE)  { bomber.x = BOMBER_RANGE;  bomber.vx = -Math.abs(bomber.vx); }
-                if (bomber.x < -BOMBER_RANGE) { bomber.x = -BOMBER_RANGE; bomber.vx =  Math.abs(bomber.vx); }
-            }
-        }
-        return;
+        // else: attract demo still alive — fall through and simulate it.
     }
 
     if (missFreezeTimer > 0) {

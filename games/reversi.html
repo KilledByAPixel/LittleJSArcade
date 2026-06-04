@@ -11,13 +11,8 @@
 <script>
 'use strict';
 
-// engine settings, do not remove
-paused = false;
-
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
-cameraScale = 46;
-canvasFixedSize = vec2(700, 1080);
+// engine settings
+canvasMaxSize = vec2(2048);
 
 ///////////////////////////////////////////////////////////////////////////////
 // OTHELLO GAME
@@ -32,6 +27,18 @@ const DISC_EMPTY = 0;
 
 const PLAYER_HUMAN = DISC_BLACK;
 const PLAYER_AI = DISC_WHITE;
+
+// Attract mode. The arcade cabinet loads the game with "#demo" in the URL; a
+// normal launch does not. In the cabinet we run a looping AI-vs-AI demo behind
+// the title; on a normal launch the title board sits completely static.
+const inCabinet = /demo/.test(location.hash);
+const ATTRACT_DIFFICULTY = 'medium';   // medium AI drives both demo sides
+const ATTRACT_MOVE_DELAY = 0.6;        // pause between demo moves (seconds)
+const ATTRACT_RESTART_DELAY = 2.5;     // wait after game over before looping
+const REAL_PLAY_CAMERA_SCALE = 46;     // normal in-game zoom
+let attractMoveTimer = 0;
+let attractRestartTimer = 0;
+let attractSearching = false;
 
 // Game state
 let board = [];
@@ -541,6 +548,14 @@ function findBestAIMove(opts = {})
     return Promise.resolve(strategyForDifficulty(difficulty)(othelloGame, getCurrentState(), opts));
 }
 
+// Attract-only AI move. Uses a fixed medium difficulty so the demo plays at a
+// watchable pace without mutating the player's chosen `difficulty` global.
+function findAttractAIMove()
+{
+    if (validMoves.length === 0) return Promise.resolve(null);
+    return Promise.resolve(strategyForDifficulty(ATTRACT_DIFFICULTY)(othelloGame, getCurrentState(), {}));
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // RENDERING
 
@@ -804,8 +819,11 @@ async function gameInit()
 
     icons = initDefaultAtlas(); // bake 16 white-on-transparent icons into tiles 0-15
 
-    // One callback drives `paused` for every menu (including dialogs).
-    installAutoPause();
+    // Keep the title unpaused so the attract can animate; real-play menus
+    // (pause/options/dialogs) still pause because isPlaying() is true then.
+    installAutoPause(() => isPlaying());
+    // Mute game audio at the title (demo stays silent; menu clicks still play).
+    setSilentAttract(true);
 
     // Sounds (gameplay)
     sfxPlaceWhite = new SoundGenerator({frequency: 220, release: 0.05, volume: 0.3});
@@ -871,8 +889,14 @@ async function gameInit()
 
     installDefaultToolbar({landscapeStack:true});
 
+    // In the cabinet the title runs a looping AI-vs-AI demo; treat it as such
+    // so move/end logic stays consistent. (Demo audio is silenced anyway.)
+    if (inCabinet)
+        gameMode = 'aivai';
+
     initBoard();
     setPlaying(false);
+    fitCameraToBoard();   // tight board fit behind the title
     showMenu('title');
     refreshDifficultyUI();
 }
@@ -901,7 +925,15 @@ function refreshDifficultyUI()
 
 function quitToTitleWithCleanup()
 {
-    quitToTitle(() => { aiGeneration++; aiSearching = false; aiProgress = ''; });
+    quitToTitle(() => {
+        aiGeneration++; aiSearching = false; aiProgress = '';
+        // Restore a clean attract state for the title.
+        attractSearching = false;
+        attractMoveTimer = 0;
+        attractRestartTimer = 0;
+        if (inCabinet) gameMode = 'aivai';
+        initBoard();   // show a fresh board (cabinet demo restarts, menu is static)
+    });
 }
 
 function startGame(mode)
@@ -913,11 +945,10 @@ function startGame(mode)
     hideMenu('title');
 }
 
-function gameUpdate()
+// Advance the flip + placement animations one frame. Shared by real play and
+// the attract demo so both look alive.
+function updateDiscAnimations()
 {
-    if (bindPauseKey({when: () => isPlaying()})) return;
-    if (!isPlaying()) return;
-    
     // Update flip animations
     for (let i = flippingDiscs.length - 1; i >= 0; i--)
     {
@@ -925,7 +956,7 @@ function gameUpdate()
         if (flippingDiscs[i].progress >= 1)
             flippingDiscs.splice(i, 1);
     }
-    
+
     // Update placement animation
     if (placingDisc)
     {
@@ -933,7 +964,57 @@ function gameUpdate()
         if (placingDisc.progress >= 1)
             placingDisc = null;
     }
-    
+}
+
+// Title attract. CABINET (#demo): loop a medium AI-vs-AI match, auto-restarting
+// a couple seconds after game over. MENU (normal launch): leave the freshly
+// initialized board completely static — no AI, no moves.
+function updateAttract()
+{
+    if (!inCabinet)
+        return; // static menu board: do nothing
+
+    updateDiscAnimations();
+
+    if (gameOver)
+    {
+        // Wait, then start a fresh demo match so the cabinet loops forever.
+        attractRestartTimer += timeDelta;
+        if (attractRestartTimer >= ATTRACT_RESTART_DELAY)
+        {
+            initBoard();             // resets state + bumps aiGeneration
+            attractRestartTimer = 0;
+            attractMoveTimer = 0;
+            attractSearching = false;
+        }
+        return;
+    }
+
+    // Drive whichever side is to move with the demo AI.
+    if (!attractSearching && flippingDiscs.length === 0)
+    {
+        attractMoveTimer += timeDelta;
+        if (attractMoveTimer >= ATTRACT_MOVE_DELAY)
+        {
+            attractSearching = true;
+            const myGen = aiGeneration;
+            findAttractAIMove().then(move => {
+                if (myGen !== aiGeneration) { attractSearching = false; return; }
+                if (move) makeMove(move.row, move.col, currentPlayer);
+                attractSearching = false;
+                attractMoveTimer = 0;
+            });
+        }
+    }
+}
+
+function gameUpdate()
+{
+    if (bindPauseKey({when: () => isPlaying()})) return;
+    if (!isPlaying()) { updateAttract(); return; }
+
+    updateDiscAnimations();
+
     // Input
     if (keyWasPressed('KeyR'))
     {
@@ -991,9 +1072,26 @@ function gameUpdate()
     }
 }
 
+// Fit the camera tightly to the square board with a little padding. Used for
+// both attract modes (cabinet demo + static menu board) so the board fills the
+// view; real play uses the normal REAL_PLAY_CAMERA_SCALE.
+function fitCameraToBoard(padding = 0.96)
+{
+    const boardWorldSize = BOARD_SIZE * CELL_SIZE + 0.4; // include the frame
+    const scaleX = mainCanvasSize.x / boardWorldSize;
+    const scaleY = mainCanvasSize.y / boardWorldSize;
+    cameraScale = min(scaleX, scaleY) * padding;
+}
+
 function gameUpdatePost()
 {
     cameraPos = vec2(0, 0);
+    // Tight board fit while at the title (both cabinet demo and static menu);
+    // restore the normal zoom for real play.
+    if (isPlaying())
+        cameraScale = REAL_PLAY_CAMERA_SCALE;
+    else
+        fitCameraToBoard();
 }
 
 function gameRender()

@@ -9,9 +9,6 @@
 <script>
 'use strict';
 
-// demo / attract mode (launcher loads the game with #demo and hides all menus)
-const demoMode = /demo/.test(location.hash);
-
 // engine settings, do not remove
 paused = false;
 
@@ -317,10 +314,14 @@ class Player extends EngineObject
         this.pos.y = padY + PAD_THICK + 1.5;
 
         // score: level bonus + leftover fuel + soft-touchdown bonus
+        // (the title-screen attract demo runs the same flight model but never scores)
         const soft = max(0, 100 - lastTouchdownSpeed*900) | 0;
         lastLevelScore = (level*100) + (this.fuel*4 | 0) + soft;
-        totalScore += lastLevelScore;
-        submitBestScore(totalScore);
+        if (isPlaying())
+        {
+            totalScore += lastLevelScore;
+            submitBestScore(totalScore);
+        }
         messageTimer.set(.6);   // brief beat to admire the landing, then the menu
     }
 
@@ -347,8 +348,9 @@ class Player extends EngineObject
         const v = this.velocity;
 
         // desired tilt: lean toward the pad horizontally, but go upright when low/slow
-        let wantAngle = clamp(-dx*.05 - v.x*3, -.5, .5);
-        if (dy < 6) wantAngle = clamp(-dx*.02 - v.x*4, -SAFE_ANGLE*.6, SAFE_ANGLE*.6);
+        // (positive angle thrusts +x, so lean +dx toward a pad on the right, brake -v.x)
+        let wantAngle = clamp(dx*.05 - v.x*3, -.5, .5);
+        if (dy < 6) wantAngle = clamp(dx*.02 - v.x*4, -SAFE_ANGLE*.6, SAFE_ANGLE*.6);
 
         // rotate toward wantAngle, damping out spin
         const rotate = clamp((wantAngle - this.angle)*8 - this.angleVelocity*40, -1, 1);
@@ -377,8 +379,8 @@ class Player extends EngineObject
         // main thrust (Up/W/Space + gamepad A + touch button)
         let thrustHeld = moveInput.y > 0 || keyIsDown('Space') || gamepadIsDown(0);
 
-        // demo mode: the autopilot supplies all input
-        if (demoMode)
+        // attract demo: while at the title (not playing) the autopilot flies it
+        if (!isPlaying())
         {
             const ai = this.autoInput();
             rotateInput = ai.rotate;
@@ -492,7 +494,9 @@ function buildMenus()
 {
     if (typeof createMenu !== 'function') return;
 
-    installAutoPause();
+    // keep the title UNPAUSED so the attract demo runs behind the menu;
+    // pause only happens for menus surfaced during a real game (pause / dialogs)
+    installAutoPause(() => isPlaying());
 
     setMenuTheme({accent:'#9cc4ff'});
     createTitleMenu({
@@ -579,34 +583,39 @@ function gameInit()
     startLevel(1);
     buildMenus();
 
-    if (demoMode)
-    {
-        // attract mode: skip the title and self-run a fresh game (autopilot flies it)
-        startGame();
-    }
-    else
-        showMenu('title');
+    // mute all game audio while sitting at the title (menu clicks still play)
+    setSilentAttract(true);
+
+    // the title is a live attract demo: the autopilot flies behind the menu and
+    // loops forever until the player presses PLAY (which starts a real game)
+    showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdate()
 {
     if (bindPauseKey({when: () => isPlaying() && !gameState})) return;
-    if (!isPlaying()) return;
 
-    if (keyWasPressed('KeyR'))
-        startGame();
-
-    // demo mode loops itself with no menus: advance on a landing, restart on a crash
-    if (demoMode)
+    // title-screen attract demo: the autopilot flies behind the menu and loops
+    // forever with NO menus / scoring — advance on a landing, restart on a crash
+    if (!isPlaying())
     {
         if (gameState && messageTimer.elapsed())
         {
-            if (gameState === 1) startLevel(level + 1);
-            else                 startGame();
+            if (gameState === 1)
+                startLevel(level + 1);
+            else
+            {
+                level = 1;
+                totalScore = 0;
+                startLevel(1);
+            }
         }
         return;
     }
+
+    if (keyWasPressed('KeyR'))
+        startGame();
 
     // once the landing/explosion has played, surface the end-of-round menu;
     // it handles continue on every device (keyboard, mouse, gamepad, touch)

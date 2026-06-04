@@ -1664,8 +1664,54 @@ const menuSounds = { select: null, activate: null };
 function setMenuSounds(sounds)
 {
     if (!sounds) { menuSounds.select = menuSounds.activate = null; return; }
-    menuSounds.select   = sounds.select   || null;
-    menuSounds.activate = sounds.activate || null;
+    menuSounds.select   = _menuSoundGuard(sounds.select   || null);
+    menuSounds.activate = _menuSoundGuard(sounds.activate || null);
+}
+
+// --- Silent attract -------------------------------------------------------
+// A game whose title screen is a live "attract" demo (auto-plays behind the
+// menu, like Pong) calls setSilentAttract(true) once in gameInit. While that
+// game sits at its title (isPlaying() === false) ALL game audio is force-muted,
+// yet the menu's own select/activate sounds still play — they run through
+// _menuSoundGuard, which lifts the mute for the duration of the call. So menus
+// stay clicky, the demo stays silent, and a real game (isPlaying() true) is at
+// full volume. soundEnable is left alone, so the audio context still resumes.
+let _silentAttract = false;   // did the game opt in?
+let _demoSilent    = false;   // are we muting game audio right now?
+let _inMenuSound   = false;   // true only while a menu sound is being played
+
+// Patch Sound.prototype.play once (per document) so we can force game sounds to
+// volume 0 during a silent attract, without disabling the engine's audio.
+function _installSoundMute()
+{
+    if (typeof Sound !== 'function' || Sound.prototype._ljsDemoMute) return;
+    Sound.prototype._ljsDemoMute = true;
+    const _origPlay = Sound.prototype.play;
+    Sound.prototype.play = function(...args)
+    {
+        if (_demoSilent && !_inMenuSound) args[1] = 0;   // args[1] is volume
+        return _origPlay.apply(this, args);
+    };
+}
+
+// Wrap a menu-sound callback so invoking it briefly lifts the demo mute.
+function _menuSoundGuard(fn)
+{
+    if (!fn) return null;
+    return function(...a)
+    {
+        const prev = _inMenuSound; _inMenuSound = true;
+        try { return fn.apply(this, a); }
+        finally { _inMenuSound = prev; }
+    };
+}
+
+// Opt a game in/out of silent-attract muting (call once in gameInit).
+function setSilentAttract(on = true)
+{
+    _silentAttract = !!on;
+    _installSoundMute();
+    _demoSilent = _silentAttract && !_isPlaying;
 }
 
 // ============================================================================
@@ -1708,6 +1754,8 @@ function isPlaying() { return _isPlaying; }
 function setPlaying(p)
 {
     _isPlaying = !!p;
+    // Silent-attract: mute game audio whenever we're not actually playing.
+    if (_silentAttract) _demoSilent = !_isPlaying;
     // Fire registered listeners (games hook these for game-state-driven
     // UI toggles, e.g. hide undo / new-game while at title).
     for (const fn of _playingListeners) fn(_isPlaying);
@@ -2586,12 +2634,12 @@ function initMenuSystem()
         if (!menuSounds.select)
         {
             const _defaultSelect = new Sound([.4,,910,,,.02,2,.07,-5,-33,,,,,,,,.25]);
-            menuSounds.select = () => _defaultSelect.play();
+            menuSounds.select = _menuSoundGuard(() => _defaultSelect.play());
         }
         if (!menuSounds.activate)
         {
             const _defaultActivate = new Sound([.6,,30,.01,,.02,1,3.4,94,,,,,,,,,.67]);
-            menuSounds.activate = () => _defaultActivate.play();
+            menuSounds.activate = _menuSoundGuard(() => _defaultActivate.play());
         }
     }
 

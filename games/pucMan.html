@@ -9,11 +9,13 @@
  <script>
 'use strict';
 
-// Demo / attract mode: when the arcade launcher loads this game in an iframe with
-// "#demo", run a self-playing attract loop with no menus. Gated behind demoMode so
-// standalone play is completely unchanged.
-const demoMode = /demo/.test(location.hash);
-let demoRestartTimer = 0; // frames until the next auto-restart after a run ends
+// Attract mode: while the game sits at its title (isPlaying() === false), the
+// maze is shown with ONLY the ghosts wandering it on their own AI — there is no
+// Pac-Man on screen and nothing is being auto-piloted. Clicking PLAY starts a
+// normal game (with Pac-Man) and hands control to the human.
+
+// True whenever the attract demo (not a real game) is showing: i.e. at the title.
+function demoMode() { return !isPlaying(); }
 
 // engine settings
 
@@ -119,7 +121,11 @@ function gameInit()
     sFruit    = new SoundGenerator({frequency: 540, release: .22, volume: .55, randomness: .04, pitchJump: 380, pitchJumpTime: .07});
 
     setSoundVolume(.8);
-    installAutoPause();
+    // Keep the title UNPAUSED so the attract demo runs behind the menu; a real
+    // game (isPlaying() true) still pauses normally when a menu surfaces.
+    installAutoPause(() => isPlaying());
+    // Mute ALL game audio at the title (attract demo); menu clicks still play.
+    setSilentAttract(true);
 
     buildLevel();
     resetRun(true);
@@ -212,15 +218,8 @@ function buildMenus()
 
     installDefaultToolbar({landscapeStack:true});
 
-    if (demoMode)
-    {
-        // Attract mode: skip the title and start a fresh self-playing run.
-        // No menu is shown, so installAutoPause keeps paused=false automatically.
-        startGame();
-        return;
-    }
-
     // Show the title menu immediately — no click-to-reveal step.
+    // The attract demo auto-plays behind it (see gameUpdate).
     showMenu('title');
 }
 
@@ -239,22 +238,21 @@ function gameUpdate()
         return;
     }
 
-    if (!isPlaying()) return; // title screen: maze sits frozen behind the menu
+    // Attract mode (title): no Pac-Man and no human controls. Only the ghosts
+    // wander the maze on their own AI. demoMode() distinguishes title from real play.
+    if (demoMode())
+    {
+        // Keep the global scatter/chase schedule ticking and let the ghosts roam;
+        // skip player movement, pellet eating, collisions, and win/lose entirely.
+        updateGhosts();
+        return;
+    }
 
-    if (isPlaying() && !win && !gameOver && keyWasPressed('KeyR'))
+    if (!win && !gameOver && keyWasPressed('KeyR'))
         return startGame();
 
     if (win || gameOver)
     {
-        if (demoMode)
-        {
-            // Attract loop: hold the result banner briefly, then auto-start a fresh run.
-            if (endHoldTimer > 0) { endHoldTimer--; return; }
-            if (demoRestartTimer <= 0) demoRestartTimer = 90; // ~1.5s pause on the result
-            if (--demoRestartTimer <= 0) startGame();
-            return;
-        }
-
         if (!endMenuShowing)
         {
             // Brief on-canvas hold for the result banner, then surface the menu.
@@ -361,7 +359,9 @@ function gameRender()
     // entities
     for (const g of ghosts)
         drawGhost(g);
-    drawPac(player);
+    // No Pac-Man during the attract demo — only the ghosts wander the maze.
+    if (!demoMode())
+        drawPac(player);
 
     // arcade-style "READY!" banner shown at game start and after each death
     // Placed in the open corridor just below the ghost house (one tile tall)
@@ -623,28 +623,20 @@ function reverseMover(m)
 
 function updatePlayer()
 {
-    if (demoMode)
-    {
-        // Attract mode: a simple auto-pilot drives Pac-Man instead of the player.
-        player.desiredDir = demoChooseDir();
-    }
-    else
-    {
-        // buffer desired direction: the most recent key press wins (arcade-style)
-        if (keyWasPressed('ArrowUp'))         player.desiredDir = vec2(0,1);
-        else if (keyWasPressed('ArrowDown'))  player.desiredDir = vec2(0,-1);
-        else if (keyWasPressed('ArrowLeft'))  player.desiredDir = vec2(-1,0);
-        else if (keyWasPressed('ArrowRight')) player.desiredDir = vec2(1,0);
+    // buffer desired direction: the most recent key press wins (arcade-style)
+    if (keyWasPressed('ArrowUp'))         player.desiredDir = vec2(0,1);
+    else if (keyWasPressed('ArrowDown'))  player.desiredDir = vec2(0,-1);
+    else if (keyWasPressed('ArrowLeft'))  player.desiredDir = vec2(-1,0);
+    else if (keyWasPressed('ArrowRight')) player.desiredDir = vec2(1,0);
 
-        // gamepad / touch / d-pad: live read, cardinal-only (whichever axis is dominant).
-        // Held-stick acts like holding an arcade joystick.
-        const stick = gamepadStick(0); // left stick, cardinal-only
-        if (stick.lengthSquared() > .25*.25)
-        {
-            player.desiredDir = abs(stick.x) > abs(stick.y)
-                ? vec2(sign(stick.x), 0)
-                : vec2(0, sign(stick.y));
-        }
+    // gamepad / touch / d-pad: live read, cardinal-only (whichever axis is dominant).
+    // Held-stick acts like holding an arcade joystick.
+    const stick = gamepadStick(0); // left stick, cardinal-only
+    if (stick.lengthSquared() > .25*.25)
+    {
+        player.desiredDir = abs(stick.x) > abs(stick.y)
+            ? vec2(sign(stick.x), 0)
+            : vec2(0, sign(stick.y));
     }
 
     // mid-cell reverse: if desiredDir is the opposite of current dir, flip instantly
@@ -730,79 +722,6 @@ function eatAtCell(cell)
         fruitTimer = 0;
         sFruit.play();
     }
-}
-
-// Demo auto-pilot: pick a cardinal direction for Pac-Man. BFS to the nearest
-// pellet/power-pellet and step toward it; if a dangerous ghost is adjacent in
-// that direction, flee instead. Only ever returns a direction Pac-Man can move
-// (or a zero vector), so it can never wedge the mover. Demo-only — never called
-// in standalone play.
-function demoChooseDir()
-{
-    const moves = getMoveChoices(player.cell, false, false);
-    if (!moves.length) return player.dir.copy();
-
-    // cells occupied by ghosts that can hurt us right now (out of house, not eaten/frightened)
-    const danger = ghosts.filter(g => !g.eaten && !g.inHouse && !(powerTimer > 0 && g.frightened));
-    const isDanger = (x, y) =>
-        danger.some(g => g.cell.x === x && g.cell.y === y);
-
-    // safe candidate directions (avoid stepping directly onto a deadly ghost)
-    const safe = moves.filter(d =>
-    {
-        const n = stepCell(player.cell, d);
-        return !isDanger(n.x, n.y);
-    });
-    const candidates = safe.length ? safe : moves;
-
-    // BFS from each candidate's next cell to the closest pellet; choose the shortest.
-    let best = candidates[0];
-    let bestDist = Infinity;
-    for (const d of candidates)
-    {
-        const start = stepCell(player.cell, d);
-        const dist = demoDistToPellet(start, stepCell(player.cell, d.scale(-1)));
-        // small penalty for reversing so Pac-Man keeps flowing instead of jittering
-        const reverse = (d.x === -player.dir.x && d.y === -player.dir.y) ? .5 : 0;
-        if (dist + reverse < bestDist)
-        {
-            bestDist = dist + reverse;
-            best = d;
-        }
-    }
-    return best;
-}
-
-// Breadth-first distance (in cells) from `start` to the nearest remaining pellet.
-// `avoid` is the cell we came from, so the search doesn't immediately backtrack.
-function demoDistToPellet(start, avoid)
-{
-    const seen = new Uint8Array(gridW * gridH);
-    const queue = [{x: start.x, y: start.y, d: 0}];
-    seen[start.x + start.y*gridW] = 1;
-    if (avoid && avoid.x >= 0 && avoid.x < gridW && avoid.y >= 0 && avoid.y < gridH)
-        seen[avoid.x + avoid.y*gridW] = 1;
-
-    const dirs = [vec2(1,0), vec2(-1,0), vec2(0,1), vec2(0,-1)];
-    let head = 0;
-    while (head < queue.length)
-    {
-        const cur = queue[head++];
-        const i = cur.x + cur.y*gridW;
-        if (pellets[i] || powerPellets[i])
-            return cur.d;
-        const cell = vec2(cur.x, cur.y);
-        for (const dir of dirs)
-        {
-            if (!canMove(cell, dir)) continue;
-            const n = stepCell(cell, dir);
-            const ni = n.x + n.y*gridW;
-            if (seen[ni]) continue;
-            seen[ni] = 1;
-            queue.push({x: n.x, y: n.y, d: cur.d + 1});
-        }
-    }
-    return Infinity; // no reachable pellet (shouldn't happen mid-run)
 }
 
 // -----------------------------------------------------------------------------
@@ -921,6 +840,11 @@ function getGhostTarget(g)
     if (g.inHouse) return HOUSE_EXIT;
 
     const idx = ghosts.indexOf(g);
+
+    // Attract mode: there is no Pac-Man to chase, so every ghost just heads for its
+    // scatter corner and wanders the maze (the no-reverse rule keeps them roaming).
+    if (demoMode())
+        return ghostScatterCorner(idx);
 
     // Cruise Elroy Blinky ignores scatter — once the maze is mostly cleared he locks on.
     const isElroy = (idx === 0) && (pelletCount <= ELROY_PELLET_THRESHOLD);

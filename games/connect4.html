@@ -11,13 +11,13 @@
 <script>
 'use strict';
 
-// engine settings, do not remove
-paused = false;
+// engine settings
+canvasMaxSize = vec2(2048);
 
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
-cameraScale = 55;
-canvasFixedSize = vec2(720, 1080);
+const PLAY_CAMERA_SCALE = 55; // normal real-play zoom (restored on PLAY)
+// Attract launched from the arcade cabinet hero/cabinet box has "#demo" in the
+// URL; a normal launch does not. Cabinet -> AI vs AI attract; menu -> static board.
+const inCabinet = /demo/.test(location.hash);
 
 ///////////////////////////////////////////////////////////////////////////////
 // DROP FOUR GAME
@@ -614,8 +614,10 @@ let aiThinkTimer = 0;
 let aiSearching = false;
 let aiProgress = '';
 let aiGeneration = 0;
+let attractRestartTimer = 0; // counts up after an attract game ends, then loops
 const AI_THINK_DELAY = 0.6;
 const AI_VS_AI_DELAY = 0.5;
+const ATTRACT_RESTART_DELAY = 2; // seconds after game over before a fresh match
 
 async function gameInit()
 {
@@ -626,8 +628,10 @@ async function gameInit()
 
     icons = initDefaultAtlas(); // bake 16 white-on-transparent icons into tiles 0-15
 
-    // One callback drives `paused` for every menu (including dialogs).
-    installAutoPause();
+    // Keep the title unpaused (so the attract demo can run) but pause for any
+    // menu while a real game is in progress.
+    installAutoPause(() => isPlaying());
+    setSilentAttract(true); // mute game audio at the title; menu clicks still play
 
     sfxDrop = new SoundGenerator({frequency: 180, release: 0.08, volume: 0.4});
     sfxWin = new SoundGenerator({frequency: 660, release: 0.3, pitchJump: 220, pitchJumpTime: 0.1, volume: 0.6});
@@ -690,15 +694,38 @@ async function gameInit()
     // ----- HUD toolbar -----
     installDefaultToolbar({landscapeStack:true});
 
-    initBoard();
-    setPlaying(false);
+    enterAttract();
     showMenu('title');
     refreshDifficultyUI();
 }
 
+// Zoom the camera in so the board fills the view with a little padding.
+function fitCameraToBoard()
+{
+    const padding = 0.6; // world units of breathing room on each side
+    const boardW = COLS * CELL_SIZE + 0.5 + padding * 2; // +0.5 = frame border
+    const boardH = ROWS * CELL_SIZE + 0.5 + padding * 2;
+    cameraScale = min(mainCanvasSize.x / boardW, mainCanvasSize.y / boardH);
+}
+
+// Set up the title attract: cabinet runs AI vs AI on loop; a normal launch
+// shows the freshly initialized board, completely static (nobody playing).
+function enterAttract()
+{
+    gameMode = inCabinet ? 'aivai' : 'pvp';
+    initBoard();
+    aiThinkTimer = 0;
+    attractRestartTimer = 0;
+    setPlaying(false);
+    fitCameraToBoard();
+}
+
 function quitToTitleWithCleanup()
 {
-    quitToTitle(() => { aiGeneration++; aiSearching = false; aiProgress = ''; });
+    quitToTitle(() => {
+        aiGeneration++; aiSearching = false; aiProgress = '';
+        enterAttract(); // reset to a clean attract board + refit the camera
+    });
 }
 
 function startGame(mode)
@@ -706,16 +733,14 @@ function startGame(mode)
     gameMode = mode;
     initBoard();
     aiThinkTimer = 0;
+    cameraScale = PLAY_CAMERA_SCALE; // restore the normal real-play camera
     setPlaying(true);
     hideMenu('title');
 }
 
-function gameUpdate()
+// Advance the drop animation (shared by real play and the cabinet attract).
+function updateDropAnimation()
 {
-    if (bindPauseKey({when: () => isPlaying()})) return;
-    if (!isPlaying()) return;
-
-    // Update drop animation
     if (droppingDisc)
     {
         droppingDisc.currentY -= DROP_SPEED * timeDelta;
@@ -725,27 +750,12 @@ function gameUpdate()
             droppingDisc = null;
         }
     }
+}
 
-    // Input
-    if (keyWasPressed('KeyR'))
-    {
-        initBoard();
-        aiThinkTimer = 0;
-    }
-
-    if (keyWasPressed('KeyU'))
-    {
-        undoMove();
-        aiThinkTimer = 0;
-    }
-
-    if (gameOver)
-        return;
-
-    // Update hover column
-    hoverCol = worldPosToCol(mousePos);
-
-    // AI turn — covers both 'ai' mode (AI is yellow only) and 'aivai' mode (AI plays both sides).
+// Drive the AI for whichever side is to move (used in 'ai' and 'aivai' modes,
+// including the cabinet attract). Returns nothing; kicks off an async search.
+function updateAITurn()
+{
     const isAITurn = (gameMode === 'ai' && currentPlayer === PLAYER_AI) || gameMode === 'aivai';
     if (isAITurn && !aiSearching && !droppingDisc)
     {
@@ -769,6 +779,66 @@ function gameUpdate()
             });
         }
     }
+}
+
+// Title attract loop. Cabinet: AI vs AI, auto-restarting a couple seconds after
+// game over. Menu (normal launch): a completely static starting board.
+function updateAttract()
+{
+    if (!inCabinet)
+        return; // menu attract is static — board just sits there, nobody playing
+
+    updateDropAnimation();
+
+    if (gameOver)
+    {
+        if (!droppingDisc)
+        {
+            attractRestartTimer += timeDelta;
+            if (attractRestartTimer >= ATTRACT_RESTART_DELAY)
+            {
+                initBoard();   // fresh match (bumps aiGeneration, clears AI state)
+                aiThinkTimer = 0;
+                attractRestartTimer = 0;
+            }
+        }
+        return;
+    }
+
+    updateAITurn();
+}
+
+function gameUpdate()
+{
+    if (bindPauseKey({when: () => isPlaying()})) return;
+    if (!isPlaying())
+    {
+        updateAttract();
+        return;
+    }
+
+    updateDropAnimation();
+
+    // Input
+    if (keyWasPressed('KeyR'))
+    {
+        initBoard();
+        aiThinkTimer = 0;
+    }
+
+    if (keyWasPressed('KeyU'))
+    {
+        undoMove();
+        aiThinkTimer = 0;
+    }
+
+    if (gameOver)
+        return;
+
+    // Update hover column
+    hoverCol = worldPosToCol(mousePos);
+
+    updateAITurn();
 
     // Human input — PvP always, or PvAI when it's the human's turn. Never in aivai.
     const isHumanTurn = gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN);
