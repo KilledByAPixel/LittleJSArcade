@@ -17,12 +17,6 @@
   <script>
 'use strict';
 
-// Demo/attract mode: the arcade launcher loads the game with #demo and hides
-// all menu chrome. In that mode we skip the title menu, auto-start a game, and
-// drive the frog with a simple auto-player that loops forever. Gated behind
-// demoMode so standalone play is completely unchanged.
-const demoMode = /demo/.test(location.hash);
-
 // engine settings
 
 // touch controls
@@ -386,62 +380,6 @@ function handleInput() {
     }
 }
 
-// ---- Demo auto-player ----
-// A deliberately simple greedy hopper used only in attract mode. It paces its
-// hops on a timer, prefers to move UP toward the nearest empty home pad, and
-// does a light one-step lookahead to dodge cars / land on logs. It does not
-// need to play well — just to keep the board looking alive and loop forever.
-let demoHopTimer = 0;
-
-// Is grid cell (gx, gy) safe to occupy RIGHT NOW for the frog?
-// Road cells must be clear of cars; river cells must have a log under them.
-function demoCellSafe(gx, gy) {
-    if (gx < 0 || gx >= LEVEL_W || gy < 0 || gy > HOME_Y) return false;
-    const wp = gridToWorld(gx, gy);
-    if (gy >= ROAD_MIN_Y && gy <= ROAD_MAX_Y) {
-        for (const c of cars)
-            if (overlapAABB(wp, frogSize.scale(1.6), c.pos, c.size)) return false;
-        return true;
-    }
-    if (gy >= RIVER_MIN_Y && gy <= RIVER_MAX_Y) {
-        for (const l of logs)
-            if (overlapAABB(wp, frogSize, l.pos, l.size)) return true;
-        return false;   // open water
-    }
-    return true;        // grass / median / home row
-}
-
-function demoAI() {
-    if (respawnTimer.active()) return;
-    demoHopTimer -= DT;
-    if (demoHopTimer > 0) return;
-
-    const g = frog.grid;
-
-    // Aim x at the nearest still-empty home pad (so it actually fills the board).
-    let targetX = g.x, bestDx = 999;
-    for (let i = 0; i < homeSlots; i++) {
-        if (reached[i]) continue;
-        const sx = Math.round(homeXs[i] + .5);
-        if (Math.abs(sx - g.x) < bestDx) { bestDx = Math.abs(sx - g.x); targetX = sx; }
-    }
-
-    // Candidate hops in priority order: up, toward target x, away, down.
-    const wantX = sign(targetX - g.x);
-    const moves = [];
-    if (g.y < HOME_Y) moves.push(vec2(0, 1));            // forward first
-    if (wantX) moves.push(vec2(wantX, 0));               // line up with the pad
-    moves.push(vec2(1, 0), vec2(-1, 0));                 // dodge sideways
-    if (g.y > 2) moves.push(vec2(0, -1));                // retreat as a last resort
-
-    for (const m of moves) {
-        const nx = g.x + m.x, ny = g.y + m.y;
-        if (demoCellSafe(nx, ny)) { tryMove(m.x, m.y); demoHopTimer = .42; return; }
-    }
-    // Nothing safe — wait a beat and re-check (the board scrolls under us).
-    demoHopTimer = .12;
-}
-
 function updateObstacles(arr) {
     // Wrap over a FIXED span (independent of each obstacle's width) so cars in
     // a lane that share a speed keep their exact spacing forever. Using a
@@ -658,14 +596,6 @@ function buildMenus() {
 
     installDefaultToolbar();
 
-    if (demoMode) {
-        // Attract mode: skip the title and run the auto-player immediately.
-        // With no menu visible, installAutoPause(() => isPlaying()) keeps the
-        // engine unpaused once startGame() calls setPlaying(true).
-        startGame();
-        return;
-    }
-
     // Show the title menu immediately — no click-to-reveal step.
     showMenu('title');
 }
@@ -705,13 +635,6 @@ function gameUpdate() {
             p.pos.y += p.vel.y * DT;
             if (p.life >= p.maxLife) particles.splice(i, 1);
         }
-        if (demoMode) {
-            // Attract loop: no menu (the launcher hides it), so just wait a
-            // beat after game over and start a fresh game so the demo repeats.
-            gameOverHoldTimer -= DT;
-            if (gameOverHoldTimer <= 0) startGame();
-            return;
-        }
         if (!endMenuShowing) {
             gameOverHoldTimer -= DT;
             if (gameOverHoldTimer <= 0 && typeof showMenu === 'function')
@@ -725,8 +648,7 @@ function gameUpdate() {
         resetRun(false);
     }
 
-    if (demoMode) demoAI();
-    else handleInput();
+    handleInput();
     updateObstacles(cars);
     updateObstacles(logs);
     frogWorldChecks();
