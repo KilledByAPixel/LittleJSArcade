@@ -13,7 +13,8 @@
 // the bird behind the menu and loops on crash. Clicking PLAY starts a real game.
 function isAttract() { return !isPlaying(); }
 
-// engine settings, customize if necessary
+// engine settings
+canvasFixedSize = vec2(960, 540);
 cameraScale = 32;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -125,7 +126,7 @@ const sfxHit   = new SoundGenerator({ volume:.8,  frequency:140, attack:0, relea
 // visible top edge can sit below ceilY. Build the top pipe up to this edge (less
 // a small gap) instead of ceilY so its top stays slightly BELOW the top of the
 // visible play area rather than running off the top of the screen.
-const topPipeGap = .6; // visible sky gap above the top pipe (world units)
+const topPipeGap = -1; // gap above the top pipe (world units)
 function topPipeTopY()
 {
     const visibleTop = cameraPos.y + getCameraSize().y/2;
@@ -607,9 +608,6 @@ async function gameInit()
     saveDataInit('flappyBird');
     // mute all gameplay audio while at the title; menu clicks still play
     setSilentAttract(true);
-    // fixed resolution for consistent feel
-    setCanvasFixedSize(vec2(960, 540));
-    cameraScale = 32;
 
     // bake the 16 built-in white icons into the atlas; we tint them per-instance
     atlasIcons = initDefaultAtlas();
@@ -767,7 +765,7 @@ function gameUpdate()
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdatePost()
 {
-    // keep camera fixed, but frame the ground so grass is visible
+    // frame the ground so grass is visible
     cameraPos = vec2(0, -1.25);
 }
 

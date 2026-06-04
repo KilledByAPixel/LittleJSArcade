@@ -748,6 +748,8 @@ function hudBar(x, y, w, label, frac, color, tickFrac)
 
 function gameRenderPost()
 {
+    if (!isPlaying()) return;   // hide the instrument panel on the idle/demo title
+
     const alive = player && !player.destroyed;
     const fuel = alive ? player.fuel : 0;
     const maxFuel = player ? player.maxFuel : 80;
