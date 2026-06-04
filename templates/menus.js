@@ -1727,7 +1727,7 @@ function setSilentAttract(on = true)
 {
     _silentAttract = !!on;
     _installSoundMute();
-    _demoSilent = _silentAttract && !_isPlaying;
+    _demoSilent = _demoMode || (_silentAttract && !_isPlaying);
 }
 
 // ============================================================================
@@ -1770,8 +1770,9 @@ function isPlaying() { return _isPlaying; }
 function setPlaying(p)
 {
     _isPlaying = !!p;
-    // Silent-attract: mute game audio whenever we're not actually playing.
-    if (_silentAttract) _demoSilent = !_isPlaying;
+    // Silent-attract: mute game audio whenever we're not actually playing — and
+    // for the ENTIRE cabinet demo (#demo) even with isPlaying() true.
+    _demoSilent = _demoMode || (_silentAttract && !_isPlaying);
     // Fire registered listeners (games hook these for game-state-driven
     // UI toggles, e.g. hide undo / new-game while at title).
     for (const fn of _playingListeners) fn(_isPlaying);
@@ -2678,7 +2679,13 @@ function initMenuSystem()
     // This is visual only — allMenus tracking is untouched, so the demo still
     // updates live (see _demoMode note above).
     if (_demoMode)
+    {
         menuSystemRoot.style.setProperty('display', 'none', 'important');
+        // The cabinet demo runs SILENT — mute all game audio for the whole demo
+        // (even with isPlaying() true) so no startup/loop sfx sneak through.
+        _installSoundMute();
+        _demoSilent = true;
+    }
 
     // Stop pointer events from bubbling to LittleJS's document-level handlers,
     // which would otherwise preventDefault() and break native widget behavior
