@@ -1236,22 +1236,53 @@ function gameUpdate()
         launchPlayerMissile(mousePos);
     }
 
-    // Optional AI assist (T) uses the instant-react AI.
-    if (!gameOver && !betweenWaves && !tally && aiMode)
+    // Optional AI assist (T) uses the instant-react AI (disabled in the cabinet
+    // demo, which fires its own calmer, mid-screen shots below).
+    if (!gameOver && !betweenWaves && !tally && aiMode && !inCabinet)
         updateAI();
 
-    // Cabinet: glide the invisible aim cursor toward the nearest threat so the
-    // turrets visibly track it (the cursor itself is never drawn).
-    if (inCabinet)
+    // Cabinet demo: a calm, one-shot-per-missile defense. Each incoming missile
+    // gets a single interceptor, timed to meet it around mid-screen (30–70% high).
+    // Bases stay stocked so the demo never runs dry.
+    if (inCabinet && !gameOver && !betweenWaves && !tally)
     {
-        let tgt = null, td = 1e9;
+        for (const b of bases) if (b.alive) b.ammo = BASE_AMMO_MAX;   // keep bolts full
+
+        const lo = levelSize.y * .30, hi = levelSize.y * .70;
+
         for (const m of enemyMissiles)
         {
-            if (!m.alive) continue;
-            const d = m.pos.distance(demoAim);
-            if (d < td) { td = d; tgt = m.pos; }
+            if (!m.alive || m.demoShot) continue;
+            if (m.target.y >= m.start.y) continue;             // descending threats only
+            if (m.demoMidY === undefined)
+                m.demoMidY = clamp((lo + hi)/2 + rand(-3, 3), lo, hi);  // a touch above/below middle
+            if (m.pos.y <= m.demoMidY) continue;               // already past the strike height
+
+            // P = where this missile's straight path crosses its mid-screen height
+            const p = clamp((m.demoMidY - m.start.y) / (m.target.y - m.start.y), 0, 1);
+            const P = vec2(m.start.x + (m.target.x - m.start.x) * p, m.demoMidY);
+
+            // nearest stocked base (the one launchPlayerMissile will fire from)
+            let base = null, bd = 1e9;
+            for (const b of bases)
+                if (b.alive && b.ammo > 0) { const d = abs(b.pos.x - P.x); if (d < bd) { bd = d; base = b; } }
+            if (!base) continue;
+
+            // fire once the missile is as close to P (in time) as the interceptor,
+            // so the two meet there
+            const tMissile = m.pos.distance(P) / max(.001, m.speed);
+            const tInt = base.pos.add(vec2(0, .75)).distance(P) / max(.001, base.missileSpeed);
+            if (tMissile <= tInt && launchPlayerMissile(P))
+            { m.demoShot = true; demoAim = P; }
         }
-        demoAim = demoAim.lerp(tgt || vec2(levelSize.x/2, levelSize.y*.45), .08);
+
+        // glide the (unrendered) cursor toward the nearest threat so turrets track it
+        let next = null, nd = 1e9;
+        for (const e of enemyMissiles)
+            if (e.alive) { const d = abs(e.pos.x - demoAim.x); if (d < nd) { nd = d; next = e; } }
+        const goal = next ? vec2(next.pos.x, clamp(next.pos.y, lo, hi))
+                          : vec2(levelSize.x/2, (lo + hi) / 2);
+        demoAim = demoAim.lerp(goal, .08);
     }
 
     for (const b of bases)
