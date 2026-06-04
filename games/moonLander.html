@@ -149,15 +149,16 @@ function startLevel(n)
     player.fuel = cfg.fuel;
     player.maxFuel = cfg.fuel;
 
-    // ...but at the title (attract) the lander rests calmly on the pad instead of
-    // flying — gameState=1 freezes physics so it just sits there as a static scene
+    // ...but at the title the lander rests as a calm static scene — frozen upright
+    // on the surface where it spawned. Keep its x exactly (don't snap to the pad
+    // center); just drop it onto the ground there and point it straight up.
     if (!isPlaying())
     {
         gameState = 1;
         player.angle = 0;
         player.angleVelocity = 0;
         player.velocity = vec2();
-        player.pos = vec2(padX, padY + PAD_THICK + 1.5);
+        player.pos.y = getTerrainY(player.pos.x) + 1.5;   // rest on the surface; keep x
         player.trail.emitRate = 0;
     }
 
@@ -172,7 +173,7 @@ function startLevel(n)
     // than the close-up the gameplay camera would otherwise hold here
     if (!isPlaying())
     {
-        camTarget = vec2(padX, padY + 7);
+        camTarget = vec2(player.pos.x, getTerrainY(player.pos.x) + 7);
         cameraPos = camTarget.copy();
         camScale = CAMERA_SCALE_DEMO;
         cameraScale = camScale;
@@ -342,11 +343,11 @@ class Player extends EngineObject
         sfxLand.play();
         addScreenShake(.4, .25);
 
-        // snap upright and rest legs on the pad
+        // snap upright and rest legs on the pad — but keep the x it landed at
+        // (don't recenter on the pad, which reads as a snap)
         this.angle = 0;
         this.angleVelocity = 0;
         this.velocity = vec2();
-        this.pos.x = padX;
         this.pos.y = padY + PAD_THICK + 1.5;
 
         // score: level bonus + leftover fuel + soft-touchdown bonus (only counted
@@ -384,13 +385,15 @@ class Player extends EngineObject
         const dy = this.pos.y - (padY + PAD_THICK + 1.5);
         const v = this.velocity;
 
-        // desired tilt: lean toward the pad horizontally, but go upright when low/slow
-        let wantAngle = clamp(-dx*.05 - v.x*3, -.5, .5);
-        if (dy < 6) wantAngle = clamp(-dx*.02 - v.x*4, -SAFE_ANGLE*.6, SAFE_ANGLE*.6);
+        // desired tilt: a PD on horizontal position — lean toward the pad (dx term)
+        // and BRAKE against sideways drift (-v.x term) so it settles over the pad
+        // instead of sailing past. (dx is flipped from the original port because the
+        // engine's thrust-vs-angle direction is mirrored; the brake term opposes v.x.)
+        let wantAngle = clamp(dx*.05 - v.x*3, -.5, .5);
+        if (dy < 6) wantAngle = clamp(dx*.02 - v.x*4, -SAFE_ANGLE*.6, SAFE_ANGLE*.6);
 
-        // rotate toward wantAngle, damping out spin (negated: the engine's turn
-        // direction is mirrored from when this controller was first written)
-        const rotate = -clamp((wantAngle - this.angle)*8 - this.angleVelocity*40, -1, 1);
+        // rotate toward wantAngle, damping out spin (stable PD controller)
+        const rotate = clamp((wantAngle - this.angle)*8 - this.angleVelocity*40, -1, 1);
 
         // thrust to arrest descent / climb back up; ease off near a soft touchdown
         const targetFall = dy < 4 ? -.03 : (dy < 12 ? -.06 : -.10);
