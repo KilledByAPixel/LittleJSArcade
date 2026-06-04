@@ -39,6 +39,7 @@ const CARD_PITCH_Y    = 1.6;        // vertical gap below a FACE-UP cascade card
 const CARD_PITCH_DOWN = 0.65;       // tighter gap below a FACE-DOWN cascade card
 const TOP_MARGIN      = 1;        // empty felt above the top row of stacks
 const MAX_CASCADE_DEPTH = 13;       // height budget (face-up pitches) for camera fit
+const FLIP_TIME       = 0.2;        // card flip-over animation length, seconds (lower = snappier)
 
 ///////////////////////////////////////////////////////////////////////////////
 // Card model
@@ -391,7 +392,7 @@ function flipExposedCards()
     {
         if (s.type !== StackType.Cascade) continue;
         const top = s.topCard();
-        if (top && !top.faceUp) { top.faceUp = true; ++flipped; }
+        if (top && !top.faceUp) { top.flipTo(true, FLIP_TIME); ++flipped; }   // animated reveal
     }
     return flipped;
 }
@@ -416,7 +417,7 @@ function drawFromStock()
         for (let i = 0; i < n; ++i)
         {
             const card = stockStack.cards.pop();
-            card.faceUp = true;
+            card.flipTo(true, FLIP_TIME);   // animated flip-over reveal
             wasteStack.putCardOnTop(card, true);
         }
         window.sndPickup && window.sndPickup.play(wasteStack.pos);
@@ -431,7 +432,7 @@ function drawFromStock()
         while (!wasteStack.isEmpty())
         {
             const card = wasteStack.cards.pop();
-            card.faceUp = false;
+            card.flipTo(false, FLIP_TIME);   // animated flip back to face-down
             stockStack.putCardOnTop(card);
         }
         ++recyclesUsed;
@@ -648,11 +649,15 @@ function gameUpdatePost()
 }
 
 // Draws a card face-up or face-down depending on its state. `tint` is an
-// optional highlight veil.
+// optional highlight veil. Mid-flip (flipTo): squeeze the width toward 0 and
+// show the old face until the thin point, the new face after.
 function drawAnyCard(c, pos, tint)
 {
-    if (c.faceUp) drawCard(pos, c.value, c.suit, {tint});
-    else          drawCardBack(pos, {tint});
+    const opts = {tint};
+    let faceUp = c.faceUp;
+    if (c.isFlipping()) { opts.squashX = c.flipScaleX(); faceUp = c.flipFaceUp(); }
+    if (faceUp) drawCard(pos, c.value, c.suit, opts);
+    else        drawCardBack(pos, opts);
 }
 
 function gameRender()

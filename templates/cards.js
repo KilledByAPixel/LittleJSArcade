@@ -123,10 +123,12 @@ function drawCard(pos, rank, suit, options = {})
     const size    = options.size || CARD_SIZE;
     const angle   = options.angle || 0;
     const tint    = options.tint;
+    const squashX = options.squashX == undefined ? 1 : options.squashX;  // horizontal flip squeeze (1 = none)
     const scale   = size.x / CARD_SIZE.x;
     const bgSize  = size.scale(_CARD_BG_SCALE);   // compensates for paint inset
+    const sqX     = v => vec2(v.x * squashX, v.y);  // squeeze a size's width only
 
-    drawTile(pos, bgSize, _cardSprites.bg, undefined, angle);
+    drawTile(pos, sqX(bgSize), _cardSprites.bg, undefined, angle);
 
     const color    = (suit % 2 === 0) ? _cardRedInk : _cardBlackInk;
     const rankTile = _cardSprites.ranks[rank];
@@ -141,8 +143,8 @@ function drawCard(pos, rank, suit, options = {})
     // (used to flip the bottom-right glyphs 180°).
     const placeAt = (dx, dy, glyphSize, tile, extraAngle = 0) =>
     {
-        const local = vec2(dx, dy).scale(scale).rotate(angle);
-        drawTile(pos.add(local), glyphSize, tile, color, angle + extraAngle);
+        const local = vec2(dx * squashX, dy).scale(scale).rotate(angle);
+        drawTile(pos.add(local), sqX(glyphSize), tile, color, angle + extraAngle);
     };
 
     // Top-left corner: rank above, suit below.
@@ -151,11 +153,11 @@ function drawCard(pos, rank, suit, options = {})
 
     // Main face. Ace = big suit; J/Q/K = big rank glyph; 2-10 = pip pattern.
     if (rank === 0)
-        drawTile(pos, vec2(4.2 * scale), suitTile, color, angle);
+        drawTile(pos, sqX(vec2(4.2 * scale)), suitTile, color, angle);
     else if (rank >= 10)
-        drawTile(pos, vec2(4.6 * scale), rankTile, color, angle);
+        drawTile(pos, sqX(vec2(4.6 * scale)), rankTile, color, angle);
     else
-        _drawPips(pos, rank + 1, suitTile, color, angle, scale);
+        _drawPips(pos, rank + 1, suitTile, color, angle, scale, squashX);
 
     // Bottom-right corner, rotated 180° so glyphs read upside-down.
     placeAt( halfX - _CARD_CORNER_RANK_OFFSET.x, -halfY + _CARD_CORNER_RANK_OFFSET.y, crSize, rankTile, PI);
@@ -163,19 +165,21 @@ function drawCard(pos, rank, suit, options = {})
 
     // Highlight veil last so it sits over the glyphs too. Tint tile has no
     // dark edge, so the bg's border isn't re-tinted.
-    if (tint) drawTile(pos, bgSize, _cardSprites.tint, tint, angle);
+    if (tint) drawTile(pos, sqX(bgSize), _cardSprites.tint, tint, angle);
 }
 
 // Draws a face-down card. options: { size, angle, tint }
 function drawCardBack(pos, options = {})
 {
     ASSERT(_cardSprites, 'initCardAtlas() must be called before drawCardBack()');
-    const size   = options.size || CARD_SIZE;
-    const angle  = options.angle || 0;
-    const tint   = options.tint;
-    const bgSize = size.scale(_CARD_BG_SCALE);
-    drawTile(pos, bgSize, _cardSprites.back, undefined, angle);
-    if (tint) drawTile(pos, bgSize, _cardSprites.tint, tint, angle);
+    const size    = options.size || CARD_SIZE;
+    const angle   = options.angle || 0;
+    const tint    = options.tint;
+    const squashX = options.squashX == undefined ? 1 : options.squashX;
+    const bgSize  = size.scale(_CARD_BG_SCALE);
+    const sqX     = v => vec2(v.x * squashX, v.y);
+    drawTile(pos, sqX(bgSize), _cardSprites.back, undefined, angle);
+    if (tint) drawTile(pos, sqX(bgSize), _cardSprites.tint, tint, angle);
 }
 
 // Draws a solid card-shaped silhouette in `color`. Use for shadows, empty-
@@ -373,7 +377,7 @@ function _cardRoundedRect(ctx, x, y, w, h, r)
 // normalized (+/-1.x, +/-1.y) grid, then scales to fit between the
 // corner glyphs of a 6x8.5 card. `scale` uniformly resizes spacing
 // and pip size; `angle` rotates the layout around `center`.
-function _drawPips(center, v, suitTile, color, angle, scale)
+function _drawPips(center, v, suitTile, color, angle, scale, squashX = 1)
 {
     const spreadX = _CARD_PIP_SPREAD_X * scale;
     const spreadY = _CARD_PIP_SPREAD_Y * scale;
@@ -407,8 +411,8 @@ function _drawPips(center, v, suitTile, color, angle, scale)
             py = (i % 4) / 3 * 2 - 1;
             if (i > 7) { px = 0; py = v === 9 ? 0 : (i - 7 - 1.5) * 1.3; }
         }
-        const offset = vec2(px * spreadX, py * spreadY).rotate(angle);
-        drawTile(center.add(offset), pipSize, suitTile, color, angle);
+        const offset = vec2(px * spreadX * squashX, py * spreadY).rotate(angle);
+        drawTile(center.add(offset), vec2(pipSize.x * squashX, pipSize.y), suitTile, color, angle);
     }
 }
 
@@ -442,12 +446,33 @@ class Card
         this.tweenFrom     = null;   // null = no active tween
         this.tweenTimer    = new Timer();
         this.tweenDuration = 0.2;
+        // Flip animation: squeeze width to ~0, swap the face at the thin point,
+        // then expand back. flipFrom is the face shown during the first half.
+        this.flipTimer     = new Timer();
+        this.flipFrom      = faceUp;
+        this.flipDuration  = 0.18;
     }
     startTween(fromPos)
     {
         this.tweenFrom = fromPos.copy();
         this.tweenTimer.set(this.tweenDuration);
     }
+    // Begin a flip to `faceUp`. The old face shows for the first half of the
+    // animation, the new face for the second; flipScaleX() drives the squeeze.
+    // Toggling face is normally instant (card.faceUp = x) — call this instead to
+    // get the animated flip.
+    flipTo(faceUp, duration = this.flipDuration)
+    {
+        if (this.faceUp === faceUp && !this.isFlipping()) return;
+        this.flipFrom = this.faceUp;
+        this.faceUp   = faceUp;
+        this.flipTimer.set(duration);
+    }
+    isFlipping() { return this.flipTimer.active(); }
+    // Horizontal scale across the flip: 1 -> ~0 -> 1 (cosine ease).
+    flipScaleX() { return abs(Math.cos(this.flipTimer.getPercent() * PI)); }
+    // Which face to show right now (old for the first half, new after midpoint).
+    flipFaceUp() { return this.flipTimer.getPercent() < .5 ? this.flipFrom : this.faceUp; }
     // True only while actively interpolating; goes false the frame the timer
     // elapses (updateCardTweens clears tweenFrom shortly after).
     isTweening()

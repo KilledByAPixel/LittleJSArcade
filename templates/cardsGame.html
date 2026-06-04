@@ -46,6 +46,7 @@ const COL_PITCH_X  = 7;        // horizontal spacing between piles
 const CARD_PITCH_Y = 1.6;      // vertical fan gap in a tableau column
 const TOP_MARGIN   = 1;        // empty felt above the top row
 const MAX_DEPTH    = 9;        // camera height budget, in fan-pitches
+const FLIP_TIME    = 0.18;     // flip-over animation length, seconds (lower = snappier)
 
 // Opaque stack tags. Tableau columns fan; stock/waste pile on the anchor.
 const StackType = { Stock: 0, Waste: 1, Tableau: 2 };
@@ -143,7 +144,7 @@ function dealFromStock()
     if (!stockStack.isEmpty())
     {
         const card = stockStack.cards.pop();
-        card.faceUp = true;
+        card.flipTo(true, FLIP_TIME);   // animated flip-over reveal
         wasteStack.putCardOnTop(card, true);
     }
     else if (!wasteStack.isEmpty())
@@ -279,7 +280,7 @@ function gameUpdate()
     {
         const held = !handStack.isEmpty();
         const card = held ? handStack.topCard() : (stackUnderPoint(mousePos) || {}).card;
-        if (card) { card.faceUp = !card.faceUp; if (!held) history.save(); }
+        if (card) { card.flipTo(!card.faceUp, FLIP_TIME); if (!held) history.save(); }
     }
 
     const shift = keyIsDown('ShiftLeft') || keyIsDown('ShiftRight');
@@ -309,8 +310,13 @@ function gameUpdatePost()
 ///////////////////////////////////////////////////////////////////////////////
 function drawAnyCard(c, pos, tint)
 {
-    if (c.faceUp) drawCard(pos, c.value, c.suit, {tint});
-    else          drawCardBack(pos, {tint});
+    // Mid-flip: squeeze the width toward 0 and show the old face until the thin
+    // point, the new face after. flipScaleX()/flipFaceUp() come from cards.js.
+    const opts = {tint};
+    let faceUp = c.faceUp;
+    if (c.isFlipping()) { opts.squashX = c.flipScaleX(); faceUp = c.flipFaceUp(); }
+    if (faceUp) drawCard(pos, c.value, c.suit, opts);
+    else        drawCardBack(pos, opts);
 }
 
 function gameRender()
