@@ -69,6 +69,7 @@ let clearAnim = null;
 let scorePopups = [];   // floating "+N" texts: {pos, text, t, life, color}
 let comboBanner = null; // big center "COMBO xN!" punch: {n, t, life}
 const gemSprites = []; // TileInfo per gem type, filled in gameInit
+let bgPulse = 0;       // brief brightness flare on each cascade, decays over time
 
 const getTile = (pos)=> level[pos.x + pos.y * levelSize.x];
 const setTile = (pos, data)=> level[pos.x + pos.y * levelSize.x] = data;
@@ -522,6 +523,27 @@ function gameUpdatePost()
         if (comboBanner.t >= comboBanner.life)
             comboBanner = null;
     }
+
+    // decay the cascade background flare
+    bgPulse = max(0, bgPulse - timeDelta * 1.8);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Faint rays radiating from behind the board, slowly rotating — they speed up
+// and brighten on combos via bgPulse. Layered over the gradient backdrop.
+function drawBgSunburst()
+{
+    const c = cameraPos.subtract(cameraOffset);
+    const rays = 16, len = 30, width = .6;
+    const rot = time * (.05 + bgPulse * .1);
+    const pulse = 1 + bgPulse;
+    const hue = mod(.62 + time * .02, 1);
+    for (let i = 0; i < rays; ++i)
+    {
+        const a = rot + i * PI / rays;
+        const bright = (i % 2 ? .07 : .035) * pulse;
+        drawRect(c, vec2(len, width), hsl(hue, .6, .65, min(bright, .5)), a);
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -553,8 +575,9 @@ function gameRender()
     // Re-fit every frame so resizing the window keeps the grid in view.
     fitCamera();
 
-    // animated gradient backdrop
+    // animated gradient backdrop + rotating sunburst rays
     drawBackgroundGradient();
+    drawBgSunburst();
 
     // playfield panel — translucent so the gradient glows through the gem gaps
     drawRect(cameraPos.subtract(cameraOffset), levelSize.add(vec2(.15)), rgb(0,0,0,.55));
@@ -740,6 +763,7 @@ function finalizeClear()
     {
         const gained = ++comboCount * removedCount;
         score += gained;
+        bgPulse = min(2.5, bgPulse + .5 + .2 * comboCount);   // flare the background
 
         // floating "+N" at the centroid of the cleared group
         const center = vec2(sumX / removedCount + .5, sumY / removedCount + .5);
