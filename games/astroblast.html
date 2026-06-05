@@ -521,7 +521,7 @@ class Ship extends EngineObject
         if (this.dead) return;
 
         // blink when invulnerable
-        if (invulnTimer.isSet() && invulnTimer.active() && (time*10|0)%2)
+        if (isInvuln() && (time*10|0)%2)
             return;
 
         const col = rgb(1,1,1);
@@ -1081,6 +1081,9 @@ function gameUpdate()
     }
 }
 
+// The ship is briefly invulnerable after spawn / hyperspace / level-up.
+function isInvuln() { return invulnTimer.isSet() && invulnTimer.active(); }
+
 function handleCollisions()
 {
     if (gameOver) return;
@@ -1113,7 +1116,7 @@ function handleCollisions()
     // ship vs rocks
     if (ship && !ship.destroyed)
     {
-        const invuln = invulnTimer.isSet() && invulnTimer.active();
+        const invuln = isInvuln();
         if (!invuln)
         {
             for (const r of rocks)
@@ -1151,7 +1154,7 @@ function handleCollisions()
     // ufo bullets vs ship
     if (ship && !ship.destroyed)
     {
-        const invuln = invulnTimer.isSet() && invulnTimer.active();
+        const invuln = isInvuln();
         if (!invuln)
         {
             for (const b of ufoBullets)
@@ -1191,7 +1194,7 @@ function handleCollisions()
     // ufo vs ship (ramming)
     if (ship && !ship.destroyed)
     {
-        const invuln = invulnTimer.isSet() && invulnTimer.active();
+        const invuln = isInvuln();
         if (!invuln)
         {
             for (const u of ufos)

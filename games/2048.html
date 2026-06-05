@@ -251,7 +251,8 @@ function makeTile(value, gx, gy)
     };
 }
 
-function newGame()
+// Reset all per-game board state (shared by newGame and the attract board).
+function resetBoard()
 {
     score = 0;
     gameOver = false;
@@ -269,6 +270,11 @@ function newGame()
         grid[y] = [];
         for (let x = 0; x < GRID; ++x) grid[y][x] = null;
     }
+}
+
+function newGame()
+{
+    resetBoard();
 
     // Silent on the opening two tiles — startup audio is noise, not feedback.
     addRandomTile(true);
@@ -284,22 +290,7 @@ function newGame()
 // calls newGame() and replaces it.
 function setupAttractBoard()
 {
-    score = 0;
-    gameOver = false;
-    won = false;
-    continueAfterWin = false;
-    winDialogShown = false;
-    loseDialogShown = false;
-    animT = 0;
-    pendingSpawn = false;
-
-    tiles = [];
-    grid = [];
-    for (let y = 0; y < GRID; ++y)
-    {
-        grid[y] = [];
-        for (let x = 0; x < GRID; ++x) grid[y][x] = null;
-    }
+    resetBoard();
 
     // [gridX, gridY, value] — gy 0 is the top row, so [0,0,*] is top-left.
     const layout = [
