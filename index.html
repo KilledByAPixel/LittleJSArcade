@@ -895,7 +895,7 @@
     @media (orientation: portrait) { html.ios-topbar #fullscreen-toggle { top: 48px; } }
 
     /* ---- Hero attract cabinet: 16:9 screen + side info/controls panel ---- */
-    /* The cabinet itself is NOT a button — only the screen and the INSERT COIN
+    /* The cabinet itself is NOT a button — only the screen and the PLAY NOW
           button launch the game (see .hero-screen / .hero-coin below). So no
           whole-cabinet cursor:pointer or hover highlight. */
     #hero-cabinet {
@@ -905,7 +905,7 @@
         box-shadow: 0 10px 40px rgba(0,0,0,.5), 0 0 0 1px rgba(88,166,255,.15);
     }
     /* The screen holds the attract iframe at a locked 16:9 aspect ratio. It is
-          one of the two play surfaces (with INSERT COIN) — clicking it launches
+          one of the two play surfaces (with PLAY NOW) — clicking it launches
           the game, so it gets the pointer cursor + a hover ring. */
     .hero-screen { position: relative; flex: 0 0 62%; aspect-ratio: 16 / 9; background: #000; border-right: 1px solid var(--border); cursor: pointer; }
     /* Accent ring on hover, layered above the iframe (an inset shadow on the
@@ -939,7 +939,7 @@
     .hero-name { font-size: 30px; font-weight: 800; line-height: 1.1; color: var(--text); }
     .hero-bar .hero-score { align-self: flex-start; }
     .hero-bar .hero-score[hidden] { display: none; }
-    /* INSERT COIN is now a real button (the other play surface besides the
+    /* PLAY NOW is a real button (the other play surface besides the
           screen) — it takes pointer events, a pointer cursor, and a hover lift. */
     .hero-coin {
         align-self: flex-start; margin-top: 4px;
@@ -1820,10 +1820,10 @@ function buildHero() {
             '<span class="hero-name"></span>' +
             '<span class="hero-score score-badge" hidden></span>' +
             '<div class="hero-tags chips"></div>' +
-            '<button class="hero-coin" title="Play this game" aria-label="Insert coin and play">▶ INSERT COIN</button>' +
+            '<button class="hero-coin" title="Play this game" aria-label="Play this game now">▶ PLAY NOW</button>' +
             '<button class="hero-shuffle" title="Show a different game" aria-label="Show a different game">🔀 Show a different game</button>' +
         '</div>';
-    // Only the screen and the INSERT COIN button launch the game — NOT the
+    // Only the screen and the PLAY NOW button launch the game — NOT the
     // surrounding marquee/empty space. This keeps the coin button meaningful and
     // stops a stray tap on the info panel from booting you into the game (esp. on
     // mobile, where the whole cabinet was easy to hit by accident).
