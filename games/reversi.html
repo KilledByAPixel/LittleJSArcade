@@ -32,7 +32,6 @@ const inCabinet = /demo/.test(location.hash);
 const ATTRACT_DIFFICULTY = 'medium';   // medium AI drives both demo sides
 const ATTRACT_MOVE_DELAY = 0.6;        // pause between demo moves (seconds)
 const ATTRACT_RESTART_DELAY = 2.5;     // wait after game over before looping
-const REAL_PLAY_CAMERA_SCALE = 46;     // normal in-game zoom
 let attractMoveTimer = 0;
 let attractRestartTimer = 0;
 let attractSearching = false;
@@ -1072,14 +1071,13 @@ function gameUpdate()
 
 function gameUpdatePost()
 {
-    // While at the title (both cabinet demo and static menu) fit the board
-    // tight and centered on its own center via the shared cameraFit helper (no
-    // inset, so it fills the view); restore the normal zoom for real play. The
-    // board is centered at origin and the span includes the frame.
-    if (isPlaying())
-        cameraScale = REAL_PLAY_CAMERA_SCALE;
-    else
-        cameraFit(vec2(0, 0), vec2(BOARD_SIZE * CELL_SIZE + 0.4), { margin: .3 });
+    // Fit the board into view via the shared cameraFit helper (letterbox fit,
+    // resize-safe, never crops), centered on its own center with no inset. The
+    // board is centered at origin and the span includes the frame. Tight at the
+    // title (cabinet demo + static menu) so it fills the view; a bigger margin
+    // during play leaves room for the HUD and keeps the board on screen.
+    cameraFit(vec2(0, 0), vec2(BOARD_SIZE * CELL_SIZE + 0.4),
+        { margin: isPlaying() ? 1.0 : 0.3 });
 }
 
 function gameRender()

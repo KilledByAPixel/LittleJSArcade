@@ -476,18 +476,13 @@ function chainLayout()
 function drawChain()
 {
     if (!chain.length) return;
-    const {totalW, positions} = chainLayout();
+    const {positions} = chainLayout();
     for (let i = 0; i < chain.length; i++)
     {
         const t = chain[i];
         const isDouble = t.a === t.b;
         drawDominoTile(positions[i], t.a, t.b, !isDouble, true);
     }
-    // Auto-fit: keep the whole chain + hands on screen.
-    const desired = Math.min(
-        mainCanvasSize.x / (totalW + 4),
-        mainCanvasSize.y / 16);
-    cameraScale = clamp(desired, 12, 48);
 }
 
 // L / R drop targets. Only shown once the player has selected a tile. Each
@@ -921,7 +916,17 @@ function updateRoundOver()
     });
 }
 
-function gameUpdatePost() {}
+function gameUpdatePost()
+{
+    // Auto-fit the table via the shared cameraFit helper (letterbox fit,
+    // resize-safe): keep the whole chain plus both edge-pinned hands on screen
+    // as the chain grows, centered at the origin. size+margin reproduces the
+    // chain-width / 16-tall framing the hands are positioned against (camSize
+    // edges); the clamp keeps tiles readable on very long chains.
+    const {totalW} = chainLayout();
+    cameraFit(vec2(0, 0), vec2(max(0, totalW), 12), { margin: 2 });
+    cameraScale = clamp(cameraScale, 12, 48);
+}
 function gameRender()
 {
     // Background felt.

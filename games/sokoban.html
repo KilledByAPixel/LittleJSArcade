@@ -881,12 +881,15 @@ function gameUpdate()
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdatePost()
 {
-    // Adjust camera scale based on level size
-    const padding = 3;
-    const scaleX = mainCanvasSize.x / (gridWidth + padding);
-    const scaleY = mainCanvasSize.y / (gridHeight + padding + 2);
-    cameraScale = min(scaleX, scaleY);
-    cameraScale = clamp(cameraScale, 24, 48);
+    // Fit the level into view via the shared cameraFit helper (letterbox fit,
+    // resize-safe). It adapts to each level's size and never crops — even large
+    // levels that the old min-scale clamp used to cut off — while the max-scale
+    // cap below keeps tiles from ballooning on tiny levels. Tight at the title;
+    // a bigger margin during play (extra on top/bottom) leaves room for the HUD.
+    const center = vec2(gridWidth / 2 - 0.5, gridHeight / 2 - 0.5);
+    const margin = isPlaying() ? vec2(1.5, 2.5) : vec2(0.5, 1);
+    cameraFit(center, vec2(gridWidth, gridHeight), { margin });
+    cameraScale = min(cameraScale, 48); // don't over-zoom small levels
 }
 
 ///////////////////////////////////////////////////////////////////////////////

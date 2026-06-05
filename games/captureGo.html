@@ -18,9 +18,8 @@ const BOARD_SIZE = 9;
 const CELL_SIZE  = 1.0;   // world units between intersections
 const STONE_RADIUS = 0.8; // world units
 
-// Camera framing — matches the other board games (reversi/checkers): fit the
-// board to the screen at the title, fixed zoom during play so it sits steady.
-const REAL_PLAY_CAMERA_SCALE = 72;                                    // in-game zoom
+// Camera framing — matches the other board games (reversi/checkers): cameraFit
+// the board to the screen, tight at the title and a bigger margin during play.
 const BOARD_FIT_SPAN = (BOARD_SIZE - 1) * CELL_SIZE + CELL_SIZE * 1.4; // wooden board span (matches drawBoard)
 
 const STONE_EMPTY = 0;
@@ -827,12 +826,11 @@ function gameUpdate()
 
 function gameUpdatePost()
 {
-    // Title (static framed board): fit the board to the view via the shared
-    // cameraFit helper. Real play: a fixed zoom so the board sits steady.
-    if (isPlaying())
-        cameraScale = REAL_PLAY_CAMERA_SCALE;
-    else
-        cameraFit(vec2(0, 0), vec2(BOARD_FIT_SPAN), { margin: .3 });
+    // Fit the board into view via the shared cameraFit helper (letterbox fit,
+    // resize-safe, never crops). Tight at the title so the static board fills
+    // the view; a bigger margin during play leaves room for the HUD and keeps
+    // the board on screen.
+    cameraFit(vec2(0, 0), vec2(BOARD_FIT_SPAN), { margin: isPlaying() ? 0.6 : 0.3 });
 }
 
 // gameRender draws the board behind the title menu (empty board on load).

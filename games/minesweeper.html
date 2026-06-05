@@ -612,19 +612,18 @@ function gameUpdatePost()
         else
             saveGame();
     }
+
+    // Fit the board into view via the shared cameraFit helper (letterbox fit,
+    // resize-safe, never crops). Runs every frame, including while paused, so
+    // the title-screen backdrop stays correctly sized. Tight at the title so
+    // the attract board fills the screen; a bigger margin during play gives the
+    // HUD breathing room.
+    cameraFit(vec2(0, 0), boardSize, { margin: isPlaying() ? 1.5 : 0.5 });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 function gameRender()
 {
-    // fit board nicely in view (runs every frame, including while paused so
-    // the title-screen backdrop is correctly sized)
-    cameraPos = vec2(0, 0);
-    const margin = 120;
-    const scaleX = (mainCanvasSize.x - margin) / boardSize.x;
-    const scaleY = (mainCanvasSize.y - margin) / boardSize.y;
-    cameraScale = max(16, min(scaleX, scaleY));
-
     // background (avoid drawRectGradient for compatibility)
     drawRect(cameraPos, getCameraSize(), hsl(0,0,.12));
 

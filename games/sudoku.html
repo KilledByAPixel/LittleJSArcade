@@ -637,18 +637,20 @@ function gameUpdatePost()
         if (solved) clearSavedGame();
         else saveGame();
     }
+
+    // Fit the layout into view via the shared cameraFit helper (letterbox fit,
+    // resize-safe, never crops). At the title only the grid shows, so it fits
+    // tight and fills the view; during play the number pad below is included,
+    // which naturally zooms out a little to make room for it.
+    if (isPlaying())
+        cameraFit(vec2(0, -0.15), vec2(9.4, 12.2), { margin: 0.5 });
+    else
+        cameraFit(vec2(0, GRID_Y), vec2(9.4), { margin: 0.4 });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 function gameRender()
 {
-    // fit the whole layout (grid + pad) into view every frame
-    cameraPos = vec2(0, -0.15);
-    const margin = 70;
-    const contentW = 9.4, contentH = 12.2;
-    cameraScale = max(20, min((mainCanvasSize.x - margin) / contentW,
-                              (mainCanvasSize.y - margin) / contentH));
-
     drawRect(cameraPos, getCameraSize(), hsl(0, 0, 0.1));
 
     const gridC = vec2(0, GRID_Y);

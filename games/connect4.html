@@ -11,7 +11,6 @@
 <script>
 'use strict';
 
-const PLAY_CAMERA_SCALE = 55; // normal real-play zoom (restored on PLAY)
 // Attract launched from the arcade cabinet hero/cabinet box has "#demo" in the
 // URL; a normal launch does not. Cabinet -> AI vs AI attract; menu -> static board.
 const inCabinet = /demo/.test(location.hash);
@@ -696,13 +695,15 @@ async function gameInit()
     refreshDifficultyUI();
 }
 
-// Tight-fit the whole board (frame border included) into the view via the
-// shared cameraFit() helper, centered on the board's own center with no inset.
-function fitCameraToBoard()
+// Fit the whole board (frame border included) into the view via the shared
+// cameraFit() helper (letterbox fit, resize-safe, never crops), centered on the
+// board's own center with no inset. A tight margin at the title; a bigger one
+// during play to leave room for the HUD.
+function fitCameraToBoard(margin = .6)
 {
     const boardW = COLS * CELL_SIZE + 0.5; // +0.5 = frame border
     const boardH = ROWS * CELL_SIZE + 0.5;
-    cameraFit(vec2(0, 0), vec2(boardW, boardH), { margin: .6 });
+    cameraFit(vec2(0, 0), vec2(boardW, boardH), { margin });
 }
 
 // Set up the title attract: cabinet runs AI vs AI on loop; a normal launch
@@ -729,7 +730,7 @@ function startGame(mode)
     gameMode = mode;
     initBoard();
     aiThinkTimer = 0;
-    setPlaying(true); // gameUpdatePost restores the real-play camera (PLAY_CAMERA_SCALE)
+    setPlaying(true); // gameUpdatePost refits the camera with the play margin
     hideMenu('title');
 }
 
@@ -850,17 +851,9 @@ function gameUpdate()
 
 function gameUpdatePost()
 {
-    if (isPlaying())
-    {
-        // Normal real-play camera: fixed zoom, board centered.
-        cameraScale = PLAY_CAMERA_SCALE;
-        cameraPos = vec2(0, 0);
-    }
-    else
-    {
-        // Attract (cabinet AI view + static menu board): shared letterbox fit.
-        fitCameraToBoard();
-    }
+    // Tight at the title (attract + static menu board); a bigger margin during
+    // real play so the HUD has room and the board never crops on narrow screens.
+    fitCameraToBoard(isPlaying() ? 1.0 : .6);
 }
 
 function gameRender()

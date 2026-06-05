@@ -22,9 +22,6 @@ const SQUARE_SIZE = 1.0;
 // title; on a normal launch the title shows a static, freshly set-up board.
 const inCabinet = /demo/.test(location.hash);
 
-// Normal real-play camera scale (board + HUD margins). Restored on PLAY.
-const PLAY_CAMERA_SCALE = 80;
-
 // Attract state (title only). AI-vs-AI demo loops in the cabinet; auto-restarts
 // a fresh match a couple seconds after game over.
 let attractRunning = false;       // true while an AI-vs-AI attract match is live
@@ -961,15 +958,15 @@ function worldPosToSquare(worldPos)
     return null;
 }
 
-// Fit the camera tightly to the board for the title/attract view via the shared
-// cameraFit() helper: the board frame (plus a little padding) is letterbox-fit
-// to the viewport, centered on the board's own center with no inset so it fills
-// the view. Recomputed every frame from the live canvas size so it's robust to
-// any on-screen scaling/resize.
-function fitCameraToBoard()
+// Fit the camera to the board via the shared cameraFit() helper: the board
+// frame (plus padding) is letterbox-fit to the viewport, centered on the
+// board's own center with no inset, recomputed every frame from the live canvas
+// size so it's resize-safe and never crops. A tight margin at the title so it
+// fills the view; a bigger one during play to leave room for the HUD.
+function fitCameraToBoard(margin = 0.3)
 {
     const span = BOARD_SIZE * SQUARE_SIZE + 0.4; // board + frame
-    cameraFit(vec2(0, 0), vec2(span), { margin: 0.3 });
+    cameraFit(vec2(0, 0), vec2(span), { margin });
 }
 
 // Bake every piece glyph + a reusable circle into the texture atlas. Called
@@ -1248,8 +1245,6 @@ function startGame(mode)
     difficulty = getSaveData().difficulty ?? 'medium';
     refreshDifficultyUI();
     aiThinkTimer = 0;
-    cameraPos = vec2(0, 0);
-    cameraScale = PLAY_CAMERA_SCALE;
     initBoard();
     setPlaying(true);
     hideMenu('title');
@@ -1470,7 +1465,12 @@ function gameUpdate()
     }
 }
 
-function gameUpdatePost() {}
+function gameUpdatePost()
+{
+    // Fit the board into view every frame (resize-safe, never crops). Tight at
+    // the title; a bigger margin during play leaves room for the HUD.
+    fitCameraToBoard(isPlaying() ? 0.6 : 0.3);
+}
 
 function gameRender()
 {
