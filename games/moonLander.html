@@ -39,10 +39,6 @@ const SAFE_ANGLE = .22;            // radians (~12.6 deg)
 
 // Camera tuning (cameraScale = pixels per world unit; smaller = zoomed out)
 const CAMERA_SCALE_FAR  = 22;      // start / wide view
-const CAMERA_SCALE_NEAR = 60;      // close-up near pad
-const CAMERA_SCALE_DEMO = 18;      // title attract: wider, calmer static framing
-const CAMERA_ZOOM_IN_DIST  = 8;    // fully zoomed in inside this distance
-const CAMERA_ZOOM_OUT_DIST = 18;   // start zooming in inside this distance
 // In-flight camera uses cameraFit (canvas-size-independent): it frames a box
 // around the ship + pad, never smaller than this, so the touchdown isn't
 // over-zoomed on the now-responsive canvas (~2x wider than a tight close-up).

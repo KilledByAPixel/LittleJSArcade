@@ -71,9 +71,6 @@ const AI_THINK_DELAY_MAX = .11;
 const AI_ACTION_INTERVAL_MIN = .02;
 const AI_ACTION_INTERVAL_MAX = .05;
 const AI_ROTATE_COOLDOWN = .06;  // minimum time between rotations
-const AI_DROP_DELAY_MIN = .025;
-const AI_DROP_DELAY_MAX = .10;
-const AI_SOFT_DROP_CHANCE = .35;
 const AI_MISTAKE_CHANCE = .04; // occasionally choose 2nd-best-ish
 const AI_EVAL_NOISE = 50; // random noise added to move evaluation
 const AI_EARLY_NOISE_BOOST = 4; // extra eval-noise multiplier on a near-empty board (AI-vs-AI divergence)
@@ -536,9 +533,7 @@ function makePlayer(name, boardCenterX, isAI, uiOnRight = null)
         aiPlan: null,         // {rot, x}
         aiStepTimer: 0,
         aiThinkTimer: 0,
-        aiDropTimer: 0,
         aiRotateTimer: 0,     // cooldown between rotations
-        aiSoftMode: false,
 
         // sparkles
         sparkleAcc: 0,
@@ -581,9 +576,7 @@ function resetPlayer(p)
     p.aiPlan = null;
     p.aiStepTimer = 0;
     p.aiThinkTimer = frand(AI_THINK_DELAY_MIN, AI_THINK_DELAY_MAX);
-    p.aiDropTimer = 0;
     p.aiRotateTimer = 0;
-    p.aiSoftMode = false;
 
     spawnPiece(p);
 }
@@ -631,8 +624,6 @@ function spawnPiece(p, type)
     // AI new-piece think
     p.aiPlan = null;
     p.aiThinkTimer = frand(AI_THINK_DELAY_MIN, AI_THINK_DELAY_MAX);
-    p.aiDropTimer = 0;
-    p.aiSoftMode = (Math.random() < AI_SOFT_DROP_CHANCE);
 }
 
 function tryMove(p, dx, dy)

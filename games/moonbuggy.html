@@ -22,7 +22,6 @@ canvasClearColor = hsl(.66,.55,.06);
 ///////////////////////////////////////////////////////////////////////////////
 
 // --- world constants (world units; physics is per-second, scaled by timeDelta)
-const CAMERA_SCALE   = 32;
 const GROUND_BOTTOM  = -40;     // terrain fill floor
 const RIDE_HEIGHT    = 0.55;    // rover center above the ground line
 const ROVER_SIZE     = vec2(1.7, 0.85);
@@ -354,7 +353,7 @@ function gameUpdate()
     updateBullets(dt);
     updateUfos(dt, d);
     updateBombs(dt);
-    updatePowerups(dt, true);
+    updatePowerups(dt);
     updateEffects(dt);
     checkCollisions();
 
@@ -521,7 +520,7 @@ function updateBombs(dt)
     }
 }
 
-function updatePowerups(dt, allowPickup)
+function updatePowerups(dt)
 {
     for (const p of powerups)
     {
@@ -530,7 +529,7 @@ function updatePowerups(dt, allowPickup)
         p.pos.y += p.vy * dt;
         const gy = groundY(p.pos.x) + 0.3;
         if (p.pos.y < gy) { p.pos.y = gy; p.vy *= -0.3; }
-        if (allowPickup && rover.pos.distance(p.pos) < 1.0)
+        if (rover.pos.distance(p.pos) < 1.0)
         {
             heal(p.amount);
             p.life = 0;

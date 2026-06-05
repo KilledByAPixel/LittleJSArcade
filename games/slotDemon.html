@@ -56,11 +56,6 @@ const BALANCE = {
     spinInterval: 1.0,       // seconds per spin at full energy & speedMult 1
 };
 
-// MVP ships only `standard`. Volatility profiles add entries later (symbolTable/payoutShape unused for now).
-const MACHINE_TYPES = {
-    standard: { name: 'Slot', symbolTable: null /* falls back to BALANCE.symbols */, payoutShape: 'balanced' },
-};
-
 // `ability` hooks are no-ops in MVP; board-aware behaviors fill them in the matchup pass.
 const noop = () => {};
 const DEMON_TYPES = {
