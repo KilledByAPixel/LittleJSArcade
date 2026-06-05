@@ -196,7 +196,7 @@ class Player
         if (this.crashed) return;
         this.crashed = true;
         gameState = 'crashed';
-        submitBestScore(score);
+        submitBestScore(Math.floor(distance));
         sfxCrash && sfxCrash.play(this.pos);
 
         // crash particles

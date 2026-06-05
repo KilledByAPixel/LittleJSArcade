@@ -1170,7 +1170,7 @@ async function gameInit()
     setSoundVolume(.6);
     // Only pause when a menu surfaces during gameplay. Title-screen menus
     // leave paused=false so the attract-mode world keeps animating behind.
-    installAutoPause();
+    installAutoPause(() => isPlaying());
 
     // Title menu — shown immediately, no click-to-reveal
     setMenuTheme({accent:'#66ff66'});

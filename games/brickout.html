@@ -19,17 +19,17 @@ cameraScale = 32;
 const levelSize = vec2(38, 20);
 
 // brick types
-const BRICK_NORMAL = 0;
-const BRICK_SILVER = 1;
-const BRICK_GOLD   = 2;
+const BRICK_NORMAL      = 0;
+const BRICK_TOUGH       = 1; // takes 2 hits to break
+const BRICK_UNBREAKABLE = 2; // cannot be destroyed
 
 const BRICK_SCORE = [100, 200, 0]; // indexed by type
 
 // Levels: each row is a string in left-to-right order. Characters:
 //   . or space = empty
 //   n = normal brick (color by row)
-//   s = silver (2 hits)
-//   g = gold (unbreakable)
+//   s = tough (2 hits)
+//   g = unbreakable
 // Grid is 18 wide (2-unit bricks across a 38-unit field with 1-unit walls).
 // Up to 8 rows fit comfortably (top brick row at y=19, bottom at y=12).
 const LEVELS = [
@@ -369,8 +369,8 @@ function buildLevel()
             const y = levelSize.y - 1 - r;  // top row at y=19, descending
 
             let type = BRICK_NORMAL, hp = 1;
-            if (ch === 's') { type = BRICK_SILVER; hp = 2; }
-            else if (ch === 'g') { type = BRICK_GOLD; hp = Infinity; }
+            if (ch === 's') { type = BRICK_TOUGH; hp = 2; }
+            else if (ch === 'g') { type = BRICK_UNBREAKABLE; hp = Infinity; }
 
             // Color: normal bricks ramp by row (warm at top in original game,
             // but rows here are top-down — keep the same hue ramp).
@@ -395,7 +395,7 @@ function buildLevel()
     const targetSpecials = min(16, 4 + level + (wave - 1) * 2);
     const idx = [];
     for (let i = 0; i < bricks.length; ++i)
-        if (bricks[i].type !== BRICK_GOLD)
+        if (bricks[i].type !== BRICK_UNBREAKABLE)
             idx.push(i);
 
     // Fisher-Yates with engine RNG
@@ -449,7 +449,7 @@ function addShatter(brick)
 // Returns true if the brick was destroyed this call.
 function damageBrick(brick)
 {
-    if (brick.type === BRICK_GOLD)
+    if (brick.type === BRICK_UNBREAKABLE)
     {
         sfxBounce.play();
         return false;
@@ -839,9 +839,9 @@ function gameUpdate()
     updateBullets(dt);
     updateBalls(dt);
 
-    // level clear check (gold doesn't count — only breakable bricks)
+    // level clear check (unbreakable bricks don't count — only breakable ones)
     for (const b of bricks)
-        if (b.alive && b.type !== BRICK_GOLD)
+        if (b.alive && b.type !== BRICK_UNBREAKABLE)
             return;
 
     sfxWin.play();
@@ -916,7 +916,7 @@ function updateBullets(dt)
             if (!isOverlapping(s.pos, s.size, b.pos, b.size))
                 continue;
 
-            if (b.type === BRICK_GOLD)
+            if (b.type === BRICK_UNBREAKABLE)
             {
                 bullets.splice(i, 1);
                 break;
@@ -992,10 +992,10 @@ function updateBalls(dt)
             if (!isOverlapping(ball.pos, vec2(ball.size), b.pos, b.size))
                 continue;
 
-            if (fireballTimer > 0 && b.type !== BRICK_GOLD)
+            if (fireballTimer > 0 && b.type !== BRICK_UNBREAKABLE)
             {
-                // Fireball: destroy normal AND silver in one hit, no bounce.
-                // Gold falls through to the normal resolveBallRect bounce below.
+                // Fireball: destroy normal AND tough in one hit, no bounce.
+                // Unbreakable falls through to the normal resolveBallRect bounce below.
                 b.hp = 1;     // force damageBrick to destroy in one tick
                 damageBrick(b);
                 continue;     // keep flying through the row
@@ -1074,14 +1074,14 @@ function gameRender()
     {
         if (!b.alive) continue;
 
-        if (b.type === BRICK_GOLD)
+        if (b.type === BRICK_UNBREAKABLE)
         {
             drawBeveled(b.pos, b.size, hsl(0, 0, .6));
         }
-        else if (b.type === BRICK_SILVER)
+        else if (b.type === BRICK_TOUGH)
         {
             drawBeveled(b.pos, b.size, hsl(0, .95, .6));
-            // Fresh silver has a dot to mark "needs another hit".
+            // Fresh tough brick has a dot to mark "needs another hit".
             // The dot vanishes after the first hit; the brick keeps the same color.
             if (b.hp >= b.maxHp)
                 drawTile(b.pos, vec2(.4), icons.circle, hsl(0, 0, .15));

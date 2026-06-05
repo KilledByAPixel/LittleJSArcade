@@ -820,11 +820,12 @@ function gameUpdate()
         if (mouseWasPressed(0))
         {
             const gridSize = 3;
-            const cellW = 360;
-            const cellH = 200;
+            // these MUST match the preview grid drawn in gameRenderPost()
+            const cellW = 560;
+            const cellH = 330;
             const startX = (mainCanvasSize.x - gridSize * cellW) / 2;
             const startY = 100;
-            const previewScale = 8;
+            const previewScale = 15;
             const courseW = COURSE_SIZE.x * previewScale;
             const courseH = COURSE_SIZE.y * previewScale;
 

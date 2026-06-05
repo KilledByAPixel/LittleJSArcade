@@ -474,7 +474,6 @@ function drawStone(pos, stoneColor, scale)
 {
     scale = scale === undefined ? 1 : scale;
     const r = STONE_RADIUS * scale;
-    const diam = r * 2;
 
     // Shadow
     drawTile(pos.add(vec2(0.05, -0.05)), vec2(r * 0.96), icons.circle, rgb(0, 0, 0, 0.28));

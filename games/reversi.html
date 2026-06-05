@@ -742,7 +742,7 @@ function drawUI()
         else
             playerText = currentPlayer === DISC_BLACK ? "Black's Turn" : "White's Turn";
 
-        const color = currentPlayer === BLACK ? rgb(0.3, 0.3, 0.3) : rgb(0.95, 0.95, 0.95);
+        const color = currentPlayer === DISC_BLACK ? rgb(0.3, 0.3, 0.3) : rgb(0.95, 0.95, 0.95);
         drawTextScreen(playerText, vec2(30, 110), 28, color, 4, BLACK, 'left');
     }
     

@@ -211,13 +211,13 @@ function explodeCar(pos, big=false)
     new ParticleEmitter(
         pos, 0, vec2(0), .045, 90*rateScale, PI, undefined,
         sparkA, sparkB, sparkEnd, sparkEnd,
-        .22, .22*sizeScale, .05, 12, 14,
+        .22, .22*sizeScale, .05, .5, .2,
         .90, .92, 0, PI, .12, .6, false, false
     );
     new ParticleEmitter(
         pos, 0, vec2(.2), .08, 38*rateScale, PI, undefined,
         smokeA, smokeB, smokeEnd, smokeEnd,
-        .65, .55*sizeScale, .95*sizeScale, 4.2, 4,
+        .65, .55*sizeScale, .95*sizeScale, .15, .1,
         .95, .98, 0, PI, .04, .45, false, false
     );
 }

@@ -90,10 +90,16 @@ let debugShowStats = false;
 let spriteAtlas;
 
 // sprite drawing helpers
-function drawCircleSprite(pos, size=1, color=WHITE)
-{ drawTile(pos, vec2(size), spriteAtlas.circle, color); }
-function drawDotSprite(pos, size=1, color=WHITE)
-{ drawTile(pos, vec2(size), spriteAtlas.dot, color); }
+function drawCircleSprite(pos, size=1, color=WHITE, border=0, borderColor=BLACK)
+{
+    if (border > 0) drawTile(pos, vec2(size + border*2), spriteAtlas.circle, borderColor);
+    drawTile(pos, vec2(size), spriteAtlas.circle, color);
+}
+function drawDotSprite(pos, size=1, color=WHITE, border=0, borderColor=BLACK)
+{
+    if (border > 0) drawTile(pos, vec2(size + border*2), spriteAtlas.dot, borderColor);
+    drawTile(pos, vec2(size), spriteAtlas.dot, color);
+}
 
 // -------------------------------------------------------------
 // Sound disabled (stubs)
@@ -424,12 +430,13 @@ function spawnExplosion(pos, hue)
     {
         const ang = rand(0, 6.28);
         const speed = rand(.8, 2.5);
+        const pLife = rand(.15, .35);
         particles.push({
             pos: pos.copy(),
             vel: vec2(Math.cos(ang) * speed, Math.sin(ang) * speed),
             size: rand(.08, .16),
-            life: rand(.15, .35),
-            maxLife: rand(.15, .35),
+            life: pLife,
+            maxLife: pLife,
             hue: hue
         });
     }
