@@ -444,6 +444,12 @@ function gameInit()
 
 function gameUpdate()
 {
+    // Frame the UI grid every frame: nativeHeight scales the UISystem by canvas
+    // HEIGHT, so on a narrow aspect the ~612-wide grid clips at the sides. Widen
+    // nativeHeight to also fit the width (max with the height-fit value). Before
+    // the play gate so it runs while editing, not only during playback.
+    uiSystem.nativeHeight = max(490, 660 * mainCanvasSize.y / mainCanvasSize.x);
+
     if (!isPlaying())
         return;
 
