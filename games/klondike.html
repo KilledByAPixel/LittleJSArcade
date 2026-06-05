@@ -472,13 +472,19 @@ function afterMove()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-function checkWin()
+// Total cards currently on the four foundations (52 = a complete game).
+function foundationTotal()
 {
-    if (won) return;
     let total = 0;
     for (const s of cardStacks)
         if (s.type === StackType.Foundation) total += s.cards.length;
-    if (total < 52) return;
+    return total;
+}
+
+function checkWin()
+{
+    if (won) return;
+    if (foundationTotal() < 52) return;
 
     won = true;
     window.sndWin && window.sndWin.play();
@@ -512,10 +518,7 @@ function loadState(snap)
     // Clear any in-flight tweens — restored positions are authoritative.
     for (const s of cardStacks) for (const c of s.cards) c.tweenFrom = null;
     // Recompute win state from foundation counts (snapshot doesn't store it).
-    let total = 0;
-    for (const s of cardStacks)
-        if (s.type === StackType.Foundation) total += s.cards.length;
-    won = total >= 52;
+    won = foundationTotal() >= 52;
 }
 
 // Thin delegators to the shared CardHistory (cards.js).
