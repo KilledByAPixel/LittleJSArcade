@@ -2,7 +2,7 @@
 
 *50+ classic arcade games rebuilt in pure HTML5 — each one a single, self-contained file, AI-assisted and playable instantly in your browser.*
 
-## 🎮 [▶ Play in the LittleJS Arcade](https://killedbyapixel.github.io/LittleJSArcade)
+## 🎮 [▶ Play in LittleJS Arcade](https://killedbyapixel.github.io/LittleJSArcade)
 
 <!-- Tip: a looping GIF of the games makes a great banner here, e.g. ![LittleJS Arcade](docs/arcade.gif) -->
 

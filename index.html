@@ -18,7 +18,7 @@
 <meta property='og:url'          content='https://killedbyapixel.github.io/LittleJSArcade/'>
 <meta property='og:type'         content='website'>
 
-<title>The LittleJS Arcade</title>
+<title>LittleJS Arcade</title>
 <link rel="icon" type="image/png" sizes="32x32" href="images/favicon.png">
 <link rel="apple-touch-icon" href="images/arcade_logo.png">
 <link rel="manifest" href="manifest.json">
@@ -1021,14 +1021,14 @@
 </button>
 <div id="backdrop"></div>
 <button id="theme-toggle" aria-label="Toggle light/dark theme"></button>
-<button id="about-btn" aria-label="About the LittleJS Arcade" title="About">?</button>
+<button id="about-btn" aria-label="About LittleJS Arcade" title="About">?</button>
 <button id="fullscreen-toggle" aria-label="Toggle fullscreen" title="Toggle fullscreen">⛶</button>
 
 <aside id="sidebar">
     <div id="sidebar-header">
         <div id="sidebar-logo-wrap" title="Back to library">
             <img id="sidebar-logo" src="images/arcade_logo.png" alt="LittleJS">
-            <div id="sidebar-logo-title">The LittleJS Arcade</div>
+            <div id="sidebar-logo-title">LittleJS Arcade</div>
         </div>
         <input id="search" type="text" placeholder="Search..." autocomplete="off" spellcheck="false">
         <div id="filter-chips"></div>
@@ -1048,10 +1048,10 @@
 
 <div id="about-modal" hidden>
     <div class="about-backdrop"></div>
-    <div class="about-panel" role="dialog" aria-modal="true" aria-label="About the LittleJS Arcade">
+    <div class="about-panel" role="dialog" aria-modal="true" aria-label="About LittleJS Arcade">
         <button class="about-close" aria-label="Close">✕</button>
         <img class="about-logo" src="images/arcade_logo.png" alt="LittleJS Arcade">
-    <h2>The LittleJS Arcade</h2>
+    <h2>LittleJS Arcade</h2>
         <p>A growing collection of tiny arcade games. All are built with the LittleJS engine and fully open source.</p>
         <h3>What is LittleJS?</h3>
         <p>A tiny, fast, zero-dependency HTML5 game engine. It powers every game in this arcade.</p>
@@ -1960,7 +1960,7 @@ function buildWelcome() {
     const brand = document.createElement('div');
     brand.id = 'welcome-hero';
     brand.innerHTML =
-        '<img id="welcome-logo" src="images/arcade_logo.png" alt="The LittleJS Arcade">' +
+        '<img id="welcome-logo" src="images/arcade_logo.png" alt="LittleJS Arcade">' +
         '<div id="welcome-tagline">Arcade games · Powered by the LittleJS engine</div>';
     welcomeEl.appendChild(brand);
 
@@ -2121,7 +2121,7 @@ function showWelcome(pushHistory = true) {
     sourceBtn.href = MAIN_REPO;
     sourceBtn.title = 'View the LittleJSArcade repo on GitHub';
     fullscreenBtn.title = 'Fullscreen the whole page';
-    shareBtn.title = 'Share the LittleJS Arcade';
+    shareBtn.title = 'Share LittleJS Arcade';
     // Push a history entry only on user-driven game→library transitions,
     // so the browser back button can return to the previously played game.
     const clean = location.pathname + location.search;
