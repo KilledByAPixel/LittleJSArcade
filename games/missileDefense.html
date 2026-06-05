@@ -19,6 +19,9 @@
 'use strict';
 
 // engine settings
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 48;
+
 
 // ------------------------------------------------------------
 // Missile Command
@@ -1056,11 +1059,8 @@ function maybeSpawnShootingStar()
 function gameInit()
 {
     saveDataInit('missileCommand');
-    setCanvasFixedSize(vec2(1280, 720));
     setCameraPos(levelSize.scale(.5));
-    setCameraScale(32);
     icons = initDefaultAtlas();
-
     setSoundVolume(.28);
 
     sShoot    = new SoundGenerator({volume:.7, frequency:520, attack:0, release:.08, shapeCurve:1.4, slide:-.25, randomness:.02});

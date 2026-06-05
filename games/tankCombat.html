@@ -9,8 +9,6 @@
 <script>
 'use strict';
 
-// engine settings
-
 const sqrt = Math.sqrt;
 
 // signed shortest angle difference (b - a) in [-PI, PI]
@@ -561,8 +559,6 @@ let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
 function gameInit()
 {
     // low-res + pixelated for a 2600-ish vibe
-    setCanvasFixedSize(vec2(640, 360));
-    setCanvasPixelated(true);
     icons = initDefaultAtlas();
 
     // touch twin-stick gamepad: left stick moves, right (face-button) stick aims+fires

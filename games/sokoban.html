@@ -9,6 +9,10 @@
 <script>
 'use strict';
 
+// engine settings
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 48;
+
 ///////////////////////////////////////////////////////////////////////////////
 // SOKOBAN GAME
 
@@ -720,7 +724,6 @@ async function gameInit()
 {
     saveDataInit('sokoban');
     bestLevel = getSaveData().bestLevel ?? 0;
-    setCanvasFixedSize(vec2(960, 720));
     icons = initDefaultAtlas();
 
     // gamepad: on-screen touch pad for mobile (8-way digital d-pad + 2 face buttons for undo/restart)

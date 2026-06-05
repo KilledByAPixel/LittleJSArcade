@@ -32,7 +32,7 @@ const sExtraLife = new SoundGenerator({volume:.6,  frequency:1200, release:.3, s
 
 ///////////////////////////////////////////////////////////////////////////////
 // Grid / game constants
-const gridSize = vec2(40, 26);                  // cells
+const gridSize = vec2(42, 26);                  // cells
 const levelSize = gridSize.copy();              // world units (1 unit == 1 cell)
 const playerMinY = 0;                           // player center Y minimum
 const playerMaxY = 4;                           // player can move up into this zone
@@ -1129,8 +1129,8 @@ async function gameInit()
         debugShowErrors();
 
         setShowSplashScreen(false);
-        setCanvasFixedSize(vec2(1280, 720));
-        setCameraScale(30);
+        setCanvasFixedSize(vec2(1920, 1080));
+        setCameraScale(45);
         setCameraPos(levelSize.scale(.5));
         setCanvasPixelated(false);
         setTilesPixelated(false);

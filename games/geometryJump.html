@@ -9,13 +9,15 @@
 <script>
 'use strict';
 
+// engine settings
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 96;
+
 // Attract / title demo: while !isPlaying() the game auto-plays behind the menu
 // (auto-jumping bot, auto-restart on crash/clear). Clicking PLAY hands control
 // to the player. `demoRestartTimer` counts down frames before the attract reel
 // auto-restarts a finished run.
 let demoRestartTimer = 0;
-
-// engine settings
 
 // --- Geometry Dash-ish micro runner ------------------------------------------
 // Untextured primitives only: cube auto-runs, jump over spikes/blocks.
@@ -848,8 +850,6 @@ function gameInit()
     unlocked.classic = unlocked.classic ?? 1;
     unlocked.remix   = unlocked.remix   ?? 1;
     setShowSplashScreen(false);
-    setCanvasFixedSize(vec2(1280, 720));
-    cameraScale = 64;
 
     // sprite atlas: bake the default white-on-transparent icon set into tiles
     // 0-15 so drawTile(pos, size, atlasIcons.NAME, color) is available for art.

@@ -9,7 +9,8 @@
 'use strict';
 
 // engine settings
-paused = false;
+canvasFixedSize = vec2(1000, 1080);
+cameraScale = 80;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Columns (SEGA) - LittleJS prototype
@@ -647,9 +648,7 @@ function buildMenus()
 function gameInit()
 {
  saveDataInit('columns');
- setCanvasFixedSize(vec2(1000, 1080));
  setShowSplashScreen(false);
- setCameraScale(80);
 
 // Enable touch gamepad for mobile devices (8-way dpad + 2 face buttons)
 setTouchGamepadEnable(true);

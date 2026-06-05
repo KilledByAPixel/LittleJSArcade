@@ -10,11 +10,8 @@
 'use strict';
 
 // engine settings
-paused = false;
-
-gravity = vec2(0, 0);
-cameraPos = vec2(0, 0);
-cameraScale = 32;
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 48;
 
 // touch gamepad
 touchGamepadEnable = true;
@@ -1224,8 +1221,6 @@ async function gameInit()
 {
     saveDataInit('gradius');
     icons = initDefaultAtlas();
-    setCanvasFixedSize(vec2(1280, 720));
-    cameraPos = vec2(0, 0);
 
     // Sounds
     sfxShoot = new SoundGenerator({ frequency: 880, release: .04, volume: .4, slide: 1 });

@@ -11,8 +11,8 @@
 
 // engine settings
 paused = false;
-
-setCanvasFixedSize(vec2(1280, 720));
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 90;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Tile system
@@ -1527,7 +1527,6 @@ let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
 function gameInit()
 {
     icons = initDefaultAtlas();
-    cameraScale = 60;
     inputWASDEmulateDirection = true;
     touchGamepadEnable = true;
     touchGamepadButtonCount = 2;

@@ -21,6 +21,7 @@
 
 // engine settings
 cameraPos = vec2(0, 2.5);
+canvasFixedSize = vec2(700, 1080);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Board layout (world units, y is up)
@@ -441,13 +442,10 @@ async function gameInit()
     saveDataInit('plinko');
     // Box2D first — every body needs the world to exist.
     await box2dInit();
-    setCanvasFixedSize(vec2(700, 1080));
+    gravity = vec2(0, -50);
 
     // bake the 16 built-in white icons into tiles 0-15; we tint per-instance
     icons = initDefaultAtlas();
-
-    canvasClearColor = new Color().setHex('#0a0e1a');
-    gravity = vec2(0, -50);
 
     setSoundVolume(.7);
     installAutoPause();

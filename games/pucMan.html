@@ -17,8 +17,6 @@
 // True whenever the attract demo (not a real game) is showing: i.e. at the title.
 function demoMode() { return !isPlaying(); }
 
-// engine settings
-
 // touch controls
 touchGamepadEnable = true;
 touchGamepadAnalog = false;
@@ -109,7 +107,6 @@ let icons;
 function gameInit()
 {
     saveDataInit('pacman');
-    setCanvasFixedSize(vec2(600, 720));
     icons = initDefaultAtlas();
 
     // simple bleeps

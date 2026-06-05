@@ -10,15 +10,15 @@
 <script>
 'use strict';
 
+// engine settings
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 50;
+
 // attract/demo mode — at the title (isPlaying() === false) the AI auto-plays a
 // classic game behind the menu and loops forever. Clicking PLAY starts a real,
 // player-controlled run. The launcher cabinet merely hides the menu chrome over
 // this same live title, so no URL flag is needed.
 let demoRestartTimer = 0; // counts down after a demo round ends, then restarts
-
-// engine settings
-canvasFixedSize = vec2(1920, 1080);
-cameraScale = 50;
 
 // touch controls
 touchGamepadEnable = true;

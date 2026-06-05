@@ -30,7 +30,8 @@ gravity = vec2(0, -42);
 const inCabinet = /demo/.test(location.hash);
 let demoShootTimer = 0;
 cameraPos = vec2(0, -1);
-cameraScale = 60;
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 90;
 
 //------------------------------------------------------------------------------
 // constants
@@ -411,7 +412,6 @@ function updateHoopMotion()
 
 async function gameInit()
 {
-    setCanvasFixedSize(vec2(1280, 720));
     saveDataInit('basketball');
     icons = initDefaultAtlas();
     canvasClearColor = COLOR_BG;

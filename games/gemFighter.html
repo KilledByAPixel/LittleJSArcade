@@ -11,9 +11,11 @@
 
 // engine settings
 paused = false;
-gravity = vec2(0, 0);
+inputWASDEmulateDirection = false; // allow 2p controls
+canvasFixedSize = vec2(1920, 1080);
 cameraPos = vec2(0, 0);
-inputWASDEmulateDirection = false;
+cameraScale = 75;
+
 
 // setup touch gamepad
 touchGamepadEnable = true;
@@ -2857,10 +2859,6 @@ function checkRoundOver()
 ///////////////////////////////////////////////////////////////////////////////
 async function gameInit()
 {
-    setCanvasFixedSize(vec2(1050, 720));
-    cameraPos = vec2(0, 0);
-    cameraScale = 50;
-
     icons = initDefaultAtlas();
 
     setupMenus();

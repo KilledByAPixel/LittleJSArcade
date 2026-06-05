@@ -10,6 +10,8 @@
 'use strict';
 
 // engine settings
+canvasFixedSize = vec2(700, 1080);
+cameraScale = 35;
 
 ///////////////////////////////////////////////////////////////////////////////
 // Tuning
@@ -63,13 +65,9 @@ function drawDisc(pos, diam, color, outlineColor)
 ///////////////////////////////////////////////////////////////////////////////
 function gameInit()
 {
-    setCanvasFixedSize(vec2(700, 1080));
     saveDataInit('peggle');
     icons = initDefaultAtlas();  // bake the 16 white icons into tiles 0-15
     whitenAtlasAlpha();          // kill the dark edge fringe on the white icons
-    cameraScale = 35;
-    cameraPos = vec2(0, 0);
-    gravity = vec2(0, 0); // ball gravity is applied manually
 
     initSounds();
     createStars();

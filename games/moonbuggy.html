@@ -11,7 +11,9 @@
 'use strict';
 
 // engine settings
-paused = false;
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 48;
+canvasClearColor = hsl(.66,.55,.06);
 
 ///////////////////////////////////////////////////////////////////////////////
 // MOON PATROL — momentum hill-rider
@@ -163,7 +165,6 @@ function resetGame()
     nextUfoX = 48;
 
     // place camera immediately so the title backdrop is framed correctly
-    cameraScale = CAMERA_SCALE;
     cameraPos = vec2(rover.pos.x + TUNE.lookAhead, rover.pos.y + 3.5);
 }
 
@@ -224,10 +225,6 @@ function gameInit()
     saveDataInit('moonPatrol');
     icons = initDefaultAtlas();
     document.addEventListener('contextmenu', e => e.preventDefault());
-
-    setCanvasFixedSize(vec2(1280, 720));
-    cameraScale = CAMERA_SCALE;
-    setCanvasClearColor(hsl(.66,.55,.06));
 
     // gamepad: on-screen touch pad — right stick aims the turret, face buttons jump/fire
     touchGamepadEnable = true;
@@ -597,7 +594,6 @@ function checkCollisions()
 function gameUpdatePost()
 {
     if (!isPlaying()) return;
-    cameraScale = CAMERA_SCALE;
     const targetX = rover.pos.x + TUNE.lookAhead;
     const targetY = rover.pos.y + 3.5;
     cameraPos = vec2(

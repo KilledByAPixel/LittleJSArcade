@@ -10,6 +10,10 @@
 <script>
 'use strict';
 
+// engine settings
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 50;
+
 ///////////////////////////////////////////////////////////////////////////////
 // mini golf (box2d)
 
@@ -703,9 +707,6 @@ async function gameInit()
 
     // visuals
     canvasClearColor = rgb(.08,.12,.08);
-    setCanvasFixedSize(vec2(1280, 720));
-    cameraPos = vec2();
-    cameraScale = 32;
 
     // sounds
     sfxHit = new SoundGenerator({
@@ -991,11 +992,11 @@ function gameRenderPost()
         // 3x3 grid of hole previews — uses the same world-space drawing functions
         // as gameplay, by temporarily shifting the camera to each cell.
         const gridSize = 3;
-        const cellW = 360;
-        const cellH = 200;
+        const cellW = 560;
+        const cellH = 330;
         const startX = (mainCanvasSize.x - gridSize * cellW) / 2;
         const startY = 100;
-        const previewScale = 8;  // pixels per world unit
+        const previewScale = 15;  // pixels per world unit
         const courseW = COURSE_SIZE.x * previewScale;
         const courseH = COURSE_SIZE.y * previewScale;
 

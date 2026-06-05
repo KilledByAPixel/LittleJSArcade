@@ -12,6 +12,10 @@
 <script>
 'use strict';
 
+// engine settings
+setCanvasFixedSize(vec2(1920, 1080));
+cameraScale = 32;
+    
 // Attract / demo: the title screen shows a CALM marching formation behind the
 // menu. While the game sits at its title (isPlaying() === false) the aliens
 // simply march left/right — no player ship, no descending, no firing — looping
@@ -19,9 +23,6 @@
 // player-controlled game (isPlaying() true) and normal gameplay resumes. This
 // is identical on a normal launch and inside the arcade cabinet (the launcher
 // merely hides the menu chrome over the same live title).
-
-// engine settings
-// (menus.js auto-moves the debug-overlay key off Escape to ` on first createMenu)
 
 // Touch gamepad: 8-way digital + 1 face button (fire). Player moves left/right
 // only, so digital is plenty.
@@ -855,11 +856,9 @@ function createBarriers()
 function gameInit()
 {
     saveDataInit('spaceInvaders');
-    setCanvasFixedSize(vec2(960, 540));
     setCameraPos(levelSize.scale(.5));
-    cameraScale = 16; // pixels per world unit
-
     setSoundVolume(.8);
+
     // The title shows a live marching formation behind the menu, so the engine
     // must keep simulating while at the title — only pause once a real game is
     // running (and a menu is up). Pausing is driven by menu visibility AND
@@ -1510,8 +1509,8 @@ void mainImage(out vec4 c, vec2 p)
     c += staticAlpha * hash(floor(p / staticScale) + mod(iTime * 500., 1e3));
 
     // scan lines
-    const float scanlineScale = 1.;
-    const float scanlineAlpha = .35;
+    const float scanlineScale = 2.5;
+    const float scanlineAlpha = .3;
     c *= 1. - scanlineAlpha * cos(p.y * 2. * iResolution.y / scanlineScale);
 
     {

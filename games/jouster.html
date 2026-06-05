@@ -11,8 +11,8 @@
 
 // engine settings
 gravity = vec2(0, -0.005);
-cameraPos = vec2(0, 0);
-cameraScale = 32;
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 48;
 
 // gamepad: on-screen touch gamepad for mobile (left stick = move, face button = flap)
 touchGamepadEnable = true;
@@ -576,7 +576,6 @@ function gameInit()
 {
     saveDataInit('joust');
     icons = initDefaultAtlas();
-    setCanvasFixedSize(vec2(1280, 720));
     cameraPos = vec2(LEVEL_WIDTH / 2, LEVEL_HEIGHT / 2);
     
     // Initialize sounds

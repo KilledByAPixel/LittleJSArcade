@@ -18,6 +18,8 @@
 'use strict';
 
 // engine settings
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 48;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 // Pong State
@@ -351,13 +353,6 @@ function gameInit()
 {
         // prime the save blob before any persisted menu items are built
         saveDataInit('Pong');
-
-        // fixed canvas for consistent feel
-        setCanvasFixedSize(vec2(1280, 720));
-
-        // camera centered; choose scale so field fits nicely
-        setCameraPos(vec2(0, 0));
-        cameraScale = 32;
 
         // CRT vibe over the whole frame (scanlines, bloom, curvature, chromatic aberration)
         new PostProcessPlugin(tvShader);
@@ -777,8 +772,9 @@ const tvShader = `
         c += staticAlpha * hash(floor(p / staticScale) + mod(iTime * 500., 1e3));
 
         // scan lines
-        const float scanlineAlpha = .28;
-        c *= 1. - scanlineAlpha * cos(p.y * 1. * iResolution.y);
+        const float scanlineScale = 2.5;
+        const float scanlineAlpha = .25;
+        c *= 1. - scanlineAlpha * cos(p.y * 2. * iResolution.y / scanlineScale);
 
         // dark vignette around edges
         float dx = 2.*p.x - 1., dy = 2.*p.y - 1.;

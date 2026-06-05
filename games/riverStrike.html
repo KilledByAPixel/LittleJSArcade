@@ -9,6 +9,8 @@
 'use strict';
 
 // engine settings
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 48;
 
 ///////////////////////////////////////////////////////////////////////////////
 // River Raid (tiny untextured prototype)
@@ -214,8 +216,6 @@ function shoot()
 function gameInit()
 {
     saveDataInit('riverRaid');
-    setCanvasFixedSize(vec2(960, 540));
-    cameraScale = 32;
 
     // gamepad: on-screen touch pad for mobile (left analog stick = move, face button = fire)
     // count=2 so the first face button maps to standard button 0 (A = fire);

@@ -18,6 +18,8 @@
 'use strict';
 
 // engine settings
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 56;
 
 // touch controls
 touchGamepadEnable = true;
@@ -480,8 +482,6 @@ function frogWorldChecks() {
 
 function gameInit() {
     saveDataInit('frogger');
-    setCanvasFixedSize(vec2(1920, 1080));
-    cameraScale = 56;
     setCameraPos(vec2(LEVEL_W/2, LEVEL_H/2));
 
     buildAtlas();

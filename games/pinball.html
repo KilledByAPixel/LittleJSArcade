@@ -12,7 +12,8 @@
 
 // engine settings
 gravity = vec2(0, -30);
-cameraScale = 24;
+canvasFixedSize = vec2(1000, 1080);
+cameraScale = 26;
 
 // on-screen touch gamepad (analog stick + face buttons) for mobile
 touchGamepadEnable = true;
@@ -346,7 +347,6 @@ let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
 async function gameInit()
 {
     saveDataInit('pinball');
-    setCanvasFixedSize(vec2(720, 1080));
     cameraPos = vec2(0, PLAY_H/2);
 
     await box2dInit();

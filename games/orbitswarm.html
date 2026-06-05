@@ -3,15 +3,12 @@
 <meta charset="utf-8">
 </head>
 <script src="../templates/engineLoader.js?1780621028804"></script>
+<script src="../templates/gameFx.js?1780621028804"></script>
 <script src="../templates/textureGenerator.js?1780621028804"></script>
 <script src="../templates/menus.js?1780621028804"></script>
 <script>
 
 'use strict';
-
-// engine settings
-canvasFixedSize = vec2(1080, 720);
-cameraScale = 19;
 
 ///////////////////////////////////////////////////////////////////////////////
 // OrbitSwarm
@@ -1069,7 +1066,9 @@ function gameUpdate()
 
 function gameUpdatePost()
 {
-    cameraPos = vec2(0, 0);
+    // Fit the whole world-space play area into the view. Called every frame so it
+    // re-fits on canvas resize, and runs while paused so the title backdrop frames too.
+    cameraFit(vec2(0, 0), WORLD_SIZE, {margin: 2});
 }
 
 function gameRender()

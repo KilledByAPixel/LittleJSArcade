@@ -9,6 +9,10 @@
 <script>
 'use strict';
 
+// engine settings
+canvasFixedSize = vec2(1920, 1080);
+cameraScale = 48;
+
 // touch gamepad
 touchGamepadEnable = true;
 touchGamepadAnalog = false;
@@ -537,7 +541,6 @@ function killPlayer(reason)
 async function gameInit()
 {
     saveDataInit('mrDriller');
-    setCanvasFixedSize(vec2(720, 960));
     atlasIcons = initDefaultAtlas();
 
     sfxDrill   = new SoundGenerator({volume:.28, frequency:300, release:.12, shapeCurve:1.2, pitchJump:180, pitchJumpTime:.04, noise:.2});
