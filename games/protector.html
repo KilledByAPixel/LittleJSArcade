@@ -43,6 +43,7 @@ const EXTRA_LIFE_EVERY = 10000;
 ///////////////////////////////////////////////////////////////////////////////
 // Game state
 let score, lives, smartBombs, wave, nextExtra;
+let gameOverTimer = 0;   // >0 counts down to doGameOver (update-loop, not setTimeout)
 let gameOver;
 let humansAlive, planetDestroyed, mutantWavesLeft;
 let player;
@@ -328,8 +329,9 @@ class Player
         lives--;
         if (lives <= 0)
         {
-            // Wait for explosion fade then game over
-            setTimeout(doGameOver, 1500);
+            // Wait for the explosion fade, then game over — counted in the update
+            // loop (gameOverTimer) so it respects pause/quit, unlike a setTimeout.
+            gameOverTimer = 1.5;
         }
     }
 
@@ -1042,6 +1044,7 @@ function startGame()
     spawnTimer = new Timer();
     baiterTimer = new Timer();
     gameOver = false;
+    gameOverTimer = 0;
     setPlaying(true);
     genTerrain();
     for (let i = 0; i < HUMAN_COUNT; i++)
@@ -1224,6 +1227,15 @@ async function gameInit()
 function gameUpdate()
 {
     if (isPlaying() && bindPauseKey({when: () => isPlaying() && !gameOver})) return;
+
+    // Delayed game-over after the death explosion fades — counted in the update
+    // loop so it respects pause/quit (was a wall-clock setTimeout).
+    if (gameOverTimer > 0 && isPlaying())
+    {
+        gameOverTimer -= timeDelta;
+        if (gameOverTimer <= 0)
+            doGameOver();
+    }
 
     // Player input + simulation (only while actually playing)
     if (player) player.update();

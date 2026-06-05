@@ -713,6 +713,19 @@ function updateEnemies(dt)
     {
         const e = enemies[i];
 
+        // Aimed burst fired over time (replaces a setTimeout; respects pause and
+        // stops automatically when the boss is removed on reset).
+        if (e.burst > 0)
+        {
+            e.burstTimer -= dt;
+            if (e.burstTimer <= 0)
+            {
+                bullets.push({ pos: e.pos.add(vec2(-2, 0)), vel: e.burstDir.scale(12), size: .4, isPlayer: false });
+                e.burst--;
+                e.burstTimer = .1;
+            }
+        }
+
         // Movement patterns
         if (e.type === 1) // Sine wave
         {
@@ -767,22 +780,13 @@ function updateEnemies(dt)
                 }
                 else if (e.pattern === 1)
                 {
-                    // Aimed shot
-                    const dir = player.pos.subtract(e.pos).normalize();
-                    for (let a = 0; a < 5; a++)
-                    {
-                        setTimeout(() => {
-                            if (boss && boss.health > 0)
-                            {
-                                bullets.push({
-                                    pos: e.pos.add(vec2(-2, 0)),
-                                    vel: dir.scale(12),
-                                    size: .4,
-                                    isPlayer: false
-                                });
-                            }
-                        }, a * 100);
-                    }
+                    // Aimed burst: queue 5 shots fired ~100ms apart in the per-enemy
+                    // loop (below), so they respect pause and stop when the boss is
+                    // removed. A setTimeout fired on wall-clock and leaked bullets
+                    // into the next game after a reset.
+                    e.burst = 5;
+                    e.burstDir = player.pos.subtract(e.pos).normalize();
+                    e.burstTimer = 0;
                     sfxEnemyShoot && sfxEnemyShoot.play(e.pos);
                     e.shootTimer = 2;
                 }

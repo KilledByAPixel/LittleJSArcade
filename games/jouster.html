@@ -54,6 +54,7 @@ let wave = 0;
 let gameState = 'title'; // title, playing, gameover, victory
 let waveTimer = 0;
 let spawnQueue = 0;
+let respawnTimer = 0;   // >0 counts down to player respawn (update-loop, not setTimeout)
 
 // Sounds
 let sfxFlap, sfxJoust, sfxDie, sfxEgg, sfxSpawn, sfxWave;
@@ -427,14 +428,10 @@ function playerDeath()
     
     if (lives > 0)
     {
-        // Respawn after delay
-        setTimeout(() => {
-            if (gameState === 'playing')
-            {
-                player = new Rider(LEVEL_WIDTH / 2, LEVEL_HEIGHT - 3, true);
-                player.invulnerable = 2;
-            }
-        }, 1500);
+        // Respawn after a delay, counted down in gameUpdate so it respects pause
+        // and quit. A setTimeout fired on wall-clock — it could spawn a rider
+        // during a paused menu, or after the player had already quit.
+        respawnTimer = 1.5;
     }
     else
     {
@@ -603,6 +600,7 @@ function resetGame()
     wave = 0;
     spawnQueue = 0;
     waveTimer = 0;
+    respawnTimer = 0;
 }
 
 function startGame()
@@ -675,7 +673,18 @@ function gameUpdate()
         startGame();
         return;
     }
-    
+
+    // Respawn timer — counted in the update loop so it respects pause/quit
+    if (respawnTimer > 0)
+    {
+        respawnTimer -= timeDelta;
+        if (respawnTimer <= 0)
+        {
+            player = new Rider(LEVEL_WIDTH / 2, LEVEL_HEIGHT - 3, true);
+            player.invulnerable = 2;
+        }
+    }
+
     // Player input
     if (player && player.alive)
     {
