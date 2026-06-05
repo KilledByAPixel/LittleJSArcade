@@ -63,10 +63,10 @@
     // scope, so this inline script (parser-blocking, runs right after the engine is
     // defined and before any game's engineInit) can flip them.
     document.write(`<script>
-        showEngineVersion=false;
-        canvasMaxSize = vec2(2048);
+        showEngineVersion = false; // supress engine startup message
         canvasMinAspect = .4;
         canvasMaxAspect = 2.5;
-        setCanvasPixelRatio();
+        canvasMaxSize = vec2(2048); // use full canvas resolution for sharper rendering on high-DPI displays
+        setCanvasPixelRatio(); // use device pixel ratio by default for sharper rendering
     <\/script>`);
 }
