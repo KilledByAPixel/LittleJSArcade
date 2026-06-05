@@ -9,8 +9,6 @@
 <script>
 'use strict';
 
-const sqrt = Math.sqrt;
-
 // signed shortest angle difference (b - a) in [-PI, PI]
 function distanceAngle(a, b)
 {
@@ -103,7 +101,7 @@ function resolveCircleAABB(pos, radius, boxPos, boxSize)
     if (d2 >= r2) return {hit:false, normal:vec2()};
 
     let n = vec2(px, py);
-    const d = sqrt(d2) || 0.0001;
+    const d = Math.sqrt(d2) || 0.0001;
     n = n.scale(1/d);
 
     const push = radius - d;
