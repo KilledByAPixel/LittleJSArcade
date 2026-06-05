@@ -973,20 +973,12 @@ function buildMenus()
 
 function gameUpdate()
 {
-    // Pause hotkey: Esc / gamepad Start. Only while actually playing (at the
-    // title the menu is already up). Skipped if gameOver menu already up.
-    const endMenuShowing = (typeof getTopMenu === 'function') && getTopMenu()?.id === 'gameOver';
-    if (isPlaying() && !endMenuShowing &&
-        (keyWasPressed('Escape') || gamepadWasPressed(9)))
-    {
-        if (typeof playMenuSound === 'function') playMenuSound('activate');
-        if (typeof showMenu === 'function') showMenu('pause');
-        inputClearKey('Escape');
-        inputClearKey(9, 1, false, true, false);
-        return;
-    }
+    // Pause hotkey (Esc / gamepad Start) — bindPauseKey plays the sound, opens
+    // 'pause', clears the key, and won't fire while a menu (e.g. gameOver) is up.
+    if (bindPauseKey({when: () => isPlaying()})) return;
 
     // Surface gameOver menu once the on-canvas delay (gameOverTimer) elapses.
+    const endMenuShowing = (typeof getTopMenu === 'function') && getTopMenu()?.id === 'gameOver';
     if (gameOver && gameOverTimer <= 0 && !endMenuShowing)
     {
         // Attract demo (not playing): the run ended, so just loop — restart a

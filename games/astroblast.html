@@ -1035,16 +1035,9 @@ function buildMenus()
 
 function gameUpdate()
 {
-    // Pause hotkey: Esc or Start. Gated on isPlaying so it doesn't fire from title.
-    if (isPlaying() && !gameOver &&
-        (keyWasPressed('Escape') || gamepadWasPressed(9)))
-    {
-        if (typeof playMenuSound === 'function') playMenuSound('activate');
-        if (typeof showMenu === 'function') showMenu('pause');
-        inputClearKey('Escape');
-        inputClearKey(9, 1, false, true, false);
-        return;
-    }
+    // Pause hotkey (Esc / gamepad Start) — bindPauseKey plays the sound, opens
+    // 'pause', clears the key, and won't double-open over an existing menu.
+    if (bindPauseKey({when: () => isPlaying() && !gameOver})) return;
 
     // Attract mode: rocks keep tumbling + an occasional saucer flyby, but no gameplay logic
     if (!isPlaying())

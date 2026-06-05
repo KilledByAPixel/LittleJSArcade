@@ -1216,18 +1216,9 @@ function gameUpdate()
         return;
     }
 
-    // Pause hotkey: Esc or gamepad Start. Gated on isPlaying so it doesn't fire
-    // from the title screen.
-    const gameOverShowing = (typeof getTopMenu === 'function') && getTopMenu()?.id === 'gameOver';
-    if (isPlaying() && !gameOverShowing &&
-            (keyWasPressed('Escape') || gamepadWasPressed(9)))
-    {
-        if (typeof playMenuSound === 'function') playMenuSound('activate');
-        if (typeof showMenu === 'function') showMenu('pause');
-        inputClearKey('Escape');
-        inputClearKey(9, 1, false, true, false);
-        return;
-    }
+    // Pause hotkey (Esc / gamepad Start) — bindPauseKey handles it and won't fire
+    // while a menu (e.g. gameOver) is up.
+    if (bindPauseKey({when: () => isPlaying()})) return;
 
     // While playing, dev keys: R restarts, T toggles AI assist.
     if (isPlaying() && !gameOver && keyWasPressed('KeyR'))
@@ -1322,6 +1313,7 @@ function gameUpdate()
         }
         // Brief on-canvas hold (lets the final explosions play out) before the
         // GAME OVER menu surfaces.
+        const gameOverShowing = (typeof getTopMenu === 'function') && getTopMenu()?.id === 'gameOver';
         if (!gameOverShowing)
         {
             gameOverHoldTimer -= timeDelta;

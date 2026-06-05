@@ -935,16 +935,8 @@ async function gameInit()
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdate()
 {
-    // pause hotkey — gate so it doesn't fire from the pre-play state
-    if (isPlaying() && alive &&
-        (keyWasPressed('Escape') || gamepadWasPressed(9)))
-    {
-        playMenuSound('activate');
-        showMenu('pause');
-        inputClearKey('Escape');
-        inputClearKey(9, 1, false, true, false);
-        return;
-    }
+    // Pause hotkey (Esc / gamepad Start) — bindPauseKey does sound/showMenu/clear.
+    if (bindPauseKey({when: () => isPlaying() && alive})) return;
 
     if (!isPlaying() || !player) return;
 
