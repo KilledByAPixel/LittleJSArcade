@@ -232,7 +232,7 @@ async function gameInit()
     // startup; cleared once QUIT deals a fresh board). Drives CONTINUE vs PLAY.
     let canResume = resumedGame;
     const playFromTitle = () => { setPlaying(true); hideMenu('title'); };
-    setMenuTheme({accent:'#22aa88'});
+    setMenuTheme({accent:'#22aa88', font:'Georgia, serif'});
     const titleMenu = createTitleMenu({
         id: 'title',
         title: 'KLONDIKE',

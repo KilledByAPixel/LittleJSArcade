@@ -211,7 +211,7 @@ async function gameInit()
     // startup; cleared once QUIT deals a fresh board). Drives CONTINUE vs PLAY.
     let canResume = resumedGame;
     const playFromTitle = () => { setPlaying(true); hideMenu('title'); };
-    setMenuTheme({accent:'#33cc66'});
+    setMenuTheme({accent:'#33cc66', font:'Tahoma, Geneva, sans-serif'});
     const titleMenu = createTitleMenu({
         id: 'title',
         title: 'FREECELL',
