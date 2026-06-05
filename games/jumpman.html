@@ -438,9 +438,7 @@ class Mushroom extends EngineObject
     checkPickup()
     {
         if (!player || player.dead) return;
-        const dx = Math.abs(player.pos.x - this.pos.x);
-        const dy = Math.abs(player.pos.y - this.pos.y);
-        if (dx < (player.size.x + this.size.x) * .5 && dy < (player.size.y + this.size.y) * .5)
+        if (isOverlapping(this.pos, this.size, player.pos, player.size))
         {
             player.grow();
             this.destroy();
@@ -530,9 +528,7 @@ class Star extends EngineObject
     checkPickup()
     {
         if (!player || player.dead) return;
-        const dx = Math.abs(player.pos.x - this.pos.x);
-        const dy = Math.abs(player.pos.y - this.pos.y);
-        if (dx < (player.size.x + this.size.x) * .5 && dy < (player.size.y + this.size.y) * .5)
+        if (isOverlapping(this.pos, this.size, player.pos, player.size))
         {
             player.starPower();
             this.destroy();
@@ -623,8 +619,7 @@ class Enemy extends EngineObject
     // AABB overlap helper
     overlaps(other)
     {
-        return Math.abs(this.pos.x - other.pos.x) < (this.size.x + other.size.x) * .5
-            && Math.abs(this.pos.y - other.pos.y) < (this.size.y + other.size.y) * .5;
+        return isOverlapping(this.pos, this.size, other.pos, other.size);
     }
 
     // Death animation (flipped/squashed). Subclasses call when killed.

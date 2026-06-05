@@ -241,10 +241,7 @@ class Hazard extends EngineObject
 
     hitsPlayer(p)
     {
-        const dx = Math.abs(p.pos.x - this.pos.x);
-        const dy = Math.abs(p.pos.y - this.pos.y);
-        return dx < (this.size.x + p.size.x) / 2 &&
-               dy < (this.size.y + p.size.y) / 2;
+        return isOverlapping(this.pos, this.size, p.pos, p.size);
     }
 }
 
@@ -448,10 +445,7 @@ class Coin extends EngineObject
 
     tryCollect(p)
     {
-        const dx = Math.abs(p.pos.x - this.pos.x);
-        const dy = Math.abs(p.pos.y - this.pos.y);
-        if (dx < (this.size.x + p.size.x)/2 &&
-            dy < (this.size.y + p.size.y)/2)
+        if (isOverlapping(this.pos, this.size, p.pos, p.size))
         {
             this.destroy();
             coins += 1;
@@ -480,10 +474,7 @@ class ShieldPickup extends EngineObject
 
     tryCollect(p)
     {
-        const dx = Math.abs(p.pos.x - this.pos.x);
-        const dy = Math.abs(p.pos.y - this.pos.y);
-        if (dx < (this.size.x + p.size.x)/2 &&
-            dy < (this.size.y + p.size.y)/2)
+        if (isOverlapping(this.pos, this.size, p.pos, p.size))
         {
             this.destroy();
             hasShield = true;
