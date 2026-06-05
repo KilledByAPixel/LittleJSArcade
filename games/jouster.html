@@ -46,7 +46,6 @@ let player;
 let enemies = [];
 let eggs = [];
 let platforms = [];
-let particles = [];
 let score = 0;
 let lives = 3;
 let wave = 0;
@@ -208,16 +207,8 @@ class Rider
         sfxDie && sfxDie.play(this.pos);
         
         // Spawn death particles
-        for (let i = 0; i < 20; i++)
-        {
-            particles.push({
-                pos: this.pos.copy(),
-                vel: vec2(rand(-0.2, 0.2), rand(0.1, 0.3)),
-                life: rand(0.5, 1),
-                color: this.isPlayer ? PLAYER_COLOR : (this.enemyType === 1 ? SHADOW_RIDER_COLOR : ENEMY_COLOR),
-                size: rand(0.1, 0.3)
-            });
-        }
+        const deathColor = this.isPlayer ? PLAYER_COLOR : (this.enemyType === 1 ? SHADOW_RIDER_COLOR : ENEMY_COLOR);
+        spawnBurst(this.pos, deathColor, 20, .22, .75, .2, 1.1);
     }
 
     render()
@@ -337,16 +328,7 @@ class Egg
             sfxEgg && sfxEgg.play(this.pos);
             
             // Sparkle effect
-            for (let i = 0; i < 10; i++)
-            {
-                particles.push({
-                    pos: this.pos.copy(),
-                    vel: vec2(rand(-0.15, 0.15), rand(0.1, 0.25)),
-                    life: rand(0.3, 0.6),
-                    color: EGG_COLOR,
-                    size: rand(0.1, 0.2)
-                });
-            }
+            spawnBurst(this.pos, EGG_COLOR, 10, .18, .45, .15, 1.0);
             return;
         }
 
@@ -520,27 +502,38 @@ function processSpawnQueue()
 ///////////////////////////////////////////////////////////////////////////////
 // Particle system
 
-function updateParticles()
+// One-shot bursts via the engine's ParticleEmitter (was a hand-rolled array).
+// Fires ~count square particles in an upward `cone`-wide fan at `speed` (world
+// units/frame), fading from `color` to transparent over `life` seconds, with
+// gravity.y*0.3 pulling them back down — matching the old hand-rolled feel.
+function spawnBurst(pos, color, count, speed, life, size, cone)
 {
-    for (let i = particles.length - 1; i >= 0; i--)
-    {
-        const p = particles[i];
-        p.vel.y += gravity.y * 0.3;
-        p.pos = p.pos.add(p.vel);
-        p.life -= timeDelta;
-        
-        if (p.life <= 0)
-            particles.splice(i, 1);
-    }
+    const fade = rgb(color.r, color.g, color.b, 0);
+    new ParticleEmitter(
+        pos, 0,              // pos, angle
+        0,                   // emitSize (point)
+        count/400, 400,      // emitTime, emitRate -> ~count particles
+        cone,                // emitConeAngle (upward fan)
+        undefined,           // tileInfo (untextured square)
+        color, color,        // colorStartA/B
+        fade, fade,          // colorEndA/B (fade alpha to 0)
+        life,                // particleTime
+        size, size,          // sizeStart, sizeEnd (constant)
+        speed,               // speed (world units per frame)
+        0, 1, 1,             // angleSpeed, damping (none), angleDamping
+        .3,                  // gravityScale (matches vel.y += gravity.y*0.3)
+        0,                   // particleConeAngle (axis-aligned squares)
+        .15,                 // fadeRate
+        .4,                  // randomness
+        false, false         // collideTiles, additive
+    );
 }
 
-function renderParticles()
+// Destroy any live burst emitters so a reset leaves a clean field.
+function clearParticles()
 {
-    for (const p of particles)
-    {
-        const alpha = p.life;
-        drawRect(p.pos, vec2(p.size), p.color.scale(1, alpha));
-    }
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -598,7 +591,7 @@ function resetGame()
     player = new Rider(LEVEL_WIDTH / 2, 8, true);
     enemies = [];
     eggs = [];
-    particles = [];
+    clearParticles();
     score = 0;
     lives = 3;
     wave = 0;
@@ -723,10 +716,7 @@ function gameUpdate()
     
     // Combat
     checkJoustCombat();
-    
-    // Particles
-    updateParticles();
-    
+
     // Wave management
     processSpawnQueue();
     
@@ -786,9 +776,6 @@ function gameRender()
     // Draw player
     if (player)
         player.render();
-    
-    // Draw particles
-    renderParticles();
 }
 
 function gameRenderPost()
