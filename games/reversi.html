@@ -809,7 +809,6 @@ const AI_VS_AI_DELAY = 0.5;
 async function gameInit()
 {
     saveDataInit('othello');
-    cameraPos = vec2(0, 0);
     canvasClearColor = new Color().setHex('#0d0d14');
     difficulty = getSaveData().difficulty ?? 'hard';
     setSoundVolume(.8);
@@ -1073,7 +1072,6 @@ function gameUpdate()
 
 function gameUpdatePost()
 {
-    cameraPos = vec2(0, 0);
     // While at the title (both cabinet demo and static menu) fit the board
     // tight and centered on its own center via the shared cameraFit helper (no
     // inset, so it fills the view); restore the normal zoom for real play. The

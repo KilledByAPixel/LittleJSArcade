@@ -887,7 +887,6 @@ const DEMO_RESTART_DELAY = 2.5;
 async function gameInit()
 {
     saveDataInit('checkers');
-    cameraPos = vec2(0, 0);
     canvasClearColor = new Color().setHex('#0d0d14');
     difficulty = getSaveData().difficulty ?? 'hard';
 
