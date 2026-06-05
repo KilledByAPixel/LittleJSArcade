@@ -251,12 +251,24 @@
     }
 
     .card {
-        padding: 8px 14px;
+        /* Rendered as a <button> for keyboard access — strip the native button
+              chrome so it looks identical to the old div. font/color are picked
+              up from the global `button` rule above. */
+        appearance: none;
+        -webkit-appearance: none;
+        display: block;
+        width: 100%;
+        text-align: left;
+        background: none;
+        border: 0;
         border-left: 3px solid transparent;
+        border-radius: 0;
+        padding: 8px 14px;
         cursor: pointer;
         user-select: none;
         transition: background .08s;
     }
+    .card:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     .card:hover { background: var(--panel-2); }
     .card.selected {
         background: var(--accent-bg);
@@ -526,6 +538,11 @@
     }
 
     .tile {
+        /* Rendered as a <button> for keyboard access — reset native chrome that
+              the rules below don't already override (text-align + appearance). */
+        appearance: none;
+        -webkit-appearance: none;
+        text-align: left;
         flex: 0 0 auto;
         position: relative;
         background: linear-gradient(135deg, var(--panel) 0%, var(--panel-2) 100%);
@@ -539,6 +556,7 @@
         display: flex;
         gap: 12px;
     }
+    .tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     /* Category color stripe down the left edge */
     .tile::before {
         content: '';
@@ -908,7 +926,8 @@
           iframe (which can swallow drag-to-scroll gestures there despite the
           iframe's pointer-events:none). A plain div scrolls the page on drag and
           fires click on tap, so the hero scrolls like the rest of the page. */
-    .hero-hit { position: absolute; inset: 0; cursor: pointer; }
+    .hero-hit { position: absolute; inset: 0; cursor: pointer; appearance: none; -webkit-appearance: none; background: none; border: 0; padding: 0; }
+    .hero-hit:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
     /* Info + controls panel beside the screen, like a cabinet marquee. */
     .hero-bar {
         flex: 1; min-width: 0;
@@ -1030,7 +1049,7 @@
             <img id="sidebar-logo" src="images/arcade_logo.png" alt="LittleJS">
             <div id="sidebar-logo-title">LittleJS Arcade</div>
         </div>
-        <input id="search" type="text" placeholder="Search..." autocomplete="off" spellcheck="false">
+        <input id="search" type="text" placeholder="Search..." aria-label="Search games" autocomplete="off" spellcheck="false">
         <div id="filter-chips"></div>
     </div>
     <div id="list"></div>
@@ -1043,7 +1062,7 @@
 
 <main id="stage">
     <div id="welcome"></div>
-    <iframe id="frame" allow="autoplay *; gamepad *; fullscreen *" allowfullscreen style="display:none;"></iframe>
+    <iframe id="frame" title="Game" allow="autoplay *; gamepad *; fullscreen *" allowfullscreen style="display:none;"></iframe>
 </main>
 
 <div id="about-modal" hidden>
@@ -1338,7 +1357,14 @@ function appendGameChips(el, g) {
         const c = document.createElement('span');
         c.className = 'chip';
         c.textContent = text;
-        if (title) c.title = title;
+        if (title) {
+            c.title = title;
+            // Emoji/symbol chips (🎮, ↗) carry meaning — give them a real
+            // accessible name so a screen reader reads "Gamepad supported"
+            // rather than the raw glyph (or nothing).
+            c.setAttribute('role', 'img');
+            c.setAttribute('aria-label', title);
+        }
         el.appendChild(c);
     };
     for (const t of g.tags) chip(t);
@@ -1347,7 +1373,8 @@ function appendGameChips(el, g) {
 }
 
 function makeCard(g) {
-    const card = document.createElement('div');
+    const card = document.createElement('button');
+    card.type = 'button';
     card.className = 'card';
     card.dataset.file = g.file;
     card.innerHTML =
@@ -1502,7 +1529,8 @@ function buildFilterChips() {
 // ===================== Welcome screen =====================
 
 function makeTile(g, index) {
-    const tile = document.createElement('div');
+    const tile = document.createElement('button');
+    tile.type = 'button';
     tile.className = 'tile';
     tile.innerHTML =
         '<div class="emoji"></div>' +
@@ -1528,6 +1556,8 @@ function makeTile(g, index) {
         chip.className = 'chip';
         chip.textContent = '🎮';
         chip.title = 'Gamepad supported';
+        chip.setAttribute('role', 'img');
+        chip.setAttribute('aria-label', 'Gamepad supported');
         chipsEl.appendChild(chip);
     }
     if (g.url) {
@@ -1535,6 +1565,8 @@ function makeTile(g, index) {
         chip.className = 'chip';
         chip.textContent = '↗ off-site';
         chip.title = 'Loads from an external site';
+        chip.setAttribute('role', 'img');
+        chip.setAttribute('aria-label', 'Loads from an external site');
         chipsEl.appendChild(chip);
     }
     // Color the left stripe + hover border by category.
@@ -1687,6 +1719,10 @@ function setHero(file) {
     const scoreEl = document.querySelector('#hero-cabinet .hero-score');
     const g = gameByFile[file];
     if (nameEl) nameEl.textContent = g ? g.name : '';
+    // Keep the (visually empty) screen button's accessible name in sync with
+    // the featured game so a screen reader announces what it launches.
+    const hitEl = document.querySelector('#hero-cabinet .hero-hit');
+    if (hitEl) hitEl.setAttribute('aria-label', g ? 'Play ' + g.name : 'Play this game');
     // Flag featured games in the cabinet's status line.
     if (nowEl) nowEl.textContent = isFeatured(file) ? '★ FEATURED' : '▸ NOW PLAYING';
     // Personal best for this game, if one exists (e.g. Astroblast); else hidden.
@@ -1777,7 +1813,7 @@ function buildHero() {
         '<div class="hero-screen" title="Click to play">' +
             '<iframe id="hero-frame" title="Attract mode" tabindex="-1" scrolling="no" ' +
                 'allow="autoplay *; gamepad *"></iframe>' +
-            '<div class="hero-hit"></div>' +
+            '<button class="hero-hit" type="button" aria-label="Play this game"></button>' +
         '</div>' +
         '<div class="hero-bar">' +
             '<span class="hero-now">▸ NOW PLAYING</span>' +
@@ -1860,6 +1896,7 @@ function buildFloorControls() {
     search.className = 'floor-search';
     search.type = 'text';
     search.placeholder = 'Search games…';
+    search.setAttribute('aria-label', 'Search games');
     search.value = floorQuery;
     search.addEventListener('input', () => { floorQuery = search.value.trim().toLowerCase(); buildFloorGrid(); });
     tools.appendChild(search);
@@ -1987,8 +2024,31 @@ function buildWelcome() {
 }
 
 // ---- About modal ----
-function openAbout() { const m = document.getElementById('about-modal'); if (m) m.hidden = false; }
-function closeAbout() { const m = document.getElementById('about-modal'); if (m) m.hidden = true; }
+// Remembers what had focus before the dialog opened so it can be restored on
+// close — focus must never get stranded on now-hidden content.
+let aboutLastFocus = null;
+function aboutFocusables(m) {
+    return [...m.querySelectorAll('button, a[href], input, [tabindex]:not([tabindex="-1"])')]
+        .filter(el => el.offsetParent !== null);   // visible only
+}
+function openAbout() {
+    const m = document.getElementById('about-modal');
+    if (!m) return;
+    aboutLastFocus = document.activeElement;
+    m.hidden = false;
+    // Pull focus into the dialog (its close button) so keyboard/SR users land
+    // inside it; Tab is then trapped here until it closes.
+    const f = aboutFocusables(m);
+    (f[0] || m.querySelector('.about-panel')).focus();
+}
+function closeAbout() {
+    const m = document.getElementById('about-modal');
+    if (!m || m.hidden) return;
+    m.hidden = true;
+    // Return focus to whatever opened it (normally the ? button).
+    if (aboutLastFocus && aboutLastFocus.focus) aboutLastFocus.focus();
+    aboutLastFocus = null;
+}
 function initFloorUI() {
     const btn = document.getElementById('about-btn');
     if (btn) btn.addEventListener('click', openAbout);
@@ -1996,6 +2056,15 @@ function initFloorUI() {
     if (m) {
         m.querySelector('.about-close').addEventListener('click', closeAbout);
         m.querySelector('.about-backdrop').addEventListener('click', closeAbout);
+        // Keep Tab / Shift+Tab cycling within the dialog while it's open.
+        m.addEventListener('keydown', e => {
+            if (e.key !== 'Tab') return;
+            const f = aboutFocusables(m);
+            if (!f.length) return;
+            const first = f[0], last = f[f.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        });
     }
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAbout(); });
 }
@@ -2148,6 +2217,7 @@ function selectGame(file, pushHistory = true) {
     if (heroFrame) loadFrame(heroFrame, 'about:blank');
     document.body.classList.add('in-game');
     document.title = g.name + ' · ' + BASE_TITLE;
+    frameEl.title = g.name;     // label the game iframe for screen readers
     // Templates are a dev-only browsing aid — keep them out of recent / continue.
     if (!tmpl) pushRecent(file);
     // Local games get a cache-bust so edits show without reload; for off-site URLs
