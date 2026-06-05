@@ -207,20 +207,35 @@ async function gameInit()
     installAutoPause();
 
     // ----- title menu -----
+    // True only while the title sits over a restored in-progress game (set at
+    // startup; cleared once QUIT deals a fresh board). Drives CONTINUE vs PLAY.
+    let canResume = resumedGame;
     const playFromTitle = () => { setPlaying(true); hideMenu('title'); };
     setMenuTheme({accent:'#33cc66'});
-    createTitleMenu({
+    const titleMenu = createTitleMenu({
         id: 'title',
         title: 'FREECELL',
         titleFx: {fill:'shine', color:'#3c6'},
         onPlay: playFromTitle,
+        // the resumed board is already loaded behind the title, so PLAY just
+        // starts it — label it CONTINUE when that board is a restored game, and
+        // surface NEW GAME beside it so a fresh deal doesn't require continuing
+        onShow: () =>
+        {
+            titleMenu.getItem('play').setLabel(canResume ? 'CONTINUE' : 'PLAY');
+            titleMenu.getItem('newGame').setVisible(canResume);
+        },
         canReveal: () => !isPlaying(),
         revealOnClick: false,
         items: [
+            {type:'button', id:'newGame', label:'NEW GAME',
+                onClick: () => { newGame(); canResume = false; setPlaying(true); hideMenu('title'); }},
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
             {type:'button', label:'HELP',   onClick: () => pushMenu('help')},
         ],
     });
+    // NEW GAME only appears alongside CONTINUE; hide it until onShow decides.
+    titleMenu.getItem('newGame').setVisible(false);
 
     // ----- options menu -----
     createOptionsMenu({
@@ -279,6 +294,7 @@ async function gameInit()
             clearSubmenuStack();
             hideAllMenus();
             newGame();             // reset board so title backdrop is clean
+            canResume = false;     // fresh deal behind the title -> PLAY, not CONTINUE
             setPlaying(false);
             showMenu('title');
         },
@@ -286,18 +302,15 @@ async function gameInit()
             {type:'button', label:'NEW GAME', onClick: () =>
                 showConfirmDialog({
                     message: 'Abandon this game and start a new one?',
-                    onYes: () => { newGame(); clearSubmenuStack(); hideAllMenus(); },
+                    onYes: () => { newGame(); canResume = false; clearSubmenuStack(); hideAllMenus(); },
                 })},
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
         ],
     });
 
-    // If an unfinished saved game was restored, jump straight into it.
-    // Otherwise surface the title menu immediately — no click-to-reveal gate.
-    if (resumedGame)
-        setPlaying(true);
-    else
-        showMenu('title');
+    // Always surface the title now (no auto-resume). The play button reads
+    // CONTINUE over a restored game, or PLAY over the fresh deal.
+    showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////

@@ -104,6 +104,14 @@ function loadSavedGame()
     return true;
 }
 
+// Non-mutating check for a resumable save (same shape guard as loadSavedGame),
+// so the title can show CONTINUE without loading state or anchoring the clock.
+function hasSavedGame()
+{
+    const g = getSaveData().game;
+    return !!(g && Array.isArray(g.mines) && g.mines.length === g.boardW * g.boardH);
+}
+
 // sounds
 let sReveal, sFlag, sUnflag, sBoom, sWin;
 
@@ -462,6 +470,12 @@ async function gameInit()
         titleFx: {fill:'hardshadow', color:'#f00', motion:'wave'},
         dismissable: false,
         items: [
+            // CONTINUE resumes the saved board (and re-anchors its clock); shown
+            // only when a resumable save exists (toggled in onShow + hidden just
+            // below). The difficulty buttons below always start a fresh game.
+            {type:'button', id:'continue', label:'CONTINUE',
+                onClick: () => { loadSavedGame(); setPlaying(true); hideMenu('title'); }},
+            {type:'separator', id:'continueSep'},
             {type:'button', id:'easyBtn',   label:'EASY',   onClick: () => startDifficulty('easy',   9,  9, 10)},
             {type:'button', id:'mediumBtn', label:'MEDIUM', onClick: () => startDifficulty('medium', 16, 16, 40)},
             {type:'button', id:'hardBtn',   label:'HARD',   onClick: () => startDifficulty('hard',   30, 16, 99)},
@@ -469,14 +483,21 @@ async function gameInit()
             {type:'button', label:'HELP',   onClick: () => pushMenu('help')},
         ],
         // Refresh best-time labels every time the title appears so a fresh
-        // record from the previous round is reflected immediately.
+        // record from the previous round is reflected immediately, and show
+        // CONTINUE only when there's a resumable save.
         onShow: () =>
         {
             titleMenu.getItem('easyBtn')  ?.setLabel(diffLabel('EASY',   'easy'));
             titleMenu.getItem('mediumBtn')?.setLabel(diffLabel('MEDIUM', 'medium'));
             titleMenu.getItem('hardBtn')  ?.setLabel(diffLabel('HARD',   'hard'));
+            const has = hasSavedGame();
+            titleMenu.getItem('continue')   ?.setVisible(has);
+            titleMenu.getItem('continueSep')?.setVisible(has);
         },
     });
+    // Start the CONTINUE row hidden so it never flashes before onShow runs.
+    titleMenu.getItem('continue').setVisible(false);
+    titleMenu.getItem('continueSep').setVisible(false);
 
     createMenu({
         id: 'help',
@@ -517,13 +538,15 @@ async function gameInit()
     document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
     window.addEventListener('pagehide', saveGame);
 
-    // resume the most recently played round if one was saved; otherwise show
-    // the title over the attract backdrop built by setupAttractBoard above.
-    // loadSavedGame overwrites that backdrop with the real saved board.
-    if (loadSavedGame())
-        setPlaying(true);
-    else
-        showMenu('title');
+    // Backdrop behind the title: the real saved board if one exists (so CONTINUE
+    // jumps straight in), otherwise the attract board from setupAttractBoard
+    // above. loadSavedGame overwrites that backdrop with the real saved board.
+    if (hasSavedGame())
+        loadSavedGame();
+    // else: keep the attract backdrop already built above.
+
+    // Always show the title now; CONTINUE (when a save exists) resumes the board.
+    showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////

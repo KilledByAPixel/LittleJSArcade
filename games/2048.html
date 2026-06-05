@@ -109,6 +109,14 @@ function loadSavedGame()
     return true;
 }
 
+// Non-mutating check for a resumable save — same shape guard as loadSavedGame,
+// used by the title to decide CONTINUE vs PLAY without touching game state.
+function hasSavedGame()
+{
+    const g = getSaveData().game;
+    return !!(g && Array.isArray(g.board) && g.board.length === GRID * GRID);
+}
+
 function gameInit()
 {
     saveDataInit('2048');
@@ -120,7 +128,12 @@ function gameInit()
     sLose  = new SoundGenerator({frequency: 120, slide: -.15, release: .35, volume: .9, randomness: .02});
     sWin   = new SoundGenerator({frequency: 620, pitchJump: 220, pitchJumpTime: .05, release: .25, volume: 1, randomness: .01});
 
-    setupAttractBoard();
+    // Backdrop behind the title: the real saved board if one exists (so CONTINUE
+    // jumps straight in), otherwise the fake attract board.
+    if (hasSavedGame())
+        loadSavedGame();
+    else
+        setupAttractBoard();
     buildMenus();
 
     // persist the live round when the tab is hidden or closed so the latest
@@ -128,12 +141,9 @@ function gameInit()
     document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
     window.addEventListener('pagehide', saveGame);
 
-    // resume the most recently played round if one was saved; otherwise show the
-    // title over the attract backdrop built by setupAttractBoard above.
-    if (loadSavedGame())
-        setPlaying(true);
-    else
-        showMenu('title');
+    // Always show the title now; the play button resumes the save (CONTINUE) or
+    // starts fresh (PLAY) depending on whether one exists.
+    showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -142,17 +152,30 @@ function buildMenus()
     installAutoPause();
 
     setMenuTheme({accent:'#edc22e'});
-    createTitleMenu({
+    const titleMenu = createTitleMenu({
         title:    '2048',
         titleFx:  {fill:'gold'},
         subtitle: 'slide tiles, double the numbers',
         revealOnClick: false,
-        onPlay: () => { newGame(); setPlaying(true); },
+        // resume the saved board when one exists, otherwise deal a fresh one
+        onPlay: () => { if (hasSavedGame()) loadSavedGame(); else newGame(); setPlaying(true); },
+        // CONTINUE while a save is resumable, and surface NEW GAME beside it so a
+        // fresh start doesn't require continuing first (PLAY already starts new)
+        onShow: () =>
+        {
+            const has = hasSavedGame();
+            titleMenu.getItem('play').setLabel(has ? 'CONTINUE' : 'PLAY');
+            titleMenu.getItem('newGame').setVisible(has);
+        },
         items: [
+            {type:'button', id:'newGame', label:'NEW GAME',
+                onClick: () => { newGame(); setPlaying(true); hideMenu('title'); }},
             {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
             {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
         ],
     });
+    // NEW GAME only appears alongside CONTINUE; hide it until onShow decides.
+    titleMenu.getItem('newGame').setVisible(false);
 
     createPauseMenu({
         onRestart: newGame,

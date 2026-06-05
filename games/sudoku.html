@@ -407,6 +407,14 @@ function loadSavedGame()
     return true;
 }
 
+// Non-mutating check for a resumable save (same shape guard as loadSavedGame),
+// so the title can show CONTINUE without anchoring the clock or loading state.
+function hasSavedGame()
+{
+    const g = getSaveData().game;
+    return !!(g && Array.isArray(g.val) && g.val.length === 81 && CLUES[g.difficulty]);
+}
+
 function showWinDialog()
 {
     const seconds = Math.ceil(endTime - startTime);
@@ -505,6 +513,12 @@ async function gameInit()
         dismissable: false,
         onStart: () => newGame('medium'),
         items: [
+            // CONTINUE resumes the saved board (and re-anchors its clock); shown
+            // only when a resumable save exists (toggled in onShow + hidden just
+            // below). The difficulty buttons below always start a fresh game.
+            {type: 'button', id: 'continue', label: 'CONTINUE',
+                onClick: () => { loadSavedGame(); setPlaying(true); hideMenu('title'); }},
+            {type: 'separator', id: 'continueSep'},
             {type: 'button', id: 'easy',   label: 'EASY',   onClick: () => newGame('easy')},
             {type: 'button', id: 'medium', label: 'MEDIUM', onClick: () => newGame('medium')},
             {type: 'button', id: 'hard',   label: 'HARD',   onClick: () => newGame('hard')},
@@ -516,8 +530,14 @@ async function gameInit()
             titleMenu.getItem('easy')  ?.setLabel(diffLabel('EASY',   'easy'));
             titleMenu.getItem('medium')?.setLabel(diffLabel('MEDIUM', 'medium'));
             titleMenu.getItem('hard')  ?.setLabel(diffLabel('HARD',   'hard'));
+            const has = hasSavedGame();
+            titleMenu.getItem('continue')   ?.setVisible(has);
+            titleMenu.getItem('continueSep')?.setVisible(has);
         },
     });
+    // Start the CONTINUE row hidden so it never flashes before onShow runs.
+    titleMenu.getItem('continue').setVisible(false);
+    titleMenu.getItem('continueSep').setVisible(false);
 
     createHelpMenu({
         text: 'Fill the grid so every row, column, and 3x3 box contains 1-9 with no ' +
@@ -554,14 +574,16 @@ async function gameInit()
     document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
     window.addEventListener('pagehide', saveGame);
 
-    buildAttract();
+    // Backdrop behind the title: the real saved board if one exists (so CONTINUE
+    // jumps straight in), otherwise the half-solved attract board.
+    if (hasSavedGame())
+        loadSavedGame();
+    else
+        buildAttract();
     setPlaying(false);
 
-    // resume an unfinished round if one was saved, else show the title
-    if (loadSavedGame())
-        setPlaying(true);
-    else
-        showMenu('title');
+    // Always show the title now; CONTINUE (when a save exists) resumes the board.
+    showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
