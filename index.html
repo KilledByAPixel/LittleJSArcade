@@ -104,19 +104,7 @@
 // Debug mode = the debug engine build is active (littlejsDebug() / ?debug=1).
 const debugMode = () => { try { return localStorage.getItem('littlejs-build') === 'debug'; } catch (e) { return false; } };
 
-// Games whose source uses the gamepad API — drives the 🎮 chip on cards/tiles.
-const GAMEPAD_GAMES = new Set([
-    '2048.html','astroblast.html','bobblePop.html','boomer.html','brickout.html',
-    'centibug.html','drPill.html','emojiSurvivors.html','floppyBird.html','froggit.html',
-    'gemFighter.html','geometryJump.html','homerDerby.html','jetdash.html','jouster.html',
-    'jumpman.html','microRacer.html','missileDefense.html','moonLander.html','moonbuggy.html',
-    'mrDrill.html','pegball.html','pillars.html','pinball.html','plinko.html',
-    'pong.html','powerwing.html','protector.html',
-    'pucMan.html','riverStrike.html','roboRescue.html','skiing.html','snake.html',
-    'sokoban.html','spaceIntruders.html','speedway.html','spyDriver.html','tankCombat.html',
-    'tetrix.html','wulfstein.html','zoomi.html',
-]);
-const hasGamepad = g => GAMEPAD_GAMES.has(g.file);
+// GAMEPAD_GAMES / hasGamepad are derived from the per-game `gamepad` flag in games.js.
 
 // Display name, emoji, and accent color (referencing CSS vars) per category.
 // Used for row headers, filter chips, and tile color stripes.
