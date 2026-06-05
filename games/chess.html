@@ -1402,10 +1402,9 @@ function updateAIMove()
                 // from-square may no longer hold our piece. Verify before applying.
                 if (move) {
                     const piece = board[move.from.row]?.[move.from.col];
+                    // apply only if the move's from-square still holds our piece;
+                    // otherwise the state raced — discard the stale move silently
                     if (piece && piece.color === currentPlayer) makeMove(move);
-                    else console.warn('AI race: discarded stale move', {
-                        move, currentPlayer, pieceAtFrom: piece, gameMode, gameOver,
-                    });
                 }
                 aiSearching = false;
                 aiProgress = '';

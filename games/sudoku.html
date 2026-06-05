@@ -490,7 +490,7 @@ async function gameInit()
     sWin      = new SoundGenerator({frequency: 520, release: .35, slide: .5, volume: .9});
     sSelect   = new SoundGenerator({frequency: 360, release: .03, volume: .25});
 
-    runSelfTests();
+    if (debug) runSelfTests();   // self-tests run in the debug build only
 
     // one callback pauses the engine for every menu/dialog
     setMenuVisibilityCallback(v => paused = v);

@@ -439,7 +439,7 @@ async function gameInit()
     sBoom   = new SoundGenerator({frequency:90,  release:.35, noise:.35, slide:-.8, volume:1});
     sWin    = new SoundGenerator({frequency:520, release:.25, slide:.6, volume:.9});
 
-    runSelfTests();
+    if (debug) runSelfTests();   // self-tests run in the debug build only
     setupAttractBoard();
 
     // pause the engine whenever any menu (including dialogs) is visible

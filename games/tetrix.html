@@ -1776,8 +1776,8 @@ function gameUpdate()
     if (keyWasPressed('KeyR'))
         doRestart();
 
-    // DEBUG: press G to send garbage to AI (only in vs mode)
-    if (gameMode === 'vs' && keyWasPressed('KeyG'))
+    // DEBUG: press G to send garbage to AI (vs mode, debug build only)
+    if (debug && gameMode === 'vs' && keyWasPressed('KeyG'))
     {
         players[1].pendingGarbage += 1;
     }

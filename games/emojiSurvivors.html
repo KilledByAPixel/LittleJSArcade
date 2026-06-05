@@ -4806,8 +4806,11 @@ function gameRenderPost()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Debug helpers — call from the browser DevTools console. Both persist
-// immediately via saveMetaState() so a reload picks them up.
+// Debug helpers — call from the browser DevTools console. Defined ONLY in the
+// debug build (engine `debug` flag); the shipped release never exposes them.
+// Both persist immediately via saveMetaState() so a reload picks them up.
+if (debug)
+{
 window.giveCoins = function(amount)
 {
     const n = (typeof amount === 'number' && amount > 0) ? Math.floor(amount) : 1000;
@@ -4949,6 +4952,7 @@ window.maxBuild = function()
                 player.passives.length + ' passives, all at Lv 5');
     return {weapons: player.weapons.length, passives: player.passives.length};
 };
+}   // end if (debug) — debug-console cheat helpers
 
 engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
 

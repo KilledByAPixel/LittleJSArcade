@@ -537,16 +537,15 @@ function quitToTitleWithCleanup() {
     quitToTitle(() => { gameOver = false; resetRun(true); });
 }
 
-// Debug: jump to the next level from the browser console — call nextLevel().
-// Bumps the level (faster cars/logs), reshuffles obstacles, resets the frog.
-function nextLevel() {
-    level++;
-    reached.fill(false);
-    buildLanes();
-    resetRun(false);
-    console.log('Jumped to level', level);
-}
-window.nextLevel = nextLevel;
+// Debug (debug build only): jump to the next level from the browser console —
+// call nextLevel(). Bumps the level, reshuffles obstacles, resets the frog.
+if (debug)
+    window.nextLevel = function() {
+        level++;
+        reached.fill(false);
+        buildLanes();
+        resetRun(false);
+    };
 
 function buildMenus() {
     if (typeof createMenu !== 'function') return;

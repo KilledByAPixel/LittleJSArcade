@@ -751,7 +751,7 @@ async function runAsyncDominoTests()
 
 async function gameInit()
 {
-    if (location.search.includes('test')) { runDominoTests(); runAsyncDominoTests(); return; }
+    if (debug && location.search.includes('test')) { runDominoTests(); runAsyncDominoTests(); return; }
 
     saveDataInit('Dominoes');
     canvasClearColor = new Color().setHex('#1b3326');

@@ -60,7 +60,7 @@ function saveState()
     }
     const blob = { version:1, tempo, cells, customSounds };
     try { saveData({state: blob}); }
-    catch (e) { console.warn('sequencer: saveState failed', e); }
+    catch (e) {}
 }
 function loadState()
 {
@@ -70,7 +70,7 @@ function loadState()
         if (!blob || blob.version !== 1) return null;
         return blob;
     }
-    catch (e) { console.warn('sequencer: loadState failed', e); return null; }
+    catch (e) { return null; }
 }
 
 const sound_piano = new Sound([.3,0,220,,.1]);
