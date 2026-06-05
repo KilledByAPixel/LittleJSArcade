@@ -28,7 +28,7 @@ const BRICK_GOLD   = 2;
 const BRICK_SCORE = [100, 200, 0]; // indexed by type
 
 // Levels: each row is a string in left-to-right order. Characters:
-//   . = empty
+//   . or space = empty
 //   n = normal brick (color by row)
 //   s = silver (2 hits)
 //   g = gold (unbreakable)
@@ -37,13 +37,13 @@ const BRICK_SCORE = [100, 200, 0]; // indexed by type
 const LEVELS = [
     // 1: Wall (7 rows of normal bricks)
     [
-        'nnnnnnnnnnnnnnnnnn',
-        'nnnnnnnnnnnnnnnnnn',
-        'nnnnnnnnnnnnnnnnnn',
-        'nnnnnnnnnnnnnnnnnn',
-        'nnnnnnnnnnnnnnnnnn',
-        'nnnnnnnnnnnnnnnnnn',
-        'nnnnnnnnnnnnnnnnnn',
+        '                  ',
+        '.nnnnnnnnnnnnnnnn.',
+        '.nnnnnnnnnnnnnnnn.',
+        '.nnnnnnnnnnnnnnnn.',
+        '.nnnnnnnnnnnnnnnn.',
+        '.nnnnnnnnnnnnnnnn.',
+        '.nnnnnnnnnnnnnnnn.',
     ],
     // 2: Pyramid (narrows to a point)
     [
@@ -57,17 +57,16 @@ const LEVELS = [
     ],
     // 3: Castle (gold battlements frame normal interior; floor has two gates)
     [
-        'g.g.g.g.g.g.g.g.g.',
         'gggggggggggggggggg',
-        'g.nnnnnnnnnnnnnn.g',
-        'g.nnnnnnnnnnnnnn.g',
-        'g.nnnnnnnnnnnnnn.g',
-        'gg..gggggggggg..gg',
-        '..................',
+        'gnnnnnnnnnnnnnnnng',
+        'gnnnnnnnnnnnnnnnng',
+        'gnnnnnnnnnnnnnnnng',
+        'gnnnnnnnnnnnnnnnng',
+        'g.g.g.g.g..g.g.g.g',
     ],
     // 4: Checkerboard of normal + silver
     [
-        'nsnsnsnsnsnsnsnsns',
+        '                  ',
         'snsnsnsnsnsnsnsnsn',
         'nsnsnsnsnsnsnsnsns',
         'snsnsnsnsnsnsnsnsn',
@@ -366,7 +365,7 @@ function buildLevel()
         for (let c = 0; c < row.length; ++c)
         {
             const ch = row[c];
-            if (ch === '.') continue;
+            if (ch === '.' || ch === ' ') continue;
 
             const x = 2 + c * 2;            // 1-unit left margin + half brick offset
             const y = levelSize.y - 1 - r;  // top row at y=19, descending
@@ -378,7 +377,7 @@ function buildLevel()
             // Color: normal bricks ramp by row (warm at top in original game,
             // but rows here are top-down — keep the same hue ramp).
             const t = percent(r, 0, rows - 1);
-            const color = hsl(lerp(.05, .55, t), .9, .6);
+            const color = hsl(lerp(.1, .6, t), .9, .6);
 
             bricks.push({
                 pos: vec2(x, y),
@@ -1079,15 +1078,15 @@ function gameRender()
 
         if (b.type === BRICK_GOLD)
         {
-            drawBeveled(b.pos, b.size, hsl(.13, .95, .65));
+            drawBeveled(b.pos, b.size, hsl(0, 0, .6));
         }
         else if (b.type === BRICK_SILVER)
         {
-            drawBeveled(b.pos, b.size, hsl(0, 0, .8));
+            drawBeveled(b.pos, b.size, hsl(0, .95, .6));
             // Fresh silver has a dot to mark "needs another hit".
             // The dot vanishes after the first hit; the brick keeps the same color.
             if (b.hp >= b.maxHp)
-                drawTile(b.pos, vec2(.32), icons.circle, hsl(0, 0, .15));
+                drawTile(b.pos, vec2(.4), icons.circle, hsl(0, 0, .15));
         }
         else if (b.special)
         {
