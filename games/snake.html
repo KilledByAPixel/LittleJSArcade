@@ -597,59 +597,16 @@ function floodArea(start, blocked)
     return count;
 }
 
-function aiChooseDir()
-{
-    if (!ai.alive) return;
-    const blocked = buildBlockedGrid();
-    const head = ai.body[0];
-    const isFood = c => cellOnAnyApple(c);
-
-    const legal = d =>
-    {
-        if (d.x === -ai.dir.x && d.y === -ai.dir.y) return false; // no reversing
-        const n = vec2(head.x + d.x, head.y + d.y);
-        if (!isCellInBounds(n)) return false;
-        if (blocked[n.x][n.y] && !isFood(n)) return false;
-        return true;
-    };
-
-    // 1) head for the closest apple that has a safe path (try nearest first)
-    let chosen = null;
-    const targets = foods.slice().sort((a,b) =>
-        (abs(a.pos.x-head.x) + abs(a.pos.y-head.y)) -
-        (abs(b.pos.x-head.x) + abs(b.pos.y-head.y)));
-    for (const t of targets)
-    {
-        const step = bfsStep(head, t.pos, blocked);
-        if (legal(step)) { chosen = step; break; }
-    }
-
-    // 2) no safe path to any apple: take the legal move that keeps the most room
-    if (!chosen)
-    {
-        let best = null, bestArea = -1;
-        for (const d of DIRS)
-        {
-            if (!legal(d)) continue;
-            const n = vec2(head.x + d.x, head.y + d.y);
-            const area = floodArea(n, blocked) + (isFood(n) ? 1000 : 0);
-            if (area > bestArea) { bestArea = area; best = d; }
-        }
-        chosen = best;
-    }
-
-    // if nothing is legal the AI is boxed in — keep dir and crash gracefully
-    if (chosen) ai.nextDir = clampDir(chosen, ai);
-}
-
-// demo-mode steering: same greedy-but-safe logic as aiChooseDir, but for any
-// snake (used to auto-drive the player snake during attract mode).
-function demoChooseDir(s)
+// Greedy-but-safe steering for any snake: head for the nearest reachable apple
+// (plus the bonus fruit when considerBonus), else take the legal move that keeps
+// the most open room. Drives the versus AI (considerBonus false) and the
+// attract-mode player auto-drive (considerBonus true).
+function chooseDir(s, considerBonus)
 {
     if (!s.alive) return;
     const blocked = buildBlockedGrid();
     const head = s.body[0];
-    const isFood = c => cellOnAnyApple(c) || (bonus && cellEquals(c, bonus));
+    const isFood = c => cellOnAnyApple(c) || (considerBonus && bonus && cellEquals(c, bonus));
 
     const legal = d =>
     {
@@ -664,7 +621,7 @@ function demoChooseDir(s)
     // 1) head for the closest reachable target (apples + live bonus fruit)
     let chosen = null;
     const targets = foods.map(f => f.pos);
-    if (bonus) targets.push(bonus);
+    if (considerBonus && bonus) targets.push(bonus);
     targets.sort((a,b) =>
         (abs(a.x-head.x) + abs(a.y-head.y)) -
         (abs(b.x-head.x) + abs(b.y-head.y)));
@@ -860,7 +817,7 @@ function gameUpdate()
     {
         // At the title (!isPlaying) the AI auto-steers the player snake (attract
         // mode); during a real run the human steers.
-        if (!isPlaying()) demoChooseDir(player);
+        if (!isPlaying()) chooseDir(player, true);
         else handleInput();
     }
 
@@ -929,7 +886,7 @@ function gameUpdate()
     while (stepTimer <= 0)
     {
         stepTimer += stepInterval;
-        if (versus) aiChooseDir();
+        if (versus) chooseDir(ai, false);
         tick();
         if (roundOver) break;
     }
