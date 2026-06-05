@@ -92,6 +92,7 @@ function createStars()
     // stateless seeded twinkling field (gameFx.js Starfield). twSpeed is the
     // old sin(time*[.6..1.5]) / 2π for oscillate's cycles/sec convention.
     stars = new Starfield({
+        tile: icons.circle,
         color: hsl(.6, .3, .75),
         area: vec2(BOARD_W/2 - .5, BOARD_H/2 - .5),
         count: 80,

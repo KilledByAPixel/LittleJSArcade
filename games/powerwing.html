@@ -125,6 +125,7 @@ function initStars()
     // on the dark sky read as the old hsl(0,0,brightness); drift speed is the old
     // star.speed[.5..3] * SCROLL_SPEED(2); twinkleAmp:0 = no twinkle, as before.
     stars = new Starfield({
+        tile: icons.circle,
         area: vec2(WORLD_WIDTH/2, WORLD_HEIGHT/2),
         count: 80,
         sizeMin: .02, sizeMax: .08,

@@ -618,8 +618,7 @@ function drawBackground()
     drawRect(cameraPos, view, hsl(.66,.55,.06));
 
     // starfield (two parallax layers, twinkling) — fills the whole sky
-    drawStarLayer(0.15, 2.4, 0.60, 0.14, 1, view);   // far: dense, dim
-    drawStarLayer(0.32, 3.6, 0.45, 0.22, 2, view);   // near: sparser, brighter
+    starfield.draw();
 
     drawMoon(cameraPos.x + view.x*0.30, cameraPos.y + view.y*0.28);
 
@@ -628,38 +627,18 @@ function drawBackground()
     drawRidge(0.7, hsl(.72,.38,.16), -0.12, 1.8, 0.38);
 }
 
-function starHash(x, y)
-{
-    let n = (Math.imul(x|0, 73856093) ^ Math.imul(y|0, 19349663)) >>> 0;
-    n = (n ^ 61) ^ (n >>> 16); n = Math.imul(n, 9); n ^= n >>> 4;
-    n = Math.imul(n, 0x27d4eb2d); n ^= n >>> 15;
-    return (n >>> 0) / 4294967296;
-}
-
-// One parallax star layer. par<1 scrolls slower than the foreground (distant),
-// cell = grid spacing, prob = fraction of cells that hold a star, sizeMax = max
-// star size, seed separates layers so they don't overlap identically.
-function drawStarLayer(par, cell, prob, sizeMax, seed, view)
-{
-    const ox = cameraPos.x * (1 - par);
-    const oy = cameraPos.y * (1 - par);
-    const lx = Math.floor((cameraPos.x - view.x/2 - ox)/cell) - 1;
-    const rx = Math.floor((cameraPos.x + view.x/2 - ox)/cell) + 1;
-    const by = Math.floor((cameraPos.y - view.y/2 - oy)/cell) - 1;
-    const ty = Math.floor((cameraPos.y + view.y/2 - oy)/cell) + 1;
-    for (let xi = lx; xi <= rx; ++xi)
-    for (let yi = by; yi <= ty; ++yi)
-    {
-        const h = starHash(xi*4 + seed, yi*7 - seed);
-        if (h > prob) continue;
-        const wx = (xi + starHash(xi+7, yi+3))*cell + ox;
-        const wy = (yi + starHash(xi+11, yi+5))*cell + oy;
-        const b = h/prob;                                   // 0..1 brightness ramp
-        const tw = 0.55 + 0.45*Math.sin(time*2.5 + h*40);   // twinkle
-        const size = 0.06 + b*sizeMax;
-        drawRect(vec2(wx, wy), vec2(size), hsl(.62, .12, 1, (0.45 + 0.55*b)*tw));
-    }
-}
+// Stateless seeded parallax starfield (gameFx.js Starfield) — replaces the old
+// hash-grid layers with a standard two-layer screen-space field (the game is
+// early; an exact match to the old grid isn't needed). Deep alpha twinkle.
+const starfield = new Starfield({
+    screenSpace: true,
+    color: hsl(.62, .12, 1),
+    twinkleBase: .1, twinkleAmp: .9,
+    layers: [
+        { count:180, parallax:.6,  sizeMin:1,   sizeMax:2.5, alphaMin:.45, alphaMax:1, twSpeedMin:.398, twSpeedMax:.398 }, // far: dense, dim
+        { count:70,  parallax:1.4, sizeMin:1.5, sizeMax:4,   alphaMin:.45, alphaMax:1, twSpeedMin:.398, twSpeedMax:.398 }, // near: sparser, brighter
+    ],
+});
 
 // Crescent moon: the engine's drawCrescent renders a true lune in one call.
 // percent is the moon phase (0=new, .25=quarter, .5=full); angle PI/2 swings

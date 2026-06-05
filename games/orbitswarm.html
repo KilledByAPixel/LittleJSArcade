@@ -254,7 +254,6 @@ class Fleet
 
 let stars = [];
 let nebulas = [];
-let starDrift = vec2(0, 0);
 
 // Star color temperatures (hue, saturation, lightness)
 const STAR_COLORS = [
@@ -274,35 +273,26 @@ function initStarfield()
     // Random seed for each new game
     const rng = new RandomGenerator(randInt(2147483647));
     
-    stars.length = 0;
     nebulas.length = 0;
-    starDrift = vec2(0, 0);
 
-    // Generate stars with colors
-    for (let i = 0; i < STAR_COUNT; ++i)
-    {
-        const layer = rng.int(3);
-        const speed = layer == 0 ? 1.0 : layer == 1 ? .55 : .28;
-        const size = layer == 0 ? rng.float(.10, .18) : layer == 1 ? rng.float(.07, .13) : rng.float(.04, .08);
-        const tw = rng.float(0, 6.28);
-        
-        // Most stars white, some colored
-        const colorRoll = rng.float();
-        let colorIdx = 0;
-        if (colorRoll > .92) colorIdx = rng.int(3, 9);      // 8% colored
-        else if (colorRoll > .7) colorIdx = rng.int(0, 3);  // 22% various white
-        const starColor = STAR_COLORS[colorIdx];
-
-        stars.push({
-            pos: vec2(rng.float(-STAR_FIELD_SIZE.x/2, STAR_FIELD_SIZE.x/2), rng.float(-STAR_FIELD_SIZE.y/2, STAR_FIELD_SIZE.y/2)),
-            speed: speed,
-            size: size,
-            tw: tw,
-            hue: starColor.hue,
-            sat: starColor.sat,
-            lit: starColor.lit
-        });
-    }
+    // Stars: stateless seeded field (gameFx.js Starfield) — 3 size-tier layers,
+    // mostly white with ~8% colored, gentle size twinkle. Drift dropped; the
+    // nebulas below are still hand-drawn. Drawn additively in renderStarfield.
+    stars = new Starfield({
+        seed: randInt(2147483647),
+        tile: spriteAtlas.circle,
+        area: STAR_FIELD_SIZE.scale(.5),
+        color: WHITE,
+        tints: STAR_COLORS.slice(3).map(c => hsl(c.hue, c.sat, c.lit)),
+        tintChance: .08,
+        twinkleBase: .8, twinkleAmp: .4, twinkleSize: true,
+        twSpeedMin: .255, twSpeedMax: .255,
+        layers: [
+            { count:533, sizeMin:.085, sizeMax:.15,  alphaMin:.8, alphaMax:.8 },
+            { count:533, sizeMin:.06,  sizeMax:.11,  alphaMin:.8, alphaMax:.8 },
+            { count:534, sizeMin:.034, sizeMax:.068, alphaMin:.8, alphaMax:.8 },
+        ],
+    });
 
     // Generate nebula clusters - each cluster is a group of overlapping blobs
     // This creates more realistic, cloud-like nebula structures
@@ -351,32 +341,6 @@ function initStarfield()
     nebulas.sort((a, b) => b.r - a.r);
 }
 
-function wrapInField(p)
-{
-    const hx = STAR_FIELD_SIZE.x/2;
-    const hy = STAR_FIELD_SIZE.y/2;
-    if (p.x < -hx) p.x += STAR_FIELD_SIZE.x;
-    if (p.x >  hx) p.x -= STAR_FIELD_SIZE.x;
-    if (p.y < -hy) p.y += STAR_FIELD_SIZE.y;
-    if (p.y >  hy) p.y -= STAR_FIELD_SIZE.y;
-}
-
-function updateStarfield(dt)
-{
-    starDrift = starDrift.add(vec2(rand(-.08, .08), rand(-.05, .05)).scale(dt));
-    const maxDrift = .9;
-    starDrift.x = clamp(starDrift.x, -maxDrift, maxDrift);
-    starDrift.y = clamp(starDrift.y, -maxDrift, maxDrift);
-
-    for (let i = 0; i < stars.length; ++i)
-    {
-        const s = stars[i];
-        s.tw += dt * 1.6;
-        s.pos = s.pos.add(starDrift.scale(dt * s.speed));
-        wrapInField(s.pos);
-    }
-}
-
 function renderStarfield()
 {
     // set additive blending
@@ -393,14 +357,8 @@ function renderStarfield()
         drawDotSprite(n.pos, n.r * 2, hsl(n.hue, n.sat, n.lit, n.a));
     }
 
-    // Stars using drawRect (faster than drawCircleSprite)
-    for (let i = 0; i < stars.length; ++i)
-    {
-        const s = stars[i];
-        const twinkle = 1 + Math.sin(s.tw) * .2;
-        const d = s.size * twinkle;
-        drawRect(s.pos, vec2(d, d), hsl(s.hue, s.sat, s.lit, .8));
-    }
+    // Stars (stateless gameFx.js Starfield, drawn additively here)
+    stars.draw();
 
     // set normal blending
     setBlendMode();
@@ -970,10 +928,7 @@ function gameUpdate()
     if (bindPauseKey({when: () => isPlaying() && !gameOver})) return;
 
     if (!isPlaying())
-    {
-        updateStarfield(timeDelta);
         return;
-    }
 
     // Debug toggle: show troop/defense stats on all planets
     if (keyWasPressed('KeyG'))
@@ -992,11 +947,9 @@ function gameUpdate()
     {
         if (keyWasPressed('Space') || mouseWasPressed(0))
             quitToTitleWithCleanup();
-        updateStarfield(timeDelta);
         return;
     }
 
-    updateStarfield(timeDelta);
     updateExplosionEffects(timeDelta);
     
     // track play time
