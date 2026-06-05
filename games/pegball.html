@@ -89,15 +89,17 @@ function initSounds()
 
 function createStars()
 {
-    stars = [];
-    for (let i = 0; i < 80; i++)
-        stars.push({
-            pos: vec2(rand(-BOARD_W/2 + .5, BOARD_W/2 - .5),
-                      rand(-BOARD_H/2 + .5, BOARD_H/2 - .5)),
-            phase: rand(0, PI*2),
-            speed: rand(.6, 1.5),
-            size: rand(.04, .1),
-        });
+    // stateless seeded twinkling field (gameFx.js Starfield). twSpeed is the
+    // old sin(time*[.6..1.5]) / 2π for oscillate's cycles/sec convention.
+    stars = new Starfield({
+        color: hsl(.6, .3, .75),
+        area: vec2(BOARD_W/2 - .5, BOARD_H/2 - .5),
+        count: 80,
+        sizeMin: .04, sizeMax: .1,
+        alphaMin: 1, alphaMax: 1,
+        twinkleBase: .3, twinkleAmp: .7,
+        twSpeedMin: .095, twSpeedMax: .239,
+    });
 }
 
 function resetGame()
@@ -562,12 +564,7 @@ function gameRender()
         hsl(.65, .75, .14), hsl(.62, .85, .04));
 
     // Twinkling stars
-    for (const s of stars)
-    {
-        const tw = .5 + .5 * Math.sin(time * s.speed + s.phase);
-        drawRect(s.pos, vec2(s.size, s.size),
-            hsl(.6, .3, .75, .3 + .7 * tw));
-    }
+    stars.draw();
 
     // Board frame
     const fT = .25;

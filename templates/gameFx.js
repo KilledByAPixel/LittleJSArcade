@@ -357,35 +357,44 @@ function usingGamepadInput()  { return inputDevice() === 'gamepad'; }
 // Depth via layers: pass `layers:[{count, parallax, sizeMin, sizeMax, alphaMin,
 // alphaMax, twSpeedMin, twSpeedMax, tintChance, tints:[Color,...]}, ...]`; or
 // omit `layers` and use the flat single-layer options of the same names.
+//
+// Extras: `color` sets the base star color (default WHITE). `drift` (a vec2
+// direction) + `driftSpeedMin/Max` scroll a WORLD-space field statelessly
+// (pos = base + drift*speed*time, wrapped in `area`).
 // ============================================================================
 class Starfield
 {
     constructor({
         seed = 1234, screenSpace = false, tile, area, center = vec2(),
+        color = WHITE,
         count = 150, parallax = 0,
         sizeMin = .05, sizeMax = .12, alphaMin = .6, alphaMax = 1,
         twSpeedMin = 1, twSpeedMax = 3,
         twinkleBase = .55, twinkleAmp = .45, twinkleSize = false,
         tintChance = 0, tints, layers,
+        drift, driftSpeedMin = 1, driftSpeedMax = 1,
     } = {})
     {
         this.seed        = seed || 1234;   // xorshift requires non-zero
         this.screenSpace = screenSpace;
         this.tile        = tile;
+        this.color       = color;
         this.area        = area || (screenSpace ? vec2(2000) : vec2(40, 24));
         this.center      = center;
         this.twinkleBase = twinkleBase;
         this.twinkleAmp  = twinkleAmp;
         this.twinkleSize = twinkleSize;
+        this.drift       = drift;          // vec2 dir; enables stateless scroll (world mode)
         this.layers      = layers || [{ count, parallax, sizeMin, sizeMax,
-            alphaMin, alphaMax, twSpeedMin, twSpeedMax, tintChance, tints }];
+            alphaMin, alphaMax, twSpeedMin, twSpeedMax, tintChance, tints,
+            driftSpeedMin, driftSpeedMax }];
     }
 
     draw()
     {
         const rng = new RandomGenerator(this.seed);
         const W = mainCanvasSize.x, H = mainCanvasSize.y;
-        const screen = this.screenSpace;
+        const screen = this.screenSpace, drift = this.drift;
         for (const L of this.layers)
         {
             const par = L.parallax || 0;
@@ -400,7 +409,8 @@ class Starfield
                 const twPhase = rng.float();
                 const tintRoll = rng.float();
                 const tintIdx  = tints ? rng.int(tints.length) : 0;
-                const col = (tints && tintRoll < tintChance) ? tints[tintIdx] : WHITE;
+                const dspeed   = drift ? rng.float(L.driftSpeedMax, L.driftSpeedMin) : 0;
+                const col = (tints && tintRoll < tintChance) ? tints[tintIdx] : this.color;
 
                 const tw = this.twinkleBase + this.twinkleAmp * oscillate(twSpeed, 1, time, twPhase);
                 const sz = size * (this.twinkleSize ? tw : 1);
@@ -415,8 +425,14 @@ class Starfield
                 }
                 else
                 {
-                    const wx = this.center.x + (rx*2 - 1)*this.area.x;
-                    const wy = this.center.y + (ry*2 - 1)*this.area.y;
+                    let wx = this.center.x + (rx*2 - 1)*this.area.x;
+                    let wy = this.center.y + (ry*2 - 1)*this.area.y;
+                    if (drift)
+                    {
+                        const ax = this.area.x, ay = this.area.y;
+                        wx = mod(wx + drift.x*dspeed*time - this.center.x + ax, 2*ax) + this.center.x - ax;
+                        wy = mod(wy + drift.y*dspeed*time - this.center.y + ay, 2*ay) + this.center.y - ay;
+                    }
                     if (this.tile) drawTile(vec2(wx, wy), vec2(sz), this.tile, c);
                     else           drawRect(vec2(wx, wy), vec2(sz), c);
                 }

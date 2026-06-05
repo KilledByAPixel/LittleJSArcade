@@ -111,15 +111,6 @@ let whiteFlashTimer = 0;
 let waveClearTimer = 0;       // frames since wave clear (drives the celebration banner)
 let waveStartSweep = 0;       // frames since wave started (drives the perimeter sweep)
 
-// Background drift particles (filling the dead space outside the arena)
-const driftStars = [];
-for (let i = 0; i < 50; i++)
-    driftStars.push({
-        pos: vec2(rand(-60, 60), rand(-40, 40)),
-        size: rand(.05, .15),
-        speed: rand(.008, .025),
-        phase: rand(0, 6.28),
-    });
 let playerControlLocked = true;
 
 // sfx
@@ -2661,18 +2652,6 @@ function gameUpdatePost()
 function gameRender()
 {
     drawRect(cameraPos, vec2(200), rgb(.03,.03,.04));
-
-    // === BACKGROUND DRIFT STARS === filling dead space outside the arena
-    for (const s of driftStars)
-    {
-        s.pos.y += s.speed;
-        if (s.pos.y > 35) { s.pos.y = -35; s.pos.x = rand(-60, 60); }
-        s.phase += .02;
-        // only render if outside the playfield
-        if (abs(s.pos.x) < arenaHalf.x + .5 && abs(s.pos.y) < arenaHalf.y + .5) continue;
-        const a = .25 + Math.sin(s.phase) * .15;
-        drawRect(s.pos, vec2(s.size), rgb(.55, .75, 1, a));
-    }
 
     for (let x=-arenaHalf.x; x<=arenaHalf.x; x+=1)
         drawRect(vec2(x,0), vec2(.02, arenaSize.y), rgb(.06,.06,.08));

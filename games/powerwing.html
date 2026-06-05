@@ -121,16 +121,18 @@ function spawnExplosion(pos, color, big = false)
 
 function initStars()
 {
-    stars = [];
-    for (let i = 0; i < 80; i++)
-    {
-        stars.push({
-            pos: vec2(rand(-WORLD_WIDTH/2, WORLD_WIDTH/2), rand(-WORLD_HEIGHT/2, WORLD_HEIGHT/2)),
-            speed: rand(.5, 3),
-            size: rand(.02, .08),
-            brightness: rand(.3, 1)
-        });
-    }
+    // stateless seeded left-scrolling field (gameFx.js Starfield). White stars
+    // on the dark sky read as the old hsl(0,0,brightness); drift speed is the old
+    // star.speed[.5..3] * SCROLL_SPEED(2); twinkleAmp:0 = no twinkle, as before.
+    stars = new Starfield({
+        area: vec2(WORLD_WIDTH/2, WORLD_HEIGHT/2),
+        count: 80,
+        sizeMin: .02, sizeMax: .08,
+        alphaMin: .3, alphaMax: 1,
+        twinkleBase: 1, twinkleAmp: 0,
+        drift: vec2(-1, 0),
+        driftSpeedMin: 1, driftSpeedMax: 6,
+    });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -211,26 +213,9 @@ function renderMountains()
     }
 }
 
-function updateStars(dt)
-{
-    for (const star of stars)
-    {
-        star.pos.x -= star.speed * SCROLL_SPEED * dt;
-        if (star.pos.x < -WORLD_WIDTH/2)
-        {
-            star.pos.x = WORLD_WIDTH/2;
-            star.pos.y = rand(-WORLD_HEIGHT/2, WORLD_HEIGHT/2);
-        }
-    }
-}
-
 function renderStars()
 {
-    for (const star of stars)
-    {
-        const c = hsl(0, 0, star.brightness);
-        drawRect(star.pos, vec2(star.size), c);
-    }
+    stars.draw();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1261,7 +1246,6 @@ function gameUpdate()
         return;
     }
 
-    updateStars(dt);
     updateMountains(dt);
     updatePlayer(dt);
     updateEnemies(dt);
