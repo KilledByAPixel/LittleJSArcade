@@ -87,7 +87,6 @@ const GAMES = [
     { file:'gemFighter.html',  name:'Gem Fighter',     emoji:'💢',  category:'construction', desc:'Stack gems to chain combos.',           tags:['falling','matching'],               keywords:['puzzle fighter','super puzzle fighter','street fighter puzzle'], gamepad:true },
     { file:'riverStrike.html',      name:'River Strike',    emoji:'✈️', category:'construction', desc:'Down enemy ships and collect fuel.',         scoreKey:'riverRaid.bestScore',       tags:['scrolling','classic'],            keywords:['river raid','xevious','vertical shmup'], gamepad:true },
     { file:'roboRescue.html',       name:'Robo Rescue',     emoji:'🤖',  category:'shooter',      desc:'Destroy robots and save humans.', scoreKey:'robotron.bestScore',        tags:['twin-stick','retro'],             keywords:['robotron','smash tv','twin stick','robots'], top:2, demo:true, gamepad:true },
-    { file:'musicSequencer.html',      name:'Music Sequencer',  emoji:'🎹',  category:'construction', desc:'Tap the grid to build a beat.',            tags:['music','toy'],                    keywords:['drum machine','beat maker','music tracker','step sequencer','tr-808'] },
     { file:'skiing.html',         name:'Skiing',          emoji:'⛷️', category:'construction', desc:'Carve downhill through the gates.',       scoreKey:'skiing.bestScore',          tags:['racing','retro'],                 keywords:['ski free','slalom','snow','alpine'], gamepad:true },
     { file:'skyhop.html',         name:'Skyhop',          emoji:'🦘',  category:'construction', desc:'Bounce high up the platforms.',    scoreKey:'Skyhop.bestScore',          tags:['endless','vertical'],             keywords:['doodle jump','vertical jumper','icy tower','platform climber'] },
     { file:'snake.html',          name:'Snake',           emoji:'🐍',  category:'arcade',       desc:'Eat to grow and don’t crash.',             scoreKey:'snake.bestScore',           tags:['grid','classic'],                 keywords:['snake','nokia snake','tron'], demo:true, gamepad:true },
@@ -103,6 +102,8 @@ const GAMES = [
 
     // ---- Extra games (debug-only). Finished/experimental games not yet on the
     //      main floor; the 'extra' category is gated to debug mode everywhere. ----
+
+    { file:'musicSequencer.html',      name:'Music Sequencer',  emoji:'🎹',  category:'extra', desc:'Tap the grid to build a beat.',            tags:['music','toy'],                    keywords:['drum machine','beat maker','music tracker','step sequencer','tr-808'] },
     { file:'go.html',             name:'Go',              emoji:'⚪',  category:'extra',        desc:'Surround territory on a 9×9 board.',      tags:['strategy','2-player'],            keywords:['go','baduk','weiqi','igo'] },
     { file:'captureGo.html',      name:'Capture Go',      emoji:'⭕',  category:'extra',        desc:'First to capture wins (Atari Go).',        tags:['strategy','2-player'],            keywords:['atari go','capture go','first capture','baduk'] },
     { file:'slotDemon.html',      name:'Slot Demon',      emoji:'🎰',  category:'extra',        desc:'Spin the reels and tempt fate.',          tags:['luck','casino'],                  keywords:['slots','slot machine','jackpot','gambling','fruit machine'] },
