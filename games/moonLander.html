@@ -71,7 +71,7 @@ let terrain, distFar, distMid;     // octave sets {base, arr:[{amp,freq,phase}]}
 let padX = 0, padY = TERRAIN_BASE, padWidth = 6;
 
 // background
-let stars = [];
+let starfield;   // stateless Starfield (gameFx.js), built in gameInit
 
 // Sounds
 const sfxThrust = new SoundGenerator({ volume:.18, frequency:90, release:.08, noise:.25, shapeCurve:.7, slide:-.4, randomness:.15 });
@@ -607,25 +607,20 @@ function gameInit()
     icons = initDefaultAtlas();
 
     // build a deep, layered starfield once (screen-space, parallax by depth)
-    stars = [];
-    const layers = [
-        { count:180, par:.7,  size:1.2, alpha:.45, twk:1.5, tint:.15 }, // far
-        { count:90,  par:1.8, size:1.8, alpha:.7,  twk:2.5, tint:.25 }, // mid
-        { count:40,  par:3.4, size:2.6, alpha:.95, twk:4.0, tint:.4  }, // near
-    ];
-    for (const L of layers)
-        for (let i = 0; i < L.count; ++i)
-        {
-            // a few stars get a faint blue/orange tint for variety
-            let col = rgb(1,1,1);
-            if (rand() < L.tint)
-                col = rand() < .5 ? rgb(.7,.8,1) : rgb(1,.85,.7);
-            stars.push({
-                x: rand(2000), y: rand(2000), par: L.par,
-                size: L.size*rand(1.3,.7), alpha: L.alpha*rand(1,.5),
-                twSpeed: rand(L.twk,.3), twPhase: rand(1), col,
-            });
-        }
+    // stateless seeded starfield (gameFx.js Starfield). size/alpha ranges
+    // reproduce L.size*rand(1.3,.7) and L.alpha*rand(1,.5); twSpeed range is
+    // rand(L.twk,.3); twinkleBase:.55 + twinkleAmp:.45 is the old oscillate pulse.
+    const _starTints = [rgb(.7,.8,1), rgb(1,.85,.7)];
+    starfield = new Starfield({
+        screenSpace: true,
+        area: vec2(2000),
+        twinkleBase: .55, twinkleAmp: .45,
+        layers: [
+            { count:180, parallax:.7,  sizeMin:.97,  sizeMax:1.79, alphaMin:.225, alphaMax:.45, twSpeedMin:.3, twSpeedMax:1.5, tintChance:.15, tints:_starTints }, // far
+            { count:90,  parallax:1.8, sizeMin:1.45, sizeMax:2.69, alphaMin:.35,  alphaMax:.7,  twSpeedMin:.3, twSpeedMax:2.5, tintChance:.25, tints:_starTints }, // mid
+            { count:40,  parallax:3.4, sizeMin:2.09, sizeMax:3.89, alphaMin:.475, alphaMax:.95, twSpeedMin:.3, twSpeedMax:4.0, tintChance:.4,  tints:_starTints }, // near
+        ],
+    });
 
     startLevel(1);
     buildMenus();
@@ -740,14 +735,7 @@ function renderSky()
 
 function renderStars()
 {
-    const W = mainCanvasSize.x, H = mainCanvasSize.y;
-    for (const s of stars)
-    {
-        const sx = mod(s.x - cameraPos.x*s.par, W);
-        const sy = mod(s.y + cameraPos.y*s.par, H);
-        const a = s.alpha * (.55 + .45*oscillate(s.twSpeed, 1, time, s.twPhase));
-        drawRect(vec2(sx,sy), vec2(s.size), rgb(s.col.r, s.col.g, s.col.b, a), 0, true, true);
-    }
+    starfield.draw();
 }
 
 function renderEarth()

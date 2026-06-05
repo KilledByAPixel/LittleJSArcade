@@ -327,6 +327,104 @@ function usingMouseInput()    { return inputDevice() === 'mouse'; }
 function usingKeyboardInput() { return inputDevice() === 'keyboard'; }
 function usingGamepadInput()  { return inputDevice() === 'gamepad'; }
 
+// ============================================================================
+// Starfield — STATELESS, seeded parallax/twinkle star background.
+//
+// Stores ONLY configuration — no per-star array. Each draw() reseeds a
+// RandomGenerator and re-derives every star's params in the same fixed order,
+// so the field is identical frame-to-frame (looks random, holds still) with
+// zero stored state. The only per-frame inputs are `time` (twinkle) and
+// `cameraPos` (screen-space parallax). Build once, then call draw() from
+// gameRender at the point the sky belongs (usually first, behind everything):
+//
+//   const sky = new Starfield(options);  // build once (e.g. in gameInit)
+//   sky.draw();                          // every frame, in gameRender
+//
+// Two space modes:
+//   world  (default)          stars sit at fixed world positions in the rect
+//                             center ± area (area = half-extents); drawn with
+//                             drawTile(tile) if a tile is given, else drawRect.
+//                             The camera moves over them naturally.
+//   screen (screenSpace:true) stars live in a virtual field of size `area` px
+//                             (default vec2(2000)) and wrap across the canvas,
+//                             scrolling by cameraPos × per-layer parallax.
+//
+// Twinkle is `base + amp · oscillate(speed)`: brightness (and size, if
+// twinkleSize) pulses between base and base+amp. For a plain `.55+.45*sin`
+// look (floor .1) use twinkleBase:.1, twinkleAmp:.9; the defaults give a
+// gentler .55..1 pulse.
+//
+// Depth via layers: pass `layers:[{count, parallax, sizeMin, sizeMax, alphaMin,
+// alphaMax, twSpeedMin, twSpeedMax, tintChance, tints:[Color,...]}, ...]`; or
+// omit `layers` and use the flat single-layer options of the same names.
+// ============================================================================
+class Starfield
+{
+    constructor({
+        seed = 1234, screenSpace = false, tile, area, center = vec2(),
+        count = 150, parallax = 0,
+        sizeMin = .05, sizeMax = .12, alphaMin = .6, alphaMax = 1,
+        twSpeedMin = 1, twSpeedMax = 3,
+        twinkleBase = .55, twinkleAmp = .45, twinkleSize = false,
+        tintChance = 0, tints, layers,
+    } = {})
+    {
+        this.seed        = seed || 1234;   // xorshift requires non-zero
+        this.screenSpace = screenSpace;
+        this.tile        = tile;
+        this.area        = area || (screenSpace ? vec2(2000) : vec2(40, 24));
+        this.center      = center;
+        this.twinkleBase = twinkleBase;
+        this.twinkleAmp  = twinkleAmp;
+        this.twinkleSize = twinkleSize;
+        this.layers      = layers || [{ count, parallax, sizeMin, sizeMax,
+            alphaMin, alphaMax, twSpeedMin, twSpeedMax, tintChance, tints }];
+    }
+
+    draw()
+    {
+        const rng = new RandomGenerator(this.seed);
+        const W = mainCanvasSize.x, H = mainCanvasSize.y;
+        const screen = this.screenSpace;
+        for (const L of this.layers)
+        {
+            const par = L.parallax || 0;
+            const tints = L.tints, tintChance = L.tintChance || 0;
+            for (let i = L.count; i--;)
+            {
+                // derive this star deterministically (FIXED call order)
+                const rx = rng.float(), ry = rng.float();
+                const size    = rng.float(L.sizeMax, L.sizeMin);
+                const alpha   = rng.float(L.alphaMax, L.alphaMin);
+                const twSpeed = rng.float(L.twSpeedMax, L.twSpeedMin);
+                const twPhase = rng.float();
+                const tintRoll = rng.float();
+                const tintIdx  = tints ? rng.int(tints.length) : 0;
+                const col = (tints && tintRoll < tintChance) ? tints[tintIdx] : WHITE;
+
+                const tw = this.twinkleBase + this.twinkleAmp * oscillate(twSpeed, 1, time, twPhase);
+                const sz = size * (this.twinkleSize ? tw : 1);
+                const c  = rgb(col.r, col.g, col.b, alpha * tw);
+
+                if (screen)
+                {
+                    const sx = mod(rx*this.area.x - cameraPos.x*par, W);
+                    const sy = mod(ry*this.area.y + cameraPos.y*par, H);
+                    if (this.tile) drawTile(vec2(sx, sy), vec2(sz), this.tile, c, 0, 0, undefined, undefined, true);
+                    else           drawRect(vec2(sx, sy), vec2(sz), c, 0, true, true);
+                }
+                else
+                {
+                    const wx = this.center.x + (rx*2 - 1)*this.area.x;
+                    const wy = this.center.y + (ry*2 - 1)*this.area.y;
+                    if (this.tile) drawTile(vec2(wx, wy), vec2(sz), this.tile, c);
+                    else           drawRect(vec2(wx, wy), vec2(sz), c);
+                }
+            }
+        }
+    }
+}
+
 function gameFxUpdate()
 {
     _shakeUpdate();

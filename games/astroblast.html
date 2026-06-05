@@ -97,7 +97,7 @@ let hyperTimer = new Timer();
 let ufoSpawnTimer = new Timer();
 
 // simple star field
-let stars = [];
+let starfield;   // stateless Starfield (gameFx.js), built in gameInit
 
 // default-atlas icons (name -> TileInfo); circles are drawn from the atlas
 // circle tile instead of drawCircle (one batched textured quad vs a tessellated
@@ -917,16 +917,20 @@ function gameInit()
     // Live bloom controls in the tweak panel (press ~). See templates/bloom.js.
     bloomTweaks();
 
-    // stars
-    stars = [];
-    const starCount = 210;
-    for (let i=0;i<starCount;i++)
-    {
-        // place in a slightly larger range so the edges don't feel empty
-        const p = vec2(rand(35, -35), rand(20, -20));
-        const s = rand(.05, .1);
-        stars.push({p, s, tw: rand(3, 1)});
-    }
+    // stars — stateless seeded starfield (gameFx.js Starfield).
+    // area/size match the old rand() field; twinkleBase:.1 + twinkleAmp:.9
+    // reproduces the old .55+.45*sin (.1..1) pulse on size+alpha.
+    starfield = new Starfield({
+        tile: atlasIcons.circle,
+        area: vec2(35, 20),
+        count: 280,
+        sizeMin: .05, sizeMax: .1,
+        alphaMin: .65, alphaMax: .65,
+        // oscillate() is cycles/sec; old sin(time*[1..3]) / 2π keeps the slow pulse
+        twSpeedMin: .16, twSpeedMax: .48,
+        twinkleBase: .1, twinkleAmp: .9,
+        twinkleSize: true,
+    });
 
     setSoundVolume(.8);
     installAutoPause(() => isPlaying());   // title screen stays live so the attract rocks keep tumbling
@@ -1233,11 +1237,7 @@ function gameRender()
     drawRect(cameraPos, worldSize.scale(1.2), rgb(.02,.02,.03), 0);
 
     // stars
-    for (const s of stars)
-    {
-        const twinkle = .55 + .45*Math.sin((time*s.tw) + s.p.x*1.7);
-        drawTile(s.p, vec2(s.s*twinkle*CIRCLE_FIT), atlasIcons.circle, rgb(1,1,1, .65*twinkle));
-    }
+    starfield.draw();
 
     // faint border
     const w = worldHalf.x, h = worldHalf.y;
