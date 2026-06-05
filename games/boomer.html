@@ -445,21 +445,7 @@ function updateBombs(dt) {
 
 function drawSkyAndStars() {
     drawRect(vec2(0, 0), vec2(120, 60), hsl(.66, .35, .08));
-    // timeReal keeps advancing through pause/title; `time` doesn't.
-    // Three layers drift at different speeds for parallax depth.
-    const layerSpeed = [0.25, 0.55, 1.1];
-    const layerBright = [0.5, 0.75, 1.0];
-    const W = 70;
-    for (const s of starField) {
-        const drift = timeReal * layerSpeed[s.layer];
-        const x = ((s.x0 - drift) % W + W * 1.5) % W - W/2;
-        const tw = 0.5 + 0.5 * Math.sin(timeReal * 2 + s.phase);
-        const b = layerBright[s.layer];
-        const col = hsl(0, 0, b * (0.6 + 0.4 * tw), 0.5 + 0.5 * tw);
-        const ang = s.spin ? timeReal * s.spin : 0;
-        // Star sprites pop on the dark sky and twinkle.
-        drawRect(vec2(x, s.y), vec2(.1*s.size * (3.6 + tw * 0.8)), col, ang);
-    }
+    starField.draw();
 }
 
 function drawBuilding() {
@@ -742,25 +728,24 @@ async function gameInit() {
     sfxBucketUp = new SoundGenerator({ frequency: 660, release: 0.2, volume: 0.7, slide: 3, shapeCurve: 0.7 });
 
     // ---- stable backdrop seeds ----
-    // Three parallax layers; near layer drifts fastest. Wrap-around width
-    // chosen larger than any reasonable visible width so stars are always
-    // present off-screen and slide in continuously.
-    starField = [];
-    const STAR_BAND_W = 70;       // wrap-around extent for drift
-    for (let i = 0; i < 150; i++) {
-        const layer = i % 3;
-        // Most stars are round dots; a sprinkling are 5-point stars / 4-point
-        // sparkles that slowly rotate for a twinkly night sky.
-        const roll = rand();
-        starField.push({
-            x0: rand(-STAR_BAND_W/2, STAR_BAND_W/2),
-            y: rand(-11, 13),       // fill sky all the way down to the ground line
-            size: 0.06 + layer * 0.06 + rand(0, 0.05),
-            phase: rand(0, PI * 2),
-            layer,
-            spin: rand(-0.5, 0.5),
-        });
-    }
+    // Stateless seeded night sky (gameFx.js Starfield): 3 left-drifting parallax
+    // layers, per-star spin (rotating squares), unpaused so it animates at the
+    // title. White-on-dark grayscale; the old lightness+alpha twinkle is folded
+    // into one alpha pulse (.3..1 x per-layer brightness). Wraps in x = +/-35.
+    starField = new Starfield({
+        unpaused: true,
+        color: WHITE,
+        center: vec2(0, 1),
+        area: vec2(35, 12),
+        drift: vec2(-1, 0),
+        spinMin: -0.5, spinMax: 0.5,
+        twinkleBase: 0.3, twinkleAmp: 0.7,
+        layers: [
+            { count:50, driftSpeedMin:.25, driftSpeedMax:.25, alphaMin:.5,  alphaMax:.5,  sizeMin:.048, sizeMax:.088, twSpeedMin:.318, twSpeedMax:.318 }, // far
+            { count:50, driftSpeedMin:.55, driftSpeedMax:.55, alphaMin:.75, alphaMax:.75, sizeMin:.096, sizeMax:.136, twSpeedMin:.318, twSpeedMax:.318 }, // mid
+            { count:50, driftSpeedMin:1.1, driftSpeedMax:1.1, alphaMin:1,   alphaMax:1,   sizeMin:.144, sizeMax:.184, twSpeedMin:.318, twSpeedMax:.318 }, // near
+        ],
+    });
 
     // ---- foreground silhouettes on the sides of the building ----
     // Stable positions/sizes so the skyline doesn't change between frames.

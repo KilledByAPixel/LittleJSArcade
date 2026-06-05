@@ -360,7 +360,9 @@ function usingGamepadInput()  { return inputDevice() === 'gamepad'; }
 //
 // Extras: `color` sets the base star color (default WHITE). `drift` (a vec2
 // direction) + `driftSpeedMin/Max` scroll a WORLD-space field statelessly
-// (pos = base + drift*speed*time, wrapped in `area`).
+// (pos = base + drift*speed*time, wrapped in `area`). `spinMin/Max` rotate each
+// star (angle = spin*t). `unpaused:true` animates from `timeReal` instead of
+// `time`, so a title/paused backdrop keeps moving.
 // ============================================================================
 class Starfield
 {
@@ -373,6 +375,7 @@ class Starfield
         twinkleBase = .55, twinkleAmp = .45, twinkleSize = false,
         tintChance = 0, tints, layers,
         drift, driftSpeedMin = 1, driftSpeedMax = 1,
+        spinMin = 0, spinMax = 0, unpaused = false,
     } = {})
     {
         this.seed        = seed || 1234;   // xorshift requires non-zero
@@ -385,6 +388,10 @@ class Starfield
         this.twinkleAmp  = twinkleAmp;
         this.twinkleSize = twinkleSize;
         this.drift       = drift;          // vec2 dir; enables stateless scroll (world mode)
+        this.spin        = !!(spinMin || spinMax);
+        this.spinMin     = spinMin;
+        this.spinMax     = spinMax;
+        this.unpaused    = unpaused;       // animate from timeReal (runs while paused)
         this.layers      = layers || [{ count, parallax, sizeMin, sizeMax,
             alphaMin, alphaMax, twSpeedMin, twSpeedMax, tintChance, tints,
             driftSpeedMin, driftSpeedMax }];
@@ -394,7 +401,8 @@ class Starfield
     {
         const rng = new RandomGenerator(this.seed);
         const W = mainCanvasSize.x, H = mainCanvasSize.y;
-        const screen = this.screenSpace, drift = this.drift;
+        const screen = this.screenSpace, drift = this.drift, spin = this.spin;
+        const t = this.unpaused ? timeReal : time;
         for (const L of this.layers)
         {
             const par = L.parallax || 0;
@@ -410,18 +418,20 @@ class Starfield
                 const tintRoll = rng.float();
                 const tintIdx  = tints ? rng.int(tints.length) : 0;
                 const dspeed   = drift ? rng.float(L.driftSpeedMax, L.driftSpeedMin) : 0;
+                const spinVal  = spin ? rng.float(this.spinMax, this.spinMin) : 0;
                 const col = (tints && tintRoll < tintChance) ? tints[tintIdx] : this.color;
 
-                const tw = this.twinkleBase + this.twinkleAmp * oscillate(twSpeed, 1, time, twPhase);
+                const tw = this.twinkleBase + this.twinkleAmp * oscillate(twSpeed, 1, t, twPhase);
                 const sz = size * (this.twinkleSize ? tw : 1);
                 const c  = rgb(col.r, col.g, col.b, alpha * tw);
+                const ang = spinVal * t;
 
                 if (screen)
                 {
                     const sx = mod(rx*this.area.x - cameraPos.x*par, W);
                     const sy = mod(ry*this.area.y + cameraPos.y*par, H);
-                    if (this.tile) drawTile(vec2(sx, sy), vec2(sz), this.tile, c, 0, 0, undefined, undefined, true);
-                    else           drawRect(vec2(sx, sy), vec2(sz), c, 0, true, true);
+                    if (this.tile) drawTile(vec2(sx, sy), vec2(sz), this.tile, c, ang, 0, undefined, undefined, true);
+                    else           drawRect(vec2(sx, sy), vec2(sz), c, ang, true, true);
                 }
                 else
                 {
@@ -430,11 +440,11 @@ class Starfield
                     if (drift)
                     {
                         const ax = this.area.x, ay = this.area.y;
-                        wx = mod(wx + drift.x*dspeed*time - this.center.x + ax, 2*ax) + this.center.x - ax;
-                        wy = mod(wy + drift.y*dspeed*time - this.center.y + ay, 2*ay) + this.center.y - ay;
+                        wx = mod(wx + drift.x*dspeed*t - this.center.x + ax, 2*ax) + this.center.x - ax;
+                        wy = mod(wy + drift.y*dspeed*t - this.center.y + ay, 2*ay) + this.center.y - ay;
                     }
-                    if (this.tile) drawTile(vec2(wx, wy), vec2(sz), this.tile, c);
-                    else           drawRect(vec2(wx, wy), vec2(sz), c);
+                    if (this.tile) drawTile(vec2(wx, wy), vec2(sz), this.tile, c, ang);
+                    else           drawRect(vec2(wx, wy), vec2(sz), c, ang);
                 }
             }
         }
