@@ -67,5 +67,6 @@
         canvasMaxSize = vec2(2048);
         canvasMinAspect = .4;
         canvasMaxAspect = 2.5;
+        setCanvasPixelRatio();
     <\/script>`);
 }
