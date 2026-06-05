@@ -2433,8 +2433,8 @@ button.ljs-grid-cell { cursor: pointer; }
    bar. Landscape hides the bar, and desktop/Safari never get the class. */
 @media (orientation: portrait) {
     html.ios-topbar .ljs-menu-toolbar.anchor-top-left,
-    html.ios-topbar .ljs-menu-toolbar.anchor-top-right { top: 48px; }
-    html.ios-topbar .ljs-orient-panel-btn { top: 48px; }
+    html.ios-topbar .ljs-menu-toolbar.anchor-top-right { top: 30px; }
+    html.ios-topbar .ljs-orient-panel-btn { top: 30px; }
 }
 .ljs-menu-toolbar button {
     /* font-size stays at 1em so the em-based width/height resolve against
