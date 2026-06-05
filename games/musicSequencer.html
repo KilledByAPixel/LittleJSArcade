@@ -37,7 +37,15 @@ const buttonSize = vec2(68, 28);
 // Center labels+grid on the canvas; X shifted right half a button so the label column (step=-1) stays on-screen.
 const gridOrigin = vec2(buttonSize.x * (1 - stepCount/2), buttonSize.y * (0.5 - trackCount/2));
 const customSlotCount = 4, drumCount = 4;
-const customSounds = [null, null, null, null];
+const customSounds = [null, null, null, null];        // zzfx param arrays per slot
+const customSoundObjects = [null, null, null, null];  // cached Sound objects, rebuilt on change
+// Build each custom slot's Sound ONCE and replay it; the engine Sound supports
+// many overlapping voices, so there's no need to reconstruct it per playback tick.
+function setCustomSound(slot, params)
+{
+    customSounds[slot] = params || null;
+    customSoundObjects[slot] = params ? new Sound(params) : null;
+}
 let currentStep = 0, stepTime = 0, tempo = 240;
 let currentSlot = 0;
 let eraseMode = false;
@@ -226,10 +234,7 @@ class UISequencerButton extends UIButton
     getSound()
     {
         if (this.kind === 'custom')
-        {
-            const params = customSounds[this.track];
-            return params ? new Sound(params) : null;
-        }
+            return customSoundObjects[this.track];   // cached; rebuilt by setCustomSound
         return this.builtInSound;
     }
     playSound()
@@ -283,14 +288,14 @@ function pasteSave()
 {
     const arr = pasteTryParse();
     if (!arr) return;
-    customSounds[currentSlot] = arr;
+    setCustomSound(currentSlot, arr);
     scheduleSave();
     hideMenu('paste');
 }
 
 function pasteClearSlot()
 {
-    customSounds[currentSlot] = null;
+    setCustomSound(currentSlot, null);
     scheduleSave();
     hideMenu('paste');
 }
@@ -358,7 +363,7 @@ function gameInit()
     {
         tempo = saved.tempo;
         for (let i = 0; i < customSlotCount; i++)
-            customSounds[i] = saved.customSounds[i] || null;
+            setCustomSound(i, saved.customSounds[i]);
     }
 
     for (let step=stepCount; step--;)
