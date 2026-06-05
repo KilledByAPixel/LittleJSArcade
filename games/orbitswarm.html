@@ -925,7 +925,8 @@ function buildMenus()
 
     setMenuTheme({accent:'#33ccff', font:'"Lucida Console", Monaco, monospace'});
     createTitleMenu({
-        title: '',     // canvas draws ORBITSWARM
+        title: 'ORBITSWARM',
+        titleFx: 'neon',
         subtitle: '',
         playLabel: 'EASY',
         onPlay: () => startGame('easy'),
@@ -1140,21 +1141,10 @@ function gameRender()
 
 function gameRenderPost()
 {
+    // Title screen shows only the animated backdrop (drawTitleDecor in gameRender);
+    // the menu now owns the ORBITSWARM title text.
     if (!isPlaying())
-    {
-        const cx = mainCanvasSize.x/2;
-        const cy = mainCanvasSize.y/2;
-
-        // Pulsing title effect
-        const t = time;
-        const huePulse = .4 + Math.sin(t * 1.8) * .08;
-
-        // Glow layers behind title (centered, sits above the menu panel)
-        for(let i = 0; i < 9; ++i)
-            drawTextScreen('ORBITSWARM', vec2(cx, cy - 180-i*8), 110 + Math.sin(t * 2.5+i) * 2+i*3, hsl(huePulse+i*.1, 1, i/11), 0, BLACK, undefined,undefined, 'bold');
-
         return;
-    }
 
     // Simple HUD - controls at bottom
     const cx = mainCanvasSize.x / 2;
