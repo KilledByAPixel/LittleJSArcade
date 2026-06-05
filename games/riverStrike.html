@@ -119,8 +119,7 @@ function riverAtY(y)
 
 function aabbOverlap(posA, sizeA, posB, sizeB)
 {
-    return abs(posA.x - posB.x) * 2 < (sizeA.x + sizeB.x)
-        && abs(posA.y - posB.y) * 2 < (sizeA.y + sizeB.y);
+    return isOverlapping(posA, sizeA, posB, sizeB);
 }
 
 function spawnObject(type, pos, size, extra={})

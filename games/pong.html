@@ -139,8 +139,7 @@ function spawnHitBurst(pos, color)
 
 function aabbOverlap(posA, sizeA, posB, sizeB)
 {
-        return abs(posA.x - posB.x) < (sizeA.x + sizeB.x) * .5 &&
-                      abs(posA.y - posB.y) < (sizeA.y + sizeB.y) * .5;
+    return isOverlapping(posA, sizeA, posB, sizeB);
 }
 
 function clampPaddleY(p)

@@ -182,8 +182,7 @@ function clampFrogGrid(g) {
 }
 
 function overlapAABB(posA, sizeA, posB, sizeB) {
-    return abs(posA.x - posB.x) < (sizeA.x + sizeB.x)/2 &&
-           abs(posA.y - posB.y) < (sizeA.y + sizeB.y)/2;
+    return isOverlapping(posA, sizeA, posB, sizeB);
 }
 
 function resetRun(full=false) {
