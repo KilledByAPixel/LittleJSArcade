@@ -173,7 +173,7 @@ class Player
     spawnSnowSpray()
     {
         const count = 2;
-        const backDir = vec2(Math.cos(this.angle + PI), Math.sin(this.angle + PI));
+        const backDir = vec2(cos(this.angle + PI), sin(this.angle + PI));
         
         for (let i = 0; i < count; i++)
         {
@@ -196,17 +196,17 @@ class Player
         if (this.crashed) return;
         this.crashed = true;
         gameState = 'crashed';
-        submitBestScore(Math.floor(distance));
+        submitBestScore(floor(distance));
         sfxCrash && sfxCrash.play(this.pos);
 
         // crash particles
         for (let i = 0; i < 30; i++)
         {
-            const angle = rand(0, Math.PI * 2);
+            const angle = rand(0, PI * 2);
             const speed = rand(4, 12);
             particles.push({
                 pos: this.pos.copy(),
-                vel: vec2(Math.cos(angle), Math.sin(angle)).scale(speed),
+                vel: vec2(cos(angle), sin(angle)).scale(speed),
                 life: rand(.5, 1.2),
                 maxLife: 1.2,
                 size: rand(.2, .4),

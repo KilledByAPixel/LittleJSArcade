@@ -104,7 +104,7 @@ function inStrikeZone(p)
 function inFairTerritory(p)
 {
     // fair = angle from +X is between 45° and 135° (north-pointing wedge)
-    const a = Math.atan2(p.y, p.x);
+    const a = atan2(p.y, p.x);
     return a > PI/2 - foulAngleHalf && a < PI/2 + foulAngleHalf;
 }
 

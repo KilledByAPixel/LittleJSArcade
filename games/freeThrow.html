@@ -151,7 +151,7 @@ function getRackBallPose()
     const u = clamp(rackAnim.t / RACK_TRANSIT, 0, 1);
     const e = 1 - (1 - u) * (1 - u);                // ease-out
     const flat = RACK_START_POS.lerp(SPAWN_POS, e);
-    const arc  = Math.sin(e * Math.PI) * 1.4;       // up-and-over bump
+    const arc  = sin(e * PI) * 1.4;       // up-and-over bump
     const dist = SPAWN_POS.x - RACK_START_POS.x;
     return { pos: vec2(flat.x, flat.y + arc), rot: -e * dist * 1.1 };
 }
@@ -401,7 +401,7 @@ function updateHoopMotion()
     const t = clamp(hoopElapsed / TIME_LIMIT, 0, 1);
     const amp  = 1.2 + t * 1.8;   // 1.2 → 3.0
     const freq = 0.7 + t * 1.2;   // 0.7 → 1.9
-    hoopOffsetX = Math.sin(hoopElapsed * freq) * amp;
+    hoopOffsetX = sin(hoopElapsed * freq) * amp;
 }
 
 //------------------------------------------------------------------------------
@@ -513,7 +513,7 @@ function demoLaunch()
     const ft = clamp(futureElapsed / TIME_LIMIT, 0, 1);
     const famp = 1.2 + ft * 1.8;
     const ffreq = 0.7 + ft * 1.2;
-    const targetX = HOOP_BASE_X + Math.sin(futureElapsed * ffreq) * famp;
+    const targetX = HOOP_BASE_X + sin(futureElapsed * ffreq) * famp;
 
     const dx = targetX - SPAWN_POS.x;
     const dy = HOOP_Y - SPAWN_POS.y;
@@ -727,7 +727,7 @@ function drawHoopAssembly()
 function drawBasketball(pos, rot)
 {
     const r  = BALL_RADIUS;
-    const cs = Math.cos(rot), sn = Math.sin(rot);
+    const cs = cos(rot), sn = sin(rot);
 
     // body (dark rim + orange fill)
     drawTile(pos, vec2(r * 2 + .07), icons.circle, COLOR_BALL_DK);
@@ -755,9 +755,9 @@ function drawBasketball(pos, rot)
         for (let i = 0; i <= N; i++)
         {
             const t = i / N;
-            const ang = t * Math.PI - Math.PI / 2;
-            const lx = sign * halfWidth * Math.cos(ang);
-            const ly = r * .94 * Math.sin(ang);
+            const ang = t * PI - PI / 2;
+            const lx = sign * halfWidth * cos(ang);
+            const ly = r * .94 * sin(ang);
             const x = lx * cs - ly * sn;
             const y = lx * sn + ly * cs;
             const p = pos.add(vec2(x, y));
@@ -826,7 +826,7 @@ function gameRenderPost()
             drawTextScreen(`${score}`, vec2(c.x/2, 56), 60, hsl(0,0,1), 4, hsl(0,0,0));
 
             // time (top right area, but offset from HUD toolbar)
-            const tStr = Math.ceil(timeLeft).toString().padStart(2, '0');
+            const tStr = ceil(timeLeft).toString().padStart(2, '0');
             const tColor = timeLeft < 10 ? hsl(.02, .9, .65) : hsl(.13, .9, .65);
             drawTextScreen(`0:${tStr}`, vec2(c.x/2, 100), 28, tColor, 3, hsl(0,0,0));
         }

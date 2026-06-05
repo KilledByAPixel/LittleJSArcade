@@ -261,7 +261,7 @@ function checkScoring()
         {
             const slotWidth = BOARD_WIDTH / SLOT_COUNT;
             const idx = clamp(
-                Math.floor((b.pos.x + BOARD_WIDTH/2) / slotWidth),
+                floor((b.pos.x + BOARD_WIDTH/2) / slotWidth),
                 0, SLOT_COUNT - 1);
             const slot = slots[idx];
             score += slot.value;
@@ -307,7 +307,7 @@ function checkScoring()
     }
 
     // award a fresh ball for every BALL_PER_BONUS points reached
-    const earned = Math.floor(score / BALL_PER_BONUS);
+    const earned = floor(score / BALL_PER_BONUS);
     while (bonusBalls < earned)
     {
         bonusBalls++;
@@ -582,7 +582,7 @@ function gameRender()
     
     // Aim guide — dotted line + ball preview at top of the board.
     const aimClamped = clamp(aimX, -BOARD_WIDTH/2 + 1, BOARD_WIDTH/2 - 1);
-    const a = .35 + .2 * Math.sin(time * 4);
+    const a = .35 + .2 * sin(time * 4);
     drawLine(vec2(aimClamped, DROP_LINE_Y - 1),
              vec2(aimClamped, DROP_LINE_Y - 3),
              .12, hsl(.13, .9, .7, a));
@@ -624,7 +624,7 @@ function gameRenderPost()
     {
         // Pre-play prompt — pulses to invite a click.
         const prompt = isTouchDevice ? 'TOUCH TO PLAY' : 'CLICK TO PLAY';
-        const aPulse = 0.5 + 0.5 * Math.sin(time * 3);
+        const aPulse = 0.5 + 0.5 * sin(time * 3);
         drawTextScreen(prompt,
             vec2(mainCanvasSize.x/2, mainCanvasSize.y/2),
             48, hsl(0, 0, 1, aPulse), 6, hsl(0, 0, 0, aPulse));

@@ -110,10 +110,10 @@ const CIRCLE_FIT = 1.0;
 // ============================================================
 // Helpers
 // ============================================================
-const TAU = Math.PI * 2;
+const TAU = PI * 2;
 const clamp01 = (v)=> clamp(v, 0, 1);
 
-function angleToVec(a) { return vec2(Math.sin(a), Math.cos(a)); } // up is 0 in LittleJS style
+function angleToVec(a) { return vec2(sin(a), cos(a)); } // up is 0 in LittleJS style
 
 // Shortest delta between two points in the wrapped (toroidal) world — used by
 // the demo AI to aim/dodge across the screen seams.
@@ -328,7 +328,7 @@ function addScore(points)
 
 function explodeAt(pos, intensity=1)
 {
-    const pieces = Math.floor(10 + 18*intensity);
+    const pieces = floor(10 + 18*intensity);
     for (let i=0;i<pieces;i++)
     {
         const a = rand(TAU);
@@ -452,18 +452,18 @@ class Ship extends EngineObject
             if (td < danger)
             {
                 dodge = true;                                  // too close — face away + thrust
-                aimAngle = Math.atan2(-tdelta.x, -tdelta.y);
+                aimAngle = atan2(-tdelta.x, -tdelta.y);
             }
             else
             {
                 const lead = clamp(td / BULLET_SPEED, 0, 60);  // lead the rock's drift
                 const aim = tdelta.add(target.velocity.scale(lead));
-                aimAngle = Math.atan2(aim.x, aim.y);
+                aimAngle = atan2(aim.x, aim.y);
             }
         }
 
         // rotate toward the aim, capped by turn speed
-        const diff = Math.atan2(Math.sin(aimAngle - this.angle), Math.cos(aimAngle - this.angle));
+        const diff = atan2(sin(aimAngle - this.angle), cos(aimAngle - this.angle));
         this.angle += clamp(diff, -SHIP_TURN_SPEED, SHIP_TURN_SPEED);
         const aligned = abs(diff) < .22;
 
@@ -529,7 +529,7 @@ class Ship extends EngineObject
 
         const col = rgb(1,1,1);
         const dir = angleToVec(this.angle);
-        const right = angleToVec(this.angle - Math.PI/2);
+        const right = angleToVec(this.angle - PI/2);
 
         drawWrapped(this.pos, SHIP_RADIUS*1.5, c =>
         {
@@ -603,7 +603,7 @@ class Rock extends EngineObject
         {
             const a = (i/verts)*TAU;
             const rr = r * rand(1.05, .65);
-            this.points.push(vec2(Math.sin(a)*rr, Math.cos(a)*rr));
+            this.points.push(vec2(sin(a)*rr, cos(a)*rr));
         }
 
         rocks.push(this);
@@ -781,15 +781,15 @@ class Ufo extends EngineObject
             const noise = (1 - accuracy) * .55;
             const jitter = rand(-noise, noise);
             aim = vec2(
-                aim.x * Math.cos(jitter) - aim.y * Math.sin(jitter),
-                aim.x * Math.sin(jitter) + aim.y * Math.cos(jitter)
+                aim.x * cos(jitter) - aim.y * sin(jitter),
+                aim.x * sin(jitter) + aim.y * cos(jitter)
             );
         }
         else
         {
             // large UFO: random direction
             const a = rand(TAU);
-            aim = vec2(Math.sin(a), Math.cos(a));
+            aim = vec2(sin(a), cos(a));
         }
         const v = aim.scale(.19);
         new UfoBullet(this.pos.add(aim.scale(this.r * 1.1)), v);
@@ -1243,7 +1243,7 @@ function gameRenderPost()
     if (!isPlaying() || inCabinet) return; // no HUD on the title or the cabinet demo
 
     // HUD
-    const hud = `SCORE  ${score}\nLIVES  ${Math.max(0,lives)}   LEVEL  ${level}`;
+    const hud = `SCORE  ${score}\nLIVES  ${max(0,lives)}   LEVEL  ${level}`;
     drawTextScreen(hud, vec2(20, 56), 44, rgb(1,1,1), 3, rgb(0,0,0), 'left', 'monospace');
 
     if (gameOver)

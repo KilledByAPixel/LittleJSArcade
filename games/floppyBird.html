@@ -250,7 +250,7 @@ function killBird()
 // rotate a Vector2 by angle (radians) using LittleJS clockwise-positive convention
 function rotateVec(v, a)
 {
-    const c = Math.cos(a), s = Math.sin(a);
+    const c = cos(a), s = sin(a);
     return vec2(v.x*c + v.y*s, -v.x*s + v.y*c);
 }
 
@@ -260,12 +260,12 @@ function scaleVec(v, s)
 }
 
 function lerp(a,b,t){ return a + (b-a)*t; }
-function frac(x){ return x - Math.floor(x); }
+function frac(x){ return x - floor(x); }
 
 // deterministic 1D noise in [-1,1]
 function noise1(x, seed)
 {
-    return frac(Math.sin(x*12.9898 + seed*78.233) * 43758.5453) * 2 - 1;
+    return frac(sin(x*12.9898 + seed*78.233) * 43758.5453) * 2 - 1;
 }
 
 function skyShiftT()
@@ -495,7 +495,7 @@ function drawGrass()
                 const x = t.x + off + k*L.wrap;
                 if (x < vMin || x > vMax) continue; // cull offscreen tufts
                 // a single upward triangle blade, swayed by a small tilt angle
-                const sway = Math.sin(time*1.6 + t.ph + x*.25) * .18;
+                const sway = sin(time*1.6 + t.ph + x*.25) * .18;
                 const bladeW = t.w*2.6 + .12;
                 drawTile(vec2(x, L.y), vec2(bladeW, t.h*ICON_FILL),
                     atlasIcons.triangle, t.c, sway);
@@ -710,7 +710,7 @@ function gameUpdate()
     // idle bob in ready
     if (state === STATE_READY)
     {
-        birdPos.y = Math.sin(time*3)*.6;
+        birdPos.y = sin(time*3)*.6;
         return;
     }
 
@@ -913,7 +913,7 @@ function gameRender()
         }
 
         // wing (droplet swept back behind the body, flapping)
-        const wingLocal = vec2(-.1, -0.05 + Math.sin(time*18)*.06);
+        const wingLocal = vec2(-.1, -0.05 + sin(time*18)*.06);
         const wingPos = birdPos.add(rotateVec(wingLocal, tilt));
         const wingAngle = tilt - PI/2; // point the droplet tip backward (-x local)
         drawTile(wingPos, vec2(.5,.7), atlasIcons.droplet, birdWing, wingAngle);

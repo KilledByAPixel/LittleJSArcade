@@ -238,7 +238,7 @@ function killPlayer()
         const sp = rand(.45, .15);
         particles.push({
             pos: player.pos.add(randVec2(.2)),
-            vel: vec2(Math.cos(a), Math.sin(a)).scale(sp).add(vec2(0, .15)),
+            vel: vec2(cos(a), sin(a)).scale(sp).add(vec2(0, .15)),
             life: rand(55, 35),
             maxLife: 55,
             size: rand(.30, .14),
@@ -254,7 +254,7 @@ function killPlayer()
         const sp = rand(.55, .25);
         particles.push({
             pos: player.pos.copy(),
-            vel: vec2(Math.cos(a), Math.sin(a)).scale(sp),
+            vel: vec2(cos(a), sin(a)).scale(sp),
             life: rand(28, 14),
             maxLife: 28,
             size: rand(.12, .05),
@@ -289,7 +289,7 @@ function winGame()
         const sp = rand(.6, .2);
         particles.push({
             pos: player.pos.add(randVec2(.3)),
-            vel: vec2(Math.cos(a), Math.sin(a)).scale(sp).add(vec2(0, .25)),
+            vel: vec2(cos(a), sin(a)).scale(sp).add(vec2(0, .25)),
             life: rand(70, 40),
             maxLife: 70,
             size: rand(.22, .10),
@@ -336,7 +336,7 @@ function spawnDust(pos, count, spread, hue=.62)
         const sp = rand(spread, spread*.3);
         particles.push({
             pos: pos.add(randVec2(.15)),
-            vel: vec2(Math.cos(a), Math.sin(a)*.6 + .04).scale(sp),
+            vel: vec2(cos(a), sin(a)*.6 + .04).scale(sp),
             life: rand(22, 12),
             maxLife: 22,
             size: rand(.16, .07),
@@ -501,7 +501,7 @@ function playerStep()
     else
     {
         // ease toward nearest 90° multiple
-        const target = Math.round(player.angle / (PI/2)) * (PI/2);
+        const target = round(player.angle / (PI/2)) * (PI/2);
         player.angle = lerpAngle(player.angle, target, .35);
     }
 }
@@ -521,7 +521,7 @@ function demoWantsJump()
     const standY = player.pos.y - PLAYER_SIZE.y/2;   // bottom of the cube right now
     for (const s of spikes)
     {
-        if (Math.abs(s.y - standY) > .6) continue;   // spike must sit at roughly our feet
+        if (abs(s.y - standY) > .6) continue;   // spike must sit at roughly our feet
         const gap = s.x - px;
         if (gap >= 0 && gap < lead)
             return true;
@@ -586,14 +586,14 @@ function drawBackground()
     const camSize = getCameraSize();
 
     // clean dark sky: slow beat pulse + gentle hue drift around the level palette
-    const pulse = .05 + .025 * (Math.sin(time * 2.4) * .5 + .5);
-    const hue = pal.bg + .04 * Math.sin(time * .15);
+    const pulse = .05 + .025 * (sin(time * 2.4) * .5 + .5);
+    const hue = pal.bg + .04 * sin(time * .15);
     drawRect(cameraPos, camSize.scale(1.05), hsl(hue, .5, pulse));
 
     // slight grid, sky only (the floor draws on top so the grid stops at the ground line)
-    const left  = Math.floor(cameraPos.x - camSize.x/2) - 1;
-    const right = Math.ceil(cameraPos.x + camSize.x/2) + 1;
-    const top   = Math.ceil(cameraPos.y + camSize.y/2) + 1;
+    const left  = floor(cameraPos.x - camSize.x/2) - 1;
+    const right = ceil(cameraPos.x + camSize.x/2) + 1;
+    const top   = ceil(cameraPos.y + camSize.y/2) + 1;
     const gridColor = hsl(0, 0, 1, .06);
     for (let x = left; x <= right; ++x)
         drawLine(vec2(x, 0), vec2(x, top), .025, gridColor);
@@ -614,7 +614,7 @@ function drawFloor()
     drawRect(vec2(centerX, -depth/2), vec2(w, depth), hsl(pal.block, .45, .2));
 
     // world-anchored vertical lines scroll past the camera for a speed cue
-    for (let gx = Math.floor(left); gx <= Math.ceil(right); ++gx)
+    for (let gx = floor(left); gx <= ceil(right); ++gx)
         drawLine(vec2(gx, 0), vec2(gx, -4), .04, hsl(pal.block, .5, .35, .12));
 
     // glowing top edge: tinted glow then a crisp white lip
@@ -658,7 +658,7 @@ function drawTrail()
 
 function drawFinish()
 {
-    const pulse = .5 + .5*Math.sin(time*4);
+    const pulse = .5 + .5*sin(time*4);
 
     // glowing goal portal at the end of the level (drawn behind the floor so its base tucks under the ground)
     for (let i=4; i>=1; --i)

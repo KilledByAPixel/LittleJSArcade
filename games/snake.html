@@ -228,7 +228,7 @@ function spawnParticles(worldPos, color, count, speedMin, speedMax, life=.6)
         const speed = rand(speedMin, speedMax);
         particles.push({
             pos: worldPos.add(vec2(rand(-.15,.15), rand(-.15,.15))),
-            vel: vec2(Math.cos(a), Math.sin(a)).scale(speed),
+            vel: vec2(cos(a), sin(a)).scale(speed),
             life: life * rand(.7, 1.1),
             lifeMax: life,
             size: rand(.10, .22),
@@ -265,13 +265,13 @@ function renderParticles()
 function drawTimerRing(center, radius, frac, color)
 {
     const segs = 40;
-    const n = Math.ceil(segs * clamp(frac, 0, 1));
+    const n = ceil(segs * clamp(frac, 0, 1));
     for (let i=0; i<n; ++i)
     {
         const a0 = -PI/2 + (i  /segs) * PI*2;
         const a1 = -PI/2 + ((i+1)/segs) * PI*2;
-        const p0 = center.add(vec2(Math.cos(a0), Math.sin(a0)).scale(radius));
-        const p1 = center.add(vec2(Math.cos(a1), Math.sin(a1)).scale(radius));
+        const p0 = center.add(vec2(cos(a0), sin(a0)).scale(radius));
+        const p1 = center.add(vec2(cos(a1), sin(a1)).scale(radius));
         drawLine(p0, p1, .11, color);
     }
 }
@@ -499,13 +499,13 @@ function handleInput()
     const gy = (gamepadIsDown(13) ? -1 : 0) + (gamepadIsDown(12) ? 1 : 0);
 
     let want = vec2(0,0);
-    if (kd.x || kd.y) want = vec2(Math.sign(kd.x), Math.sign(kd.y));
+    if (kd.x || kd.y) want = vec2(sign(kd.x), sign(kd.y));
     else if (gx || gy) want = vec2(gx, gy);
-    else if (Math.abs(stick.x) > .4 || Math.abs(stick.y) > .4)
+    else if (abs(stick.x) > .4 || abs(stick.y) > .4)
     {
-        want = Math.abs(stick.x) > Math.abs(stick.y)
-            ? vec2(Math.sign(stick.x), 0)
-            : vec2(0, Math.sign(stick.y));
+        want = abs(stick.x) > abs(stick.y)
+            ? vec2(sign(stick.x), 0)
+            : vec2(0, sign(stick.y));
     }
 
     if (want.x || want.y)
@@ -616,8 +616,8 @@ function aiChooseDir()
     // 1) head for the closest apple that has a safe path (try nearest first)
     let chosen = null;
     const targets = foods.slice().sort((a,b) =>
-        (Math.abs(a.pos.x-head.x) + Math.abs(a.pos.y-head.y)) -
-        (Math.abs(b.pos.x-head.x) + Math.abs(b.pos.y-head.y)));
+        (abs(a.pos.x-head.x) + abs(a.pos.y-head.y)) -
+        (abs(b.pos.x-head.x) + abs(b.pos.y-head.y)));
     for (const t of targets)
     {
         const step = bfsStep(head, t.pos, blocked);
@@ -666,8 +666,8 @@ function demoChooseDir(s)
     const targets = foods.map(f => f.pos);
     if (bonus) targets.push(bonus);
     targets.sort((a,b) =>
-        (Math.abs(a.x-head.x) + Math.abs(a.y-head.y)) -
-        (Math.abs(b.x-head.x) + Math.abs(b.y-head.y)));
+        (abs(a.x-head.x) + abs(a.y-head.y)) -
+        (abs(b.x-head.x) + abs(b.y-head.y)));
     for (const t of targets)
     {
         const step = bfsStep(head, t, blocked);
@@ -971,7 +971,7 @@ function gameRender()
     for (const f of foods)
     {
         const p = cellToWorld(f.pos);
-        const pulse  = .72 + Math.sin(foodPulseTimer * 6) * .05;
+        const pulse  = .72 + sin(foodPulseTimer * 6) * .05;
         const growIn = f.spawn > 0 ? clamp(1 - f.spawn/.25, 0, 1) : 1;
         const size   = pulse * (.45 + .55*growIn);
         drawTile(p, vec2(size + .22), icons.glow, hsl(.99, .8, .55, .18));                  // soft glow
@@ -986,8 +986,8 @@ function gameRender()
         const p     = cellToWorld(bonus);
         const frac  = clamp(bonusTimer / bonusLifeMax, 0, 1);
         const warn  = bonusTimer < 1.8;
-        const blink = warn ? .55 + .45*Math.sin(time*16) : 1;
-        const pulse = .80 + Math.sin(foodPulseTimer * 8) * .07;
+        const blink = warn ? .55 + .45*sin(time*16) : 1;
+        const pulse = .80 + sin(foodPulseTimer * 8) * .07;
         drawTile(p, vec2(pulse + .45), icons.glow, hsl(.13, 1, .60, .15*blink));            // glow
         drawTile(p, vec2(pulse + .22), icons.glow, hsl(.13, 1, .62, .22*blink));
         drawTile(p, vec2(pulse),       icons.circle, hsl(.13, 1, .56, blink));              // body
@@ -1007,7 +1007,7 @@ function gameRender()
 function drawSnake(s)
 {
     const body = s.body, old = s.old;
-    const flash     = s.flashTimer > 0 ? Math.sin(s.flashTimer * 40) > 0 : false;
+    const flash     = s.flashTimer > 0 ? sin(s.flashTimer * 40) > 0 : false;
     const headSwell = s.growPulse  > 0 ? .14 * (s.growPulse / .25) : 0;
     const prog      = (!roundOver && s.alive) ? clamp(1 - stepTimer/stepInterval, 0, 1) : 1;
 
@@ -1050,7 +1050,7 @@ function drawSnake(s)
         const pupilLean = forward.scale(.05);     // pupils peek slightly forward
 
         // playful tongue flick out the front
-        if (Math.sin(time*3) > .9)
+        if (sin(time*3) > .9)
         {
             const base = hp.add(forward.scale(bodyW*.45));
             drawLine(base, base.add(forward.scale(.30)), .07, hsl(.98,.85,.6));
@@ -1101,9 +1101,9 @@ function gameRenderPost()
     if (!roundOver && bonus)
     {
         const warn = bonusTimer < 1.8;
-        const a = warn ? .55 + .45*Math.sin(time*16) : 1;
+        const a = warn ? .55 + .45*sin(time*16) : 1;
         drawTextScreen(`★ +${bonusValue}`, vec2(150, by - 6), 24, hsl(.13,1,.7,a), 3, hsl(0,0,0,.8));
-        drawTextScreen(`${Math.ceil(bonusTimer)}s`, vec2(150, by + 22), 16, hsl(0,0,1,.85), 2, hsl(0,0,0,.8));
+        drawTextScreen(`${ceil(bonusTimer)}s`, vec2(150, by + 22), 16, hsl(0,0,1,.85), 2, hsl(0,0,0,.8));
     }
 }
 

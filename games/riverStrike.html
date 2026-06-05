@@ -103,7 +103,7 @@ function ensureNode(i)
 
 function riverAtY(y)
 {
-    const i = Math.max(0, Math.floor(y / SEG_LEN));
+    const i = max(0, floor(y / SEG_LEN));
     ensureNode(i + 1);
     const a = riverNodes[i];
     const b = riverNodes[i + 1];
@@ -119,8 +119,8 @@ function riverAtY(y)
 
 function aabbOverlap(posA, sizeA, posB, sizeB)
 {
-    return Math.abs(posA.x - posB.x) * 2 < (sizeA.x + sizeB.x)
-        && Math.abs(posA.y - posB.y) * 2 < (sizeA.y + sizeB.y);
+    return abs(posA.x - posB.x) * 2 < (sizeA.x + sizeB.x)
+        && abs(posA.y - posB.y) * 2 < (sizeA.y + sizeB.y);
 }
 
 function spawnObject(type, pos, size, extra={})
@@ -140,7 +140,7 @@ function spawnObject(type, pos, size, extra={})
 
 function ensureSpawnsUpTo(yMax)
 {
-    const targetSeg = Math.floor(yMax / SEG_LEN);
+    const targetSeg = floor(yMax / SEG_LEN);
     for (let seg = lastSpawnSeg + 1; seg <= targetSeg; ++seg)
     {
         const r = new RandomGenerator((seed + seg*99991) >>> 0);
@@ -378,8 +378,8 @@ function gameUpdate()
             const r = riverAtY(o.pos.y);
             const minX = r.center - r.width/2 + o.size.x/2 + .2;
             const maxX = r.center + r.width/2 - o.size.x/2 - .2;
-            if (o.pos.x < minX) { o.pos.x = minX; o.velX = Math.abs(o.velX); }
-            if (o.pos.x > maxX) { o.pos.x = maxX; o.velX = -Math.abs(o.velX); }
+            if (o.pos.x < minX) { o.pos.x = minX; o.velX = abs(o.velX); }
+            if (o.pos.x > maxX) { o.pos.x = maxX; o.velX = -abs(o.velX); }
         }
 
         // remove far behind
@@ -399,7 +399,7 @@ function gameUpdate()
     for (const o of objects)
     {
         if (o.destroyed) continue;
-        if (Math.abs(o.pos.y - playerPos.y) > 3) continue;
+        if (abs(o.pos.y - playerPos.y) > 3) continue;
 
         if (aabbOverlap(playerPos, PLAYER_SIZE, o.pos, o.size))
         {
@@ -446,7 +446,7 @@ function gameRender()
     const yMax = cameraPos.y + camSize.y/2 + 2;
 
     let lastLeft, lastRight;
-    for (let y = Math.floor(yMin/step)*step; y <= yMax; y += step)
+    for (let y = floor(yMin/step)*step; y <= yMax; y += step)
     {
         const r = riverAtY(y);
         drawRect(vec2(r.center, y), vec2(r.width, step+0.05), WATER);
@@ -507,7 +507,7 @@ function gameRenderPost()
 {
     const fuelPct = fuel / MAX_FUEL;
     const bars = 18;
-    const filled = Math.max(0, Math.min(bars, Math.floor(fuelPct * bars)));
+    const filled = max(0, min(bars, floor(fuelPct * bars)));
     const bar = '|' .repeat(filled) + '.' .repeat(bars - filled);
 
     drawTextScreen(`SCORE ${score}`, vec2(mainCanvasSize.x/2, 26), 34, hsl(0,0,1), 4, hsl(0,0,0));

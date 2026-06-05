@@ -388,7 +388,7 @@ function randomPlayoutFrom(state) {
         for (let i = 0; i < NN; i++)
             if (isLegal(s, i, toMove, ko) && !isEye(s, i, toMove)) moves.push(i);
         if (moves.length === 0) { passes++; ko = -1; toMove = otherColor(toMove); continue; }
-        const mv = moves[(Math.random() * moves.length) | 0];
+        const mv = moves[(rand() * moves.length) | 0];
         ko = applyInPlace(s, mv, toMove);
         passes = 0;
         toMove = otherColor(toMove);
@@ -418,7 +418,7 @@ function flatLegalMovesWithPass(state) {
 
 // Fisher-Yates on a plain array of ints (gives move-order variety).
 function shuffleInt(a) {
-    for (let i = a.length - 1; i > 0; i--) { const j = (Math.random()*(i+1))|0; const t=a[i]; a[i]=a[j]; a[j]=t; }
+    for (let i = a.length - 1; i > 0; i--) { const j = (rand()*(i+1))|0; const t=a[i]; a[i]=a[j]; a[j]=t; }
     return a;
 }
 
@@ -669,13 +669,13 @@ function getIntersectionWorldPos(row, col)
 function worldPosToIntersection(worldPos)
 {
     const halfSpan = (BOARD_SIZE - 1) * CELL_SIZE / 2;
-    const col = Math.round((worldPos.x + halfSpan) / CELL_SIZE);
-    const row = Math.round((-worldPos.y + halfSpan) / CELL_SIZE);
+    const col = round((worldPos.x + halfSpan) / CELL_SIZE);
+    const row = round((-worldPos.y + halfSpan) / CELL_SIZE);
     if (!isInBounds(row, col)) return null;
     // Reject if the mouse is more than half a cell away from the intersection.
     const iPos = getIntersectionWorldPos(row, col);
-    if (Math.abs(worldPos.x - iPos.x) > CELL_SIZE * 0.5) return null;
-    if (Math.abs(worldPos.y - iPos.y) > CELL_SIZE * 0.5) return null;
+    if (abs(worldPos.x - iPos.x) > CELL_SIZE * 0.5) return null;
+    if (abs(worldPos.y - iPos.y) > CELL_SIZE * 0.5) return null;
     return { row, col };
 }
 
@@ -735,7 +735,7 @@ function drawBoard()
     if (lastMove && !gameOver)
     {
         const pos    = getIntersectionWorldPos(lastMove.row, lastMove.col);
-        const pulse  = 1 + Math.sin(time * 6) * 0.1;
+        const pulse  = 1 + sin(time * 6) * 0.1;
         const ringR  = STONE_RADIUS * 1.3 * pulse;
         drawTile(pos, vec2(ringR), icons.circle, hsl(0.12, 0.9, 0.55, 0.55));
     }
@@ -1037,7 +1037,7 @@ function gameUpdate()
             const myGen = aiGeneration;
             findBestAIMove({
                 onProgress: (d, n) => {
-                    if (myGen === aiGeneration) aiProgress = `AI Thinking... ${Math.round(d / n * 100)}%`;
+                    if (myGen === aiGeneration) aiProgress = `AI Thinking... ${round(d / n * 100)}%`;
                 }
             }).then(move => {
                 if (myGen !== aiGeneration) { aiSearching = false; aiProgress = ''; return; }

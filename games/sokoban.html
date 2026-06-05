@@ -375,7 +375,7 @@ function drawBox(pos, onTarget)
 function drawPlayer(pos)
 {
     const size = .75;
-    const bobOffset = Math.sin(time * 4) * .03;
+    const bobOffset = sin(time * 4) * .03;
     const drawPos = pos.add(vec2(0, bobOffset));
     
     // Shadow
@@ -402,7 +402,7 @@ function drawPlayer(pos)
 function drawTarget(pos)
 {
     // Glowing target indicator
-    const pulse = .5 + Math.sin(time * 3) * .15;
+    const pulse = .5 + sin(time * 3) * .15;
     
     // Outer glow
     drawTile(pos, vec2(.5), icons.circle, COLOR_TARGET.lerp(rgb(1,1,1), .2).scale(1, pulse * .4));
@@ -680,7 +680,7 @@ function gameRenderPost()
         
         if (messageTimer > 1.0)
         {
-            const blink = Math.sin(time * 5) > 0;
+            const blink = sin(time * 5) > 0;
             if (blink)
             {
                 const nextText = isLastLevel ? 'Click or Space to play again' : 'Click or Space for next level';

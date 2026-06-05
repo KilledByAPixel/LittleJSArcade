@@ -81,10 +81,10 @@ const setTile = (pos, data)=> level[pos.x + pos.y * levelSize.x] = data;
 function paintCircle(ctx)
 {
     ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(250, 250, 200, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(250, 250, 200, 0, PI*2); ctx.fill();
     ctx.strokeStyle = '#000'; ctx.lineWidth = 28; ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.55)';
-    ctx.beginPath(); ctx.arc(185, 185, 60, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(185, 185, 60, 0, PI*2); ctx.fill();
 }
 
 function paintStar(ctx)
@@ -93,9 +93,9 @@ function paintStar(ctx)
     ctx.beginPath();
     for (let i = 0; i < 10; ++i)
     {
-        const a = -Math.PI/2 + i * Math.PI/5;
+        const a = -PI/2 + i * PI/5;
         const r = i % 2 ? rI : rO;
-        const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r;
+        const x = cx + cos(a) * r, y = cy + sin(a) * r;
         i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
     }
     ctx.closePath();
@@ -551,7 +551,7 @@ function drawBgSunburst()
 // slow hue drift and gentle shimmer so the board never sits on dead black.
 function bgColorAt(p)
 {
-    const hue = mod(.60 + .24 * p + .03 * Math.sin(time * .4) + time * .015, 1);
+    const hue = mod(.60 + .24 * p + .03 * sin(time * .4) + time * .015, 1);
     const light = lerp(.22, .05, p);   // brighter near the board base
     return hsl(hue, .65, light);
 }

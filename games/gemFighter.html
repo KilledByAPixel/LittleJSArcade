@@ -530,9 +530,9 @@ function powerGemDamage(n)
 {
     if (n < 4) return 0;
     if (n <= 9)  return 2 * n;
-    if (n <= 16) return 2 * n + Math.floor(0.5 * n);
+    if (n <= 16) return 2 * n + floor(0.5 * n);
     if (n <= 25) return 3 * n;
-    if (n <= 36) return Math.floor(3.5 * n);
+    if (n <= 36) return floor(3.5 * n);
     return 4 * n + 1;  // 37-49, FAQ estimate
 }
 
@@ -579,19 +579,19 @@ function computeDamage(result, opts)
     // Decade bonus: +1 per 10n+1 threshold of (regulars + power gem cells).
     // Counter gems are excluded from the decade count (doc §13).
     const decadeBase = result.regularsDestroyed + pgTotalCells;
-    if (decadeBase >= 11) total += Math.floor((decadeBase - 1) / 10);
+    if (decadeBase >= 11) total += floor((decadeBase - 1) / 10);
 
     // Chain bonus added to wave total
     total += chainBonusFor(wave);
 
     // Diamond penalty on first wave only
-    if (wave === 1 && isDiamond) total = Math.floor(total * 0.8);
+    if (wave === 1 && isDiamond) total = floor(total * 0.8);
 
     // All-clear bonus
     if (allClear) total += 6;
 
     // Character multiplier
-    total = Math.floor(total * mult);
+    total = floor(total * mult);
 
     return total;
 }
@@ -612,7 +612,7 @@ function columnHeight(grid, col)
 function dropCounterGems(grid, count, pattern, startCountdown)
 {
     if (count <= 0) return 0;
-    const groups = Math.ceil(count / 6);
+    const groups = ceil(count / 6);
     const patternRows = pattern.length;
     let placed = 0;
 
@@ -652,13 +652,13 @@ function applyDefense(incoming, outgoing)
     if (incoming <= 0)
         return { remainingIncoming: 0, flipback: 0, newOutgoing: outgoing, defendedRatio: 0 };
 
-    const defenseValue = Math.floor(outgoing / 2);
+    const defenseValue = floor(outgoing / 2);
     if (defenseValue >= incoming)
     {
         const consumed = incoming;
         const flipback = defenseValue - incoming;
         const remainingOutgoingShare = outgoing - 2 * consumed;
-        const passThrough = Math.max(0, remainingOutgoingShare);
+        const passThrough = max(0, remainingOutgoingShare);
         return {
             remainingIncoming: 0,
             flipback,
@@ -933,7 +933,7 @@ function startChainWave(board, waveIdx)
     const distOf = c =>
     {
         let d = Infinity;
-        for (const s of sources) d = min(d, Math.hypot(c.x - s.x, c.y - s.y));
+        for (const s of sources) d = min(d, hypot(c.x - s.x, c.y - s.y));
         return d;
     };
 
@@ -1074,7 +1074,7 @@ function makeRng(seed)
 function makePieceSequence(seed, length)
 {
     const rng = makeRng(seed);
-    const r = (n) => Math.floor(rng() * n);
+    const r = (n) => floor(rng() * n);
     const pieces = [];
     for (let i = 0; i < length; i++)
     {
@@ -1151,7 +1151,7 @@ class GameMatch
 
         // Speed ramp: 1.0s/cell → 0.5s/cell over first 90s; *1.5 after 3.5min
         const t = this.elapsed;
-        let interval = 1.0 - Math.min(1, t / 90) * 0.5;
+        let interval = 1.0 - min(1, t / 90) * 0.5;
         if (t > 210) interval /= 1.5;
         this.boards[0].fallInterval = interval;
         this.boards[1].fallInterval = interval;
@@ -1283,14 +1283,14 @@ function drawGem(pos, gem, isActive)
         drawTile(pos, vec2(1.02), icons.circle, rgb(0,0,0,.30));                       // dark rim
         drawTile(pos, vec2(.92), icons.circle, c);
         drawTile(pos, vec2(.58), icons.circle, colorLerp(c, rgb(1,1,1), .20));         // lit core
-        const tw = .5 + .5 * Math.sin(time*6 + pos.x*2 + pos.y*3);   // fuse twinkle
+        const tw = .5 + .5 * sin(time*6 + pos.x*2 + pos.y*3);   // fuse twinkle
         drawTile(pos.add(vec2(-.16, .16)), vec2(.2 + .06*tw), icons.circle, rgb(1,1,1,.5 + .25*tw));
         drawGemGlyph(pos, gem.color, .72, .75);
         if (isActive) drawTile(pos, vec2(1.0), icons.circle, rgb(1,1,1,.18));
     }
     else if (gem.type === 'counter')
     {
-        const pulse = gem.countdown <= 2 ? .5 + .5*Math.sin(time*8) : 1;
+        const pulse = gem.countdown <= 2 ? .5 + .5*sin(time*8) : 1;
         const c = GEM_COLORS[gem.color];
         drawGemTile(pos, c.scale(.55 + .35*pulse), .92);
         drawRect(pos, vec2(.64, .64), rgb(0,0,0,.20));               // caged inner well
@@ -1427,14 +1427,14 @@ function drawBoardGems(board, boardIndex)
                 // Match the gem's real silhouette so a crash reads as a crash
                 // even in the landing preview.
                 if (c.gem.type === 'crash')        drawTile(gp, vec2(.9), icons.circle, ghost);
-                else if (c.gem.type === 'diamond') drawRect(gp, vec2(.9, .9), ghost, Math.PI/4);
+                else if (c.gem.type === 'diamond') drawRect(gp, vec2(.9, .9), ghost, PI/4);
                 else                               drawRect(gp, vec2(.9, .9), ghost);
             }
         }
         for (const c of pieceCells(board.active))
         {
             if (c.y < 0) continue;
-            const drawY = Math.min(c.y, BOARD_H_VISIBLE - 1);
+            const drawY = min(c.y, BOARD_H_VISIBLE - 1);
             const yOffset = c.y >= BOARD_H_VISIBLE ? c.y - (BOARD_H_VISIBLE - 1) : 0;
             drawGem(cellPos(boardIndex, c.x, drawY).add(vec2(0, yOffset)), c.gem, true);
         }
@@ -1445,7 +1445,7 @@ function drawBoardGems(board, boardIndex)
     {
         const k = board.chainPop.t;                  // 1 → 0
         const scale = 1 + (1 - k) * .9;
-        const a = Math.min(1, k * 1.6);
+        const a = min(1, k * 1.6);
         const p = boardOrigin(boardIndex).add(vec2(BOARD_W/2, BOARD_H_VISIBLE * .58));
         drawText('CHAIN x' + board.chainPop.n, p, 1.7 * scale,
             rgb(1, .85, .2, a), .14, rgb(0, 0, 0, a));
@@ -1458,7 +1458,7 @@ function drawSimpleGlyph(ctx, ci, cx, cy, sz)
     const r = sz * .26;
     ctx.beginPath();
     if (ci === 0) { ctx.moveTo(cx, cy-r); ctx.lineTo(cx+r*.87, cy+r*.55); ctx.lineTo(cx-r*.87, cy+r*.55); ctx.closePath(); }
-    else if (ci === 1) ctx.arc(cx, cy, r, 0, Math.PI*2);
+    else if (ci === 1) ctx.arc(cx, cy, r, 0, PI*2);
     else if (ci === 2) { ctx.moveTo(cx, cy-r); ctx.lineTo(cx+r, cy); ctx.lineTo(cx, cy+r); ctx.lineTo(cx-r, cy); ctx.closePath(); }
     else ctx.rect(cx-r*.8, cy-r*.8, r*1.6, r*1.6);
     ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.stroke();
@@ -1471,13 +1471,13 @@ function drawSimpleGem(ctx, gem, cx, cy, sz)
     const c = (gem.type === 'diamond') ? rgb(1,1,1,.9) : GEM_COLORS[gem.color];
     if (gem.type === 'crash')
     {
-        ctx.beginPath(); ctx.arc(cx, cy, sz/2, 0, Math.PI*2);
+        ctx.beginPath(); ctx.arc(cx, cy, sz/2, 0, PI*2);
         ctx.fillStyle = c.toString(); ctx.fill();
         drawSimpleGlyph(ctx, gem.color, cx, cy, sz);
     }
     else if (gem.type === 'diamond')
     {
-        ctx.translate(cx, cy); ctx.rotate(Math.PI/4);
+        ctx.translate(cx, cy); ctx.rotate(PI/4);
         ctx.fillStyle = c.toString();
         ctx.fillRect(-sz/2, -sz/2, sz, sz);
     }
@@ -1488,7 +1488,7 @@ function drawSimpleGem(ctx, gem, cx, cy, sz)
         if (gem.type === 'counter')
         {
             ctx.fillStyle = '#fff';
-            ctx.font = 'bold ' + Math.floor(sz*.8) + 'px sans-serif';
+            ctx.font = 'bold ' + floor(sz*.8) + 'px sans-serif';
             ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.fillText(gem.countdown, cx, cy);
         }
@@ -1509,15 +1509,15 @@ function spawnClearParticles(boardIdx, cell, delay = 0, intensity = 1)
     const pos = cellPos(boardIdx, cell.x, cell.y);
     const color = cell.type === 'diamond' ? rgb(1,1,1) : GEM_COLORS[cell.color];
 
-    const count = Math.round(9 * intensity);
+    const count = round(9 * intensity);
     const speedMul = 1 + (intensity - 1) * .5;
     for (let i = 0; i < count; i++)
     {
-        const angle = (i / count) * Math.PI * 2 + rand(-.2, .2);
+        const angle = (i / count) * PI * 2 + rand(-.2, .2);
         const speed = (.04 + rand(0, .04)) * speedMul;
         particles.push({
             pos: pos.copy(),
-            vel: vec2(Math.cos(angle) * speed, Math.sin(angle) * speed),
+            vel: vec2(cos(angle) * speed, sin(angle) * speed),
             color,
             age: -delay,
             duration: .35,
@@ -1659,7 +1659,7 @@ function boardTick(board, controller, onLock)
 
     while (board.fallTimer <= 0 && board.active)
     {
-        board.fallTimer += Math.max(.001, step);
+        board.fallTimer += max(.001, step);
 
         if (pieceTryMove(board.grid, board.active, 0, -1))
         {
@@ -1832,9 +1832,9 @@ function scorePlacement(board, piece, x, rot, opponentPattern, weights)
     {
         const h = columnHeight(sim, cx);
         if (h > maxH) maxH = h;
-        if (cx === SPAWN_COL) score += weights.col4Penalty * Math.max(0, h - 3);
+        if (cx === SPAWN_COL) score += weights.col4Penalty * max(0, h - 3);
     }
-    score += weights.heightPenalty * Math.max(0, maxH - 6);
+    score += weights.heightPenalty * max(0, maxH - 6);
 
     const placedCells = pieceCells({a:piece.a, b:piece.b, x, y: landY, rot});
 
@@ -2703,7 +2703,7 @@ function buildCharacterItems(onPick)
         type: 'button',
         label: char.name,
         id: 'char-' + char.id,
-        title: 'Damage: ' + Math.floor(char.multiplier * 100) + '%',
+        title: 'Damage: ' + floor(char.multiplier * 100) + '%',
         onClick: () => onPick(char),
     }));
 }

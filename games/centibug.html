@@ -140,8 +140,8 @@ function spawnBurst(pos, color, count=8, speed=4)
 {
         for (let i = 0; i < count; ++i)
         {
-                const angle = (i / count) * Math.PI * 2 + rand(-.3, .3);
-                const v = vec2(Math.cos(angle), Math.sin(angle)).scale(speed * rand(.5, 1.2));
+                const angle = (i / count) * PI * 2 + rand(-.3, .3);
+                const v = vec2(cos(angle), sin(angle)).scale(speed * rand(.5, 1.2));
                 new Spark(pos, v, color, rand(.4, .7), rand(.15, .28));
         }
 }
@@ -158,10 +158,10 @@ function shadeHex(hex, amt)
 {
         const n = parseInt(hex.slice(1), 16);
         let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-        const t = amt < 0 ? 0 : 255, p = Math.abs(amt);
-        r = Math.round(r + (t - r) * p);
-        g = Math.round(g + (t - g) * p);
-        b = Math.round(b + (t - b) * p);
+        const t = amt < 0 ? 0 : 255, p = abs(amt);
+        r = round(r + (t - r) * p);
+        g = round(g + (t - g) * p);
+        b = round(b + (t - b) * p);
         return 'rgb(' + r + ',' + g + ',' + b + ')';
 }
 
@@ -176,7 +176,7 @@ function paintSphere(ctx, x, y, r, baseHex, lineWidth=18)
         ctx.strokeStyle = '#000';
         ctx.lineWidth = lineWidth;
         ctx.beginPath();
-        ctx.arc(x, y, r, 0, Math.PI*2);
+        ctx.arc(x, y, r, 0, PI*2);
         ctx.fill();
         ctx.stroke();
 
@@ -186,7 +186,7 @@ function paintSphere(ctx, x, y, r, baseHex, lineWidth=18)
         h.addColorStop(1, 'rgba(255,255,255,0)');
         ctx.fillStyle = h;
         ctx.beginPath();
-        ctx.arc(x - r*.38, y - r*.42, r*.6, 0, Math.PI*2);
+        ctx.arc(x - r*.38, y - r*.42, r*.6, 0, PI*2);
         ctx.fill();
 }
 
@@ -196,11 +196,11 @@ function paintEye(ctx, x, y, r, pupilDx, pupilDy, pupilR, scleraHex='#ffffff')
         ctx.fillStyle = scleraHex;
         ctx.strokeStyle = '#000';
         ctx.lineWidth = 8;
-        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x, y, r, 0, PI*2); ctx.fill(); ctx.stroke();
         ctx.fillStyle = '#000';
-        ctx.beginPath(); ctx.arc(x + pupilDx, y + pupilDy, pupilR, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + pupilDx, y + pupilDy, pupilR, 0, PI*2); ctx.fill();
         ctx.fillStyle = 'rgba(255,255,255,.9)';
-        ctx.beginPath(); ctx.arc(x + pupilDx - pupilR*.4, y + pupilDy - pupilR*.5, pupilR*.35, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(x + pupilDx - pupilR*.4, y + pupilDy - pupilR*.5, pupilR*.35, 0, PI*2); ctx.fill();
 }
 
 // Four legs hanging below a bug body, drawn as a dark base stroke with a lighter inner stroke.
@@ -236,7 +236,7 @@ function paintPlayer(ctx)
         glow.addColorStop(0, 'rgba(120,230,255,.55)');
         glow.addColorStop(1, 'rgba(120,230,255,0)');
         ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(cx, cy + 175, 130, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy + 175, 130, 0, PI*2); ctx.fill();
 
         // ship hull — trapezoid pointing up, metallic cross-gradient
         const hull = ctx.createLinearGradient(cx - 210, 0, cx + 210, 0);
@@ -263,12 +263,12 @@ function paintPlayer(ctx)
         // cockpit dome with glint
         ctx.fillStyle = '#0d4d5d';
         ctx.beginPath();
-        ctx.arc(cx, cy + 50, 55, 0, Math.PI * 2);
+        ctx.arc(cx, cy + 50, 55, 0, PI * 2);
         ctx.fill();
         ctx.stroke();
         ctx.fillStyle = 'rgba(185,240,255,.75)';
         ctx.beginPath();
-        ctx.arc(cx - 18, cy + 34, 18, 0, Math.PI * 2);
+        ctx.arc(cx - 18, cy + 34, 18, 0, PI * 2);
         ctx.fill();
 }
 
@@ -280,7 +280,7 @@ function paintBullet(ctx)
         glow.addColorStop(0, 'rgba(255,240,120,.5)');
         glow.addColorStop(1, 'rgba(255,240,120,0)');
         ctx.fillStyle = glow;
-        ctx.beginPath(); ctx.arc(cx, 250, 200, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, 250, 200, 0, PI*2); ctx.fill();
 
         ctx.lineWidth = 14;
         ctx.strokeStyle = '#000';
@@ -296,7 +296,7 @@ function paintBullet(ctx)
         // hot white tip
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
-        ctx.arc(cx, 110, 38, 0, Math.PI * 2);
+        ctx.arc(cx, 110, 38, 0, PI * 2);
         ctx.fill();
 }
 
@@ -334,7 +334,7 @@ function paintMushroom(ctx, capColor, dotCount)
         capG.addColorStop(1, shadeHex(capColor, -.3));
         ctx.fillStyle = capG;
         ctx.beginPath();
-        ctx.arc(cx, capCy, rad, Math.PI, 0, false);  // arc the top half
+        ctx.arc(cx, capCy, rad, PI, 0, false);  // arc the top half
         ctx.closePath();
         ctx.fill();
         ctx.stroke();
@@ -343,9 +343,9 @@ function paintMushroom(ctx, capColor, dotCount)
         function dot(dx, dy, dr)
         {
                 ctx.fillStyle = 'rgba(0,0,0,.13)';
-                ctx.beginPath(); ctx.arc(cx + dx + 5, capCy + dy + 7, dr, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + dx + 5, capCy + dy + 7, dr, 0, PI*2); ctx.fill();
                 ctx.fillStyle = '#ffffff';
-                ctx.beginPath(); ctx.arc(cx + dx, capCy + dy, dr, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + dx, capCy + dy, dr, 0, PI*2); ctx.fill();
         }
         if (dotCount >= 1) dot(-90, -70, 55);
         if (dotCount >= 2) dot(75, -30, 45);
@@ -377,8 +377,8 @@ function paintCentipedeHead(ctx)
         ctx.beginPath(); ctx.moveTo(cx + 60, cy - 130); ctx.lineTo(cx + 170, cy - 240); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(cx + 110, cy - 100); ctx.lineTo(cx + 240, cy - 170); ctx.stroke();
         ctx.fillStyle = '#000';
-        ctx.beginPath(); ctx.arc(cx + 170, cy - 240, 15, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx + 240, cy - 170, 15, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 170, cy - 240, 15, 0, PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx + 240, cy - 170, 15, 0, PI*2); ctx.fill();
 
         // big eyes (stacked on the right/front side), looking forward
         paintEye(ctx, cx + 70, cy - 65, 60, 26, 0, 28);
@@ -421,8 +421,8 @@ function paintSpider(ctx)
         ctx.fillStyle = '#3d0040';
         for (const kneeY of knees)
         {
-                ctx.beginPath(); ctx.arc(cx - 180, kneeY, 13, 0, Math.PI*2); ctx.fill();
-                ctx.beginPath(); ctx.arc(cx + 180, kneeY, 13, 0, Math.PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx - 180, kneeY, 13, 0, PI*2); ctx.fill();
+                ctx.beginPath(); ctx.arc(cx + 180, kneeY, 13, 0, PI*2); ctx.fill();
         }
 
         // abdomen (rear = left, since sprite faces right)

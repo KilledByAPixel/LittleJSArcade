@@ -400,7 +400,7 @@ function gameUpdate()
     {
         // slight lane wobble
         c.wobble += 1;
-        c.offset += Math.sin(c.wobble*.02) * 0.0012;
+        c.offset += sin(c.wobble*.02) * 0.0012;
         c.offset = clamp(c.offset, -1.1, 1.1);
 
         c.z += c.speed;
@@ -501,8 +501,8 @@ function fillCircleS(x, y, r, color)
 }
 
 // deterministic tiny hash for scenery variation
-const frac = (x)=> x - Math.floor(x);
-const hash01 = (n)=> frac(Math.sin(n*127.1) * 43758.5453123);
+const frac = (x)=> x - floor(x);
+const hash01 = (n)=> frac(sin(n*127.1) * 43758.5453123);
 
 function drawTree(x, yGround, size, seed)
 {
@@ -584,8 +584,8 @@ function drawBackground(v)
     const drawRange = (rate, color, peakH, span, horizon)=>
     {
         const scroll = -bgScroll * w * rate;
-        const k0 = Math.floor((-span - scroll)/span);
-        const k1 = Math.ceil((w + span - scroll)/span);
+        const k0 = floor((-span - scroll)/span);
+        const k1 = ceil((w + span - scroll)/span);
         for (let k = k0; k <= k1; ++k)
         {
             const px  = k*span + scroll;
@@ -718,7 +718,7 @@ function renderRoadAndCars()
     for (let i=DRAW_DIST-1; i>=0; --i)
     {
         const cur = proj[i];
-        const yNear = clamp(Math.ceil(cur.screenY) + 1, 0, h); // ground y at this segment
+        const yNear = clamp(ceil(cur.screenY) + 1, 0, h); // ground y at this segment
         if (!(cur.scale > 0.003 && yNear > horizonY + 6))
             continue;
 

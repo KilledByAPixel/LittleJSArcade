@@ -141,8 +141,8 @@ function drawCircleTile(pos, diameter, color)
 
 let sfxDrill, sfxClear, sfxChain, sfxCapsule, sfxDeath, sfxLand, sfxWin, sfxStep;
 
-function colorLighten(c, a) { return rgb(Math.min(1, c.r+a), Math.min(1, c.g+a), Math.min(1, c.b+a), c.a); }
-function colorDarken(c, a)  { return rgb(Math.max(0, c.r-a), Math.max(0, c.g-a), Math.max(0, c.b-a), c.a); }
+function colorLighten(c, a) { return rgb(min(1, c.r+a), min(1, c.g+a), min(1, c.b+a), c.a); }
+function colorDarken(c, a)  { return rgb(max(0, c.r-a), max(0, c.g-a), max(0, c.b-a), c.a); }
 
 ///////////////////////////////////////////////////////////////////////////////
 // grid + pieces
@@ -220,20 +220,20 @@ function pickColorForShape(cells)
     }
     const avail = [];
     for (let c = 0; c < NUM_COLORS; c++) if (!forbidden.has(c)) avail.push(c);
-    if (avail.length === 0) return Math.floor(Math.random() * NUM_COLORS);
-    return avail[Math.floor(Math.random() * avail.length)];
+    if (avail.length === 0) return floor(rand() * NUM_COLORS);
+    return avail[floor(rand() * avail.length)];
 }
 
 function generateBand(py)
 {
-    const pattern = BAND_PATTERNS[Math.floor(Math.random() * BAND_PATTERNS.length)];
+    const pattern = BAND_PATTERNS[floor(rand() * BAND_PATTERNS.length)];
     for (let i = 0; i < pattern.length; i++)
     {
         const local = pattern[i];
         const cells = [];
         for (let j = 0; j < local.length; j++)
             cells.push({ x: local[j][0], y: py + local[j][1] });
-        if (Math.random() < CAPSULE_CHANCE)
+        if (rand() < CAPSULE_CHANCE)
             createPiece(TYPE_CAPSULE, -1, cells);
         else
             createPiece(TYPE_COLOR, pickColorForShape(cells), cells);
@@ -395,7 +395,7 @@ function settleAndMatch()
     {
         chain += 1;
         const count = dissolve.size;
-        score += Math.floor(count * 100 * (1 + chain * 0.5));
+        score += floor(count * 100 * (1 + chain * 0.5));
         const ids = [];
         dissolve.forEach(id => ids.push(id));
         for (let i=0; i<ids.length; i++) dissolvePiece(ids[i], 0.3);
@@ -438,7 +438,7 @@ function completeDrill()
     {
         if (p.type === TYPE_CAPSULE)
         {
-            air = Math.min(100, air + CAPSULE_AIR_GAIN);
+            air = min(100, air + CAPSULE_AIR_GAIN);
             sfxCapsule.play();
         }
         else
@@ -676,7 +676,7 @@ function gameUpdatePost()
 function gameRender()
 {
     const camSize = getCameraSize();
-    const darkness = Math.min(1, player.gy / 200);
+    const darkness = min(1, player.gy / 200);
     const bgTop = rgb(.10 - .08*darkness, .13 - .10*darkness, .20 - .12*darkness);
     const bgBot = rgb(.04, .05, .08);
     drawRectGradient(cameraPos, camSize, bgTop, bgBot);
@@ -690,9 +690,9 @@ function gameRender()
     drawRect(vec2(leftX  + 0.45, cameraPos.y), vec2(0.08, camSize.y), wallHL);
     drawRect(vec2(rightX - 0.45, cameraPos.y), vec2(0.08, camSize.y), wallHL);
 
-    const topRow = Math.max(0, Math.floor(-cameraPos.y - camSize.y/2 - 1));
-    const botRow = Math.floor(-cameraPos.y + camSize.y/2 + 1);
-    for (let y = Math.ceil(topRow/10)*10; y <= botRow; y += 10)
+    const topRow = max(0, floor(-cameraPos.y - camSize.y/2 - 1));
+    const botRow = floor(-cameraPos.y + camSize.y/2 + 1);
+    for (let y = ceil(topRow/10)*10; y <= botRow; y += 10)
     {
         const wp = cellWorldPos(0, y);
         drawRect(vec2(leftX + 0.9, wp.y), vec2(0.3, 0.08), rgb(.6,.5,.35));
@@ -735,7 +735,7 @@ function gameRender()
     {
         const d = destroyedFx[i];
         const t = d.timer / d.duration;
-        const a = Math.max(0, t);
+        const a = max(0, t);
         const base = d.type === TYPE_CAPSULE ? CAPSULE_COLOR : COLORS[d.color];
         const c = rgb(base.r, base.g, base.b, a);
         const inflate = 1 + (1 - a) * 0.35;
@@ -758,7 +758,7 @@ function drawPiece(p)
     let fill = base;
     if (drilling)
     {
-        const pulse = 0.5 + 0.5 * Math.abs(Math.sin(time * 30));
+        const pulse = 0.5 + 0.5 * abs(sin(time * 30));
         fill = colorLighten(base, 0.15 + 0.25 * pulse);
     }
     const light = colorLighten(base, 0.18);
@@ -829,18 +829,18 @@ function drawPlayer()
     if (player.drillDir === 'left')       { bx = -0.50; by = -0.05; }
     else if (player.drillDir === 'right') { bx =  0.50; by = -0.05; }
     else if (player.drillDir === 'down')  { bx =  0;    by = -0.55; }
-    const wobble = player.drilling ? Math.sin(time*50) * 0.06 : 0;
+    const wobble = player.drilling ? sin(time*50) * 0.06 : 0;
     const bitColor = player.drilling
-        ? rgb(1, .75 + 0.25*Math.sin(time*40), .25)
+        ? rgb(1, .75 + 0.25*sin(time*40), .25)
         : rgb(.85, .85, .90);
     drawRect(p.add(vec2(bx + wobble, by)), vec2(0.28, 0.28), bitColor);
     if (!gameOver && player.drilling)
     {
         for (let i=0; i<3; i++)
         {
-            const a = Math.random() * 6.28;
-            const r = 0.3 + Math.random() * 0.3;
-            drawCircleTile(p.add(vec2(bx + Math.cos(a)*r, by + Math.sin(a)*r)), 0.08, rgb(1, .9, .4));
+            const a = rand() * 6.28;
+            const r = 0.3 + rand() * 0.3;
+            drawCircleTile(p.add(vec2(bx + cos(a)*r, by + sin(a)*r)), 0.08, rgb(1, .9, .4));
         }
     }
 }
@@ -858,11 +858,11 @@ function gameRenderPost()
     drawTextScreen('AIR', vec2(24, 22), 18, rgb(1,1,1), 3, rgb(0,0,0), 'left');
     drawRect(vec2(barCx, 54), vec2(barW, barH), rgb(.08,.08,.12), 0, false, true);
     drawRect(vec2(barCx, 54), vec2(barW-4, barH-4), rgb(.18,.18,.22), 0, false, true);
-    const frac = Math.max(0, air/100);
+    const frac = max(0, air/100);
     const airC = air > 40 ? rgb(.3,.95,1) : air > 20 ? rgb(1,.85,.3) : rgb(1,.3,.3);
     const innerW = (barW-4) * frac;
     drawRect(vec2(barCx - (barW-4)/2 + innerW/2, 54), vec2(innerW, barH-4), airC, 0, false, true);
-    drawTextScreen(Math.ceil(air) + '%', vec2(barCx, 54), 14, rgb(0,0,0), 0, rgb(0,0,0), 'center');
+    drawTextScreen(ceil(air) + '%', vec2(barCx, 54), 14, rgb(0,0,0), 0, rgb(0,0,0), 'center');
 
     drawTextScreen('DEPTH', vec2(sw - 24, 22), 18, rgb(1,1,1), 3, rgb(0,0,0), 'right');
     drawTextScreen(player.gy + ' / ' + MAX_DEPTH + ' m', vec2(sw - 24, 54), 22, rgb(1, .95, .7), 3, rgb(0,0,0), 'right');

@@ -91,7 +91,7 @@ function boardBounds()
     let min = null, max = null;
     for (let i=0;i<pitCapacity;++i)
     {
-        const p = cellToPos(vec2(i%GRID_COLS, Math.floor(i/GRID_COLS)));
+        const p = cellToPos(vec2(i%GRID_COLS, floor(i/GRID_COLS)));
         if (!min) { min = p.copy(); max = p.copy(); }
         else
         {
@@ -125,11 +125,11 @@ function centerCamera()
 }
 
 // cost helpers
-const demonCost = (type) => Math.ceil(DEMON_TYPES[type].cost * DEMON_TYPES[type].costScale ** (demonsBought[type] || 0));
-const machineCost = () => Math.ceil(BALANCE.machineCostBase * BALANCE.machineCostScale ** machines.length);
-const pitCost = () => Math.ceil(BALANCE.pitCostBase * BALANCE.pitCostScale ** ((pitCapacity - BALANCE.pitStart) / BALANCE.pitExpand));
-const wildCost = (m) => Math.ceil(BALANCE.wildCostBase * BALANCE.wildCostScale ** m.wildCount);
-const levelCost = (m) => Math.ceil(BALANCE.levelCostBase * BALANCE.levelCostScale ** (m.level - 1));
+const demonCost = (type) => ceil(DEMON_TYPES[type].cost * DEMON_TYPES[type].costScale ** (demonsBought[type] || 0));
+const machineCost = () => ceil(BALANCE.machineCostBase * BALANCE.machineCostScale ** machines.length);
+const pitCost = () => ceil(BALANCE.pitCostBase * BALANCE.pitCostScale ** ((pitCapacity - BALANCE.pitStart) / BALANCE.pitExpand));
+const wildCost = (m) => ceil(BALANCE.wildCostBase * BALANCE.wildCostScale ** m.wildCount);
+const levelCost = (m) => ceil(BALANCE.levelCostBase * BALANCE.levelCostScale ** (m.level - 1));
 const canAfford = (n) => cash >= n;
 
 // ---- SPRITE ATLAS ----
@@ -260,7 +260,7 @@ const CELL = vec2(6, 7);                 // world-units per machine cell (w,h)
 const cellToPos = (cell) => vec2((cell.x - (GRID_COLS-1)/2) * CELL.x, -cell.y * CELL.y);
 const nextFreeCell = () => {
     const i = machines.length;
-    return vec2(i % GRID_COLS, Math.floor(i / GRID_COLS));
+    return vec2(i % GRID_COLS, floor(i / GRID_COLS));
 };
 const machineAtPos = (p) => machines.find(m => isOverlapping(m.pos, m.size, p, vec2(0.1)));
 function demonAtPos(p) { return demons.find(d => isOverlapping(d.pos, d.size, p, vec2(0.1))); }
@@ -354,7 +354,7 @@ class Machine extends EngineObject
         if (win)
         {
             const mult = (1 + 0.5*(this.level-1)) * (this.assignedDemon ? DEMON_TYPES[this.assignedDemon.type].payoutMult : 1);
-            const payout = Math.ceil(BALANCE.payoutBase * win.payout * mult);
+            const payout = ceil(BALANCE.payoutBase * win.payout * mult);
             cash += payout;
             this.onWin(payout, win);
         }
@@ -553,7 +553,7 @@ function sacrificeOldestSpecific(d){ const i=demons.indexOf(d); if(i>=0)demons.s
 function sellMachine()
 {
     if (machines.length <= 1) return;            // keep at least one
-    const refund = Math.ceil(machineCost()/BALANCE.machineCostScale * BALANCE.sellRefund);
+    const refund = ceil(machineCost()/BALANCE.machineCostScale * BALANCE.sellRefund);
     const m = machines[machines.length-1];       // sell most recent
     if (m.assignedDemon) sacrificeOldestSpecific(m.assignedDemon);
     m.destroy(); machines.pop();
@@ -909,7 +909,7 @@ function drawPit()
 {
     for (let i=0;i<pitCapacity;++i)
     {
-        const p = cellToPos(vec2(i%GRID_COLS, Math.floor(i/GRID_COLS)));
+        const p = cellToPos(vec2(i%GRID_COLS, floor(i/GRID_COLS)));
         drawRect(p, vec2(CELL.x*0.96, CELL.y*0.96), hsl(.85,.35,.18));   // slot frame
         drawRect(p, vec2(CELL.x*0.86, CELL.y*0.86), hsl(.85,.25,.09));   // recess
         if (i >= machines.length)                                        // open slot hint
@@ -944,7 +944,7 @@ function gameRenderPost()
     // items, not toolbar items).
     if (isPlaying())
     {
-        drawTextScreen('$' + Math.floor(cash), vec2(20, 36), 40,
+        drawTextScreen('$' + floor(cash), vec2(20, 36), 40,
             hsl(.13,1,.7), 4, BLACK, 'left');
         drawTextScreen('👹 ' + demons.length + (demons.length === 1 ? ' demon' : ' demons'),
             vec2(22, 74), 26, hsl(.13,.6,.85), 3, BLACK, 'left');

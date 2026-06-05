@@ -161,11 +161,11 @@ function gridToWorld(r, c)
 function worldToGrid(pos)
 {
     // estimate row (account for continuous descent offset)
-    let r = Math.round((TOP_Y - descendOffset - pos.y)/ROW_STEP_Y);
+    let r = round((TOP_Y - descendOffset - pos.y)/ROW_STEP_Y);
     r = clamp(r, 0, ROWS_MAX-1);
 
     const xOff = ((r ^ gridParity) & 1) ? BUBBLE_R : 0;
-    let c = Math.round((pos.x - (FIELD_LEFT + BUBBLE_R + xOff))/BUBBLE_DIAM);
+    let c = round((pos.x - (FIELD_LEFT + BUBBLE_R + xOff))/BUBBLE_DIAM);
     c = clamp(c, 0, COLS-1);
 
     return {r, c};
@@ -282,7 +282,7 @@ function spawnPopFX(cells)
             popFX.push({
                 kind:'shard',
                 pos: pos.copy(),
-                vel: vec2(Math.cos(ang)*speed, Math.sin(ang)*speed),
+                vel: vec2(cos(ang)*speed, sin(ang)*speed),
                 color,
                 time:0,
                 life:SHARD_LIFE,
@@ -430,7 +430,7 @@ function shoot()
 
     // shoot in the current aim direction (aimAngle is continuously updated from mouse)
     const shooterPos = vec2(0, SHOOT_Y);
-    const dir = vec2(Math.cos(aimAngle), Math.sin(aimAngle));
+    const dir = vec2(cos(aimAngle), sin(aimAngle));
 
     projectile = {
         pos: shooterPos.copy(),
@@ -461,12 +461,12 @@ function integrateProjectile()
     if (projectile.pos.x < FIELD_MIN_X)
     {
         projectile.pos.x = FIELD_MIN_X;
-        projectile.vel.x = Math.abs(projectile.vel.x);
+        projectile.vel.x = abs(projectile.vel.x);
     }
     if (projectile.pos.x > FIELD_MAX_X)
     {
         projectile.pos.x = FIELD_MAX_X;
-        projectile.vel.x = -Math.abs(projectile.vel.x);
+        projectile.vel.x = -abs(projectile.vel.x);
     }
 
     // hit top — cap at row 0's visual level, but never above the mask edge so the
@@ -693,7 +693,7 @@ function gameUpdate()
                 let dir = mousePos.subtract(shooterPos);
                 if (dir.lengthSquared() < .001)
                     dir = vec2(0, 1);
-                aimAngle = clamp(Math.atan2(dir.y, dir.x), MIN_SHOT_ANGLE, MAX_SHOT_ANGLE);
+                aimAngle = clamp(atan2(dir.y, dir.x), MIN_SHOT_ANGLE, MAX_SHOT_ANGLE);
             }
         }
         else
@@ -768,7 +768,7 @@ function drawAimLine()
     // walls, stopping when we hit a bubble or reach the top. Plot a small dot
     // every few steps so the path reads as a dashed guide.
     const shooterPos = vec2(0, SHOOT_Y);
-    let dir = vec2(Math.cos(aimAngle), Math.sin(aimAngle));
+    let dir = vec2(cos(aimAngle), sin(aimAngle));
     let pos = shooterPos.add(dir.scale(BUBBLE_R * 2.4)); // start past the arrow tip
 
     const stepSize = .25;
@@ -819,7 +819,7 @@ function gameRenderPost()
 {
     // draw bubbles — flash white any bubble whose bottom has crossed the lose
     // line but whose center hasn't (game-ending threshold). Last-chance warning.
-    const flashPulse = .5 + .5 * Math.sin(time * 14);
+    const flashPulse = .5 + .5 * sin(time * 14);
     for (let r=0; r<ROWS_MAX; ++r)
     for (let c=0; c<COLS; ++c)
     {
@@ -880,7 +880,7 @@ function gameRenderPost()
 
     // shooter + arrow-style aim
     const shooterPos = vec2(0, SHOOT_Y);
-    const dir = vec2(Math.cos(aimAngle), Math.sin(aimAngle));
+    const dir = vec2(cos(aimAngle), sin(aimAngle));
     const aimEnd = shooterPos.add(dir.scale(2));
     const aimColor = hsl(0, 0, 1);
     const arrowWidth = .1;

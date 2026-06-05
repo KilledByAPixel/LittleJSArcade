@@ -311,8 +311,8 @@ function initStarfield()
             // Blob position - gaussian-ish distribution around cluster center
             const angle = rng.float(0, 6.28);
             const dist = rng.float(0, clusterSize) * rng.float(0.3, 1);  // cluster toward center
-            const bx = cx + Math.cos(angle) * dist;
-            const by = cy + Math.sin(angle) * dist * 0.6;  // squish vertically
+            const bx = cx + cos(angle) * dist;
+            const by = cy + sin(angle) * dist * 0.6;  // squish vertically
             
             // Blob size - varied
             const r = rng.float(6, 18);
@@ -324,7 +324,7 @@ function initStarfield()
             // Blob opacity - outer blobs fainter
             const distFromCenter = Math.sqrt((bx-cx)*(bx-cx) + (by-cy)*(by-cy));
             const distFactor = 1 - (distFromCenter / (clusterSize * 1.2));
-            const a = rng.float(.05, .1) * Math.max(.3, distFactor);
+            const a = rng.float(.05, .1) * max(.3, distFactor);
             
             nebulas.push({
                 pos: vec2(bx, by),
@@ -371,7 +371,7 @@ const lightDir = vec2(-.7, .5).normalize();
 
 function drawWedge(pos, dir, size, color)
 {
-    const a = Math.atan2(dir.y, dir.x);
+    const a = atan2(dir.y, dir.x);
     drawTile(pos, vec2(size*1.5, size*2), spriteAtlas.triangle, color, PI/2 - a);
 }
 
@@ -391,7 +391,7 @@ function spawnExplosion(pos, hue)
         const pLife = rand(.15, .35);
         particles.push({
             pos: pos.copy(),
-            vel: vec2(Math.cos(ang) * speed, Math.sin(ang) * speed),
+            vel: vec2(cos(ang) * speed, sin(ang) * speed),
             size: rand(.08, .16),
             life: pLife,
             maxLife: pLife,
@@ -677,9 +677,9 @@ function drawTitleDecor()
     for (let i = 0; i < blueShipCount; i++)
     {
         const angle = t * 0.7 + (i / blueShipCount) * PI * 2;
-        const orbitR = r1 + 2.5 + Math.sin(t * 1.2 + i) * 0.5;
-        const shipPos = p1.add(vec2(Math.cos(angle) * orbitR, Math.sin(angle) * orbitR * 0.6));
-        const shipDir = vec2(-Math.sin(angle), Math.cos(angle) * 0.6).normalize();
+        const orbitR = r1 + 2.5 + sin(t * 1.2 + i) * 0.5;
+        const shipPos = p1.add(vec2(cos(angle) * orbitR, sin(angle) * orbitR * 0.6));
+        const shipDir = vec2(-sin(angle), cos(angle) * 0.6).normalize();
         drawWedge(shipPos, shipDir, 0.55, hsl(.58, .85, .65));
     }
 
@@ -694,9 +694,9 @@ function drawTitleDecor()
     for (let i = 0; i < redShipCount; i++)
     {
         const angle = -t * 0.8 + (i / redShipCount) * PI * 2;  // opposite direction
-        const orbitR = r2 + 2 + Math.sin(t * 1.5 + i * 2) * 0.4;
-        const shipPos = p2.add(vec2(Math.cos(angle) * orbitR, Math.sin(angle) * orbitR * 0.6));
-        const shipDir = vec2(Math.sin(angle), -Math.cos(angle) * 0.6).normalize();
+        const orbitR = r2 + 2 + sin(t * 1.5 + i * 2) * 0.4;
+        const shipPos = p2.add(vec2(cos(angle) * orbitR, sin(angle) * orbitR * 0.6));
+        const shipDir = vec2(sin(angle), -cos(angle) * 0.6).normalize();
         drawWedge(shipPos, shipDir, 0.45, hsl(.02, .85, .6));
     }
     
@@ -711,8 +711,8 @@ function drawTitleDecor()
     {
         const angle = t * 0.4 + (i / neutralShipCount) * PI * 2;
         const orbitR = r3 + 1.5;
-        const shipPos = p3.add(vec2(Math.cos(angle) * orbitR, Math.sin(angle) * orbitR * 0.5));
-        const shipDir = vec2(-Math.sin(angle), Math.cos(angle) * 0.5).normalize();
+        const shipPos = p3.add(vec2(cos(angle) * orbitR, sin(angle) * orbitR * 0.5));
+        const shipDir = vec2(-sin(angle), cos(angle) * 0.5).normalize();
         drawWedge(shipPos, shipDir, 0.35, hsl(0, .1, .55));
     }
 }
@@ -740,7 +740,7 @@ function drawPlanet(p)
     // Highlight send target planet with pulsing glow
     if (isTarget && dragSource)
     {
-        const targetPulse = .5 + .5 * Math.sin(time * 9);
+        const targetPulse = .5 + .5 * sin(time * 9);
         const targetHue = ownerHue(OWNER_PLAYER);
         drawCircleSprite(p.pos, p.radius*2 + 1.8 + targetPulse * .4, hsl(targetHue, .9, .65, .35 + targetPulse * .15));
         drawCircleSprite(p.pos, p.radius*2 + 1.2 + targetPulse * .3, hsl(targetHue, .95, .75, .45 + targetPulse * .2));
@@ -787,7 +787,7 @@ function drawPlanet(p)
         drawCircleSprite(p.pos, capR*2, hsl(0,0,0,0), thick, hsl(0,0,1,.10));
 
         const segs = 56;
-        const start = -Math.PI/2;
+        const start = -PI/2;
         const endSeg = (frac * segs) | 0;
         const col = hsl(hue, .85, .62, .85);
 
@@ -795,8 +795,8 @@ function drawPlanet(p)
         {
             const a0 = start + (s / segs) * 6.28;
             const a1 = start + ((s + 1) / segs) * 6.28;
-            const p0 = p.pos.add(vec2(Math.cos(a0), Math.sin(a0)).scale(capR));
-            const p1 = p.pos.add(vec2(Math.cos(a1), Math.sin(a1)).scale(capR));
+            const p0 = p.pos.add(vec2(cos(a0), sin(a0)).scale(capR));
+            const p1 = p.pos.add(vec2(cos(a1), sin(a1)).scale(capR));
             drawLine(p0, p1, thick, col);
         }
     }
@@ -838,10 +838,10 @@ function drawPlanet(p)
                 {
                     const off = ((p.seed % 997) / 997) * 6.28;
                     const a = baseAng + off + (j / effectiveN) * 6.28;
-                    const wob = Math.sin(time * 1.2 + idx * .37) * .05;
+                    const wob = sin(time * 1.2 + idx * .37) * .05;
 
-                    const pos = p.pos.add(vec2(Math.cos(a), Math.sin(a)).scale(orbitR + wob));
-                    const tdir = vec2(-Math.sin(a), Math.cos(a));
+                    const pos = p.pos.add(vec2(cos(a), sin(a)).scale(orbitR + wob));
+                    const tdir = vec2(-sin(a), cos(a));
                     drawWedge(pos, tdir, .26, hsl(hue, p.owner ? .8 : .2, .65, .75));
                 }
             }
@@ -1059,11 +1059,11 @@ function gameRender()
             if (localT >= f.travelTime) continue;
 
             const tt = clamp(localT / max(.001, f.travelTime));
-            const wobble = Math.sin((tt*6.28) + f.swirl) * .18;
+            const wobble = sin((tt*6.28) + f.swirl) * .18;
             const side = f.perp.scale(wobble);
 
             let pos = startPos.add(f.dir.scale(FLEET_SPEED * localT)).add(side);
-            const tWob = Math.sin(localT * 5.5 * s.speedJitter + s.wobblePhase) * s.wobbleAmt;
+            const tWob = sin(localT * 5.5 * s.speedJitter + s.wobblePhase) * s.wobbleAmt;
             pos = pos.subtract(f.dir.scale(s.back)).add(f.perp.scale(s.side + tWob));
 
             drawWedge(pos, f.dir, .32, c);
@@ -1079,7 +1079,7 @@ function gameRender()
         const beamHue = ownerHue(OWNER_PLAYER);
         
         // Pulsing effect for drag line
-        const pulse = .5 + .5 * Math.sin(time * 8);
+        const pulse = .5 + .5 * sin(time * 8);
         // Scale line thickness based on send percentage (10% to 100%)
         const widthScale = .5 + dragPercent * 2;  // ranges from .5 to 2.5
         const outerThick = (.35 + pulse * .15) * widthScale;  // pulses and scales

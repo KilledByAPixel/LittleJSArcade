@@ -396,7 +396,7 @@ function applyMoveOnState(state, move)
 
     // Update en passant target — set only on pawn double-move, else null
     let newEnPassant = null;
-    if (piece.type === PIECE_PAWN && Math.abs(move.to.row - move.from.row) === 2) {
+    if (piece.type === PIECE_PAWN && abs(move.to.row - move.from.row) === 2) {
         newEnPassant = {row: (move.from.row + move.to.row) / 2, col: move.from.col};
     }
 
@@ -597,7 +597,7 @@ function evalPawnStructure(b, color)
         const rightHas = c < BOARD_SIZE - 1 && ownPawnRowsByFile[c + 1].length > 0;
         if (!leftHas && !rightHas) score -= 10;
         // Passed: this pawn's most-advanced rank has no opp pawn ahead on this or adjacent files
-        const mostAdvanced = color === COLOR_WHITE ? Math.max(...rows) : Math.min(...rows);
+        const mostAdvanced = color === COLOR_WHITE ? max(...rows) : min(...rows);
         let isPassed = true;
         for (const cc of [c - 1, c, c + 1]) {
             if (cc < 0 || cc >= BOARD_SIZE) continue;
@@ -948,8 +948,8 @@ function getSquareWorldPos(row, col)
 function worldPosToSquare(worldPos)
 {
     const offset = -(BOARD_SIZE * SQUARE_SIZE) / 2;
-    const c = Math.floor((worldPos.x - offset) / SQUARE_SIZE);
-    const r = Math.floor((worldPos.y - offset) / SQUARE_SIZE);
+    const c = floor((worldPos.x - offset) / SQUARE_SIZE);
+    const r = floor((worldPos.y - offset) / SQUARE_SIZE);
     if (isInBounds(r, c)) return {row: r, col: c};
     return null;
 }
@@ -983,7 +983,7 @@ function bakePieceSprites()
     circleSprite = drawToTexture(tile++, ctx => {
         ctx.fillStyle = '#fff';
         ctx.beginPath();
-        ctx.arc(DRAW_SIZE / 2, DRAW_SIZE / 2, DRAW_SIZE * 0.47, 0, Math.PI * 2);
+        ctx.arc(DRAW_SIZE / 2, DRAW_SIZE / 2, DRAW_SIZE * 0.47, 0, PI * 2);
         ctx.fill();
     }, 'a solid white circle');
 }
@@ -1040,7 +1040,7 @@ function drawBoard()
     // Hint: pulse own pieces that have a legal move when nothing is selected
     const humanTurn = gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === COLOR_WHITE);
     if (isPlaying() && !gameOver && !selectedSquare && humanTurn) {
-        const hintAlpha = 0.3 + Math.sin(time * 4) * 0.15;
+        const hintAlpha = 0.3 + sin(time * 4) * 0.15;
         for (const sq of getMovableHintSquares()) {
             drawRect(getSquareWorldPos(sq.row, sq.col), vec2(SQUARE_SIZE * 0.9), rgb(0.3, 1, 0.5, hintAlpha));
         }
@@ -1379,7 +1379,7 @@ function updateAIMove()
             findBestAIMove({
                 onProgress: (d, n) => {
                     if (myGen === aiGeneration)
-                        aiDisplayProgress = Math.max(aiDisplayProgress, Math.round(d / n * 100));
+                        aiDisplayProgress = max(aiDisplayProgress, round(d / n * 100));
                 },
                 // Fine-grained progress: fires after each root move's subtree
                 // completes within the current iterative-deepening iteration.
@@ -1389,7 +1389,7 @@ function updateAIMove()
                 onRootProgress: (rootIdx, rootTotal, d, maxDepth) => {
                     if (myGen !== aiGeneration) return;
                     const fraction = ((d - 1) + rootIdx / rootTotal) / maxDepth;
-                    aiDisplayProgress = Math.max(aiDisplayProgress, Math.round(fraction * 100));
+                    aiDisplayProgress = max(aiDisplayProgress, round(fraction * 100));
                 },
             }).then(move => {
                 if (myGen !== aiGeneration) { aiSearching = false; aiProgress = ''; return; }
@@ -1441,8 +1441,8 @@ function gameUpdate()
     // real percent; this just fills in the gaps. Capped at 95 so it never
     // falsely shows 100% before the move actually plays.
     if (aiSearching) {
-        aiDisplayProgress = Math.min(95, aiDisplayProgress + timeDelta * 1.5);
-        aiProgress = `AI Thinking... ${Math.round(aiDisplayProgress)}%`;
+        aiDisplayProgress = min(95, aiDisplayProgress + timeDelta * 1.5);
+        aiProgress = `AI Thinking... ${round(aiDisplayProgress)}%`;
     }
 
     // Show the undo button only when there's a move to take back.

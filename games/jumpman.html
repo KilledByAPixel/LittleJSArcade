@@ -86,7 +86,7 @@ function getTileBumpOffset(x, y)
     if (start === undefined) return 0;
     const t = (time - start) / .18;
     if (t > 1) { tileBumps.delete(tileKey(x, y)); return 0; }
-    return Math.sin(t * Math.PI) * .35;
+    return sin(t * PI) * .35;
 }
 
 function addPipe(x, h) { fillRectTiles(x, 1, 2, h, TT.PIPE); }
@@ -299,8 +299,8 @@ class Coin extends EngineObject
         // spin: width oscillates so the coin looks like it's rotating about a vertical axis.
         // sign of the sine tells which face is showing (lighter front / darker back).
         const spin = time * 5 + this.phase * 2;
-        const s = Math.sin(spin);
-        const w = Math.abs(s) * .42 + .08;   // 0.08 .. 0.50
+        const s = sin(spin);
+        const w = abs(s) * .42 + .08;   // 0.08 .. 0.50
         const h = .85;
         const facing = s > 0;
 
@@ -339,9 +339,9 @@ class PopCoin extends EngineObject
     }
     render()
     {
-        const sx = .26 + Math.cos(this.life * .8) * .22;
-        drawTile(this.pos, vec2(Math.abs(sx), .44), icons.circle, rgb(1, .88, .2));
-        drawTile(this.pos, vec2(Math.abs(sx) + .04, .48), icons.circle, rgb(.6, .4, .05, .5));
+        const sx = .26 + cos(this.life * .8) * .22;
+        drawTile(this.pos, vec2(abs(sx), .44), icons.circle, rgb(1, .88, .2));
+        drawTile(this.pos, vec2(abs(sx) + .04, .48), icons.circle, rgb(.6, .4, .05, .5));
     }
 }
 
@@ -355,7 +355,7 @@ class BrickChunk extends EngineObject
     {
         super(pos, vec2(.35));
         this.velocity = vel;
-        this.angleVelocity = (Math.random() - .5) * .4;
+        this.angleVelocity = (rand() - .5) * .4;
         this.angleDamping = 1;
         this.damping = 1;
         this.gravityScale = 0;
@@ -538,15 +538,15 @@ class Star extends EngineObject
     render()
     {
         // pulsing rainbow 5-pointed star
-        const pulse = .55 + Math.sin(time * 14) * .08;
+        const pulse = .55 + sin(time * 14) * .08;
         const hue = (time * 2.5 + this.pos.x * .05) % 1;
         const c = hsl(hue, 1, .65);
         const points = [];
         for (let i = 0; i < 10; i++)
         {
-            const a = i * Math.PI / 5 - Math.PI / 2;
+            const a = i * PI / 5 - PI / 2;
             const rad = (i % 2 === 0) ? pulse : pulse * .42;
-            points.push(vec2(Math.cos(a) * rad, Math.sin(a) * rad));
+            points.push(vec2(cos(a) * rad, sin(a) * rad));
         }
         drawPoly(points, c, .04, rgb(.25, .15, 0, 1), this.pos);
     }
@@ -680,13 +680,13 @@ class Goomba extends Enemy
             {
                 if (e instanceof Koopa && e.state === 'kicked')
                 {
-                    this.kill(Math.sign(e.velocity.x));
+                    this.kill(sign(e.velocity.x));
                     sfxKick.play(this.pos);
                     return;
                 }
                 if (e instanceof Goomba)
                 {
-                    if (Math.sign(this.pos.x - e.pos.x) !== Math.sign(this.velocity.x))
+                    if (sign(this.pos.x - e.pos.x) !== sign(this.velocity.x))
                     {
                         this.velocity.x = -this.velocity.x;
                         this.facing = -this.facing;
@@ -753,7 +753,7 @@ class Goomba extends Enemy
             drawRect(this.pos.add(vec2(-.16, .12)), vec2(.06, .12), rgb(0, 0, 0));
             drawRect(this.pos.add(vec2(.20, .12)),  vec2(.06, .12), rgb(0, 0, 0));
             // feet shuffle
-            const fp = Math.sin(time * 10) * .06;
+            const fp = sin(time * 10) * .06;
             drawRect(this.pos.add(vec2(-.22, -.42 + fp)), vec2(.24, .14), rgb(.35, .18, .05));
             drawRect(this.pos.add(vec2(.22, -.42 - fp)),  vec2(.24, .14), rgb(.35, .18, .05));
         }
@@ -808,19 +808,19 @@ class Koopa extends Enemy
                 {
                     if (e instanceof Goomba && !e.squished)
                     {
-                        e.kill(Math.sign(this.velocity.x));
+                        e.kill(sign(this.velocity.x));
                         sfxKick.play(this.pos);
                     }
                     else if (e instanceof Koopa)
                     {
                         if (e.state === 'walk')
                         {
-                            e.kill(Math.sign(this.velocity.x));
+                            e.kill(sign(this.velocity.x));
                             sfxKick.play(this.pos);
                         }
                         else if (e.state === 'shell')
                         {
-                            e.kickInDir(Math.sign(this.velocity.x));
+                            e.kickInDir(sign(this.velocity.x));
                         }
                     }
                 }
@@ -903,7 +903,7 @@ class Koopa extends Enemy
         if (this.state === 'walk')
         {
             // legs (shuffle)
-            const fp = Math.sin(time * 9) * .05;
+            const fp = sin(time * 9) * .05;
             drawRect(this.pos.add(vec2(-.18, -.42 + fp)), vec2(.22, .14), rgb(.95, .78, .18));
             drawRect(this.pos.add(vec2(.18,  -.42 - fp)), vec2(.22, .14), rgb(.95, .78, .18));
             // body (shell)
@@ -924,7 +924,7 @@ class Koopa extends Enemy
             drawRect(this.pos, vec2(.95, .55), rgb(.18, .65, .25));
             drawRect(this.pos.add(vec2(0, .18)), vec2(.95, .12), rgb(.10, .45, .15));
             // spinning pattern: an offset stripe
-            const pxOff = Math.cos(spinPhase) * .25;
+            const pxOff = cos(spinPhase) * .25;
             drawRect(this.pos.add(vec2(pxOff, -.05)), vec2(.18, .35), rgb(.10, .45, .15));
             // rim
             drawRect(this.pos.add(vec2(0, .22)), vec2(1.0, .12), rgb(.95, .82, .18));
@@ -1156,8 +1156,8 @@ class Player extends EngineObject
         // warp pipe entry: standing on a warpable pipe with Down held
         if (down && onGround)
         {
-            const px = Math.floor(this.pos.x);
-            const py = Math.floor(this.pos.y - this.size.y/2 - .01);
+            const px = floor(this.pos.x);
+            const py = floor(this.pos.y - this.size.y/2 - .01);
             if (!inSecretRoom && py === WARP_ENTRY_PIPE_TOP_Y && WARP_ENTRY_PIPE_X.includes(px))
             {
                 this.startWarp('underground');
@@ -1210,7 +1210,7 @@ class Player extends EngineObject
         // jump (engine clears groundObject on collision; we don't need to)
         if (this.bufferTimer > 0 && this.coyoteTimer > 0)
         {
-            const speedFrac = Math.abs(this.velocity.x) / P.RUN_MAX;
+            const speedFrac = abs(this.velocity.x) / P.RUN_MAX;
             this.velocity.y = P.JUMP_VEL_BASE + P.JUMP_VEL_RUN_BONUS * speedFrac;
             this.coyoteTimer = 0;
             this.bufferTimer = 0;
@@ -1385,10 +1385,10 @@ class Player extends EngineObject
         if (this.atCastle) return; // walked into castle, hide
 
         // post-shrink invulnerability flicker (skip every other tick)
-        if (this.damageFlash > 0 && Math.floor(time * 30) % 2 === 0) return;
+        if (this.damageFlash > 0 && floor(time * 30) % 2 === 0) return;
 
         const big = this.powerState === 'big';
-        const lean = this.facing * Math.min(.12, Math.abs(this.velocity.x) * .4);
+        const lean = this.facing * min(.12, abs(this.velocity.x) * .4);
 
         // star power cycles palette
         let bodyC, shirtC, hatC, skinC;
@@ -1408,8 +1408,8 @@ class Player extends EngineObject
             skinC  = rgb(.95, .80, .60);
         }
 
-        const walking = !!this.groundObject && Math.abs(this.velocity.x) > .02;
-        const wp = walking ? Math.sin(time * 14) * .06 : 0;
+        const walking = !!this.groundObject && abs(this.velocity.x) > .02;
+        const wp = walking ? sin(time * 14) * .06 : 0;
 
         if (big)
         {
@@ -1601,7 +1601,7 @@ function drawTilePrimitive(x, y, t)
     else if (t === TT.QBLOCK)
     {
         // pulsing yellow ? block
-        const flash = .8 + Math.sin(time * 4 + x * 1.7) * .15;
+        const flash = .8 + sin(time * 4 + x * 1.7) * .15;
         drawRect(pos, vec2(1), rgb(flash, flash * .75, .15));
         drawRect(pos.add(vec2(0, .38)), vec2(1, .12), rgb(1, .9, .35));
         drawRect(pos, vec2(.92, .92), rgb(flash * .9, flash * .65, .10));

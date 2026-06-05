@@ -666,8 +666,8 @@ function getCellWorldPos(row, col)
 function worldPosToCell(worldPos)
 {
     const boardOffset = -(BOARD_SIZE * CELL_SIZE) / 2;
-    const col = Math.floor((worldPos.x - boardOffset) / CELL_SIZE);
-    const row = BOARD_SIZE - 1 - Math.floor((worldPos.y - boardOffset) / CELL_SIZE);
+    const col = floor((worldPos.x - boardOffset) / CELL_SIZE);
+    const row = BOARD_SIZE - 1 - floor((worldPos.y - boardOffset) / CELL_SIZE);
     if (isInBounds(row, col)) return {row, col};
     return null;
 }
@@ -730,7 +730,7 @@ function drawBoard()
     if (isPlaying() && selectedCell)
     {
         const pos = getCellWorldPos(selectedCell.row, selectedCell.col);
-        const pulse = 1 + Math.sin(time * 5) * 0.08;
+        const pulse = 1 + sin(time * 5) * 0.08;
         drawRect(pos, vec2(CELL_SIZE * 0.95 * pulse), rgb(0.3, 1, 0.3, 0.35));
     }
 
@@ -749,7 +749,7 @@ function drawBoard()
     if (isPlaying() && !selectedCell && !gameOver && !movingPiece &&
         (gameMode === 'pvp' || (gameMode === 'ai' && currentPlayer === PLAYER_HUMAN)))
     {
-        const hintAlpha = 0.3 + Math.sin(time * 4) * 0.15;
+        const hintAlpha = 0.3 + sin(time * 4) * 0.15;
         const seen = new Set();
         for (const m of allPlayerMoves)
         {
@@ -783,13 +783,13 @@ function drawBoard()
         {
             const capPos = getCellWorldPos(movingPiece.capture.row, movingPiece.capture.col);
             const scale = 1 - t * 0.9;
-            drawPiece(capPos, movingPiece.capturedPiece, Math.max(scale, 0.1));
+            drawPiece(capPos, movingPiece.capturedPiece, max(scale, 0.1));
         }
 
         const fromPos = getCellWorldPos(movingPiece.fromRow, movingPiece.fromCol);
         const toPos   = getCellWorldPos(movingPiece.toRow, movingPiece.toCol);
         const pos = fromPos.lerp(toPos, t);
-        pos.y += Math.sin(t * Math.PI) * 0.25; // little hop
+        pos.y += sin(t * PI) * 0.25; // little hop
         drawPiece(pos, movingPiece.piece);
     }
 }
@@ -1065,7 +1065,7 @@ function gameUpdate()
             const myGen = aiGeneration;
             findBestAIMove({
                 onProgress: (d, n) => {
-                    if (myGen === aiGeneration) aiProgress = `AI Thinking... ${Math.round(d / n * 100)}%`;
+                    if (myGen === aiGeneration) aiProgress = `AI Thinking... ${round(d / n * 100)}%`;
                 }
             }).then(move => {
                 if (myGen !== aiGeneration) { aiSearching = false; aiProgress = ''; return; }

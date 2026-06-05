@@ -1044,7 +1044,7 @@ function drawPac(p)
     for (let i = 0; i <= N; i++)
     {
         const a = halfMouth + sweep * (i / N);
-        points.push(vec2(Math.sin(a)*r, Math.cos(a)*r));
+        points.push(vec2(sin(a)*r, cos(a)*r));
     }
     drawPoly(points, rgb(1, .92, 0), 0, rgb(0,0,0), p.pos, faceAngle);
 }
@@ -1061,7 +1061,7 @@ const _ghostShape = (() =>
     for (let i = 0; i <= N; i++)
     {
         const a = PI - PI * (i/N);
-        pts.push(vec2(r * Math.cos(a), r * Math.sin(a)));
+        pts.push(vec2(r * cos(a), r * sin(a)));
     }
     // right side straight down
     pts.push(vec2(r, sideY));

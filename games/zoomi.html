@@ -90,7 +90,7 @@ function buildPath()
         const t     = i / PATH_SAMPLES;             // 0 outer -> 1 inner
         const theta = thetaMax * (1 - t);           // outer has high theta, hole has theta=0
         const r     = SPIRAL_INNER_R + dr * (theta / thetaMax);
-        const pos   = vec2(Math.cos(theta) * r, Math.sin(theta) * r);
+        const pos   = vec2(cos(theta) * r, sin(theta) * r);
         if (prev) arc += pos.distance(prev);
         path.push({pos, arc});
         prev = pos;
@@ -242,7 +242,7 @@ function updateChain(dt)
     {
         const ideal = chain[i - 1].arc - BALL_D;
         if (chain[i].arc < ideal)
-            chain[i].arc = Math.min(chain[i].arc + catchup, ideal);
+            chain[i].arc = min(chain[i].arc + catchup, ideal);
     }
 
     // Spawn new balls at the back (arc=0) once previous back has cleared.
@@ -290,7 +290,7 @@ function spawnFloatingText(pos, text, color, combo)
         color: color,
         age:   0,
         life:  combo > 1 ? 1.4 : 1.0,
-        size:  combo > 1 ? .9 + Math.min(combo, 5) * .15 : .8,
+        size:  combo > 1 ? .9 + min(combo, 5) * .15 : .8,
     });
 }
 
@@ -440,7 +440,7 @@ function newGame()
     const preSpawn = 10;
     for (let i = 0; i < preSpawn; i++)
         chain.push({arc: startArc - i * BALL_D, colorIdx: pickSpawnColor()});
-    ballsRemaining = Math.max(0, BALLS_PER_LEVEL - preSpawn);
+    ballsRemaining = max(0, BALLS_PER_LEVEL - preSpawn);
     loadedShotColor = pickShotColor();
     nextShotColor   = pickShotColor();
 }
@@ -554,7 +554,7 @@ function fitCameraToCanvas()
 {
     // Fit the spiral (outerR + a small margin) into the smaller canvas dimension.
     const fitR = SPIRAL_OUTER_R + 1;
-    cameraScale = Math.min(mainCanvasSize.x, mainCanvasSize.y) / (2 * fitR);
+    cameraScale = min(mainCanvasSize.x, mainCanvasSize.y) / (2 * fitR);
 }
 
 function gameUpdate()
@@ -631,7 +631,7 @@ function drawHoleWarning()
 {
     const d = chainDanger();
     if (d <= 0) return;
-    const pulse = .5 + .5 * Math.sin(time * 7);
+    const pulse = .5 + .5 * sin(time * 7);
     const intensity = d * (.6 + .4 * pulse);
     drawTile(
         path[path.length - 1].pos,
@@ -663,7 +663,7 @@ function drawChainBall(b)
     const d = dangerOf(b.arc);
     if (d > 0)
     {
-        const pulse = .5 + .5 * Math.sin(time * 8);
+        const pulse = .5 + .5 * sin(time * 8);
         const intensity = d * (.5 + .35 * pulse);
         drawTile(
             pos,
@@ -725,7 +725,7 @@ function gameRenderPost()
     const d = chainDanger();
     if (d > 0)
     {
-        const pulse = .5 + .5 * Math.sin(time * 5);
+        const pulse = .5 + .5 * sin(time * 5);
         // Larger ellipse pushes the colored ring further off-screen so only
         // a soft rim bleeds in at the edges — the center stays clear.
         drawEllipseGradient(
@@ -746,10 +746,10 @@ function gameRenderPost()
 
     if (currentCombo > 1)
     {
-        const flash = .5 + .5 * Math.sin(time * 18);
+        const flash = .5 + .5 * sin(time * 18);
         drawTextScreen('COMBO  x' + currentCombo,
             vec2(mainCanvasSize.x / 2, 70),
-            32 + 6 * Math.min(currentCombo, 5),
+            32 + 6 * min(currentCombo, 5),
             hsl(0, 1, .6 + .2 * flash), 5, hsl(0, 0, 0));
     }
 }

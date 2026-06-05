@@ -253,7 +253,7 @@ function catchBomb(b) {
         { size: 0.35, sizeEnd: 0, speed: 0.2, particleTime: 0.4, gravityScale: 0.15, angleSpeed: 0.6 });
 
     // Classic Kaboom: get a bucket back every 1000 points.
-    const earned = Math.floor(score / 1000);
+    const earned = floor(score / 1000);
     if (earned > bucketsAwarded && lives < 3) {
         bucketsAwarded = earned;
         lives++;
@@ -342,8 +342,8 @@ function updateBomber(dt) {
 
     // Pace back and forth with random flips. Speed scales with wave.
     bomber.x += bomber.vx * dt;
-    if (bomber.x > BOMBER_RANGE)  { bomber.x = BOMBER_RANGE;  bomber.vx = -Math.abs(bomber.vx); }
-    if (bomber.x < -BOMBER_RANGE) { bomber.x = -BOMBER_RANGE; bomber.vx =  Math.abs(bomber.vx); }
+    if (bomber.x > BOMBER_RANGE)  { bomber.x = BOMBER_RANGE;  bomber.vx = -abs(bomber.vx); }
+    if (bomber.x < -BOMBER_RANGE) { bomber.x = -BOMBER_RANGE; bomber.vx =  abs(bomber.vx); }
     if (rand() < bomberFlipProb(wave)) bomber.vx = -bomber.vx;
 
     if (bomber.dropTimer > 0)  bomber.dropTimer  -= dt;
@@ -409,12 +409,12 @@ function updateBombs(dt) {
         // wavy weaves as a sine around its clamped center (so it can't exit).
         if (b.type === 'wavy') {
             b.wavePhase += dt * b.waveFreq;
-            b.pos.x = b.centerX + Math.sin(b.wavePhase) * b.waveAmp;
+            b.pos.x = b.centerX + sin(b.wavePhase) * b.waveAmp;
         } else if (b.type === 'drift') {
             b.pos.x += b.vel.x * dt;
             const lim = FIELD_RIGHT - BOMB_R - 0.2;
-            if (b.pos.x < -lim) { b.pos.x = -lim; b.vel.x =  Math.abs(b.vel.x); }
-            if (b.pos.x >  lim) { b.pos.x =  lim; b.vel.x = -Math.abs(b.vel.x); }
+            if (b.pos.x < -lim) { b.pos.x = -lim; b.vel.x =  abs(b.vel.x); }
+            if (b.pos.x >  lim) { b.pos.x =  lim; b.vel.x = -abs(b.vel.x); }
         }
 
         // The smoke-trail + fuse-spark emitters ride along with the bomb.
@@ -423,9 +423,9 @@ function updateBombs(dt) {
 
         // Catch test: only the TOP (highest) bucket catches. Lower buckets
         // are visual lives only — classic Kaboom rules.
-        const dx = Math.abs(b.pos.x - bucketX);
+        const dx = abs(b.pos.x - bucketX);
         const dy = b.pos.y - catchY;
-        if (dx < halfW + BOMB_R && Math.abs(dy) < bucketHalfH + BOMB_R && b.vel.y < 0) {
+        if (dx < halfW + BOMB_R && abs(dy) < bucketHalfH + BOMB_R && b.vel.y < 0) {
             catchBomb(b);
             destroyBombFx(b);
             bombs.splice(i, 1);
@@ -540,7 +540,7 @@ function drawBomber() {
     const moving = waveClearTimer <= 0 && waveStartDelay <= 0;
     const facing = bomber.vx >= 0 ? 1 : -1;
     const walkPhase = time * 6 * (moving ? 1 : 0);
-    const stepBob = Math.abs(Math.sin(walkPhase)) * 0.08;
+    const stepBob = abs(sin(walkPhase)) * 0.08;
 
     // Rounded body part — the atlas roundSquare gives the bomber soft, organic
     // edges. The icon now fills its tile, so each part keeps the same footprint
@@ -558,7 +558,7 @@ function drawBomber() {
         // cycle — abs(sin(x+PI)) == abs(sin(x)), which would keep them in sync.
         // Opposite phase per side: one foot is up while the other is planted.
         // 0 when not walking (walkPhase is 0 while idle).
-        const bob = Math.max(0, Math.sin(walkPhase + (side > 0 ? PI : 0))) * 0.22;
+        const bob = max(0, sin(walkPhase + (side > 0 ? PI : 0))) * 0.22;
         const lY = baseLegY + bob;
         limb(vec2(lx, lY), vec2(0.45, 1.1), hsl(0, .8, .5));
         for (let i = 0; i < 4; i++) {
@@ -671,7 +671,7 @@ function drawBomb(b) {
              b.pos.add(vec2(0.08, BOMB_R + 0.4)), 0.07, hsl(.08, .4, .4));
     // Spark — a spinning additive spark with a white-hot core.
     const sparkPos = b.pos.add(vec2(0.08, BOMB_R + 0.42));
-    const sparkSize = 0.5 + 0.2 * Math.sin(b.fuse);
+    const sparkSize = 0.5 + 0.2 * sin(b.fuse);
     drawTile(sparkPos, vec2(sparkSize), ICON.spark,
              hsl(.12, 1, .75), b.fuse * 3, false, hsl(.12, 1, .75, 0));
     drawTile(sparkPos, vec2(sparkSize * 0.4), ICON.circle, WHITE);
@@ -688,7 +688,7 @@ function drawBuckets() {
         // Soft glow on the active (catching) bucket so players read which one
         // grabs bombs — gently pulses.
         if (isTop) {
-            const pulse = 0.22 + 0.1 * Math.sin(time * 4);
+            const pulse = 0.22 + 0.1 * sin(time * 4);
             drawTile(vec2(bucketX, cy + h/2 + 0.1), vec2(halfW * 2 + 1.8, 1.8),
                      ICON.glow, hsl(.55, .9, .72, pulse), 0, false, hsl(.55, .9, .72, 0));
         }

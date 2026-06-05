@@ -811,7 +811,7 @@ const FreecellSolver = (function()
         {
             if (sl === s) continue;
             const fv = foundValueOfSuit(st, sl);
-            if ((sl % 2) !== c) oppMin = Math.min(oppMin, fv);
+            if ((sl % 2) !== c) oppMin = min(oppMin, fv);
             else                sameOther = fv;
         }
         return oppMin >= v - 1 && sameOther >= v - 2;

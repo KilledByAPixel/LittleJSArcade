@@ -239,9 +239,9 @@ function drawSpriteBitmapScreen(centerScreenX, centerScreenY, bitmap, pixelSize,
     const rows = bitmap.length;
     const cols = bitmap[0].length;
     // Snap to integer pixel grid so cell edges don't anti-alias into stripes
-    const px = Math.round(pixelSize);
-    const startX = Math.round(centerScreenX - cols * px * 0.5);
-    const startY = Math.round(centerScreenY - rows * px * 0.5);
+    const px = round(pixelSize);
+    const startX = round(centerScreenX - cols * px * 0.5);
+    const startY = round(centerScreenY - rows * px * 0.5);
     mainContext.fillStyle = color.toString();
     for (let y = 0; y < rows; y++)
     {
@@ -672,10 +672,10 @@ class Shield extends EngineObject
     sweptFirstHit(sweptCenter, sweptSize, velY)
     {
         const px = this.pixelSize;
-        const gx0 = max(0,             Math.floor((sweptCenter.x - sweptSize.x/2 - this.origin.x) / px));
-        const gx1 = min(this.gridW - 1, Math.floor((sweptCenter.x + sweptSize.x/2 - this.origin.x) / px));
-        const gy0 = max(0,             Math.floor((sweptCenter.y - sweptSize.y/2 - this.origin.y) / px));
-        const gy1 = min(this.gridH - 1, Math.floor((sweptCenter.y + sweptSize.y/2 - this.origin.y) / px));
+        const gx0 = max(0,             floor((sweptCenter.x - sweptSize.x/2 - this.origin.x) / px));
+        const gx1 = min(this.gridW - 1, floor((sweptCenter.x + sweptSize.x/2 - this.origin.x) / px));
+        const gy0 = max(0,             floor((sweptCenter.y - sweptSize.y/2 - this.origin.y) / px));
+        const gy1 = min(this.gridH - 1, floor((sweptCenter.y + sweptSize.y/2 - this.origin.y) / px));
         if (gx0 > gx1 || gy0 > gy1) return null;
         if (velY > 0)
         {
@@ -695,7 +695,7 @@ class Shield extends EngineObject
     // Carve a roughly elliptical splash around (gx,gy) with random edge nibble.
     eraseSplash(gx, gy, rx, ry)
     {
-        const dxMax = Math.ceil(rx), dyMax = Math.ceil(ry);
+        const dxMax = ceil(rx), dyMax = ceil(ry);
         for (let dy = -dyMax; dy <= dyMax; dy++)
         for (let dx = -dxMax; dx <= dxMax; dx++)
         {
@@ -713,10 +713,10 @@ class Shield extends EngineObject
     eraseAABB(aabbCenter, aabbSize)
     {
         const px = this.pixelSize;
-        const gx0 = max(0,             Math.floor((aabbCenter.x - aabbSize.x/2 - this.origin.x) / px));
-        const gx1 = min(this.gridW - 1, Math.floor((aabbCenter.x + aabbSize.x/2 - this.origin.x) / px));
-        const gy0 = max(0,             Math.floor((aabbCenter.y - aabbSize.y/2 - this.origin.y) / px));
-        const gy1 = min(this.gridH - 1, Math.floor((aabbCenter.y + aabbSize.y/2 - this.origin.y) / px));
+        const gx0 = max(0,             floor((aabbCenter.x - aabbSize.x/2 - this.origin.x) / px));
+        const gx1 = min(this.gridW - 1, floor((aabbCenter.x + aabbSize.x/2 - this.origin.x) / px));
+        const gy0 = max(0,             floor((aabbCenter.y - aabbSize.y/2 - this.origin.y) / px));
+        const gy1 = min(this.gridH - 1, floor((aabbCenter.y + aabbSize.y/2 - this.origin.y) / px));
         let any = false;
         for (let gy = gy0; gy <= gy1; gy++)
         for (let gx = gx0; gx <= gx1; gx++)
@@ -794,7 +794,7 @@ class UFO extends RectObject
         for (let i = 0; i < 4; i++)
         {
             const offset = (i - 1.5) * SPRITE_PIXEL * 4;
-            const flash = Math.sin(t + i * 1.5) > 0 ? 1 : 0.4;
+            const flash = sin(t + i * 1.5) > 0 ? 1 : 0.4;
             drawRect(this.pos.add(vec2(offset, .1)), lightSize, lightColors[i].scale(flash, 1));
         }
     }
@@ -1108,7 +1108,7 @@ function gameRenderPost()
     // Level announcement
     if (levelAnnounce > 0)
     {
-        const pulse = 0.7 + Math.sin(levelAnnounce * 0.15) * 0.3;
+        const pulse = 0.7 + sin(levelAnnounce * 0.15) * 0.3;
         const announceColor = rgb(.2 * pulse, .95 * pulse, .25 * pulse);
         drawTextScreen(`LEVEL ${currentLevel}`, vec2(mainCanvasSize.x/2, mainCanvasSize.y/2), 90, announceColor, 10, rgb(0,0,0));
         

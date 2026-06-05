@@ -139,8 +139,8 @@ function spawnHitBurst(pos, color)
 
 function aabbOverlap(posA, sizeA, posB, sizeB)
 {
-        return Math.abs(posA.x - posB.x) < (sizeA.x + sizeB.x) * .5 &&
-                      Math.abs(posA.y - posB.y) < (sizeA.y + sizeB.y) * .5;
+        return abs(posA.x - posB.x) < (sizeA.x + sizeB.x) * .5 &&
+                      abs(posA.y - posB.y) < (sizeA.y + sizeB.y) * .5;
 }
 
 function clampPaddleY(p)
@@ -162,7 +162,7 @@ function bounceOffPaddle(paddle, dirX)
 
         // faster and faster: add a fixed boost each hit, up to the rally ceiling
         const speed = min(ball.vel.length() + ballSpeedup, maxBallSpeed);
-        ball.vel = vec2(dirX * Math.cos(angle), Math.sin(angle)).scale(speed);
+        ball.vel = vec2(dirX * cos(angle), sin(angle)).scale(speed);
 
         // a moving paddle slices the ball, imparting spin that curves its flight
         // (sign chosen so the ball curves in the direction the paddle was moving)
@@ -197,8 +197,8 @@ function predictBallY(targetX, useSpin = false)
                 }
 
                 // Wall bounces
-                if (simPos.y > yLimit) { simPos.y = yLimit; simVel.y = -Math.abs(simVel.y); }
-                if (simPos.y < -yLimit) { simPos.y = -yLimit; simVel.y = Math.abs(simVel.y); }
+                if (simPos.y > yLimit) { simPos.y = yLimit; simVel.y = -abs(simVel.y); }
+                if (simPos.y < -yLimit) { simPos.y = -yLimit; simVel.y = abs(simVel.y); }
 
                 // Check if reached target x
                 if ((simVel.x > 0 && simPos.x >= targetX) || (simVel.x < 0 && simPos.x <= targetX))
@@ -520,7 +520,7 @@ function gameUpdate()
         if (ball.pos.y > yLimit)
         {
                 ball.pos.y = yLimit;
-                ball.vel.y = -Math.abs(ball.vel.y);
+                ball.vel.y = -abs(ball.vel.y);
                 isPlaying() && sfxWall?.play(ball.pos);
                 spawnHitBurst(ball.pos, ballTintColor());
                 addScreenShake(.06, .05);
@@ -529,7 +529,7 @@ function gameUpdate()
         else if (ball.pos.y < -yLimit)
         {
                 ball.pos.y = -yLimit;
-                ball.vel.y = Math.abs(ball.vel.y);
+                ball.vel.y = abs(ball.vel.y);
                 isPlaying() && sfxWall?.play(ball.pos);
                 spawnHitBurst(ball.pos, ballTintColor());
                 addScreenShake(.06, .05);
@@ -648,7 +648,7 @@ function gameRender()
 
         // ball — glow halo (sized with speed, flaring red & pulsing in the danger zone)
         const speedT = clamp((ball.vel.length() - ballStartSpeed) / max(1,maxBallSpeed - ballStartSpeed), 0, 1);
-        const dangerPulse = dangerLevel * (.6 + .4 * Math.sin(time * 22));
+        const dangerPulse = dangerLevel * (.6 + .4 * sin(time * 22));
         const haloCol = colorLerp(ballTintColor(), dangerColor, dangerLevel);
         drawRect(
                 ball.pos,
@@ -667,7 +667,7 @@ function gameRender()
         if (waitingForServe && !gameOver)
         {
                 const charge = clamp(serveTimer.getPercent(), 0, 1);  // 0 -> 1 as the serve nears
-                const pulse  = .5 + .5 * Math.sin(time * 12);
+                const pulse  = .5 + .5 * sin(time * 12);
                 const dir    = ball._serveDir || 1;
                 // pulsing ring that tightens as the serve charges up
                 drawRect(ball.pos, ballSize.scale(2.4 + (1 - charge) * 2 + pulse * .6),

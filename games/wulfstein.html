@@ -107,7 +107,7 @@ function parseLevel(rows)
 
 function isWallAt(p)
 {
-    const x = Math.floor(p.x), y = Math.floor(p.y);
+    const x = floor(p.x), y = floor(p.y);
     if (x < 0 || x >= LEVEL_W || y < 0 || y >= LEVEL_H) return true;
     const c = levelGrid[y][x];
     return c === '#' || c === 'X';
@@ -117,7 +117,7 @@ function isWallAt(p)
 // using isWallAt so visuals stay the same; only movement stops at L/B cells.
 function isBlocking(p)
 {
-    const x = Math.floor(p.x), y = Math.floor(p.y);
+    const x = floor(p.x), y = floor(p.y);
     if (x < 0 || x >= LEVEL_W || y < 0 || y >= LEVEL_H) return true;
     const c = levelGrid[y][x];
     return c === '#' || c === 'X' || c === 'L' || c === 'B';
@@ -162,7 +162,7 @@ let wallSliceInfo;
 const CELL_STRIDE = 512, CELL_PAD = 6, CELL_PIX = 500;
 function tileCellPx(idx)
 {
-    const col = idx % 4, row = Math.floor(idx / 4);
+    const col = idx % 4, row = floor(idx / 4);
     return vec2(col * CELL_STRIDE + CELL_PAD, row * CELL_STRIDE + CELL_PAD);
 }
 
@@ -246,7 +246,7 @@ function paintTech(ctx)
         for (const [dx, dy] of [[12, 12], [105, 12], [12, 105], [105, 105]])
         {
             ctx.beginPath();
-            ctx.arc(x + dx, y + dy, 6, 0, Math.PI * 2);
+            ctx.arc(x + dx, y + dy, 6, 0, PI * 2);
             ctx.fill();
         }
         if (k)
@@ -264,12 +264,12 @@ function paintGuard(ctx, firing)
     // head
     ctx.fillStyle = '#e8c39a';
     ctx.beginPath();
-    ctx.arc(250, 150, 80, 0, Math.PI * 2);
+    ctx.arc(250, 150, 80, 0, PI * 2);
     ctx.fill();
     // helmet
     ctx.fillStyle = '#222';
     ctx.beginPath();
-    ctx.arc(250, 130, 85, Math.PI, 0);
+    ctx.arc(250, 130, 85, PI, 0);
     ctx.fill();
     ctx.fillRect(165, 125, 170, 18);
     // eyes
@@ -291,7 +291,7 @@ function paintGuard(ctx, firing)
         g.addColorStop(1, 'rgba(255,140,0,0)');
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(395, 295, 75, 0, Math.PI * 2);
+        ctx.arc(395, 295, 75, 0, PI * 2);
         ctx.fill();
     }
     else
@@ -329,12 +329,12 @@ function paintMelee(ctx)
     // head (bald, large)
     ctx.fillStyle = '#c08868';
     ctx.beginPath();
-    ctx.arc(250, 160, 78, 0, Math.PI * 2);
+    ctx.arc(250, 160, 78, 0, PI * 2);
     ctx.fill();
     // skin shading on head
     ctx.fillStyle = 'rgba(0,0,0,.15)';
     ctx.beginPath();
-    ctx.arc(280, 180, 50, 0, Math.PI * 2);
+    ctx.arc(280, 180, 50, 0, PI * 2);
     ctx.fill();
     // glowing red eyes — fill + small halo
     for (const ex of [222, 278])
@@ -345,7 +345,7 @@ function paintMelee(ctx)
         g.addColorStop(1,  'rgba(120,0,0,0)');
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(ex, 152, 16, 0, Math.PI * 2);
+        ctx.arc(ex, 152, 16, 0, PI * 2);
         ctx.fill();
     }
     // snarling mouth, white teeth
@@ -365,7 +365,7 @@ function paintGuardDead(ctx)
     // pool — at the very bottom of the frame so feet/blood land on the floor when billboarded
     ctx.fillStyle = '#5a0808';
     ctx.beginPath();
-    ctx.ellipse(250, 480, 220, 22, 0, 0, Math.PI * 2);
+    ctx.ellipse(250, 480, 220, 22, 0, 0, PI * 2);
     ctx.fill();
     // sprawled body
     ctx.fillStyle = '#3a3a4a';
@@ -373,12 +373,12 @@ function paintGuardDead(ctx)
     // head end
     ctx.fillStyle = '#e8c39a';
     ctx.beginPath();
-    ctx.arc(110, 458, 48, 0, Math.PI * 2);
+    ctx.arc(110, 458, 48, 0, PI * 2);
     ctx.fill();
     // helmet
     ctx.fillStyle = '#222';
     ctx.beginPath();
-    ctx.arc(110, 445, 52, Math.PI, 0);
+    ctx.arc(110, 445, 52, PI, 0);
     ctx.fill();
     // X eyes
     ctx.strokeStyle = '#000';
@@ -414,7 +414,7 @@ function paintGun(ctx, firing)
         g.addColorStop(1, 'rgba(255,80,0,0)');
         ctx.fillStyle = g;
         ctx.beginPath();
-        ctx.arc(250, 140, 100, 0, Math.PI * 2);
+        ctx.arc(250, 140, 100, 0, PI * 2);
         ctx.fill();
     }
 }
@@ -428,7 +428,7 @@ function paintLamp(ctx)
     // base
     ctx.fillStyle = '#0a0602';
     ctx.beginPath();
-    ctx.ellipse(250, 492, 60, 14, 0, 0, Math.PI * 2);
+    ctx.ellipse(250, 492, 60, 14, 0, 0, PI * 2);
     ctx.fill();
     // soft halo behind the shade — walls behind partially read through
     const g = ctx.createRadialGradient(250, 205, 4, 250, 205, 135);
@@ -438,7 +438,7 @@ function paintLamp(ctx)
     g.addColorStop(1,  'rgba( 60, 20, 0,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(250, 205, 135, 0, Math.PI * 2);
+    ctx.arc(250, 205, 135, 0, PI * 2);
     ctx.fill();
     // trapezoidal lamp shade — dimmer at top, brighter at the bottom rim where the light spills out
     const shadeG = ctx.createLinearGradient(0, 160, 0, 250);
@@ -467,7 +467,7 @@ function paintHealth(ctx)
     // floor shadow
     ctx.fillStyle = 'rgba(0,0,0,.45)';
     ctx.beginPath();
-    ctx.ellipse(250, 460, 130, 18, 0, 0, Math.PI * 2);
+    ctx.ellipse(250, 460, 130, 18, 0, 0, PI * 2);
     ctx.fill();
     // white medkit box
     ctx.fillStyle = '#f4f4f4';
@@ -494,7 +494,7 @@ function paintAmmo(ctx)
     // floor shadow
     ctx.fillStyle = 'rgba(0,0,0,.45)';
     ctx.beginPath();
-    ctx.ellipse(250, 460, 140, 18, 0, 0, Math.PI * 2);
+    ctx.ellipse(250, 460, 140, 18, 0, 0, PI * 2);
     ctx.fill();
     // brown wooden crate
     ctx.fillStyle = '#5a3818';
@@ -540,7 +540,7 @@ function paintSpark(ctx)
     g.addColorStop(1,   'rgba(255,40,0,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(250, 250, 230, 0, Math.PI * 2);
+    ctx.arc(250, 250, 230, 0, PI * 2);
     ctx.fill();
 }
 
@@ -549,7 +549,7 @@ function paintBarrel(ctx)
     // floor shadow
     ctx.fillStyle = 'rgba(0,0,0,.5)';
     ctx.beginPath();
-    ctx.ellipse(250, 495, 110, 14, 0, 0, Math.PI * 2);
+    ctx.ellipse(250, 495, 110, 14, 0, 0, PI * 2);
     ctx.fill();
     // body
     ctx.fillStyle = '#6a3a14';
@@ -557,7 +557,7 @@ function paintBarrel(ctx)
     // top ellipse (lid)
     ctx.fillStyle = '#8a5a20';
     ctx.beginPath();
-    ctx.ellipse(250, 170, 90, 18, 0, 0, Math.PI * 2);
+    ctx.ellipse(250, 170, 90, 18, 0, 0, PI * 2);
     ctx.fill();
     // dark bands
     ctx.fillStyle = '#2a1408';
@@ -589,7 +589,7 @@ function paintExit(ctx)
     ctx.strokeRect(135, 285, 230, 170);
     ctx.fillStyle = '#ffd24a';
     ctx.beginPath();
-    ctx.arc(340, 280, 14, 0, Math.PI * 2);
+    ctx.arc(340, 280, 14, 0, PI * 2);
     ctx.fill();
 }
 
@@ -609,14 +609,14 @@ function paintMetalDoor(ctx)
     for (let i = 0; i < 6; ++i)
     {
         const t = 70 + i * 72;
-        ctx.beginPath(); ctx.arc(t,  70, 10, 0, Math.PI * 2); ctx.fill();    // top row
-        ctx.beginPath(); ctx.arc(t, 430, 10, 0, Math.PI * 2); ctx.fill();    // bottom row
+        ctx.beginPath(); ctx.arc(t,  70, 10, 0, PI * 2); ctx.fill();    // top row
+        ctx.beginPath(); ctx.arc(t, 430, 10, 0, PI * 2); ctx.fill();    // bottom row
     }
     for (let i = 0; i < 4; ++i)
     {
         const t = 130 + i * 80;
-        ctx.beginPath(); ctx.arc( 70, t, 10, 0, Math.PI * 2); ctx.fill();    // left col
-        ctx.beginPath(); ctx.arc(430, t, 10, 0, Math.PI * 2); ctx.fill();    // right col
+        ctx.beginPath(); ctx.arc( 70, t, 10, 0, PI * 2); ctx.fill();    // left col
+        ctx.beginPath(); ctx.arc(430, t, 10, 0, PI * 2); ctx.fill();    // right col
     }
     // inset lock panel
     ctx.fillStyle = '#1a1e24';
@@ -642,7 +642,7 @@ function paintMetalDoor(ctx)
     g.addColorStop(1,   'rgba(120,16,16,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(250, 130, 42, 0, Math.PI * 2);
+    ctx.arc(250, 130, 42, 0, PI * 2);
     ctx.fill();
     // hazard stripes at the bottom edge — extra "do not enter" reading
     for (let i = 0; i < 9; ++i)
@@ -664,8 +664,8 @@ function pickRandomWalkableNear(center, radius)
 {
     for (let tries = 0; tries < 16; ++tries)
     {
-        const tx = Math.floor(center.x) + Math.floor(rand(-radius, radius + 1));
-        const ty = Math.floor(center.y) + Math.floor(rand(-radius, radius + 1));
+        const tx = floor(center.x) + floor(rand(-radius, radius + 1));
+        const ty = floor(center.y) + floor(rand(-radius, radius + 1));
         if (tx < 0 || tx >= LEVEL_W || ty < 0 || ty >= LEVEL_H) continue;
         if (levelGrid[ty][tx] === '.') return vec2(tx + .5, ty + .5);
     }
@@ -888,7 +888,7 @@ function gameUpdate()
     //  enabled at the top of the script — so this works on desktop+controller
     //  and mobile/touch with no extra branching.)
     const stick1 = gamepadStick(1);
-    if (Math.abs(stick1.x) > .08)
+    if (abs(stick1.x) > .08)
         playerAngle += stick1.x * GAMEPAD_LOOK_SPEED * (invertX ? -1 : 1);
     if (gamepadWasPressed(0) || gamepadWasPressed(7) || gamepadWasPressed(11) && isTouchDevice) // A or right trigger fires
         playerFire();
@@ -923,7 +923,7 @@ function gameUpdate()
     // extreme close-ups can't push perpDist below the render cutoff. Without
     // this you can graze a wall hard enough to see the backdrop through it.
     const BUF = .07;
-    const cx = Math.floor(playerPos.x), cy = Math.floor(playerPos.y);
+    const cx = floor(playerPos.x), cy = floor(playerPos.y);
     if (isBlocking(vec2(cx + 1.1, playerPos.y)) && playerPos.x > cx + 1 - BUF)
         playerPos = vec2(cx + 1 - BUF, playerPos.y);
     if (isBlocking(vec2(cx - .1,  playerPos.y)) && playerPos.x < cx + BUF)
@@ -942,9 +942,9 @@ function gameUpdate()
         const p = pickups[i];
         if (playerPos.distance(p.pos) > .55) continue;
         if (p.kind === 'health')
-            playerHP = Math.min(PLAYER_MAX_HP, playerHP + HEALTH_PICKUP_AMT);
+            playerHP = min(PLAYER_MAX_HP, playerHP + HEALTH_PICKUP_AMT);
         else if (p.kind === 'ammo')
-            playerAmmo = Math.min(MAX_AMMO, playerAmmo + AMMO_PICKUP_AMT);
+            playerAmmo = min(MAX_AMMO, playerAmmo + AMMO_PICKUP_AMT);
         pickups.splice(i, 1);
         sndPickup.play();
     }
@@ -964,8 +964,8 @@ function gameUpdate()
         triggerVictory();
 
     // tick screen-flash timers
-    hitFlashT = Math.max(0, hitFlashT - 1/60);
-    muzzleFlashT = Math.max(0, muzzleFlashT - 1/60);
+    hitFlashT = max(0, hitFlashT - 1/60);
+    muzzleFlashT = max(0, muzzleFlashT - 1/60);
 }
 
 function playerFire()
@@ -1025,7 +1025,7 @@ function spawnWallHit(pos, normal)
         const out   = .8 + rand() * .5;      // strong outward bias
         let dx = normal.x * out + tx * along;
         let dy = normal.y * out + ty * along;
-        const len = Math.hypot(dx, dy) || 1;
+        const len = hypot(dx, dy) || 1;
         const sp  = .012 + rand() * .015;
         hitEffects.push({
             pos:   pos.add(normal.scale(.04)),
@@ -1238,7 +1238,7 @@ function updateEnemy(e)
                     e.shootCooldown = 1.0 + rand(0, .6);
                     if (!lineTest(e.pos, playerPos, isWallAt))
                     {
-                        const dmg = Math.round(8 + 14 * Math.max(0, 1 - dist / ENEMY_SIGHT_DIST));
+                        const dmg = round(8 + 14 * max(0, 1 - dist / ENEMY_SIGHT_DIST));
                         damagePlayer(dmg);
                         sndEnemyShoot.play();
                     }
@@ -1286,7 +1286,7 @@ function drawFloorCeiling(h)
     const c = rgb();
     for (let y = -h; y < h; y += .1)
     {
-        const p = 1 - Math.min(1, Math.abs(y / h));
+        const p = 1 - min(1, abs(y / h));
         if (y > 0)
             c.setHSLA(.6, .15, .04 + (1 - p) * .25);    // ceiling: cool dark
         else
@@ -1314,34 +1314,34 @@ function gameRender()
         // LittleJS CW-positive convention: right-of-screen = larger angle = CW of forward
         const relAng = sx * ANGLE_PER_X;
         const rayAng = playerAngle + relAng;
-        wallEnd.x = playerPos.x + Math.sin(rayAng) * MAX_DIST;
-        wallEnd.y = playerPos.y + Math.cos(rayAng) * MAX_DIST;
+        wallEnd.x = playerPos.x + sin(rayAng) * MAX_DIST;
+        wallEnd.y = playerPos.y + cos(rayAng) * MAX_DIST;
         const hit = lineTest(playerPos, wallEnd, isWallAt, wallNormal);
         if (!hit) continue;
         const rayDist = hit.distance(playerPos);
-        const perpDist = rayDist * Math.cos(relAng);
+        const perpDist = rayDist * cos(relAng);
         if (perpDist < .001) continue;       // only skip truly degenerate hits; near-wall slices stay drawn
 
         // pick which cell we entered (step back into the cell along the ray normal)
         const cellProbe = hit.subtract(vec2(wallNormal.x * .001, wallNormal.y * .001));
-        const cx = Math.floor(cellProbe.x), cy = Math.floor(cellProbe.y);
+        const cx = floor(cellProbe.x), cy = floor(cellProbe.y);
         const tileIdx = wallTileAt(cx, cy);
         const origin = tileCellPx(tileIdx);
 
         // u-coordinate along the wall surface: pick the axis perpendicular to the normal
         // walls are axis-aligned, so exactly one of normal.x/normal.y is non-zero
-        const u = Math.abs(wallNormal.x) > .5
-            ? (hit.y - Math.floor(hit.y))   // vertical wall — sample along Y
-            : (hit.x - Math.floor(hit.x));  // horizontal wall — sample along X
+        const u = abs(wallNormal.x) > .5
+            ? (hit.y - floor(hit.y))   // vertical wall — sample along Y
+            : (hit.x - floor(hit.x));  // horizontal wall — sample along X
         // clamp so the 2-px sample never crosses the right tile edge into the
         // atlas gutter — that's what was showing as transparent vertical cracks
         // at every cell seam.
-        const samplePx = origin.x + Math.min(CELL_PIX - 2, u * CELL_PIX);
+        const samplePx = origin.x + min(CELL_PIX - 2, u * CELL_PIX);
 
         // lighting: face the +X-leaning light, shadow walls facing away
-        const lit = Math.max(0, wallNormal.x * .5 + wallNormal.y * .8);
-        const fogT = Math.min(1, perpDist / MAX_DIST);
-        const bright = Math.max(.08, .55 - fogT * .45 + lit * .35);
+        const lit = max(0, wallNormal.x * .5 + wallNormal.y * .8);
+        const fogT = min(1, perpDist / MAX_DIST);
+        const bright = max(.08, .55 - fogT * .45 + lit * .35);
 
         const _sx = sx, _samplePx = samplePx, _originY = origin.y,
               _perpDist = perpDist, _bright = bright;
@@ -1352,7 +1352,7 @@ function gameRender()
                 wallSliceInfo.pos.x = _samplePx;
                 wallSliceInfo.pos.y = _originY;
                 // cap slice height so an extreme close-up doesn't push gigantic geometry into webgl
-                const sz = vec2(SLICE_STEP * 1.5, Math.min(5000, PROJ / _perpDist));
+                const sz = vec2(SLICE_STEP * 1.5, min(5000, PROJ / _perpDist));
                 drawTile(vec2(_sx, 0), sz, wallSliceInfo, hsl(0, 0, _bright));
             },
         });
@@ -1365,17 +1365,17 @@ function gameRender()
         const dist = toS.length();
         if (dist > MAX_DIST || dist < .1) return;
         // LittleJS angle convention: Vector2.angle() is atan2(x, y), 0 = +Y, CW positive
-        let relAng = Math.atan2(toS.x, toS.y) - playerAngle;
+        let relAng = atan2(toS.x, toS.y) - playerAngle;
         while (relAng >  PI) relAng -= 2 * PI;
         while (relAng < -PI) relAng += 2 * PI;
-        if (Math.abs(relAng) > FOV / 2 + .8) return;     // very off-screen
-        const perpDist = dist * Math.cos(relAng);
+        if (abs(relAng) > FOV / 2 + .8) return;     // very off-screen
+        const perpDist = dist * cos(relAng);
         if (perpDist < .15) return;
         const screenX = relAng * SCREEN_X_PER_RAD;       // CW of forward = right of screen
         const scale = opts?.scale ?? 1;
         const sizeW = scale * SCREEN_X_PER_RAD / perpDist;
         const sizeH = scale * PROJ / perpDist;
-        const fogT = Math.min(1, perpDist / MAX_DIST);
+        const fogT = min(1, perpDist / MAX_DIST);
         const dim = opts?.noFog ? 1 : (1 - fogT * .55);
         const tint = (opts?.tint ?? 1) * dim;
         // grounded:true shifts a small sprite down so its bottom edge sits at
@@ -1411,7 +1411,7 @@ function gameRender()
     {
         if (d.kind === 'lamp')
         {
-            const pulse = .72 + .08 * Math.sin(time * 4 + d.pos.x * 1.3 + d.pos.y * .7);
+            const pulse = .72 + .08 * sin(time * 4 + d.pos.x * 1.3 + d.pos.y * .7);
             pushSprite(d.pos, lampTile, {tint: pulse, noFog: true});
         }
         else if (d.kind === 'barrel')
@@ -1420,7 +1420,7 @@ function gameRender()
     // pickups — small floor-resting billboards with a gentle hover bob
     for (const p of pickups)
     {
-        const bob = Math.sin(time * 3 + p.pos.x * 1.1 + p.pos.y * .7) * .08;
+        const bob = sin(time * 3 + p.pos.x * 1.1 + p.pos.y * .7) * .08;
         const tile = p.kind === 'health' ? healthTile : ammoTile;
         pushSprite(p.pos, tile, {yOff: bob, scale: .32, grounded: true});
     }
@@ -1449,9 +1449,9 @@ function gameRenderPost()
 
     // 1st-person gun with walk-bob
     const gunTile = muzzleFlashT > 0 ? gunFireTile : gunIdleTile;
-    const gunSide = Math.min(W, H) * .55;
-    const bobX = Math.sin(bobPhase) * gunSide * .035 * bobAmount;
-    const bobY = Math.abs(Math.sin(bobPhase)) * gunSide * .03 * bobAmount;
+    const gunSide = min(W, H) * .55;
+    const bobX = sin(bobPhase) * gunSide * .035 * bobAmount;
+    const bobY = abs(sin(bobPhase)) * gunSide * .03 * bobAmount;
     drawTile(vec2(W / 2 + bobX, H - gunSide * .30 + bobY), vec2(gunSide), gunTile,
         WHITE, 0, false, undefined, true, true);
 
@@ -1510,7 +1510,7 @@ function gameRenderPost()
 function drawMinimap()
 {
     const W = mainCanvasSize.x, H = mainCanvasSize.y;
-    const mapSize = Math.min(W, H) * .22;    // overall pixel size of the square map
+    const mapSize = min(W, H) * .22;    // overall pixel size of the square map
     const cell = mapSize / LEVEL_W;
     const ox = 30, oy = 64;                  // origin: just below the HP bar
     // world (x, y-up) -> minimap pixel (y-down, north at top)
@@ -1551,7 +1551,7 @@ function drawMinimap()
 
     // player + facing arrow (forward world delta = (sin a, cos a); screen Y inverted)
     const pc = toScreen(playerPos.x, playerPos.y);
-    const fwd = vec2(Math.sin(playerAngle), -Math.cos(playerAngle));
+    const fwd = vec2(sin(playerAngle), -cos(playerAngle));
     drawLine(pc, pc.add(fwd.scale(cell * 2)), 3, new Color(1, 1, 1, 1), vec2(), 0, false, true);
     drawRect(pc, vec2(cell * .75, cell * .75), new Color(.3, .9, 1, 1), 0, false, true);
 }

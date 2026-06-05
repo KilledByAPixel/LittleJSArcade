@@ -428,7 +428,7 @@ function getCellWorldPos(row, col)
 function worldPosToCol(worldPos)
 {
     const boardOffset = -(COLS * CELL_SIZE) / 2;
-    const col = Math.floor((worldPos.x - boardOffset) / CELL_SIZE);
+    const col = floor((worldPos.x - boardOffset) / CELL_SIZE);
     if (col >= 0 && col < COLS)
         return col;
     return -1;
@@ -506,7 +506,7 @@ function drawBoard()
         for (const cell of winningCells)
         {
             const pos = getCellWorldPos(cell.row, cell.col);
-            const pulse = 1 + Math.sin(time * 6) * 0.1;
+            const pulse = 1 + sin(time * 6) * 0.1;
             drawTile(pos, vec2(DISC_RADIUS * 2.2 * pulse), icons.circle, rgb(1, 1, 1, 0.4));
         }
     }
@@ -519,7 +519,7 @@ function drawBoard()
         if (isValid)
         {
             const topPos = getCellWorldPos(ROWS, hoverCol);
-            const bobY = Math.sin(time * 4) * 0.1;
+            const bobY = sin(time * 4) * 0.1;
             drawDisc(topPos.add(vec2(0, bobY)), currentPlayer, 0.8);
         }
     }
@@ -764,7 +764,7 @@ function updateAITurn()
             const myGen = aiGeneration;
             findBestAIMove({
                 onProgress: (d, n) => {
-                    if (myGen === aiGeneration) aiProgress = `AI Thinking... ${Math.round(d / n * 100)}%`;
+                    if (myGen === aiGeneration) aiProgress = `AI Thinking... ${round(d / n * 100)}%`;
                 }
             }).then(move => {
                 if (myGen !== aiGeneration) { aiSearching = false; aiProgress = ''; return; }

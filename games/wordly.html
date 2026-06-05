@@ -80,8 +80,8 @@ const FLIP = 0.28;        // seconds per-tile flip
 const STAGGER = 0.18;     // delay between tiles in a revealing row
 
 // ---- daily puzzle helpers (UTC day) ----
-const LAUNCH_DAY = Math.floor(Date.UTC(2026, 5, 1) / 864e5);   // Jun 1 2026 UTC = Daily #1
-function dayNumber() { return Math.floor(Date.now() / 864e5); }
+const LAUNCH_DAY = floor(Date.UTC(2026, 5, 1) / 864e5);   // Jun 1 2026 UTC = Daily #1
+function dayNumber() { return floor(Date.now() / 864e5); }
 function dailyWord() { return WORDLE_ANSWERS[dayNumber() % WORDLE_ANSWERS.length]; }
 function currentDailyStreak() {
     const b = getSaveData();
@@ -406,7 +406,7 @@ function drawGrid() {
                     const t = time - rowRevealTime - c * STAGGER;
                     if (t < 0) { fill = pal.tile; border = pal.border; }
                     else if (t < FLIP) {
-                        size = vec2(TILE, TILE * Math.abs(1 - t / FLIP * 2 % 2));
+                        size = vec2(TILE, TILE * abs(1 - t / FLIP * 2 % 2));
                         if (t < FLIP / 2) { fill = pal.tile; border = pal.border; }
                         else { fill = pal[evals[r][c]]; border = null; }
                     } else { fill = pal[evals[r][c]]; border = null; }
@@ -414,7 +414,7 @@ function drawGrid() {
                 if (winTime > 0 && r === submittedRow) {
                     const revealDone = (COLS - 1) * STAGGER + FLIP;
                     const b = time - winTime - revealDone - c * 0.06;
-                    if (b > 0 && b < 0.6) p = p.add(vec2(0, Math.sin(b / 0.6 * PI) * 0.5));
+                    if (b > 0 && b < 0.6) p = p.add(vec2(0, sin(b / 0.6 * PI) * 0.5));
                 }
             } else if (r === guesses.length && !finished && c < current.length) {
                 letter = current[c]; border = pal.border;
@@ -426,7 +426,7 @@ function drawGrid() {
 
             if (r === guesses.length && !finished) {
                 const s = time - shakeTime;
-                if (s > 0 && s < 0.4) p = p.add(vec2(Math.sin(s * 50) * 0.18 * (1 - s / 0.4), 0));
+                if (s > 0 && s < 0.4) p = p.add(vec2(sin(s * 50) * 0.18 * (1 - s / 0.4), 0));
             }
 
             drawCell(p, size, fill, border, letter, textCol);

@@ -253,7 +253,7 @@ function spawnPlayerWarpIn(target)
     {
         const ang = rand(0, 6.28);
         const dist = rand(6, 14);                // wide scatter across most of the arena
-        const startPos = target.add(vec2(Math.cos(ang), Math.sin(ang)).scale(dist));
+        const startPos = target.add(vec2(cos(ang), sin(ang)).scale(dist));
         const life = randInt(50, 70);             // tight finish — most done by player-appear time
         const size = rand(.12, .3);              // chunky pieces
         // Mix the player's palette + rainbow flecks
@@ -283,9 +283,9 @@ function ringBurst(pos, color, count = 14)
 {
     for (let i=0;i<count;i++)
     {
-        const ang = (i / count) * Math.PI * 2 + rand(-.05, .05);
+        const ang = (i / count) * PI * 2 + rand(-.05, .05);
         const speed = rand(.18, .28);
-        const vel = vec2(Math.cos(ang), Math.sin(ang)).scale(speed);
+        const vel = vec2(cos(ang), sin(ang)).scale(speed);
         const life = randInt(16, 26);
         particles.push(new SimpleParticle(pos, vel, life, rand(.1, .18), color));
     }
@@ -438,17 +438,17 @@ class CruiseMissile extends EngineObject
         if (tgt)
         {
             const toT = tgt.pos.subtract(this.pos);
-            baseAngle = Math.atan2(toT.y, toT.x);
+            baseAngle = atan2(toT.y, toT.x);
         }
         else
-            baseAngle = rand(0, Math.PI * 2);
+            baseAngle = rand(0, PI * 2);
         // 30% chance to deviate ±45° (sometimes sideways or away)
-        let snapped = Math.round(baseAngle / (Math.PI/4)) * (Math.PI/4);
+        let snapped = round(baseAngle / (PI/4)) * (PI/4);
         const r = rand();
-        if (r < .15)      snapped += Math.PI/4;
-        else if (r < .3)  snapped -= Math.PI/4;
-        else if (r < .35) snapped += Math.PI;   // occasionally away from player
-        return vec2(Math.cos(snapped), Math.sin(snapped));
+        if (r < .15)      snapped += PI/4;
+        else if (r < .3)  snapped -= PI/4;
+        else if (r < .35) snapped += PI;   // occasionally away from player
+        return vec2(cos(snapped), sin(snapped));
     }
     update()
     {
@@ -513,7 +513,7 @@ class Electrode extends EngineObject
     }
     render()
     {
-        const p = .92 + Math.sin(this.pulse) * .08;   // subtle breathing, no rotation
+        const p = .92 + sin(this.pulse) * .08;   // subtle breathing, no rotation
         const r = .55 * p;
         const dark  = hsl(this.hue, 1, .45);
         const light = hsl(this.hue, 1, .75);
@@ -532,7 +532,7 @@ class Electrode extends EngineObject
                 for (let i = 0; i < 3; i++)
                 {
                     const a = PI/2 + i * (2 * PI / 3);
-                    pts.push(vec2(Math.cos(a) * radius, Math.sin(a) * radius));
+                    pts.push(vec2(cos(a) * radius, sin(a) * radius));
                 }
                 drawPoly(pts, color, 0, undefined, this.pos);
             };
@@ -626,7 +626,7 @@ class Grunt extends KillableEnemy
         if (gameOver) return;
         if (isPlaying() && (playerControlLocked || !player)) return;
         this.marchPhase += .25;
-        if (Math.sin(this.marchPhase) > -.2)
+        if (sin(this.marchPhase) > -.2)
         {
             let dir;
             if (player)
@@ -656,7 +656,7 @@ class Grunt extends KillableEnemy
     {
         const c = this.flash ? rgb(1,1,1) : rgb(.95,.25,.25);
         const dark = rgb(.5, .08, .08);
-        const bob = (Math.floor(this.marchStep * 4) % 2) ? .04 : -.04;
+        const bob = (floor(this.marchStep * 4) % 2) ? .04 : -.04;
         drawRect(this.pos.add(vec2(0,-.55)), vec2(.7, .14), rgb(0,0,0,.35));
         drawRect(this.pos.add(vec2(-.18, -.42 + bob)), vec2(.22, .28), dark);
         drawRect(this.pos.add(vec2( .18, -.42 - bob)), vec2(.22, .28), dark);
@@ -680,7 +680,7 @@ class Hulk extends EngineObject
         this.killable = false;
         this.renderOrder = 4;
         this.speed = speed;
-        this.marchDir = vec2(Math.sign(rand(-1,1)) || 1, 0);
+        this.marchDir = vec2(sign(rand(-1,1)) || 1, 0);
         this.marchTimer = randInt(1, 33);
         this.knockback = vec2(0);
         this.walkPhase = 0;
@@ -743,7 +743,7 @@ class Hulk extends EngineObject
     }
     render()
     {
-        const bob = (Math.floor(this.walkPhase) % 2) ? .05 : -.05;
+        const bob = (floor(this.walkPhase) % 2) ? .05 : -.05;
         const body = rgb(.35, .55, .35), skin = rgb(.55, .75, .45), dark = rgb(.18, .3, .18);
         drawRect(this.pos.add(vec2(0,-.7)), vec2(1.1, .14), rgb(0,0,0,.4));
         drawRect(this.pos.add(vec2(-.35, -.55 + bob)), vec2(.35, .4), dark);
@@ -875,8 +875,8 @@ class Brain extends KillableEnemy
         const dark = rgb(.1, .2, .55);
         const brainPink = rgb(1, .55, .75);
         const brainWrinkle = rgb(.7, .15, .35);
-        const bob = Math.sin(this.walkPhase) * .04;
-        const pulse = 1 + Math.sin(this.brainPulse) * .04;
+        const bob = sin(this.walkPhase) * .04;
+        const pulse = 1 + sin(this.brainPulse) * .04;
 
         // shadow
         drawRect(this.pos.add(vec2(0,-.85)), vec2(.6, .14), rgb(0,0,0,.4));
@@ -929,9 +929,9 @@ class Prog extends KillableEnemy
         {
             const toP = player.pos.subtract(this.pos);
             if (abs(toP.x) > abs(toP.y))
-                return vec2(Math.sign(toP.x) || 1, 0);
+                return vec2(sign(toP.x) || 1, 0);
             else
-                return vec2(0, Math.sign(toP.y) || 1);
+                return vec2(0, sign(toP.y) || 1);
         }
         // random cardinal
         const i = randInt(4);
@@ -975,15 +975,15 @@ class Prog extends KillableEnemy
     }
     render()
     {
-        const bob = Math.sin(this.walkPhase) * .12;
-        const armSwing = Math.sin(this.walkPhase * .8) * .18;
+        const bob = sin(this.walkPhase) * .12;
+        const armSwing = sin(this.walkPhase * .8) * .18;
         // Constant white/color flicker so they read as DANGEROUS at a glance
         const flicker = ((frame >> 2) & 1) === 0;
         const baseC = flicker ? rgb(1, 1, 1) : hsl(this.huePhase, 1, .65);
         const c = this.flash ? rgb(1,1,1) : baseC;
         const dark = rgb(.55, .05, .45);
         const skin = flicker ? rgb(1, 1, 1) : hsl((this.huePhase + .15) % 1, .85, .55);
-        const eyeGlow = (Math.sin(this.eyePulse) * .5 + .5) * .5 + .5;
+        const eyeGlow = (sin(this.eyePulse) * .5 + .5) * .5 + .5;
 
         drawRect(this.pos.add(vec2(0,-.5)), vec2(.5, .1), rgb(0,0,0,.45));
         // running legs (more dramatic swing)
@@ -1022,7 +1022,7 @@ class Spheroid extends KillableEnemy
         this.phase = rand(0, 6.28);
         // Arcade: ceil(rand(1..ENFNUM)/2) — ENFNUM=10 → 1–5 enforcers, ENFNUM=11 → 1–6
         const ENFNUM = getWaveTuning(gameWave).enforcerDropCount;
-        this.spawnsRemaining = Math.ceil(randInt(1, ENFNUM + 1) / 2);
+        this.spawnsRemaining = ceil(randInt(1, ENFNUM + 1) / 2);
         this.fleeing = false;                // CIRC3 escape phase
     }
     update()
@@ -1092,8 +1092,8 @@ class Spheroid extends KillableEnemy
     }
     render()
     {
-        const pulse = 1 + Math.sin(this.phase) * .25;
-        const c = this.flash ? rgb(1,1,1) : rgb(1, .25 + Math.sin(this.phase)*.15, .25);
+        const pulse = 1 + sin(this.phase) * .25;
+        const c = this.flash ? rgb(1,1,1) : rgb(1, .25 + sin(this.phase)*.15, .25);
         const inner = rgb(1, .7, .7);
         // pulsing red halo
         drawRect(this.pos, vec2(1.6 * pulse), rgb(1, .2, .2, .25), this.phase * .3);
@@ -1188,7 +1188,7 @@ class Enforcer extends KillableEnemy
         const c = this.flash ? rgb(1,1,1) : rgb(.4, .6, 1);
         const dark = rgb(.1, .25, .55);
         const yellow = rgb(1, .85, .25);
-        const trackBob = (Math.floor(this.walkPhase * 4) % 2) ? .03 : -.03;
+        const trackBob = (floor(this.walkPhase * 4) % 2) ? .03 : -.03;
 
         // shadow
         drawRect(this.pos.add(vec2(0, -.65)), vec2(.8, .12), rgb(0,0,0,.4));
@@ -1257,7 +1257,7 @@ class TankShell extends EngineObject
     }
     render()
     {
-        const glow = .85 + Math.sin(this.phase) * .15;
+        const glow = .85 + sin(this.phase) * .15;
         drawRect(this.pos, vec2(.6 * glow), rgb(1, .3, .1, .4));
         drawRect(this.pos, vec2(.4), rgb(1, .5, .2));
         drawRect(this.pos, vec2(.22), rgb(1, 1, .6));
@@ -1319,7 +1319,7 @@ class Tank extends KillableEnemy
             this.shootTimer--;
             if (this.shootTimer <= 0 && shellCount < MAX_SHELLS && toP.length() < 24)
             {
-                const dir = vec2(Math.sin(this.turretAngle), Math.cos(this.turretAngle));
+                const dir = vec2(sin(this.turretAngle), cos(this.turretAngle));
                 enemyBullets.push(new TankShell(this.pos.add(dir.scale(.9)), dir.scale(.16)));
                 sfxMissile.play(this.pos);
                 const t = getWaveTuning(gameWave);
@@ -1345,7 +1345,7 @@ class Tank extends KillableEnemy
         const dark = rgb(.35, .05, .08);
         const blue = rgb(.3, .55, 1);
         const blueDark = rgb(.1, .25, .65);
-        const trackBob = (Math.floor((this.pos.x + this.pos.y) * 4) % 2) ? .03 : -.03;
+        const trackBob = (floor((this.pos.x + this.pos.y) * 4) % 2) ? .03 : -.03;
 
         // shadow
         drawRect(this.pos.add(vec2(0, -.85)), vec2(1.8, .16), rgb(0,0,0,.4));
@@ -1366,7 +1366,7 @@ class Tank extends KillableEnemy
         drawRect(this.pos, vec2(.7, .7), blue);
         // barrel (rotated toward player)
         const ta = this.turretAngle;
-        const tipOffset = vec2(Math.sin(ta), Math.cos(ta));
+        const tipOffset = vec2(sin(ta), cos(ta));
         drawRect(this.pos.add(tipOffset.scale(.55)), vec2(.22, .9), dark, ta);
         drawRect(this.pos.add(tipOffset.scale(.55)), vec2(.14, .8), c, ta);
         // hatch
@@ -1386,7 +1386,7 @@ class Quark extends KillableEnemy
         this.phase = rand(0, 6.28);
         // Same arcade formula as spheroids — ceil(rand(1..ENFNUM)/2)
         const ENFNUM = getWaveTuning(gameWave).enforcerDropCount;
-        this.spawnsRemaining = Math.ceil(randInt(1, ENFNUM + 1) / 2);
+        this.spawnsRemaining = ceil(randInt(1, ENFNUM + 1) / 2);
         this.fleeing = false;                // SQ3 escape phase
     }
     update()
@@ -1439,7 +1439,7 @@ class Quark extends KillableEnemy
     }
     render()
     {
-        const pulse = 1 + Math.sin(this.phase) * .12;
+        const pulse = 1 + sin(this.phase) * .12;
         const c = this.flash ? rgb(1,1,1) : rgb(1, 1, 1);
         const xCol = rgb(.3, .5, 1);
         const xDark = rgb(.1, .25, .65);
@@ -1506,7 +1506,7 @@ class Human extends EngineObject
                 const d = away.length();
                 if (d < 4.5)
                 {
-                    runDir = away.scale(1/Math.max(.01, d));
+                    runDir = away.scale(1/max(.01, d));
                     if (isBrain) this.startled = 30;
                     break;
                 }
@@ -1549,7 +1549,7 @@ class Human extends EngineObject
     }
     render()
     {
-        const phase = Math.sin(this.walkPhase);
+        const phase = sin(this.walkPhase);
         const bob = phase * .04;
         const armSwing = phase * .07;        // symmetric swing around body Y
         const legStretch = phase * .05;       // one leg longer / other shorter
@@ -1932,10 +1932,10 @@ function respawnMidWave()
     let nSExtra = 0;
     if (nE > 0)
     {
-        nSExtra = Math.floor(nE / 4);
+        nSExtra = floor(nE / 4);
         if (nSExtra === 0 && nS === 0) nSExtra = 1;
         const waveStartSpheroids = getWaveComposition(gameWave).spheroids;
-        nSExtra = Math.max(0, Math.min(nS + nSExtra, waveStartSpheroids) - nS);
+        nSExtra = max(0, min(nS + nSExtra, waveStartSpheroids) - nS);
     }
 
     clearAllEnemies();
@@ -2027,8 +2027,8 @@ class Player extends EngineObject
         if (aimDir.lengthSquared() > .0001)
         {
             const a = aimDir.angle();
-            const snapped = Math.round(a / (PI/4)) * (PI/4);
-            this.facing = vec2(Math.sin(snapped), Math.cos(snapped));
+            const snapped = round(a / (PI/4)) * (PI/4);
+            this.facing = vec2(sin(snapped), cos(snapped));
         }
 
         // FIRE: mouse left button, right stick pushed (twin-stick auto-fire), or gamepad A button.
@@ -2074,7 +2074,7 @@ class Player extends EngineObject
         // also hide during the wave-start warp-in (every wave including game start)
         if (warpInHideTimer > 0) return;
 
-        const phase = Math.sin(this.walkPhase);
+        const phase = sin(this.walkPhase);
         const bob = phase * .05;
         const armSwing = phase * .08;
         const legStretch = phase * .06;
@@ -2721,7 +2721,7 @@ function gameRenderPost()
         const menuUp = (typeof isMenuVisible === 'function') && isMenuVisible();
         if (!menuUp)
         {
-            const a = .5 + .5 * Math.sin(t * 3);
+            const a = .5 + .5 * sin(t * 3);
             const prompt = (typeof isTouchDevice !== 'undefined' && isTouchDevice) ? 'TOUCH TO PLAY' : 'CLICK TO PLAY';
             drawTextScreen(prompt, vec2(cx, H - 80), 30, hsl(0, 0, 1, a), 4, hsl(0, 0, 0, a));
         }

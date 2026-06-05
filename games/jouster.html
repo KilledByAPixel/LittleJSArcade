@@ -165,9 +165,9 @@ class Rider
 
         // Animate wings
         if (this.flapTimer > 0)
-            this.wingAngle = Math.sin(time * 30) * 0.8;
+            this.wingAngle = sin(time * 30) * 0.8;
         else if (!this.grounded)
-            this.wingAngle = Math.sin(time * 8) * 0.3;
+            this.wingAngle = sin(time * 8) * 0.3;
         else
             this.wingAngle = 0;
     }
@@ -225,7 +225,7 @@ class Rider
     {
         if (!this.alive) return;
         
-        const alpha = (this.invulnerable > 0 && Math.sin(time * 20) > 0) ? 0.5 : 1;
+        const alpha = (this.invulnerable > 0 && sin(time * 20) > 0) ? 0.5 : 1;
         const mirror = !this.facingRight;
         const riderColor = this.isPlayer ? PLAYER_COLOR : (this.enemyType === 1 ? SHADOW_RIDER_COLOR : ENEMY_COLOR);
         const birdColor = this.isPlayer ? PLAYER_BIRD_COLOR : (this.enemyType === 1 ? SHADOW_BIRD_COLOR : ENEMY_BIRD_COLOR);
@@ -364,7 +364,7 @@ class Egg
     render()
     {
         // Egg shape
-        const wobble = this.hatchTimer < 2 ? Math.sin(time * 15) * 0.1 : 0;
+        const wobble = this.hatchTimer < 2 ? sin(time * 15) * 0.1 : 0;
         const eggColor = this.hatchTimer < 2 ? EGG_COLOR.lerp(ENEMY_COLOR, 0.3) : EGG_COLOR;
         drawTile(this.pos, this.size, icons.circle, eggColor, wobble);
 
@@ -764,7 +764,7 @@ function gameRender()
     for (let i = 0; i < 3; i++)
     {
         const y = -0.5 + i * 0.3;
-        const wave = Math.sin(time * 2 + i) * 0.1;
+        const wave = sin(time * 2 + i) * 0.1;
         const alpha = 1 - i * 0.3;
         drawRect(vec2(LEVEL_WIDTH / 2, y + wave), vec2(LEVEL_WIDTH + 4, lavaHeight), LAVA_COLOR.scale(1, alpha));
     }

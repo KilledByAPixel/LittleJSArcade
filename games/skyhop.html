@@ -84,7 +84,7 @@ let lastType = 'normal';
 let maxY = 0;
 let gameAlive = false;
 
-function getScore() { return max(0, Math.floor(maxY * SCORE_SCALE)); }
+function getScore() { return max(0, floor(maxY * SCORE_SCALE)); }
 
 // 0 at the start, ramps to 1 by DIFF_HEIGHT — drives spawn probabilities
 function difficulty() { return clamp(maxY / DIFF_HEIGHT, 0, 1); }

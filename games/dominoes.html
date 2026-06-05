@@ -52,7 +52,7 @@ function highestTileInHand(hand)
     let best = null;
     for (const t of hand)
         if (!best || (t.a + t.b) > (best.a + best.b) ||
-            ((t.a + t.b) === (best.a + best.b) && Math.max(t.a, t.b) > Math.max(best.a, best.b)))
+            ((t.a + t.b) === (best.a + best.b) && max(t.a, t.b) > max(best.a, best.b)))
             best = t;
     return best;
 }
@@ -162,7 +162,7 @@ const dominoGame = {
         const myMoves = this.getLegalMoves(state, player).length;
         const oppMoves = this.getLegalMoves(state, opp).length;
         if (myMoves === 0 && oppMoves === 0)
-            return Math.sign(oppPips - myPips) * BIG;   // 0 on a tie (draw)
+            return sign(oppPips - myPips) * BIG;   // 0 on a tie (draw)
 
         // Non-terminal heuristic: fewer pips is better, plus a small mobility term.
         return (oppPips - myPips) + myMoves * 0.5;
@@ -183,7 +183,7 @@ function unseenTiles(aiHand, chain)
     return makeFullSet().filter(t => !known.has(tileId(t)));
 }
 
-// Fisher-Yates using LittleJS randInt (no Math.random per project convention).
+// Fisher-Yates using LittleJS randInt (no rand per project convention).
 function shuffled(arr)
 {
     const a = arr.slice();
@@ -682,7 +682,7 @@ function runDominoTests()
     // NOT terminal, must return the heuristic (not a terminal-magnitude score).
     const myStuckOppLive = {board:{chain:[{a:6,b:6}], leftEnd:6, rightEnd:6,
         hands:[[{a:0,b:1}], [{a:6,b:2}]], passes:0}, currentPlayer:0};
-    check(Math.abs(dominoGame.evaluate(myStuckOppLive, 0)) < 5000,
+    check(abs(dominoGame.evaluate(myStuckOppLive, 0)) < 5000,
         'only side-to-move stuck (opp can move) is not scored as terminal');
 
     // --- PIMC: unseenTiles ---

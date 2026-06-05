@@ -132,7 +132,7 @@ function spawnPill()
 {
     if (!nextPill) makeNextPill();
     active = {
-        x: Math.floor(GRID_W/2) - 1,
+        x: floor(GRID_W/2) - 1,
         y: 0,
         o: 0,
         cA: nextPill.cA,
@@ -505,7 +505,7 @@ function spawnCellParticles(gx, gy, colorIdx)
         const sp = rand(3, 8);
         particles.push({
             pos: wp.add(vec2(rand(-.2,.2), rand(-.2,.2))),
-            vel: vec2(Math.cos(a)*sp, Math.sin(a)*sp + rand(1,3)),
+            vel: vec2(cos(a)*sp, sin(a)*sp + rand(1,3)),
             life: PARTICLE_LIFE,
             lifeMax: PARTICLE_LIFE,
             size: rand(.08, .22),
@@ -552,14 +552,14 @@ function newGame()
     activeChain = 0;
 
     // scaled by level
-    const virusTarget = clamp(8 + level*3, 8, GRID_W*Math.floor(GRID_H*.55));
+    const virusTarget = clamp(8 + level*3, 8, GRID_W*floor(GRID_H*.55));
     virusCount = 0;
 
     let tries = 0;
     while (virusCount < virusTarget && tries++ < 20000)
     {
         const x = randInt(0, GRID_W);
-        const y = randInt(Math.floor(GRID_H*0.45), GRID_H);
+        const y = randInt(floor(GRID_H*0.45), GRID_H);
         if (!isEmpty(x,y)) continue;
         // avoid placing a virus that already forms a 3-in-a-row (would be a free clear)
         const c = randColorIndex();
@@ -825,7 +825,7 @@ function gameRender()
         drawGhost();
 
     // board cells
-    const flashOn = clearAnim && (Math.floor((CLEAR_FLASH_TIME - clearAnim.flashTimer)*22)%2 === 0);
+    const flashOn = clearAnim && (floor((CLEAR_FLASH_TIME - clearAnim.flashTimer)*22)%2 === 0);
     for (let y=0; y<GRID_H; y++)
     for (let x=0; x<GRID_W; x++)
     {
@@ -861,7 +861,7 @@ function gameRender()
     // virus counter
     const vY = uiY - 3.5;
     drawText('VIRUSES', vec2(uiX, vY+1.2), 0.9, hsl(0,0,1), 0.16, hsl(0,0,0));
-    drawText(String(Math.max(0, virusCount)), vec2(uiX, vY-.1), 1.8, hsl(.0,.7,.7), 0.22, hsl(0,0,0));
+    drawText(String(max(0, virusCount)), vec2(uiX, vY-.1), 1.8, hsl(.0,.7,.7), 0.22, hsl(0,0,0));
 
     // score
     const sY = vY - 3.0;
@@ -915,7 +915,7 @@ function drawCellShape(cell, worldPos, opts={})
 
     if (cell.kind === 'virus')
     {
-        const bob = Math.sin(time*3 + worldPos.x*0.7 + worldPos.y*0.5) * 0.04;
+        const bob = sin(time*3 + worldPos.x*0.7 + worldPos.y*0.5) * 0.04;
         const wp = worldPos.add(vec2(0, bob));
         const body = opts.flash ? rgb(b,b,b) : rgb(base.r*b, base.g*b, base.b*b);
         drawTile(wp, vec2(1.02), icons.circle, rgb(0,0,0,.6)); // outline
@@ -923,7 +923,7 @@ function drawCellShape(cell, worldPos, opts={})
         // eyes
         drawTile(wp.add(vec2(-0.18, 0.08)), vec2(0.18), icons.circle, rgb(b,b,b));
         drawTile(wp.add(vec2( 0.18, 0.08)), vec2(0.18), icons.circle, rgb(b,b,b));
-        const pupilShift = vec2(Math.sin(time*1.7)*.04, Math.cos(time*1.3)*.03);
+        const pupilShift = vec2(sin(time*1.7)*.04, cos(time*1.3)*.03);
         drawTile(wp.add(vec2(-0.18, 0.08)).add(pupilShift), vec2(0.09), icons.circle, rgb(0,0,0));
         drawTile(wp.add(vec2( 0.18, 0.08)).add(pupilShift), vec2(0.09), icons.circle, rgb(0,0,0));
         // mouth
@@ -951,13 +951,13 @@ function drawCellShape(cell, worldPos, opts={})
         // full capsule (orphan half)
         drawFullCapsule(worldPos, fillColor, outlineColor, edge, edge2, r, r2, thickness, t2, hi, sh, b);
     }
-    else if (Math.abs(wdir.x) > 0)
+    else if (abs(wdir.x) > 0)
     {
-        drawHalf(true, Math.sign(wdir.x), worldPos, fillColor, outlineColor, edge, edge2, r, r2, thickness, t2, hi, sh, b);
+        drawHalf(true, sign(wdir.x), worldPos, fillColor, outlineColor, edge, edge2, r, r2, thickness, t2, hi, sh, b);
     }
     else
     {
-        drawHalf(false, Math.sign(wdir.y), worldPos, fillColor, outlineColor, edge, edge2, r, r2, thickness, t2, hi, sh, b);
+        drawHalf(false, sign(wdir.y), worldPos, fillColor, outlineColor, edge, edge2, r, r2, thickness, t2, hi, sh, b);
     }
 }
 

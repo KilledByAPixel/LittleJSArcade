@@ -250,7 +250,7 @@ function checkWin()
             if (mines[i]) flagged[i] = 1;
 
         // Record best time for the completed difficulty.
-        const seconds = Math.ceil(endTime - startTime);
+        const seconds = ceil(endTime - startTime);
         const prev = getBestTime(difficulty);
         if (!prev || seconds < prev)
         {
@@ -724,7 +724,7 @@ function gameRenderPost()
             hsl(.33,.6,.65), 6, hsl(0,0,0));
 
         // Surface either NEW BEST! or current best.
-        const seconds = Math.ceil(endTime - startTime);
+        const seconds = ceil(endTime - startTime);
         const best = getBestTime(difficulty);
         const line = newBest
             ? `NEW BEST! ${seconds}s on ${difficulty.toUpperCase()}`

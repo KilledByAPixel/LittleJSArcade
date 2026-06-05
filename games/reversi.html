@@ -575,8 +575,8 @@ function worldPosToCell(worldPos)
         -(BOARD_SIZE * CELL_SIZE) / 2
     );
     
-    const col = Math.floor((worldPos.x - boardOffset.x) / CELL_SIZE);
-    const row = BOARD_SIZE - 1 - Math.floor((worldPos.y - boardOffset.y) / CELL_SIZE);
+    const col = floor((worldPos.x - boardOffset.x) / CELL_SIZE);
+    const row = BOARD_SIZE - 1 - floor((worldPos.y - boardOffset.y) / CELL_SIZE);
     
     if (isInBounds(row, col))
         return {row, col};
@@ -662,7 +662,7 @@ function drawBoard()
     if (lastMove && !gameOver)
     {
         const pos = getCellWorldPos(lastMove.row, lastMove.col);
-        const pulseSize = 1 + Math.sin(time * 5) * 0.12;
+        const pulseSize = 1 + sin(time * 5) * 0.12;
         drawTile(pos, vec2(DISC_RADIUS * 2.3 * pulseSize), icons.circle, hsl(.15,1,.4));
         drawTile(pos, vec2(DISC_RADIUS * 2.1 * pulseSize), icons.circle, hsl(.15,1,.5));
     }
@@ -701,7 +701,7 @@ function drawBoard()
                 if (placing)
                 {
                     // Scale up animation for newly placed disc
-                    const scale = Math.min(placingDisc.progress * 1.3, 1);
+                    const scale = min(placingDisc.progress * 1.3, 1);
                     drawDisc(pos, board[row][col], scale);
                 }
                 else if (flipping)
@@ -1044,7 +1044,7 @@ function gameUpdate()
             const myGen = aiGeneration;
             findBestAIMove({
                 onProgress: (d, n) => {
-                    if (myGen === aiGeneration) aiProgress = `AI Thinking... ${Math.round(d / n * 100)}%`;
+                    if (myGen === aiGeneration) aiProgress = `AI Thinking... ${round(d / n * 100)}%`;
                 }
             }).then(move => {
                 if (myGen !== aiGeneration) { aiSearching = false; aiProgress = ''; return; }

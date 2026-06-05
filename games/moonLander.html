@@ -94,7 +94,7 @@ function evalOctaves(o, x)
 {
     let y = o.base;
     for (const w of o.arr)
-        y += w.amp * Math.sin(w.freq*x + w.phase);
+        y += w.amp * sin(w.freq*x + w.phase);
     return y;
 }
 

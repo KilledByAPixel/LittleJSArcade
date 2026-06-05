@@ -52,7 +52,7 @@ const DOME_CENTER = RAIL_CENTER;
 const DOME_RADIUS = 9.1;                   // inner arc - the playfield ceiling
 const RAIL_RADIUS = 11.1;                  // outer arc - the launcher top rail
 const DOME_END_ANGLE = 2.0;              // inner arc stops before full semicircle (leaves left exit open)
-const RAIL_END_ANGLE = Math.PI;          // outer rail wraps the full top, all the way to the left wall
+const RAIL_END_ANGLE = PI;          // outer rail wraps the full top, all the way to the left wall
 
 const BALL_DIAMETER = 1;
 const BALL_SPAWN = vec2(LANE_CENTER_X, 2.3);
@@ -149,7 +149,7 @@ class Bumper extends Box2dStaticObject
         drawTile(this.pos, vec2(this.radius * 2 + 0.15), icons.circle, BLACK);   // rim
         drawTile(this.pos, vec2(this.radius * 2), icons.circle, outer);
         drawTile(this.pos, vec2(this.radius * 1.1), icons.circle, inner);
-        this.flashTime = Math.max(0, this.flashTime - 1/60);
+        this.flashTime = max(0, this.flashTime - 1/60);
     }
 }
 
@@ -180,7 +180,7 @@ class Slingshot extends Box2dStaticObject
     {
         const color = this.flashTime > 0 ? WHITE : SLING_COLOR;
         drawRect(this.pos, this.size, color, this.angle);
-        this.flashTime = Math.max(0, this.flashTime - 1/60);
+        this.flashTime = max(0, this.flashTime - 1/60);
     }
 }
 
@@ -241,11 +241,11 @@ function buildArc(center, radius, startA, endA, numSegs, thickness = 0.3, color 
     {
         const a1 = startA + (endA - startA) * (i / numSegs);
         const a2 = startA + (endA - startA) * ((i + 1) / numSegs);
-        const p1 = vec2(center.x + radius * Math.cos(a1), center.y + radius * Math.sin(a1));
-        const p2 = vec2(center.x + radius * Math.cos(a2), center.y + radius * Math.sin(a2));
+        const p1 = vec2(center.x + radius * cos(a1), center.y + radius * sin(a1));
+        const p2 = vec2(center.x + radius * cos(a2), center.y + radius * sin(a2));
         const mid = p1.add(p2).scale(0.5);
         const length = p1.distance(p2);
-        const segAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        const segAngle = atan2(p2.y - p1.y, p2.x - p1.x);
         addWall(mid, vec2(length + 0.08, thickness), -segAngle, color);
     }
 }
@@ -464,10 +464,10 @@ function gameUpdate()
     {
         // hold any press to charge the plunger, release to launch with that power
         if (anyPress)
-            launchCharge = Math.min(LAUNCH_MAX, launchCharge + 1.2);
+            launchCharge = min(LAUNCH_MAX, launchCharge + 1.2);
         else if (launchCharge > 0)
         {
-            launchBall(Math.max(LAUNCH_MIN, launchCharge));
+            launchBall(max(LAUNCH_MIN, launchCharge));
             launchCharge = 0;
         }
     }

@@ -146,7 +146,7 @@ let sMove, sRotate, sDrop, sLock, sClear, sHold, sOver, sGarbage, sSelect;
 ///////////////////////////////////////////////////////////////////////////////
 // HELPERS
 
-function frand(min=0, max=1){ return min + Math.random()*(max-min); }
+function frand(min=0, max=1){ return min + rand()*(max-min); }
 function clamp01(x){ return x < 0 ? 0 : x > 1 ? 1 : x; }
 
 function shadeColor(c, amount)
@@ -354,9 +354,9 @@ function spawnCellParticles(player, cellX, cellY, baseColor)
 
     for (let i=0; i<PARTICLES_PER_CELL; ++i)
     {
-        const a = frand(0, Math.PI*2);
+        const a = frand(0, PI*2);
         const speed = frand(3, 8);
-        const vel = vec2(Math.cos(a), Math.sin(a)).scale(speed);
+        const vel = vec2(cos(a), sin(a)).scale(speed);
 
         particles.push({
             kind: 'burst',
@@ -449,7 +449,7 @@ function updateParticles(dt)
 
             // mild twinkle
             p.tw = (p.tw || frand(0, 6.28)) + dt*9;
-            p.aMul = .6 + .4*Math.sin(p.tw);
+            p.aMul = .6 + .4*sin(p.tw);
 
             // shrink a bit
             p.size = p.size0 ? (p.size0 * (0.7 + 0.3*t)) : p.size;
@@ -853,7 +853,7 @@ function boardStats(boardRef)
         const h = heights[x];
         aggHeight += h;
         maxH = h > maxH ? h : maxH;
-        if (x) bump += Math.abs(h - heights[x-1]);
+        if (x) bump += abs(h - heights[x-1]);
     }
 
     return { aggHeight, bump, maxH, holes, heights };
@@ -985,7 +985,7 @@ function computeBestMove(type, boardRef)
 
         // Add random noise to evaluation so AI vs AI makes different decisions
         // (boosted early via noiseScale above so the two AIs split right away).
-        const noise = (Math.random() - 0.5) * noiseScale;
+        const noise = (rand() - 0.5) * noiseScale;
         const v = evalBoard(b2, cleared, survival) + noise;
         candidates.push({rot, x, v, cleared});
     }
@@ -1004,7 +1004,7 @@ function computeBestMove(type, boardRef)
         return candidates[randInt(min(FIRST_MOVE_SPREAD, candidates.length))];
 
     // human-ish mistakes: sometimes pick 2nd/3rd best
-    const pickIndex = (Math.random() < AI_MISTAKE_CHANCE) ? Math.min(2, candidates.length-1) : 0;
+    const pickIndex = (rand() < AI_MISTAKE_CHANCE) ? Math.min(2, candidates.length-1) : 0;
     return candidates[pickIndex];
 }
 

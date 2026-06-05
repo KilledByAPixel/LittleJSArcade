@@ -346,8 +346,8 @@ function addRandomTile(silent = false)
 {
     const e = empties();
     if (!e.length) return false;
-    const [x, y] = e[(Math.random() * e.length) | 0];
-    const v = Math.random() < .9 ? 2 : 4;
+    const [x, y] = e[(rand() * e.length) | 0];
+    const v = rand() < .9 ? 2 : 4;
     const t = makeTile(v, x, y);
     t.spawnT = SPAWN_TIME;
     grid[y][x] = t;

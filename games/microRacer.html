@@ -93,8 +93,8 @@ function getTerrain(gx, gy)
 }
 function terrainAt(worldPos)
 {
-    const gx = Math.floor(worldPos.x - LAYER_POS.x);
-    const gy = Math.floor(worldPos.y - LAYER_POS.y);
+    const gx = floor(worldPos.x - LAYER_POS.x);
+    const gy = floor(worldPos.y - LAYER_POS.y);
     return getTerrain(gx, gy);
 }
 
@@ -135,16 +135,16 @@ function generateTrack(seed)
 
     // control points in polar coords to guarantee no self-intersection
     const numCP  = 10;
-    const maxR   = Math.min(GRID_W, GRID_H) * 0.38;
+    const maxR   = min(GRID_W, GRID_H) * 0.38;
     const center = vec2(GRID_W/2, GRID_H/2);
     const cps = [];
     for (let i = 0; i < numCP; i++)
     {
-        const ang = i / numCP * 2 * Math.PI;
+        const ang = i / numCP * 2 * PI;
         const radius = maxR * (0.58 + rnd() * 0.42);
         cps.push(vec2(
-            center.x + Math.cos(ang) * radius,
-            center.y + Math.sin(ang) * radius
+            center.x + cos(ang) * radius,
+            center.y + sin(ang) * radius
         ));
     }
 
@@ -180,12 +180,12 @@ function generateTrack(seed)
     const stamp = (p, radius, type) => {
         const cx = p.x, cy = p.y;
         const r2 = radius * radius;
-        const ri = Math.ceil(radius + 1);
+        const ri = ceil(radius + 1);
         for (let dx = -ri; dx <= ri; dx++)
         for (let dy = -ri; dy <= ri; dy++)
         {
             if (dx*dx + dy*dy > r2) continue;
-            setTerrainIfHigher(Math.floor(cx + dx), Math.floor(cy + dy), type);
+            setTerrainIfHigher(floor(cx + dx), floor(cy + dy), type);
         }
     };
 
@@ -242,7 +242,7 @@ function generateTrack(seed)
 
     // pickups: every Kth sample, avoid area near finish line
     pickups = [];
-    const spacing = Math.floor(N / 5);
+    const spacing = floor(N / 5);
     for (let i = spacing; i < N - spacing/2; i += spacing)
     {
         const gp = trackPoints[i];
@@ -304,8 +304,8 @@ function buildTileLayer()
 
 function wrapAngle(a)
 {
-    while (a >  Math.PI) a -= 2*Math.PI;
-    while (a < -Math.PI) a += 2*Math.PI;
+    while (a >  PI) a -= 2*PI;
+    while (a < -PI) a += 2*PI;
     return a;
 }
 
@@ -395,7 +395,7 @@ class Car extends Box2dObject
 
         if (this.boostTimer > 0)
         {
-            MAX_SPEED = Math.max(MAX_SPEED, 1.35);
+            MAX_SPEED = max(MAX_SPEED, 1.35);
             ACCEL *= 2.0;
             this.boostTimer -= 1/60;
         }
@@ -403,7 +403,7 @@ class Car extends Box2dObject
         const fwd = this.forward();
         const fwdSpeed = this.velocity.dot(fwd);
         // handbrake drops grip dramatically AND adds forward drag
-        const gripNow = handbrake ? Math.min(GRIP, 0.03) : GRIP;
+        const gripNow = handbrake ? min(GRIP, 0.03) : GRIP;
         const frictionNow = handbrake ? 0.96 : FRICTION;
         const vFwd = fwd.scale(fwdSpeed * frictionNow);
         const vSideVec = this.velocity.subtract(fwd.scale(fwdSpeed));
@@ -416,7 +416,7 @@ class Car extends Box2dObject
             this.velocity = this.velocity.add(fwd.scale(BRAKE * throttle));
 
         const speedNow = this.velocity.dot(fwd);
-        const turnScale = clamp(Math.abs(speedNow) / TURN_FULL, 0, 1);
+        const turnScale = clamp(abs(speedNow) / TURN_FULL, 0, 1);
         // handbrake lets you rotate the car without forward momentum
         const turnBoost = handbrake ? 1.5 : 1;
         const dir = speedNow >= 0 ? 1 : -1;
@@ -429,7 +429,7 @@ class Car extends Box2dObject
         this.pos = pivot.add(this.forward().scale(pivotBehind));
 
         // apply velocity with wall collision resolution
-        this.bumpCooldown = Math.max(0, this.bumpCooldown - 1/60);
+        this.bumpCooldown = max(0, this.bumpCooldown - 1/60);
         const preImpactSpeed = this.velocity.length();
         const newPos = this.pos.add(this.velocity);
         if (!isWallAt(newPos))
@@ -471,7 +471,7 @@ class Car extends Box2dObject
         if (drifting)
         {
             // drop marks at the 4 tire positions, angled with the car body
-            const sideVec = vec2().setAngle(this.angle + Math.PI/2, this.size.x * 0.5 + 0.05);
+            const sideVec = vec2().setAngle(this.angle + PI/2, this.size.x * 0.5 + 0.05);
             const frontBack = this.size.y * 0.38;
             const ang = this.angle;
             for (const fy of [-frontBack, frontBack])
@@ -526,7 +526,7 @@ class Car extends Box2dObject
         const turn = clamp(delta / 0.18, -1, 1);
 
         // ease off throttle on hard turns
-        const sharp = Math.abs(delta) > 0.9 ? 0.55 : 1;
+        const sharp = abs(delta) > 0.9 ? 0.55 : 1;
         return { throttle: sharp, turn };
     }
 
@@ -542,7 +542,7 @@ class Car extends Box2dObject
         {
             // also require lateral proximity to the line center (within road)
             const lat = relCurr.dot(finishSide);
-            if (Math.abs(lat) < ROAD_RADIUS + EDGE_WIDTH)
+            if (abs(lat) < ROAD_RADIUS + EDGE_WIDTH)
             {
                 this.lap++;
                 if (this.isPlayer && this.lap < TOTAL_LAPS) sndLap.play(this.pos);
@@ -574,7 +574,7 @@ class Car extends Box2dObject
     draw()
     {
         const fwd = this.forward();
-        const sideUnit = vec2().setAngle(this.angle + Math.PI/2, 1);
+        const sideUnit = vec2().setAngle(this.angle + PI/2, 1);
         const black = hsl(0, 0, .08);
 
         // wheels first (under body edges). front wheels rotate with steering.
@@ -612,7 +612,7 @@ class Car extends Box2dObject
         // boost flame
         if (this.boostTimer > 0)
         {
-            const flameLen = 1.1 + Math.random() * 0.5;
+            const flameLen = 1.1 + rand() * 0.5;
             const flamePos = this.pos.add(fwd.scale(-this.size.y * 0.5 - flameLen * 0.5));
             drawRect(flamePos, vec2(this.size.x * 0.6, flameLen), hsl(0.08, .95, .55), this.angle);
             drawRect(flamePos, vec2(this.size.x * 0.35, flameLen * 0.6), hsl(0.15, .95, .75), this.angle);
@@ -667,7 +667,7 @@ function setupRace()
     for (let i = 0; i < 4; i++)
     {
         // lay them out behind the finish line along the track, 2 cars per row
-        const row = Math.floor(i / 2);
+        const row = floor(i / 2);
         const col = i % 2;
         const backIdx = (N - 4 - row * 4 + N) % N;
         const gp = trackPoints[backIdx];
@@ -721,7 +721,7 @@ async function gameInit()
     sndBoost = new SoundGenerator({ frequency: 320, release: .3, volume: .6, slide: 2, pitchJump: 600, pitchJumpTime: .08 });
     sndWin   = new SoundGenerator({ frequency: 660, release: .5, volume: .8, pitchJump: 330, pitchJumpTime: .15, repeatTime: .3 });
 
-    trackSeed = Math.floor(Math.random() * 1e9);
+    trackSeed = floor(rand() * 1e9);
     setupRace();
     buildMenus();
     showMenu('title');
@@ -729,7 +729,7 @@ async function gameInit()
 
 function startGame()
 {
-    trackSeed = Math.floor(Math.random() * 1e9);
+    trackSeed = floor(rand() * 1e9);
     setupRace();
     setPlaying(true);
     clearSubmenuStack();
@@ -786,7 +786,7 @@ function gameUpdate()
 
     if (keyWasPressed('KeyN') || gamepadWasPressed(3))     // gamepad: Y = new track
     {
-        trackSeed = Math.floor(Math.random() * 1e9);
+        trackSeed = floor(rand() * 1e9);
         setupRace();
         return;
     }
@@ -918,7 +918,7 @@ function drawPickups()
     for (const pu of pickups)
     {
         if (pu.cooldown > 0) continue;
-        const pulse = 0.6 + Math.sin(t * 6) * 0.15;
+        const pulse = 0.6 + sin(t * 6) * 0.15;
         drawRect(pu.pos, vec2(pulse, pulse), hsl(0.55, .9, .6), t * 2);
         drawRect(pu.pos, vec2(pulse * 0.55, pulse * 0.55), hsl(0.12, 1, .75), -t * 3);
     }
@@ -938,7 +938,7 @@ function gameRenderPost()
     // Top-left HUD stack: time, then lap, then place. Seed removed.
     drawTextScreen(`${raceTime.toFixed(2)}s`, vec2(90, 34), 28, white, 4, black, 'center');
 
-    const lapNum = Math.min(player.lap + 1, TOTAL_LAPS);
+    const lapNum = min(player.lap + 1, TOTAL_LAPS);
     drawTextScreen(`Lap ${lapNum}/${TOTAL_LAPS}`, vec2(90, 68), 28, white, 4, black, 'center');
 
     // live standings

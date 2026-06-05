@@ -67,9 +67,9 @@ let sJump, sShoot, sBoom, sThud, sHit, sHeal;
 function groundY(x)
 {
     return 1.0
-        + Math.sin(x*0.080)        * 3.2
-        + Math.sin(x*0.170 + 1.7)  * 1.1
-        + Math.sin(x*0.034 + 0.6)  * 2.2;
+        + sin(x*0.080)        * 3.2
+        + sin(x*0.170 + 1.7)  * 1.1
+        + sin(x*0.034 + 0.6)  * 2.2;
 }
 
 function groundSlope(x)
@@ -83,7 +83,7 @@ function groundAngle(x) { return Math.atan(groundSlope(x)); }
 // rotate an offset in math convention (CCW positive = nose-up on uphill)
 function rot(v, a)
 {
-    const c = Math.cos(a), s = Math.sin(a);
+    const c = cos(a), s = sin(a);
     return vec2(v.x*c - v.y*s, v.x*s + v.y*c);
 }
 
@@ -104,7 +104,7 @@ function burst(pos, count, speed, colA, colB, opts = {})
         const spd = speed * (0.4 + rand());
         particles.push({
             pos: pos.copy(),
-            vel: vec2(Math.cos(a)*spd, Math.sin(a)*spd),
+            vel: vec2(cos(a)*spd, sin(a)*spd),
             life: lifeMax*(0.5+rand()*0.5), max: lifeMax,
             colA, colB, size: sizeBase*(0.7+rand()*0.8), grav,
         });
@@ -211,7 +211,7 @@ function fire()
     bullets.push({ pos: muzzle.add(dir.scale(0.9)), vel: dir.scale(BULLET_SPEED), life: 1.4 });
     playSoundSafe(sShoot);
     burst(muzzle.add(dir.scale(1.0)), 4, 0.12, hsl(.14,.9,.8), hsl(.08,.9,.5),
-        {life:14, dir:{ang:Math.atan2(dir.y, dir.x), arc:0.6}, grav:0});
+        {life:14, dir:{ang:atan2(dir.y, dir.x), arc:0.6}, grav:0});
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -313,7 +313,7 @@ function gameUpdate()
         updateEffects(dt);
         if (deathTimer > 0.9 && !isMenuVisible())
             showGameOverDialog({
-                score: Math.round(bestDist),
+                score: round(bestDist),
                 won: false,
                 format: n => n + 'm',
                 extraLines: ['UFOs destroyed: ' + kills],
@@ -392,7 +392,7 @@ function jump()
     if (state != 'play' || !rover.onGround) return;
     rover.onGround = false;
     const a = rover.angle;
-    rover.vel = vec2(Math.cos(a), Math.sin(a)).scale(rover.speed);
+    rover.vel = vec2(cos(a), sin(a)).scale(rover.speed);
     rover.vel.y += TUNE.jump;
     rover.jumpCut = true;
     playSoundSafe(sJump);
@@ -405,11 +405,11 @@ function updateRover(dt)
     {
         const ang = groundAngle(rover.pos.x);
         // accelerate forward, bleed to drag, gravity helps downhill / fights uphill
-        rover.speed += (TUNE.thrust - TUNE.gravity*Math.sin(ang)) * dt;
+        rover.speed += (TUNE.thrust - TUNE.gravity*sin(ang)) * dt;
         rover.speed -= TUNE.drag * rover.speed * dt;
         rover.speed = clamp(rover.speed, MIN_SPEED, TUNE.maxSpeed);
 
-        rover.pos.x += rover.speed * Math.cos(ang) * dt;
+        rover.pos.x += rover.speed * cos(ang) * dt;
         rover.pos.y = groundY(rover.pos.x) + RIDE_HEIGHT;
         rover.angle = lerp(rover.angle, groundAngle(rover.pos.x), 0.25);
 
@@ -436,7 +436,7 @@ function updateRover(dt)
         rover.pos = rover.pos.add(rover.vel.scale(dt));
 
         // tilt toward velocity in the air
-        const target = clamp(Math.atan2(rover.vel.y, Math.abs(rover.vel.x)+0.1), -0.6, 0.6);
+        const target = clamp(atan2(rover.vel.y, abs(rover.vel.x)+0.1), -0.6, 0.6);
         rover.angle = lerp(rover.angle, target, 0.12);
 
         const gy = groundY(rover.pos.x) + RIDE_HEIGHT;
@@ -445,7 +445,7 @@ function updateRover(dt)
             rover.pos.y = gy;
             rover.onGround = true;
             const ang = groundAngle(rover.pos.x);
-            const tangent = vec2(Math.cos(ang), Math.sin(ang));
+            const tangent = vec2(cos(ang), sin(ang));
             rover.speed = max(MIN_SPEED, rover.vel.dot(tangent));
             rover.angle = ang;
             const impact = abs(rover.vel.y);
@@ -490,7 +490,7 @@ function updateUfos(dt, d)
     {
         u.phase += dt*3;
         u.pos.x += u.vx * dt;
-        u.pos.y += Math.sin(u.phase) * dt * 1.5;
+        u.pos.y += sin(u.phase) * dt * 1.5;
         const minY = groundY(u.pos.x) + 3;
         if (u.pos.y < minY) u.pos.y = minY;
 
@@ -670,7 +670,7 @@ function drawRidge(par, color, screenYFrac, amp, freq)
     for (let x = left; x <= right; x += step)
     {
         const s = x*par;  // parallax: pattern shifts slower than the camera
-        const y = baseY + Math.sin(s*freq)*amp + Math.sin(s*freq*2.3 + 2)*amp*0.4;
+        const y = baseY + sin(s*freq)*amp + sin(s*freq*2.3 + 2)*amp*0.4;
         const cur = vec2(x, y);
         if (prev)
         {
@@ -693,7 +693,7 @@ function drawGround()
     const surf = hsl(.10,.25,.62);
 
     let prev;
-    for (let x = Math.floor(left/step)*step; x <= right; x += step)
+    for (let x = floor(left/step)*step; x <= right; x += step)
     {
         const y = groundY(x);
         const h = y - GROUND_BOTTOM;
@@ -707,7 +707,7 @@ function drawGround()
 
 function drawRover()
 {
-    const blink = invuln > 0 && (Math.floor(invuln*16) & 1);
+    const blink = invuln > 0 && (floor(invuln*16) & 1);
     if (state == 'play' && blink) return;
 
     const a = rover.angle;
@@ -771,7 +771,7 @@ function drawEntities()
     for (const u of ufos)
     {
         if (u.hp <= 0 || u.pos.x < left || u.pos.x > right) continue;
-        const glow = 0.5 + Math.sin(u.phase*2)*0.5;
+        const glow = 0.5 + sin(u.phase*2)*0.5;
         drawTile(u.pos, vec2(2.08, 0.78), icons.circle, hsl(.85,.3,.25));   // hull outline
         drawTile(u.pos, vec2(2.0, 0.7), icons.circle, hsl(.85,.45,.55));    // hull
         drawTile(u.pos.add(vec2(0,0.25)), vec2(0.9, 0.55), icons.circle, hsl(.55,.4,.8, .9));
@@ -790,7 +790,7 @@ function drawEntities()
     // powerups
     for (const p of powerups)
     {
-        const pulse = 0.1 + Math.abs(Math.sin(p.life*3))*0.12;
+        const pulse = 0.1 + abs(sin(p.life*3))*0.12;
         drawTile(p.pos, vec2(0.6 + pulse), icons.circle, hsl(.33,.8,.55, .9));
         drawTile(p.pos, vec2(0.32), icons.circle, hsl(.33,.3,.2));
         // plus sign
@@ -830,7 +830,7 @@ function gameRenderPost()
     const pw = 260, ph = 70, px = 24, py = H - ph - 24;
     hudPanel(px, py, pw, ph, panel, edge);
     drawTextScreen('SPEED', vec2(px+16, py+22), 20, hsl(.55,.5,.8), 0, clear, 'left');
-    const kph = Math.round(rover.speed * 4);
+    const kph = round(rover.speed * 4);
     const fast = rover.speed > TUNE.maxSpeed*0.85;
     drawTextScreen(kph + '', vec2(px+16, py+54), 36, fast ? hsl(.04,.9,.65) : hsl(0,0,1), 0, clear, 'left');
     drawTextScreen('KPH', vec2(px+16 + ('' + kph).length*22 + 14, py+54), 18, hsl(.55,.4,.7), 0, clear, 'left');
@@ -846,7 +846,7 @@ function gameRenderPost()
             hsl(.04,.9,.65), 3, hsl(0,0,0), 'center');
 
     // ---- DISTANCE (top-center) ----
-    drawTextScreen(Math.round(bestDist) + 'm', vec2(W/2, 48), 46, hsl(0,0,1), 4, hsl(0,0,0,.6));
+    drawTextScreen(round(bestDist) + 'm', vec2(W/2, 48), 46, hsl(0,0,1), 4, hsl(0,0,0,.6));
     drawTextScreen('BEST ' + (getBestScore()|0) + 'm', vec2(W/2, 80), 22, hsl(.55,.4,.75), 3, hsl(0,0,0,.6));
 
     // ---- HULL pips (bottom-right) ----
@@ -861,7 +861,7 @@ function gameRenderPost()
         const sy = hy + 42;
         const on = i < health;
         let col = hsl(0,0,.12);
-        if (on) col = low && (Math.floor(time*6)&1) ? hsl(.04,.9,.6)
+        if (on) col = low && (floor(time*6)&1) ? hsl(.04,.9,.6)
                     : hsl(lerp(.0,.35, health/MAX_HEALTH), .8, .55);
         drawRect(vec2(sx + segW/2, sy + 11), vec2(segW, 22), col, 0, undefined, true);
     }

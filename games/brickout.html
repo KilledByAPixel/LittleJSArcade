@@ -290,7 +290,7 @@ function resetBall()
 function launchBall()
 {
     const angle = rand(.25, .75) * PI; // 45..135 degrees
-    balls[0].vel = vec2(Math.cos(angle), Math.sin(angle)).normalize(ballSpeed);
+    balls[0].vel = vec2(cos(angle), sin(angle)).normalize(ballSpeed);
 }
 
 // Level 5 (Gauntlet) is regenerated each visit so it feels fresh.
@@ -532,8 +532,8 @@ function applyPowerup(type)
         const src = balls[balls.length - 1];
         const baseDir = src.vel.length() ? src.vel.normalize() : vec2(0, 1);
         const a = baseDir.angle();
-        balls.push(makeBall(src.pos, vec2(Math.cos(a + .35), Math.sin(a + .35)).normalize(ballSpeed), src.size));
-        balls.push(makeBall(src.pos, vec2(Math.cos(a - .35), Math.sin(a - .35)).normalize(ballSpeed), src.size));
+        balls.push(makeBall(src.pos, vec2(cos(a + .35), sin(a + .35)).normalize(ballSpeed), src.size));
+        balls.push(makeBall(src.pos, vec2(cos(a - .35), sin(a - .35)).normalize(ballSpeed), src.size));
     }
     else if (type === 'T')
     {
@@ -630,7 +630,7 @@ function demoPaddleTargetX()
         target = best.ball.pos.x;
         // Aim slightly off-center so bounces vary and break across the field.
         if (best.threat)
-            target += 0.6 * Math.sin(time * 1.7);
+            target += 0.6 * sin(time * 1.7);
     }
     else
     {
@@ -1088,7 +1088,7 @@ function gameRender()
         }
         else if (b.special)
         {
-            const pulse = 1 + .03 * Math.sin(time * 6 + b.pos.x);
+            const pulse = 1 + .03 * sin(time * 6 + b.pos.x);
             const frame = powerupColor(b.dropType);
             drawRect(b.pos, b.size.scale(pulse), frame);
             drawBeveled(b.pos, b.size.subtract(vec2(.18, .18)).scale(pulse), b.color);
@@ -1110,7 +1110,7 @@ function gameRender()
     // powerups
     for (const p of powerups)
     {
-        const pulse = 1 + .15 * Math.sin(time * 8);
+        const pulse = 1 + .15 * sin(time * 8);
         const c = powerupColor(p.type);
         drawRect(p.pos, p.size.scale(1.4 * pulse), new Color(c.r, c.g, c.b, .25));
         drawRect(p.pos, p.size, c);

@@ -374,7 +374,7 @@ class Chest extends EngineObject
         this.renderOrder = -baseY(this) + 100;   // float above ground entities
         // bobbing wiggle so the chest catches the eye in a busy screen
         const age = time - this.spawnTime;
-        this.angle = Math.sin(age * 4) * .12;
+        this.angle = sin(age * 4) * .12;
         if (player.pos.distance(this.pos) < 1.2)
         {
             this.open();
@@ -431,7 +431,7 @@ class Chest extends EngineObject
         if (!isOnScreen(this.pos, this.size.scale(2))) return;
         const age = time - this.spawnTime;
         // pulsing gold additive so the chest screams "come collect me"
-        const pulse = .5 + .5 * Math.sin(age * 6);
+        const pulse = .5 + .5 * sin(age * 6);
         drawEmoji(this.pos, this.size, sprites.chest, WHITE,
                   new Color(.45 * pulse, .35 * pulse, 0, 0), this.angle);
         // Sparkle ring — small twinkling motes orbit the chest so it reads
@@ -679,7 +679,7 @@ class Enemy extends EngineObject
             this.hp -= this.burnDps / 60;
             if (this.hp <= 0) { this.destroy(); return; }
             this.tint = new Color(1, .55, .35);
-            const flicker = Math.sin(time * 28) * .5 + .5;
+            const flicker = sin(time * 28) * .5 + .5;
             this.additive = new Color(.45 * flicker, .15 * flicker, 0, 0);
         }
         else if (this.slowTimer > 0)
@@ -1106,7 +1106,7 @@ function applyRandomBuff(pos)
         () => {
             const heal = player.maxHp - player.hp;
             player.hp = player.maxHp;
-            toastBuff('🍔', 'FULL MEAL', '+' + Math.ceil(heal) + ' HP');
+            toastBuff('🍔', 'FULL MEAL', '+' + ceil(heal) + ' HP');
         },
         () => {
             timeSlowTimer = 5;
@@ -1240,7 +1240,7 @@ class Pickup extends EngineObject
             }
             else if (this.kind === 'coin')
             {
-                const gain = max(1, Math.round(this.value * player.coinGainMult));
+                const gain = max(1, round(this.value * player.coinGainMult));
                 coinsRun += gain;
                 coins    += gain;
                 playPickupSound(sounds.coin, this.pos);
@@ -1414,7 +1414,7 @@ class HeartDrainWeapon
     levelUp() { this.level = min(this.level + 1, 5); }
     damage()  { return 1 + this.level; }
     healPerHit() { return min(2, this.level); }
-    heartCount() { return min(2 + Math.floor((this.level - 1) / 2), 3); }  // 2, 2, 3, 3, 3
+    heartCount() { return min(2 + floor((this.level - 1) / 2), 3); }  // 2, 2, 3, 3, 3
 
     update()
     {
@@ -1474,7 +1474,7 @@ function spawnDamageNumber(pos, value, color)
 {
     damageNumbers.push({
         pos: pos.copy(),
-        value: max(1, Math.ceil(value)),
+        value: max(1, ceil(value)),
         t: time + DAMAGE_NUMBER_LIFETIME,
         color: color || new Color(1, .95, .85),
     });
@@ -1592,7 +1592,7 @@ function buildLightningPath(a, b)
     if (len < .01) return [a, b];
     // Perpendicular unit vector for the displacement
     const px = -dy / len, py = dx / len;
-    const segs = clamp(Math.round(len * 1.5), 4, 14);
+    const segs = clamp(round(len * 1.5), 4, 14);
     const amp = min(len * .18, .8);
     const pts = [a];
     for (let i = 1; i < segs; ++i)
@@ -2465,7 +2465,7 @@ class Bomb extends EngineObject
         // pulse faster as the fuse runs out
         // pulse faster as the fuse runs out: 6Hz at fresh, 20Hz at boom
         const pulseRate = lerp(20, 6, clamp(this.fuse / .9, 0, 1));
-        const pulse = Math.sin(time * pulseRate) * .5 + .5;
+        const pulse = sin(time * pulseRate) * .5 + .5;
         this.additive = new Color(.6 * pulse, .1 * pulse, .1 * pulse, 0);
 
         if (this.fuse <= 0)
@@ -2833,7 +2833,7 @@ function updateSpawner()
     // gets overwhelmed. Killing any one of them still triggers victory.
     if (!gameOver && !runVictory && elapsedTime >= runDuration)
     {
-        const expected = 1 + Math.floor((elapsedTime - runDuration) / 60);
+        const expected = 1 + floor((elapsedTime - runDuration) / 60);
         while (finalBossesSpawned < expected)
         {
             finalBossesSpawned++;
@@ -2863,7 +2863,7 @@ function updateSpawner()
 
     // Burst spawning — 1 enemy/tick early, +1 every 60s of elapsed run
     // time, caps at 4. With the .35s late-game interval, peak is ~11/sec.
-    const burst = min(1 + Math.floor(elapsedTime / 60), 4);
+    const burst = min(1 + floor(elapsedTime / 60), 4);
     for (let n = 0; n < burst; ++n)
     {
         if (countLiveEnemies() >= ENEMY_CAP) break;
@@ -3220,7 +3220,7 @@ async function gameInit()
     {
         ctx.fillStyle = '#fff';
         ctx.beginPath();
-        ctx.arc(250, 250, 228, 0, Math.PI * 2);
+        ctx.arc(250, 250, 228, 0, PI * 2);
         ctx.fill();
     }, 'a solid white circle');
     sprites.shadow    = drawToTexture(1, ctx =>
@@ -3233,7 +3233,7 @@ async function gameInit()
         grad.addColorStop(1,   'rgba(255,255,255,0)');
         ctx.fillStyle = grad;
         ctx.beginPath();
-        ctx.arc(250, 250, 228, 0, Math.PI * 2);
+        ctx.arc(250, 250, 228, 0, PI * 2);
         ctx.fill();
     }, 'a soft white radial gradient circle');
     sprites.heroWizard = drawTextToTexture(2, '🧙', {description: 'wizard hero', flipX: true});
@@ -4111,11 +4111,11 @@ function onLevelUpSkip()
     // Grant a partial chunk toward the next level's XP. Cap below the
     // threshold so we don't cascade a fresh level-up out of skipping.
     const needed = xpToNext(player.level);
-    player.xp = min(needed - 1, player.xp + Math.floor(needed * SKIP_XP_FRACTION));
+    player.xp = min(needed - 1, player.xp + floor(needed * SKIP_XP_FRACTION));
     if (typeof showMenuToast === 'function')
     {
         showMenuToast({icon: '⏭️', title: 'SKIPPED',
-                       text: '+' + Math.floor(needed * SKIP_XP_FRACTION) + ' XP',
+                       text: '+' + floor(needed * SKIP_XP_FRACTION) + ' XP',
                        duration: 2, position: 'bottom-right'});
     }
     finishLevelUp();
@@ -4500,10 +4500,10 @@ function drawGround()
     const roadColor = currentStage.roadColor;
     const cam = cameraPos;
     const half = getCameraSize().scale(.5);
-    const minX = max(Math.floor(cam.x - half.x), ARENA_MIN_X);
-    const maxX = min(Math.ceil(cam.x + half.x), ARENA_MAX_X);
-    const minY = max(Math.floor(cam.y - half.y), ARENA_MIN_Y);
-    const maxY = min(Math.ceil(cam.y + half.y), ARENA_MAX_Y);
+    const minX = max(floor(cam.x - half.x), ARENA_MIN_X);
+    const maxX = min(ceil(cam.x + half.x), ARENA_MAX_X);
+    const minY = max(floor(cam.y - half.y), ARENA_MIN_Y);
+    const maxY = min(ceil(cam.y + half.y), ARENA_MAX_Y);
     // 1.01 sized cells so float rounding never opens a hairline gap.
     const cellSize = vec2(1.02);
     for (let y = minY; y <= maxY; ++y)
@@ -4581,8 +4581,8 @@ function gameRender()
 }
 function formatTime(s)
 {
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60);
+    const m = floor(s / 60);
+    const sec = floor(s % 60);
     return m + ':' + (sec < 10 ? '0' : '') + sec;
 }
 
@@ -4602,8 +4602,8 @@ function drawHUD()
     // 100 × 1.1 = 110.000000000000014 in IEEE-754, which used to print
     // ceil(hp)=111 over a raw 110.0000…1 max. The underlying hp / maxHp
     // values are equal; only the displayed integers were misleading.
-    drawTextScreen('❤ ' + max(0, Math.round(player.hp)) + ' / ' +
-                   Math.round(player.maxHp),
+    drawTextScreen('❤ ' + max(0, round(player.hp)) + ' / ' +
+                   round(player.maxHp),
                    vec2(hpX, hpY + 2), 18, WHITE, 3, BLACK);
 
     // Stats stack under HP bar — timer (turns red near end, REAPER countdown
@@ -4614,7 +4614,7 @@ function drawHUD()
     if (remaining > 0 && remaining < 10 && finalBossesSpawned === 0)
     {
         const flash = sin(time * 12) > 0;
-        drawTextScreen('☠️ REAPER ' + Math.ceil(remaining),
+        drawTextScreen('☠️ REAPER ' + ceil(remaining),
                        vec2(pad, rowY), 22,
                        flash ? new Color(1, .2, .2) : new Color(1, .7, .7),
                        3, BLACK, 'left');
@@ -4813,7 +4813,7 @@ if (debug)
 {
 window.giveCoins = function(amount)
 {
-    const n = (typeof amount === 'number' && amount > 0) ? Math.floor(amount) : 1000;
+    const n = (typeof amount === 'number' && amount > 0) ? floor(amount) : 1000;
     coins    += n;
     coinsRun += n;
     saveMetaState();
