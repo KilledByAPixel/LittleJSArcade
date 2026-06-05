@@ -729,16 +729,16 @@ async function gameInit() {
 
     // ---- stable backdrop seeds ----
     // Stateless seeded night sky (gameFx.js Starfield): 3 left-drifting parallax
-    // layers, per-star spin (rotating squares), unpaused so it animates at the
-    // title. White-on-dark grayscale; the old lightness+alpha twinkle is folded
-    // into one alpha pulse (.3..1 x per-layer brightness). Wraps in x = +/-35.
+    // layers of circle tiles, unpaused so it animates at the title. White-on-dark
+    // grayscale; the old lightness+alpha twinkle is folded into one alpha pulse
+    // (.3..1 x per-layer brightness). Wraps in x = +/-35.
     starField = new Starfield({
         unpaused: true,
+        tile: ICON.circle,
         color: WHITE,
         center: vec2(0, 1),
         area: vec2(35, 12),
         drift: vec2(-1, 0),
-        spinMin: -0.5, spinMax: 0.5,
         twinkleBase: 0.3, twinkleAmp: 0.7,
         layers: [
             { count:50, driftSpeedMin:.25, driftSpeedMax:.25, alphaMin:.5,  alphaMax:.5,  sizeMin:.048, sizeMax:.088, twSpeedMin:.318, twSpeedMax:.318 }, // far

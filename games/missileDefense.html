@@ -184,21 +184,7 @@ function makeCityShape()
 
 function generateBackground()
 {
-    stars = [];
-    for (let i = 0; i < 160; i++)
-    {
-        const closeStar = rand() < .15;
-        stars.push({
-            x: rand(0, levelSize.x),
-            y: rand(groundHeight + 2.5, levelSize.y + 6),
-            size: closeStar ? rand(.12, .22) : rand(.04, .12),
-            hue: rand() < .8 ? .58 + rand(-.06, .06) : (rand() < .5 ? .12 : .92),
-            phase: rand() * 100,
-            speed: rand(.4, 1.8),
-            brightness: closeStar ? rand(.6, 1) : rand(.35, .85),
-        });
-    }
-
+    // star field is built once in gameInit (stateless gameFx.js Starfield)
     shootingStars = [];
 
     mountains = [];
@@ -1061,6 +1047,22 @@ function gameInit()
     saveDataInit('missileCommand');
     setCameraPos(levelSize.scale(.5));
     icons = initDefaultAtlas();
+    // Background star field — stateless gameFx.js Starfield, built once here
+    // (after icons). Two size tiers = two layers; twinkle on alpha; the hue mix
+    // is a pale-blue base + ~20% warm/purple tints. (Old glow halo dropped.)
+    stars = new Starfield({
+        tile: icons.circle,
+        center: vec2(levelSize.x/2, (groundHeight + 2.5 + levelSize.y + 6)/2),
+        area: vec2(levelSize.x/2, (levelSize.y + 6 - groundHeight - 2.5)/2),
+        color: hsl(.58, .35, .9),
+        tints: [hsl(.12, .35, .9), hsl(.92, .35, .9)],
+        tintChance: .2,
+        twinkleBase: .4, twinkleAmp: .6,
+        layers: [
+            { count:136, sizeMin:.04, sizeMax:.12, alphaMin:.35, alphaMax:.85, twSpeedMin:.064, twSpeedMax:.286 }, // far
+            { count:24,  sizeMin:.12, sizeMax:.22, alphaMin:.6,  alphaMax:1,   twSpeedMin:.064, twSpeedMax:.286 }, // close
+        ],
+    });
     setSoundVolume(.28);
 
     sShoot    = new SoundGenerator({volume:.7, frequency:520, attack:0, release:.08, shapeCurve:1.4, slide:-.25, randomness:.02});
@@ -1477,15 +1479,7 @@ function drawGround()
                                       skyTop, skyHoriz);
 
     // stars
-    for (const s of stars)
-    {
-        const tw = .5 + .5 * Math.sin(s.phase + time * s.speed);
-        const a = s.brightness * (.4 + .6 * tw);
-        drawTile(vec2(s.x, s.y), vec2(s.size), icons.circle, hsl(s.hue, .35, .9, a));
-        // bright stars get a soft halo
-        if (s.size > .14)
-            drawTile(vec2(s.x, s.y), vec2(s.size * 3), icons.glow, hsl(s.hue, .6, .9, a * .15));
-    }
+    stars.draw();
 
     // shooting stars
     for (const ss of shootingStars)
