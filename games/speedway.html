@@ -83,8 +83,6 @@ let timeLeftFrames = 60 * 60; // 60 seconds at 60 fps
 let crashTimer = 0;
 let bgScroll = 0;   // accumulated heading (curve*speed) -> distant parallax offset
 let inputSteer = 0; // -1..1, combined keyboard + mouse, shared with render
-let steerMode = 'mouse';   // active steering device: 'mouse' | 'key' (most-recent wins)
-let lastMouseScreenX = -1; // for detecting mouse movement (-1 = uninitialized)
 
 // AI cars
 let aiCars = [];
@@ -313,19 +311,11 @@ function gameUpdate()
     // so curves are about anticipating rather than spamming the key.
     const kbSteer = dir.x;
 
-    // Pick the active steering device by MOST-RECENT USE so mouse and keyboard
-    // coexist: pressing an arrow/WASD switches to keyboard, then simply MOVING
-    // the mouse hands control back — no click required (the old code locked to
-    // one device until you clicked). Detect mouse use by cursor movement or a
-    // held button.
+    // Active steering device by MOST-RECENT USE via gameFx.js usingMouseInput():
+    // pressing arrow/WASD switches to keyboard, moving the mouse hands control
+    // back (no click needed); idle keeps the last device.
     const cx = mainCanvasSize.x / 2;
-    const mouseMoved = lastMouseScreenX >= 0 && abs(mousePosScreen.x - lastMouseScreenX) > .5;
-    lastMouseScreenX = mousePosScreen.x;
     const pointerHeld = mouseIsDown(0) || mouseIsDown(2);
-    if (kbSteer !== 0)
-        steerMode = 'key';
-    else if (mouseMoved || pointerHeld)
-        steerMode = 'mouse';
 
     // cursor-position steering value; on touch there's no resting cursor, so
     // require a held pointer there (desktop steers just by hovering).
@@ -334,7 +324,7 @@ function gameUpdate()
 
     // steer priority: gamepad stick (when pushed) > active device (mouse/key)
     const rawSteer = padSteer ? clamp(padSteer, -1, 1)
-                   : steerMode === 'mouse' ? mouseSteer
+                   : usingMouseInput() ? mouseSteer
                    : kbSteer;
     // need to be moving forward to steer at all — ramps from 0 (stopped) to
     // full at MIN_STEER_SPEED, then stays at full. Prevents the car from
