@@ -1345,38 +1345,46 @@ function barrelCoinFallback(pos)
     }
 }
 
-class FishOrbitWeapon
+// Base for the "ring of sprites orbiting the player, damaging on contact"
+// weapons (Fish Orbit / Heart Drain and their evolved Storm/Spiral forms).
+// Subclasses set the tunables in their constructor; Heart variants override
+// onHit() to also heal. Drawing lives in draw() (not update()) because update()
+// runs in gameUpdate, before the render phase that asserts the GL batch is empty.
+class OrbitWeapon
 {
     constructor()
     {
         this.level = 1;
-        this.name = 'Fish Orbit';
         this.angle = 0;
-        this.hitMap = new Map();
+        this.hitMap = new Map();   // enemy -> next-allowed-hit time
+        // --- tunables (overridden per subclass) ---
+        this.spinSpeed = 4;        // spin rate (× player.fireRateMult)
+        this.radiusBase = 2.5;     // orbit radius (× player.areaMult)
+        this.orbSizeBase = .7;     // sprite size  (× player.areaMult)
+        this.hitCooldown = .5;     // seconds before the same enemy is hit again
+        this.spriteKey = null;     // key into the `sprites` atlas (set by subclass)
     }
-    levelUp() { this.level = min(this.level + 1, 5); }
-    damage()  { return 1 + this.level; }
+    levelUp()  { this.level = min(this.level + 1, 5); }
+    damage()   { return 1 + this.level; }
+    // Limit-Break can grow level past 5; soft-cap the orb count at 8 so a long
+    // run doesn't tank the frame rate while damage keeps rising.
+    orbCount() { return min(this.level, 8); }
+    onHit(e)   {}                  // extra per-hit effect (Heart variants heal)
 
     update()
     {
-        this.angle += 4 * player.fireRateMult / 60;  // faster spin with Stopwatch
-
-        const radius = 2.5 * player.areaMult;
-        const orbSize = .7 * player.areaMult;
+        this.angle += this.spinSpeed * player.fireRateMult / 60;
+        const radius = this.radiusBase * player.areaMult;
+        const orbSize = this.orbSizeBase * player.areaMult;
         const dmg = this.damage() * player.dmgMult;
         const now = time;
         for (const [e, t] of this.hitMap)
             if (!e.parent && (e.destroyed || t < now - 5)) this.hitMap.delete(e);
 
-        // damage check only — drawing moved to draw() because update() runs
-        // during gameUpdate (before render). drawTile from update batches GL
-        // vertices that the next frame's enginePreRender then asserts on.
-        // Limit-Break can grow level past 5; soft-cap the fish count at 8
-        // so a long run doesn't tank the frame rate while damage keeps rising.
-        const orbCount = min(this.level, 8);
-        for (let i = 0; i < orbCount; ++i)
+        const count = this.orbCount();
+        for (let i = 0; i < count; ++i)
         {
-            const a = this.angle + i * 2 * PI / orbCount;
+            const a = this.angle + i * 2 * PI / count;
             const pos = player.pos.add(vec2().setAngle(a, radius));
             for (const e of enemies)
             {
@@ -1384,82 +1392,52 @@ class FishOrbitWeapon
                 const next = this.hitMap.get(e) || 0;
                 if (now < next) continue;
                 e.takeDamage(dmg);
-                this.hitMap.set(e, now + .5);
+                this.hitMap.set(e, now + this.hitCooldown);
+                this.onHit(e);
             }
         }
     }
 
     draw()
     {
-        const radius = 2.5 * player.areaMult;
-        const orbSize = .7 * player.areaMult;
-        const orbCount = min(this.level, 8);
-        for (let i = 0; i < orbCount; ++i)
+        const radius = this.radiusBase * player.areaMult;
+        const orbSize = this.orbSizeBase * player.areaMult;
+        const count = this.orbCount();
+        for (let i = 0; i < count; ++i)
         {
-            const a = this.angle + i * 2 * PI / orbCount;
+            const a = this.angle + i * 2 * PI / count;
             const pos = player.pos.add(vec2().setAngle(a, radius));
-            drawTile(pos, vec2(orbSize), sprites.fish, WHITE, a + 2*time);
+            drawTile(pos, vec2(orbSize), sprites[this.spriteKey], WHITE, a + 2*time);
         }
     }
 }
-class HeartDrainWeapon
+
+class FishOrbitWeapon extends OrbitWeapon
 {
     constructor()
     {
-        this.level = 1;
+        super();
+        this.name = 'Fish Orbit';
+        this.spriteKey = 'fish';
+        // everything else is the base default: spin 4, radius 2.5, size .7,
+        // count min(level,8), cooldown .5, damage 1+level, no heal.
+    }
+}
+class HeartDrainWeapon extends OrbitWeapon
+{
+    constructor()
+    {
+        super();
         this.name = 'Heart Drain';
-        this.angle = 0;
-        this.hitMap = new Map();   // enemy -> next-allowed-hit time
+        this.spriteKey = 'heartDrain';
+        this.spinSpeed = 3;
+        this.radiusBase = 2.0;
+        this.orbSizeBase = .65;
+        this.hitCooldown = 1;
     }
-    levelUp() { this.level = min(this.level + 1, 5); }
-    damage()  { return 1 + this.level; }
+    orbCount()   { return min(2 + floor((this.level - 1) / 2), 3); }  // 2, 2, 3, 3, 3
     healPerHit() { return min(2, this.level); }
-    heartCount() { return min(2 + floor((this.level - 1) / 2), 3); }  // 2, 2, 3, 3, 3
-
-    update()
-    {
-        this.angle += 3 * player.fireRateMult / 60;
-
-        const radius = 2.0 * player.areaMult;
-        const heartSize = .65 * player.areaMult;
-        const dmg = this.damage() * player.dmgMult;
-        const heal = this.healPerHit();
-        const now = time;
-        for (const [e, t] of this.hitMap)
-            if (!e.parent && (e.destroyed || t < now - 5)) this.hitMap.delete(e);
-
-        // damage check only — drawing moved to draw() because update() runs
-        // during gameUpdate (before render). drawTile from update batches GL
-        // vertices that the next frame's enginePreRender then asserts on.
-        const count = this.heartCount();
-        for (let i = 0; i < count; ++i)
-        {
-            const a = this.angle + i * 2 * PI / count;
-            const pos = player.pos.add(vec2().setAngle(a, radius));
-            for (const e of enemies)
-            {
-                if (!isOverlapping(pos, vec2(heartSize), e.pos, e.size)) continue;
-                const next = this.hitMap.get(e) || 0;
-                if (now < next) continue;
-                e.takeDamage(dmg);
-                this.hitMap.set(e, now + 1);
-                player.hp = min(player.maxHp, player.hp + heal);
-            }
-        }
-    }
-
-    draw()
-    {
-        const radius = 2.0 * player.areaMult;
-        const heartSize = .65 * player.areaMult;
-        const count = this.heartCount();
-        for (let i = 0; i < count; ++i)
-        {
-            const a = this.angle + i * 2 * PI / count;
-            const pos = player.pos.add(vec2().setAngle(a, radius));
-            drawTile(pos, vec2(heartSize), sprites.heartDrain, WHITE, a + 2*time);
-        }
-    }
+    onHit(e)     { player.hp = min(player.maxHp, player.hp + this.healPerHit()); }
 }
 // Transient lightning segments — drawn fading by drawChainFlashes() each frame.
 const chainFlashes = [];
@@ -1937,54 +1915,22 @@ class SpicyPizzaWeapon
     }
 }
 
-class FishStormWeapon
+class FishStormWeapon extends OrbitWeapon
 {
     constructor()
     {
-        this.level = 5; this.evolved = true; this.name = 'Fish Storm';
-        this.angle = 0; this.hitMap = new Map();
+        super();
+        this.level = 5; this.evolved = true;
+        this.name = 'Fish Storm';
+        this.spriteKey = 'shark';
+        this.spinSpeed = 6;
+        this.radiusBase = 4;
+        this.orbSizeBase = 1.1;
+        this.hitCooldown = .35;
     }
-    levelUp() {}
-    damage() { return 8 * (this.lbBonus || 1); }
-
-    update()
-    {
-        this.angle += 6 * player.fireRateMult / 60;
-        const radius = 4 * player.areaMult;
-        const orbSize = 1.1 * player.areaMult;
-        const dmg = this.damage() * player.dmgMult;
-        const now = time;
-        for (const [e, t] of this.hitMap)
-            if (!e.parent && (e.destroyed || t < now - 5)) this.hitMap.delete(e);
-
-        const orbits = 7;
-        for (let i = 0; i < orbits; ++i)
-        {
-            const a = this.angle + i * 2 * PI / orbits;
-            const pos = player.pos.add(vec2().setAngle(a, radius));
-            for (const e of enemies)
-            {
-                if (!isOverlapping(pos, vec2(orbSize), e.pos, e.size)) continue;
-                const next = this.hitMap.get(e) || 0;
-                if (now < next) continue;
-                e.takeDamage(dmg);
-                this.hitMap.set(e, now + .35);
-            }
-        }
-    }
-
-    draw()
-    {
-        const radius = 4 * player.areaMult;
-        const orbSize = 1.1 * player.areaMult;
-        const orbits = 7;
-        for (let i = 0; i < orbits; ++i)
-        {
-            const a = this.angle + i * 2 * PI / orbits;
-            const pos = player.pos.add(vec2().setAngle(a, radius));
-            drawTile(pos, vec2(orbSize), sprites.shark, WHITE, a + 2*time);
-        }
-    }
+    levelUp()  {}
+    damage()   { return 8 * (this.lbBonus || 1); }
+    orbCount() { return 7; }
 }
 
 class ThunderstormWeapon
@@ -2078,56 +2024,23 @@ class BlizzardWeapon
     }
 }
 
-class HeartSpiralWeapon
+class HeartSpiralWeapon extends OrbitWeapon
 {
     constructor()
     {
-        this.level = 5; this.evolved = true; this.name = 'Heart Spiral';
-        this.angle = 0; this.hitMap = new Map();
+        super();
+        this.level = 5; this.evolved = true;
+        this.name = 'Heart Spiral';
+        this.spriteKey = 'heartSpiral';
+        this.spinSpeed = 4;
+        this.radiusBase = 3.5;
+        this.orbSizeBase = .9;
+        this.hitCooldown = .5;
     }
-    levelUp() {}
-    damage() { return 6 * (this.lbBonus || 1); }
-
-    update()
-    {
-        this.angle += 4 * player.fireRateMult / 60;
-        const radius = 3.5 * player.areaMult;
-        const heartSize = .9 * player.areaMult;
-        const dmg = this.damage() * player.dmgMult;
-        const heal = 4;
-        const now = time;
-        for (const [e, t] of this.hitMap)
-            if (!e.parent && (e.destroyed || t < now - 5)) this.hitMap.delete(e);
-
-        const orbits = 5;
-        for (let i = 0; i < orbits; ++i)
-        {
-            const a = this.angle + i * 2 * PI / orbits;
-            const pos = player.pos.add(vec2().setAngle(a, radius));
-            for (const e of enemies)
-            {
-                if (!isOverlapping(pos, vec2(heartSize), e.pos, e.size)) continue;
-                const next = this.hitMap.get(e) || 0;
-                if (now < next) continue;
-                e.takeDamage(dmg);
-                this.hitMap.set(e, now + .5);
-                player.hp = min(player.maxHp, player.hp + heal);
-            }
-        }
-    }
-
-    draw()
-    {
-        const radius = 3.5 * player.areaMult;
-        const heartSize = .9 * player.areaMult;
-        const orbits = 5;
-        for (let i = 0; i < orbits; ++i)
-        {
-            const a = this.angle + i * 2 * PI / orbits;
-            const pos = player.pos.add(vec2().setAngle(a, radius));
-            drawTile(pos, vec2(heartSize), sprites.heartSpiral, WHITE, a + 2*time);
-        }
-    }
+    levelUp()  {}
+    damage()   { return 6 * (this.lbBonus || 1); }
+    orbCount() { return 5; }
+    onHit(e)   { player.hp = min(player.maxHp, player.hp + 4); }
 }
 
 class StarStormWeapon
