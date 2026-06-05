@@ -362,6 +362,9 @@ function usingGamepadInput()  { return inputDevice() === 'gamepad'; }
 // direction) + `driftSpeedMin/Max` scroll a WORLD-space field statelessly
 // (pos = base + drift*speed*time, wrapped in `area`). `unpaused:true` animates
 // from `timeReal` instead of `time`, so a title/paused backdrop keeps moving.
+// `wrap` (world units) makes a horizontal world CYLINDER: stars at worldX=0..wrap
+// scroll with the camera by per-layer `parallax` as DEPTH (1 = fixed in the world,
+// 0 = nailed to the view), wrapped seamlessly via mod(); off-screen stars cull.
 // ============================================================================
 class Starfield
 {
@@ -373,7 +376,7 @@ class Starfield
         twSpeedMin = 1, twSpeedMax = 3,
         twinkleBase = .55, twinkleAmp = .45, twinkleSize = false,
         tintChance = 0, tints, layers,
-        drift, driftSpeedMin = 1, driftSpeedMax = 1, unpaused = false,
+        drift, driftSpeedMin = 1, driftSpeedMax = 1, unpaused = false, wrap = 0,
     } = {})
     {
         this.seed        = seed || 1234;   // xorshift requires non-zero
@@ -387,6 +390,7 @@ class Starfield
         this.twinkleSize = twinkleSize;
         this.drift       = drift;          // vec2 dir; enables stateless scroll (world mode)
         this.unpaused    = unpaused;       // animate from timeReal (runs while paused)
+        this.wrap        = wrap;           // >0 = horizontal world cylinder of this width
         this.layers      = layers || [{ count, parallax, sizeMin, sizeMax,
             alphaMin, alphaMax, twSpeedMin, twSpeedMax, tintChance, tints,
             driftSpeedMin, driftSpeedMax }];
@@ -396,8 +400,16 @@ class Starfield
     {
         const rng = new RandomGenerator(this.seed);
         const W = mainCanvasSize.x, H = mainCanvasSize.y;
-        const screen = this.screenSpace, drift = this.drift;
+        const screen = this.screenSpace, drift = this.drift, wrap = this.wrap;
         const t = this.unpaused ? timeReal : time;
+        let halfVisW, yMin, yMax;
+        if (wrap)
+        {
+            const cs = getCameraSize();
+            halfVisW = cs.x/2 + 1;
+            yMin = cameraPos.y - cs.y/2 - 1;
+            yMax = cameraPos.y + cs.y/2 + 1;
+        }
         for (const L of this.layers)
         {
             const par = L.parallax || 0;
@@ -430,7 +442,17 @@ class Starfield
                 {
                     let wx = this.center.x + (rx*2 - 1)*this.area.x;
                     let wy = this.center.y + (ry*2 - 1)*this.area.y;
-                    if (drift)
+                    if (wrap)
+                    {
+                        // horizontal world cylinder of width `wrap` with depth
+                        // parallax: a star at worldX = rx*wrap lags the camera by
+                        // (1 - par). par=1 sits in the world, par->0 nails it to the
+                        // view. mod() wraps the field seamlessly (handles negatives).
+                        const dx = mod(rx*wrap - cameraPos.x*par + wrap/2, wrap) - wrap/2;
+                        if (abs(dx) > halfVisW || wy < yMin || wy > yMax) continue;
+                        wx = cameraPos.x + dx;
+                    }
+                    else if (drift)
                     {
                         const ax = this.area.x, ay = this.area.y;
                         wx = mod(wx + drift.x*dspeed*t - this.center.x + ax, 2*ax) + this.center.x - ax;

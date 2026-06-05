@@ -49,7 +49,7 @@ let humansAlive, planetDestroyed, mutantWavesLeft;
 let player;
 let enemies, bullets, humans, particles;
 let terrain;             // array of terrain heights along world X
-let stars;               // pre-generated starfield: [{x, y, b, s, phase}, ...]
+let stars;               // background starfield (gameFx.js Starfield, wrap cylinder)
 let baiterTimer;
 let bombFlash;           // 0..1 white flash after smart bomb
 let spawnTimer;          // staggered spawns at wave start
@@ -129,22 +129,24 @@ const STAR_LAYERS = [
 ];
 function genStars()
 {
-    stars = [];
-    const rg = new RandomGenerator(8472);
-    for (const layer of STAR_LAYERS)
-    {
-        for (let i = 0; i < layer.count; i++)
-        {
-            stars.push({
-                x:         rg.float(0, WORLD_W),
-                y:         rg.float(STAR_Y_LOW, STAR_Y_HIGH),
-                b:         rg.float(.35, 1) * layer.brightMul,
-                s:         rg.float(.05, .12) * layer.sizeMul,
-                phase:     rg.float(0, PI * 2),
-                depth:     layer.depth,
-            });
-        }
-    }
+    // Background star cylinder via the gameFx.js Starfield (wrap = WORLD_W). Three
+    // depth layers (parallax = layer.depth); white-on-dark, so per-star alpha reads
+    // as the old grayscale brightness; twinkle = .6 + .4*sin(time*2).
+    stars = new Starfield({
+        seed: 8472,
+        wrap: WORLD_W,
+        color: WHITE,
+        center: vec2(0, (STAR_Y_LOW + STAR_Y_HIGH) / 2),
+        area: vec2(0, (STAR_Y_HIGH - STAR_Y_LOW) / 2),
+        twinkleBase: .6, twinkleAmp: .4,
+        twSpeedMin: .318, twSpeedMax: .318,
+        layers: STAR_LAYERS.map(L => ({
+            count: L.count,
+            parallax: L.depth,
+            sizeMin: .05 * L.sizeMul, sizeMax: .12 * L.sizeMul,
+            alphaMin: .35 * L.brightMul, alphaMax: L.brightMul,
+        })),
+    });
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1330,23 +1332,7 @@ function gameUpdate()
 // Render
 function drawStars()
 {
-    const cs = getCameraSize();
-    const halfW = cs.x / 2 + 1;
-    const yMin = cameraPos.y - cs.y / 2 - 1;
-    const yMax = cameraPos.y + cs.y / 2 + 1;
-    for (const st of stars)
-    {
-        if (st.y < yMin || st.y > yMax) continue;
-        // Parallax: apparent world x lags camera motion by (1 - depth). For
-        // depth=1 the star sits in world (full speed); depth→0 nails it to
-        // the camera (no drift). wrapDX makes the field tile seamlessly.
-        const apparentX = st.x + cameraPos.x * (1 - st.depth);
-        const dx = wrapDX(apparentX, cameraPos.x);
-        if (abs(dx) > halfW) continue;
-        const a = .6 + .4 * sin(time * 2 + st.phase);
-        drawRect(vec2(cameraPos.x + dx, st.y),
-            vec2(st.s, st.s), hsl(0, 0, st.b, a));
-    }
+    stars.draw();
 }
 
 function drawTerrain()
