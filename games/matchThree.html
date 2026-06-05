@@ -25,6 +25,7 @@
 
 const fallTime = .2;
 const swapTime = .15;
+const clearTime = .18;   // matched gems flash & swell before they burst
 const cameraOffset = vec2(0, -.5);
 
 // === Board dimensions === change gridSize to resize the playable board (cols × rows).
@@ -63,6 +64,10 @@ let level, levelSize, levelFall, fallTimer, dragStartPos, comboCount, score;
 // the level data is actually swapped. If the swap doesn't produce a match the
 // animation reverses and they slide back. {a, b, t, reversing} or null.
 let swapAnim = null;
+// Matched gems flash & swell for clearTime before bursting. {list, t, flags} or null.
+let clearAnim = null;
+let scorePopups = [];   // floating "+N" texts: {pos, text, t, life, color}
+let comboBanner = null; // big center "COMBO xN!" punch: {n, t, life}
 const gemSprites = []; // TileInfo per gem type, filled in gameInit
 
 const getTile = (pos)=> level[pos.x + pos.y * levelSize.x];
@@ -297,6 +302,9 @@ function gameReset()
     dragStartPos = 0;
     levelFall = [];
     swapAnim = null;
+    clearAnim = null;
+    scorePopups = [];
+    comboBanner = null;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -363,11 +371,12 @@ function gameUpdate()
                 const aData = getTile(aPos), bData = getTile(bPos);
                 setTile(aPos, bData);
                 setTile(bPos, aData);
-                clearMatches();
-                if (fallTimer.isSet())
+                const matches = findMatchedTiles();
+                if (matches.length)
                 {
-                    sound_goodMove.play();
+                    // Valid swap — kick off the flash/swell, then burst & fall.
                     swapAnim = null;
+                    startClear(matches);
                 }
                 else
                 {
@@ -383,6 +392,15 @@ function gameUpdate()
                 swapAnim = null;
             }
         }
+        return;
+    }
+
+    // Matched gems flash & swell, then burst and trigger the fall.
+    if (clearAnim)
+    {
+        clearAnim.t += timeDelta;
+        if (clearAnim.t >= clearTime)
+            finalizeClear();
         return;
     }
 
@@ -427,7 +445,14 @@ function gameUpdate()
     }
     else
     {
-        clearMatches();
+        // A fall just settled — look for cascade matches and chain another clear.
+        const matches = findMatchedTiles();
+        if (matches.length)
+        {
+            startClear(matches);
+            return;
+        }
+        comboCount = 0;   // no more matches — the combo chain ends
 
         // Cabinet (#demo): the auto-solver makes the moves; humans use the mouse.
         if (inCabinet)
@@ -486,16 +511,53 @@ function gameUpdate()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-function gameUpdatePost() {}
+function gameUpdatePost()
+{
+    // advance floating score popups and the combo banner
+    for (const p of scorePopups) p.t += timeDelta;
+    scorePopups = scorePopups.filter(p => p.t < p.life);
+    if (comboBanner)
+    {
+        comboBanner.t += timeDelta;
+        if (comboBanner.t >= comboBanner.life)
+            comboBanner = null;
+    }
+}
 
 ///////////////////////////////////////////////////////////////////////////////
+// Animated vertical gradient backdrop: blue low -> purple/magenta high, with a
+// slow hue drift and gentle shimmer so the board never sits on dead black.
+function bgColorAt(p)
+{
+    const hue = mod(.60 + .24 * p + .03 * Math.sin(time * .4) + time * .015, 1);
+    const light = lerp(.22, .05, p);   // brighter near the board base
+    return hsl(hue, .65, light);
+}
+
+function drawBackgroundGradient()
+{
+    const camSize = getCameraSize();
+    const bot = cameraPos.y - camSize.y / 2;
+    const top = cameraPos.y + camSize.y / 2;
+    const strips = 40, h = camSize.y / strips;
+    for (let i = 0; i < strips; ++i)
+    {
+        const p = i / (strips - 1);
+        drawRect(vec2(cameraPos.x, lerp(bot, top, p)),
+            vec2(camSize.x + 2, h + .1), bgColorAt(p));
+    }
+}
+
 function gameRender()
 {
     // Re-fit every frame so resizing the window keeps the grid in view.
     fitCamera();
 
-    // playfield bg behind the gems
-    drawRect(cameraPos.subtract(cameraOffset), levelSize, hsl(0, 0, 0));
+    // animated gradient backdrop
+    drawBackgroundGradient();
+
+    // playfield panel — translucent so the gradient glows through the gem gaps
+    drawRect(cameraPos.subtract(cameraOffset), levelSize.add(vec2(.15)), rgb(0,0,0,.55));
 
     // Smoothstep-eased progress along the active swap (0 → 1 forward, 1 → 0 reversing).
     let swapProgress = 0;
@@ -532,17 +594,24 @@ function gameRender()
                 drawPos = swapAnim.b.lerp(swapAnim.a, swapProgress).add(vec2(.5));
         }
 
-        const color = tileColors[data];
-        drawRect(drawPos, vec2(.95), color);
+        // matched gems flash toward white and swell during the clear beat
+        let gemColor = tileColors[data], drawScale = 1;
+        if (clearAnim && clearAnim.flags[pos.x + pos.y * levelSize.x])
+        {
+            const k = min(clearAnim.t / clearTime, 1);
+            drawScale = 1 + .6 * k;
+            gemColor = gemColor.lerp(hsl(0, 0, 1), .7 * k);
+        }
+        drawRect(drawPos, vec2(.95 * drawScale), gemColor);
 
         // tint the icon a touch darker so it reads on the gem-colored bg
-        const color2 = color.scale(.7, 1);
-        drawTile(drawPos, vec2(.75), gemSprites[data], color2);
+        const iconColor = gemColor.scale(.7, 1);
+        drawTile(drawPos, vec2(.75 * drawScale), gemSprites[data], iconColor);
     }
 
     // mask the column of tiles spawned above the top so they slide in cleanly
     drawRect(cameraPos.subtract(cameraOffset).add(vec2(0, levelSize.y)),
-        levelSize, backgroundColor);
+        levelSize, bgColorAt(1));
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -553,12 +622,34 @@ function gameRenderPost()
     // 2 world units below the grid). Anchored to the board so it stays in
     // the right place if gridSize changes.
     drawText('Score: ' + score, vec2(gridSize.x/2, -.9), 1.1, hsl(), .1);
+
+    // floating "+N" popups rise from the match and fade
+    for (const pop of scorePopups)
+    {
+        const k = pop.t / pop.life;
+        const alpha = 1 - k * k;
+        const size = 1.1 + .5 * k;
+        drawText(pop.text, pop.pos.add(vec2(0, k * 1.4)), size,
+            pop.color.scale(1, alpha), .12, rgb(0, 0, 0, alpha));
+    }
+
+    // combo banner punches in near the top on a 2+ chain
+    if (comboBanner)
+    {
+        const k = comboBanner.t / comboBanner.life;
+        const punch = 1 + .35 * Math.exp(-comboBanner.t * 9);   // quick scale pop
+        const alpha = 1 - clamp((k - .65) / .35, 0, 1);          // fade out late
+        drawTextScreen('COMBO x' + comboBanner.n + '!',
+            vec2(mainCanvasSize.x / 2, mainCanvasSize.y * .28), 70 * punch,
+            hsl(mod(time * .6, 1), .9, .6, alpha), 5, rgb(0, 0, 0, alpha));
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Find and remove all runs of 3+ in any row or column.
+// Find all tiles that are part of a run of 3+ in any row or column.
+// Returns an array of positions (empty if there are no matches).
 
-function clearMatches()
+function findMatchedTiles()
 {
     const removeTiles = [], pos = vec2();
 
@@ -602,40 +693,102 @@ function clearMatches()
         }
     }
 
-    // remove all flagged tiles in one pass so L / T shapes resolve cleanly
-    let removedCount = 0;
-    for (pos.x = levelSize.x; pos.x--;)
-    for (pos.y = levelSize.y; pos.y--;)
-    {
-        if (removeTiles[pos.x + pos.y * levelSize.x])
-        {
-            ++removedCount;
-            const data = getTile(pos);
-            setTile(pos, -1);
+    // collect flagged tiles in one pass so L / T shapes resolve as one group
+    const list = [], pos2 = vec2();
+    for (pos2.x = levelSize.x; pos2.x--;)
+    for (pos2.y = levelSize.y; pos2.y--;)
+        if (removeTiles[pos2.x + pos2.y * levelSize.x])
+            list.push(pos2.copy());
+    return list;
+}
 
-            const color1 = tileColors[data];
-            const color2 = color1.lerp(hsl(), .5);
-            new ParticleEmitter(
-                pos.add(vec2(.5)), 0,
-                .5, .1, 200, 3.14,
-                0,
-                color1, color2,
-                color1.scale(1, 0), color2.scale(1, 0),
-                .5, .3, .2, .05, .05,
-                .99, 1, 1, 3.14, .05,
-                .5, 0, 1
-            );
-        }
+///////////////////////////////////////////////////////////////////////////////
+// Begin the flash/swell beat for a set of matched tiles. The tiles aren't
+// removed until finalizeClear() runs when the beat ends.
+
+function startClear(list)
+{
+    // rising pitch as the cascade chain grows (comboCount = chains resolved so far)
+    sound_goodMove.play(0, 1, 1 + comboCount * .12);
+
+    const flags = [];
+    for (const p of list)
+        flags[p.x + p.y * levelSize.x] = 1;
+    clearAnim = {list, t:0, flags};
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// End the clear beat: burst the matched tiles, score them, and start the fall.
+
+function finalizeClear()
+{
+    const list = clearAnim.list;
+    clearAnim = null;
+
+    let removedCount = 0, sumX = 0, sumY = 0;
+    for (const p of list)
+    {
+        const data = getTile(p);
+        if (data < 0) continue;
+        ++removedCount;
+        sumX += p.x; sumY += p.y;
+        setTile(p, -1);
+        emitBurst(p, data);
     }
 
     if (removedCount)
     {
-        score += ++comboCount * removedCount;
+        const gained = ++comboCount * removedCount;
+        score += gained;
+
+        // floating "+N" at the centroid of the cleared group
+        const center = vec2(sumX / removedCount + .5, sumY / removedCount + .5);
+        scorePopups.push({
+            pos: center,
+            text: '+' + gained,
+            t: 0, life: .9,
+            color: comboCount >= 2 ? hsl(.12, 1, .6) : hsl(0, 0, 1),
+        });
+        if (comboCount >= 2)
+            comboBanner = {n: comboCount, t: 0, life: 1};
+
         fallTimer.set();
         levelFall = [];
     }
-    else
-        comboCount = 0;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Spark burst + white core flash when a gem clears (additive, so it glows).
+
+function emitBurst(pos, data)
+{
+    const c = pos.add(vec2(.5));
+    const color1 = tileColors[data];
+    const color2 = color1.lerp(hsl(), .5);
+
+    // colored sparks
+    new ParticleEmitter(
+        c, 0,
+        .3, .1, 300, 3.14,
+        0,
+        color1, color2,
+        color1.scale(1, 0), color2.scale(1, 0),
+        .6, .4, .05, .18, .1,
+        .96, 1, .8, 3.14, .1,
+        .5, 0, 1
+    );
+
+    // white core flash
+    new ParticleEmitter(
+        c, 0,
+        .1, .05, 120, 3.14,
+        0,
+        hsl(0,0,1), hsl(0,0,1),
+        hsl(0,0,1,0), hsl(0,0,1,0),
+        .25, .55, 0, .08, 0,
+        .9, 1, 0, 3.14, .2,
+        .3, 0, 1
+    );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
