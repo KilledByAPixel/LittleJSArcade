@@ -962,7 +962,7 @@ function worldPosToSquare(worldPos)
 function fitCameraToBoard(margin = 0.3)
 {
     const span = BOARD_SIZE * SQUARE_SIZE + 0.4; // board + frame
-    cameraFit(vec2(0, 0), vec2(span), { margin });
+    cameraFit(vec2(0, 0), vec2(span), margin);
 }
 
 // Bake every piece glyph + a reusable circle into the texture atlas. Called

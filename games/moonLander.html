@@ -680,7 +680,7 @@ function frameMenuCamera()
     const box = vec2(max(abs(ship.x - pad.x) + 8, CAMERA_MENU_MINW), 1);
     camTarget = center.copy();
     camSize = box.copy();
-    cameraFit(center, box, {margin: {top: CAMERA_MENU_SKY, bottom: CAMERA_MENU_GROUND}});
+    cameraFit(center, box, {top: CAMERA_MENU_SKY, bottom: CAMERA_MENU_GROUND});
 }
 
 function gameUpdatePost()
@@ -708,13 +708,13 @@ function gameUpdatePost()
             max(abs(ship.y - pad.y), CAMERA_FIT_MIN.y));
         camTarget = camTarget.lerp(target, .12);
         camSize   = camSize.lerp(box, .08);
-        cameraFit(camTarget, camSize, {margin: CAMERA_FIT_MARGIN});
+        cameraFit(camTarget, camSize, CAMERA_FIT_MARGIN);
     }
     else
     {
         camTarget = camTarget.lerp(player ? player.pos : camTarget, .12);
         camSize   = camSize.lerp(CAMERA_FIT_MIN, .05);
-        cameraFit(camTarget, camSize, {margin: CAMERA_FIT_MARGIN});
+        cameraFit(camTarget, camSize, CAMERA_FIT_MARGIN);
     }
 }
 

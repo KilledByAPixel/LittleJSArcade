@@ -991,7 +991,7 @@ function gameUpdatePost()
 {
     // Fit the whole world-space play area into the view. Called every frame so it
     // re-fits on canvas resize, and runs while paused so the title backdrop frames too.
-    cameraFit(vec2(0, 0), WORLD_SIZE, {margin: 2});
+    cameraFit(vec2(0, 0), WORLD_SIZE, 2);
 }
 
 function gameRender()

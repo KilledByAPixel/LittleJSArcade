@@ -554,7 +554,7 @@ function fitCameraToCanvas()
 {
     // Fit the spiral (outerR + a 1-unit margin) into the canvas via the shared
     // helper. Centered at the origin (the game never moves cameraPos).
-    cameraFit(vec2(), vec2(2 * SPIRAL_OUTER_R), { margin: 1 });
+    cameraFit(vec2(), vec2(2 * SPIRAL_OUTER_R), 1);
 }
 
 function gameUpdate()

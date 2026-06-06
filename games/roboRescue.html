@@ -2471,7 +2471,7 @@ function fitCameraToArena()
 {
     if (!mainCanvasSize || mainCanvasSize.x < 100) return;
     // 1.1 world units of margin per side leaves room for the cyan frame
-    cameraFit(vec2(0), arenaSize, { margin: 1.1 });
+    cameraFit(vec2(0), arenaSize, 1.1);
 }
 
 function gameInit()

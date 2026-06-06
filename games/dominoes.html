@@ -924,7 +924,7 @@ function gameUpdatePost()
     // chain-width / 16-tall framing the hands are positioned against (camSize
     // edges); the clamp keeps tiles readable on very long chains.
     const {totalW} = chainLayout();
-    cameraFit(vec2(0, 0), vec2(max(0, totalW), 12), { margin: 2 });
+    cameraFit(vec2(0, 0), vec2(max(0, totalW), 12), 2);
     cameraScale = clamp(cameraScale, 12, 48);
 }
 function gameRender()

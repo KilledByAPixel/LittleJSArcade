@@ -618,7 +618,7 @@ function gameUpdatePost()
     // the title-screen backdrop stays correctly sized. Tight at the title so
     // the attract board fills the screen; a bigger margin during play gives the
     // HUD breathing room.
-    cameraFit(vec2(0, 0), boardSize, { margin: isPlaying() ? 1.5 : 0.5 });
+    cameraFit(vec2(0, 0), boardSize, isPlaying() ? 1.5 : 0.5);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

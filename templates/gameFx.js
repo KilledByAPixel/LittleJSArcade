@@ -201,15 +201,15 @@ function _shakeUpdate()
 // HUD band). Reserved insets also recenter the content into the space that's
 // left, so a top inset pushes the content down automatically.
 //
-//   cameraFit(center, size, options) -> the cameraScale it applied
+//   cameraFit(center, size, worldMargin, screenInset) -> the cameraScale applied
 //
-//   center   Vector2  world-space center of the content to frame
-//   size     Vector2  world-space (width, height) of the content
-//   options.margin  world UNITS of padding around the content (default 0)
-//   options.inset   screen PIXELS reserved per edge, e.g. HUD (default 0)
+//   center       Vector2  world-space center of the content to frame
+//   size         Vector2  world-space (width, height) of the content
+//   worldMargin  world UNITS of padding around the content (default 0)
+//   screenInset  screen PIXELS reserved per edge, e.g. HUD (default 0)
 //
-// margin and inset each accept three forms, "top" = +y world side / top of
-// screen (they align):
+// worldMargin and screenInset each accept three forms, "top" = +y world side /
+// top of screen (they align):
 //   number   -> uniform on all four sides
 //   Vector2  -> x = left & right, y = top & bottom
 //   object   -> {top, right, bottom, left}, any omitted side is 0
@@ -223,7 +223,7 @@ function _shakeUpdate()
 // viewport is degenerate.
 //
 //   // frame a board, reserving the top ~22% of the screen for a score HUD:
-//   cameraFit(vec2(0, 0), vec2(boardSize), { inset: { top: mainCanvasSize.y * .22 } });
+//   cameraFit(vec2(0, 0), vec2(boardSize), 0, { top: mainCanvasSize.y * .22 });
 // ============================================================================
 
 function _padSides(p)
@@ -240,13 +240,13 @@ function _padSides(p)
     };
 }
 
-function cameraFit(center, size, options = {})
+function cameraFit(center, size, worldMargin, screenInset)
 {
     ASSERT(isVector2(center), 'center must be a vec2');
     ASSERT(isVector2(size), 'size must be a vec2');
 
-    const m = _padSides(options.margin);
-    const i = _padSides(options.inset);
+    const m = _padSides(worldMargin);
+    const i = _padSides(screenInset);
 
     const worldW = size.x + m.left + m.right;
     const worldH = size.y + m.top  + m.bottom;

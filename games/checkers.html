@@ -1128,7 +1128,7 @@ function gameUpdatePost()
     // the title (attract + static-menu board) so it fills the view; a bigger
     // margin during play leaves room for the HUD and keeps the board on screen.
     const boardSpan = BOARD_SIZE * CELL_SIZE + 0.6; // board + frame
-    cameraFit(vec2(0, 0), vec2(boardSpan), { margin: isPlaying() ? 1.0 : 0.3 });
+    cameraFit(vec2(0, 0), vec2(boardSpan), isPlaying() ? 1.0 : 0.3);
 }
 
 function gameRender()

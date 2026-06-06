@@ -643,9 +643,9 @@ function gameUpdatePost()
     // tight and fills the view; during play the number pad below is included,
     // which naturally zooms out a little to make room for it.
     if (isPlaying())
-        cameraFit(vec2(0, -0.15), vec2(9.4, 12.2), { margin: 0.5 });
+        cameraFit(vec2(0, -0.15), vec2(9.4, 12.2), 0.5);
     else
-        cameraFit(vec2(0, GRID_Y), vec2(9.4), { margin: 0.4 });
+        cameraFit(vec2(0, GRID_Y), vec2(9.4), 0.4);
 }
 
 ///////////////////////////////////////////////////////////////////////////////

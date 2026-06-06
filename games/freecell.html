@@ -80,7 +80,7 @@ function setupLayout()
     const bottomY = layoutCascadeTopY - CARD_PITCH_Y * 12 - CARD_SIZE.y/2;
     const cardsW  = (8 - 1) * COL_PITCH_X + CARD_SIZE.x;
     cameraFit(vec2(0, (topY + bottomY)/2), vec2(cardsW, topY - bottomY),
-        { margin: { top: TOP_MARGIN, right: 1, bottom: 1, left: 1 } });
+        { top: TOP_MARGIN, right: 1, bottom: 1, left: 1 });
 }
 
 function newGame(deck)

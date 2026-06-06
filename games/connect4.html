@@ -703,7 +703,7 @@ function fitCameraToBoard(margin = .6)
 {
     const boardW = COLS * CELL_SIZE + 0.5; // +0.5 = frame border
     const boardH = ROWS * CELL_SIZE + 0.5;
-    cameraFit(vec2(0, 0), vec2(boardW, boardH), { margin });
+    cameraFit(vec2(0, 0), vec2(boardW, boardH), margin);
 }
 
 // Set up the title attract: cabinet runs AI vs AI on loop; a normal launch

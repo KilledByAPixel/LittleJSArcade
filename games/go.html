@@ -993,7 +993,7 @@ async function gameInit()
     initBoard();
     setPlaying(false);
     // Fit the empty board tight and centered behind the title.
-    cameraFit(vec2(0, 0), vec2(BOARD_FIT_SPAN), { margin: .3 });
+    cameraFit(vec2(0, 0), vec2(BOARD_FIT_SPAN), .3);
     showMenu('title');
     refreshDifficultyUI();
 }
@@ -1070,7 +1070,7 @@ function gameUpdatePost()
     // resize-safe, never crops). Tight at the title so the static board fills
     // the view; a bigger margin during play leaves room for the HUD and keeps
     // the board on screen.
-    cameraFit(vec2(0, 0), vec2(BOARD_FIT_SPAN), { margin: isPlaying() ? 0.6 : 0.3 });
+    cameraFit(vec2(0, 0), vec2(BOARD_FIT_SPAN), isPlaying() ? 0.6 : 0.3);
 }
 
 // gameRender draws the board behind the title menu (empty board on load).

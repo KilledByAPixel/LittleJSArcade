@@ -296,7 +296,7 @@ function gameUpdatePost()
     // Fit the whole maze under the HUD strip: a top inset reserves the HUD band
     // and cameraFit recenters the maze down into the space below it.
     const hudHeight = 56;
-    cameraFit(vec2(gridW/2, gridH/2), vec2(gridW, gridH), { inset: { top: hudHeight } });
+    cameraFit(vec2(gridW/2, gridH/2), vec2(gridW, gridH), 0, { top: hudHeight });
 }
 
 // -----------------------------------------------------------------------------
