@@ -263,9 +263,9 @@ let roundResult = null;     // set by endRound: {winner, humanPips, aiPips}
 let aiTimer = 0;
 const AI_THINK_DELAY = 0.5; // seconds before the AI starts searching
 let aiSearching = false;
-let roundDialogShown = false;   // guards the one-shot game-over dialog (Task 7)
+let roundDialogShown = false;   // guards the one-shot game-over dialog
 
-// SFX handles (created in gameInit, Task 7).
+// SFX handles (created in gameInit).
 let sfxPlace, sfxPass, sfxWin, sfxLose;
 
 function liveState()
@@ -350,7 +350,7 @@ function placeTileLive(player, move)
     return true;
 }
 
-// Switch to the next player's turn. Pass-handling lives in the Task 7 turn
+// Switch to the next player's turn. Pass-handling lives in the turn
 // handlers, NOT here — this only detects the mover emptying their hand and
 // flips the active player.
 function advanceTurn()
@@ -374,7 +374,7 @@ function endRound()
     else winner = null;        // draw
     roundResult = {winner, humanPips, aiPips};
     phase = 'roundOver';
-    // The game-over dialog is shown from gameUpdate (Task 7) so SFX/menus are wired.
+    // The game-over dialog is shown from gameUpdate so SFX/menus are wired.
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -445,7 +445,7 @@ function drawPips(center, n)
         drawTile(center.add(off.scale(TILE_SHORT)), vec2(d), icons.circle, hsl(0, 0, 0.1));
 }
 
-// Module-level layout state used by both rendering and (Task 7) input hit-testing.
+// Module-level layout state used by both rendering and input hit-testing.
 let handTilePositions = [];          // [{id, pos}] for the human hand
 let leftZonePos = null, rightZonePos = null;   // assigned each frame in drawEndZones
 // END_ZONE_SIZE is a lazy getter so vec2() is not called at module scope
