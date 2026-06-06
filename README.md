@@ -1,6 +1,6 @@
 # 🕹️ LittleJS Arcade
 
-![LittleJS Logo](images/social_image.png)
+![LittleJS Logo](images/screenshots.png)
 
 *50+ classic games built with LittleJS. Each one is a single, self-contained file and playable instantly in your browser.*
 
