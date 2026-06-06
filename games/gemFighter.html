@@ -1500,7 +1500,6 @@ function drawSimpleGem(ctx, gem, cx, cy, sz)
 ///////////////////////////////////////////////////////////////////////////////
 // Particle bursts on gem clears
 
-const particles = [];
 let screenFlash = 0;                 // 0..1 full-screen white flash on big clears
 
 function spawnClearParticles(boardIdx, cell, delay = 0, intensity = 1)
@@ -1509,55 +1508,49 @@ function spawnClearParticles(boardIdx, cell, delay = 0, intensity = 1)
     const pos = cellPos(boardIdx, cell.x, cell.y);
     const color = cell.type === 'diamond' ? rgb(1,1,1) : GEM_COLORS[cell.color];
 
+    const fade = rgb(color.r, color.g, color.b, 0);
     const count = round(9 * intensity);
-    const speedMul = 1 + (intensity - 1) * .5;
-    for (let i = 0; i < count; i++)
-    {
-        const angle = (i / count) * PI * 2 + rand(-.2, .2);
-        const speed = (.04 + rand(0, .04)) * speedMul;
-        particles.push({
-            pos: pos.copy(),
-            vel: vec2(cos(angle) * speed, sin(angle) * speed),
-            color,
-            age: -delay,
-            duration: .35,
-        });
-    }
-    particles.push({
-        pos: pos.copy(),
-        vel: vec2(),
-        color: rgb(1,1,1),
-        age: -delay,
-        duration: .18,
-        isFlash: true,
-    });
-}
+    const speed = .06 * (1 + (intensity - 1) * .5);   // mean of old .04-.08 per-frame
 
-function updateParticles()
-{
-    for (let i = particles.length - 1; i >= 0; i--)
-    {
-        const p = particles[i];
-        p.age += timeDelta;
-        if (p.age < 0) continue;
-        if (p.age >= p.duration) { particles.splice(i, 1); continue; }
-        p.pos = p.pos.add(p.vel);
-        p.vel = p.vel.scale(.92);
-    }
-}
+    // gem shards — radial atlas-circle burst that drags out and grows slightly
+    new ParticleEmitter(
+        pos, 0,                  // pos, angle
+        0,                       // emitSize (point)
+        count/600, 600,          // emitTime, emitRate -> ~count particles
+        PI,                      // emitConeAngle (radial)
+        icons.circle,            // tileInfo (atlas circle)
+        color, color,            // colorStartA/B
+        fade, fade,              // colorEndA/B (fade alpha to 0)
+        .35,                     // particleTime
+        .14, .21,                // sizeStart, sizeEnd (was base*(1+t*.5) grow)
+        speed,                   // speed (per-frame, as the old vel)
+        0, .92, 1,               // angleSpeed, damping, angleDamping
+        0,                       // gravityScale (no gravity)
+        0,                       // particleConeAngle
+        .15,                     // fadeRate
+        .35,                     // randomness
+        false, false             // collideTiles, additive
+    );
 
-function renderParticles()
-{
-    for (const p of particles)
-    {
-        if (p.age < 0) continue;
-        const t = p.age / p.duration;
-        const alpha = 1 - t;
-        const base = p.isFlash ? .35 : .14;
-        const size = p.isFlash ? base * (1 - t * .4) : base * (1 + t * .5);
-        const c = p.color;
-        drawTile(p.pos, vec2(size), icons.circle, rgb(c.r, c.g, c.b, alpha));
-    }
+    // central white flash — one stationary particle that shrinks and fades
+    new ParticleEmitter(
+        pos, 0,
+        0,                       // emitSize (point)
+        .02, 50,                 // emitTime, emitRate -> 1 particle
+        PI,                      // emitConeAngle
+        icons.circle,            // tileInfo
+        rgb(1,1,1), rgb(1,1,1),  // colorStartA/B
+        rgb(1,1,1,0), rgb(1,1,1,0), // colorEndA/B
+        .18,                     // particleTime
+        .35, .21,                // sizeStart, sizeEnd (shrink)
+        0,                       // speed (stationary)
+        0, 1, 1,                 // angleSpeed, damping, angleDamping
+        0,                       // gravityScale
+        0,                       // particleConeAngle
+        0,                       // fadeRate
+        0,                       // randomness
+        false, false             // collideTiles, additive
+    );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -2938,7 +2931,6 @@ function gameUpdate()
         currentMatch.update(controllers);
         checkRoundOver();
     }
-    updateParticles();
 }
 // Self-check: power gems on the grid must each be a filled rectangle >= 2x2.
 // On failure it logs to the console AND raises an on-screen banner (_pgBugMsg)
@@ -3021,7 +3013,6 @@ function gameRender()
     if (boards[0]) drawBoardGems(boards[0], 0);
     if (boards[1]) drawBoardGems(boards[1], 1);
 
-    renderParticles();
     drawVignette();
 
     // Debug overlay (press ` / ~): outline every POWER GEM so you can verify the
