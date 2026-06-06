@@ -110,7 +110,7 @@ let atlasIcons;
 const TAU = PI * 2;
 const clamp01 = (v)=> clamp(v, 0, 1);
 
-function angleToVec(a) { return vec2(sin(a), cos(a)); } // up is 0 in LittleJS style
+function angleToVec(a) { return vec2().setAngle(a); } // up is 0 in LittleJS style
 
 // Shortest delta between two points in the wrapped (toroidal) world — used by
 // the demo AI to aim/dodge across the screen seams.
@@ -600,7 +600,7 @@ class Rock extends EngineObject
         {
             const a = (i/verts)*TAU;
             const rr = r * rand(1.05, .65);
-            this.points.push(vec2(sin(a)*rr, cos(a)*rr));
+            this.points.push(vec2().setAngle(a, rr));
         }
 
         rocks.push(this);
@@ -786,7 +786,7 @@ class Ufo extends EngineObject
         {
             // large UFO: random direction
             const a = rand(TAU);
-            aim = vec2(sin(a), cos(a));
+            aim = angleToVec(a);
         }
         const v = aim.scale(.19);
         new UfoBullet(this.pos.add(aim.scale(this.r * 1.1)), v);

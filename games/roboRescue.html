@@ -1319,7 +1319,7 @@ class Tank extends KillableEnemy
             this.shootTimer--;
             if (this.shootTimer <= 0 && shellCount < MAX_SHELLS && toP.length() < 24)
             {
-                const dir = vec2(sin(this.turretAngle), cos(this.turretAngle));
+                const dir = vec2().setAngle(this.turretAngle);
                 enemyBullets.push(new TankShell(this.pos.add(dir.scale(.9)), dir.scale(.16)));
                 sfxMissile.play(this.pos);
                 const t = getWaveTuning(gameWave);
@@ -1366,7 +1366,7 @@ class Tank extends KillableEnemy
         drawRect(this.pos, vec2(.7, .7), blue);
         // barrel (rotated toward player)
         const ta = this.turretAngle;
-        const tipOffset = vec2(sin(ta), cos(ta));
+        const tipOffset = vec2().setAngle(ta);
         drawRect(this.pos.add(tipOffset.scale(.55)), vec2(.22, .9), dark, ta);
         drawRect(this.pos.add(tipOffset.scale(.55)), vec2(.14, .8), c, ta);
         // hatch
@@ -2028,7 +2028,7 @@ class Player extends EngineObject
         {
             const a = aimDir.angle();
             const snapped = round(a / (PI/4)) * (PI/4);
-            this.facing = vec2(sin(snapped), cos(snapped));
+            this.facing = vec2().setAngle(snapped);
         }
 
         // FIRE: mouse left button, right stick pushed (twin-stick auto-fire), or gamepad A button.

@@ -1044,7 +1044,7 @@ function drawPac(p)
     for (let i = 0; i <= N; i++)
     {
         const a = halfMouth + sweep * (i / N);
-        points.push(vec2(sin(a)*r, cos(a)*r));
+        points.push(vec2().setAngle(a, r));
     }
     drawPoly(points, rgb(1, .92, 0), 0, rgb(0,0,0), p.pos, faceAngle);
 }

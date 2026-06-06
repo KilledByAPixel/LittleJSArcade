@@ -1631,7 +1631,7 @@ function drawBase(b)
         const pivot = vec2(bx, floorY + .78);
         const a = b.cannonAngle;
         const recoil = b.recoil;
-        const dir = vec2(sin(a), cos(a));
+        const dir = vec2().setAngle(a);
         const len = 1.1 - recoil * .35;
         const pivotShifted = pivot.subtract(dir.scale(recoil * .15));
         const tip = pivotShifted.add(dir.scale(len));

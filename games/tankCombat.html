@@ -192,7 +192,7 @@ class Tank
         this.respawn = 0;
     }
 
-    get forward() { return vec2(sin(this.ang), cos(this.ang)); }
+    get forward() { return vec2().setAngle(this.ang); }
 
     shoot()
     {
@@ -329,7 +329,7 @@ class Tank
         if (this.respawn > 0 && (this.respawn%6)<3)
             return;
 
-        // Body frame: local +Y is forward (because forward = vec2(sin(ang), cos(ang))
+        // Body frame: local +Y is forward (because forward = vec2().setAngle(ang) = (sin ang, cos ang)
         // matches drawRect's local +Y after a clockwise rotation by `ang`). Anything
         // we want to extend along the barrel/forward direction goes in size.y.
         const ang = this.ang;
