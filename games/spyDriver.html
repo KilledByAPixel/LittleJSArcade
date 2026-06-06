@@ -363,7 +363,7 @@ function roadAngleAtY(y)
     const eps = .8;
     const dx = roadCenterX(y + eps) - roadCenterX(y - eps);
     const dy = 2 * eps;
-    return atan2(dx, dy);
+    return vec2(dx, dy).angle();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -374,7 +374,7 @@ class Bullet extends EngineObject
         super(pos, vec2(.20, .65));
         this.vel = vel;
         // bullet's natural orientation is along +y, so angle from +y to velocity dir (CW positive)
-        this.angle = atan2(vel.x, vel.y);
+        this.angle = vel.angle();
         this.life = new Timer(1.6);
         this.renderOrder = 6;
     }
@@ -396,7 +396,7 @@ class EnemyBullet extends EngineObject
     {
         super(pos, vec2(.24, .55));
         this.vel = vel;
-        this.angle = atan2(vel.x, vel.y);
+        this.angle = vel.angle();
         this.life = new Timer(2.4);
         this.renderOrder = 6;
     }

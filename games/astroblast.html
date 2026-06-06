@@ -449,18 +449,18 @@ class Ship extends EngineObject
             if (td < danger)
             {
                 dodge = true;                                  // too close — face away + thrust
-                aimAngle = atan2(-tdelta.x, -tdelta.y);
+                aimAngle = tdelta.scale(-1).angle();
             }
             else
             {
                 const lead = clamp(td / BULLET_SPEED, 0, 60);  // lead the rock's drift
                 const aim = tdelta.add(target.velocity.scale(lead));
-                aimAngle = atan2(aim.x, aim.y);
+                aimAngle = aim.angle();
             }
         }
 
         // rotate toward the aim, capped by turn speed
-        const diff = atan2(sin(aimAngle - this.angle), cos(aimAngle - this.angle));
+        const diff = distanceAngle(aimAngle, this.angle);   // signed wrap to [-PI,PI]
         this.angle += clamp(diff, -SHIP_TURN_SPEED, SHIP_TURN_SPEED);
         const aligned = abs(diff) < .22;
 

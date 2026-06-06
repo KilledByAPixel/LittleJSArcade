@@ -1292,7 +1292,7 @@ function gameUpdate()
             const aim = inCabinet ? demoAim : mousePos;
             const dx = aim.x - b.pos.x;
             const dy = max(.2, aim.y - (b.pos.y + .4));
-            b.cannonAngle = atan2(dx, dy);
+            b.cannonAngle = vec2(dx, dy).angle();
         }
     }
     for (const c of cities)

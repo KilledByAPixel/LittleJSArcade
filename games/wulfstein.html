@@ -1364,8 +1364,8 @@ function gameRender()
         const toS = worldPos.subtract(playerPos);
         const dist = toS.length();
         if (dist > MAX_DIST || dist < .1) return;
-        // LittleJS angle convention: Vector2.angle() is atan2(x, y), 0 = +Y, CW positive
-        let relAng = atan2(toS.x, toS.y) - playerAngle;
+        // toS.angle() is atan2(x, y): 0 = +Y, clockwise positive (LittleJS convention)
+        let relAng = toS.angle() - playerAngle;
         while (relAng >  PI) relAng -= 2 * PI;
         while (relAng < -PI) relAng += 2 * PI;
         if (abs(relAng) > FOV / 2 + .8) return;     // very off-screen
