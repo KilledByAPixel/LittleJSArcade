@@ -716,12 +716,12 @@ function drawPlanet(p)
     const atmoLit = p.owner ? .6 : .4;
 
     // Hazy atmosphere layer BEHIND planet using dot tiles (drawn before planet)
-    setAdditiveBlendMode();  // Enable additive blending
+    setAdditiveBlendMode();
     drawDotSprite(p.pos, p.radius*2 + 2.5, hsl(hue, atmoSat, atmoLit, .15));
     drawDotSprite(p.pos, p.radius*2 + 2.1, hsl(hue, atmoSat, atmoLit + .1, .20));
     drawDotSprite(p.pos, p.radius*2 + 1.5, hsl(hue, atmoSat, atmoLit + .15, .25));
     drawDotSprite(p.pos, p.radius*2, base, .14, outline);
-    setAdditiveBlendMode(false);  // Disable additive blending
+    setAdditiveBlendMode(false);
 
     // Draw main planet circle
     drawCircleSprite(p.pos, p.radius*2, base, .14, outline);
