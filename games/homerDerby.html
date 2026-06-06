@@ -61,8 +61,7 @@ let swungAtPitch = false;       // did the player swing during this pitch?
 let swingTimer = new Timer();
 let swingConnected = false;
 
-// Particles
-const puffs = [];
+// Particles — see puffBurst() below (engine ParticleEmitter bursts).
 
 // Sounds
 const sfxSwing   = new SoundGenerator({volume:.45, frequency:170, attack:0, release:.08, slide:.2, shapeCurve:1.5});
@@ -332,15 +331,7 @@ function registerHit(quality)
     pitchOutcomeLocked = true;
 
     // contact puffs at ball
-    for (let i = 0; i < 18; i++)
-    {
-        puffs.push({
-            p: ball.pos.copy(),
-            v: randVec2(rand(2, 6)),
-            t: rand(.25, .5),
-            c: hsl(.1, .3, .85)
-        });
-    }
+    puffBurst(ball.pos, 18, 4, .375, .6, hsl(.1, .3, .85), hsl(.1, .3, .85));
 
     const label = quality > .9 ? 'PERFECT!' : quality > .65 ? 'Solid hit!' : 'Contact!';
     lastResultText = `${label} (${(quality*100|0)}%)`;
@@ -488,15 +479,7 @@ function gameUpdate()
                 resultColor = hsl(.13, 1, .65);
                 resultTimer.set(2.2);
                 sfxHomerun.play(ball.pos);
-                for (let i = 0; i < 40; i++)
-                {
-                    puffs.push({
-                        p: ball.pos.copy(),
-                        v: randVec2(rand(3, 11)),
-                        t: rand(.5, 1.1),
-                        c: hsl(rand(.08, .18), .9, .7)
-                    });
-                }
+                puffBurst(ball.pos, 40, 7, .8, .9, hsl(.08, .9, .7), hsl(.18, .9, .7));
             }
             else
             {
@@ -738,25 +721,35 @@ function drawBat()
         drawTile(a, vec2(1.0 + swingT*2.2), icons.circle, hsl(.55, .6, .8, .07));
 }
 
-function drawParticles()
+// One-shot puff burst via the engine's ParticleEmitter (was a hand-rolled array).
+// Atlas-circle particles that drag to a stop and shrink/fade out, no gravity.
+// colA..colB is the start-color range (home runs vary their hue across it).
+function puffBurst(pos, count, speed, life, sizeStart, colA, colB)
 {
-    for (let i = puffs.length; i--;)
-    {
-        const p = puffs[i];
-        p.t -= timeDelta;
-        if (p.t <= 0) { puffs.splice(i, 1); continue; }
-        p.v = p.v.scale(.96); // air drag
-        p.p = p.p.add(p.v.scale(timeDelta));
-        const fade = clamp(p.t / .6, 0, 1);
-        drawTile(p.p, vec2(lerp(.1, .9, p.t/.6)), icons.circle, p.c.scale(1, fade));
-    }
+    new ParticleEmitter(
+        pos, 0,                  // pos, angle
+        0,                       // emitSize (point)
+        count/600, 600,          // emitTime, emitRate -> ~count particles
+        PI,                      // emitConeAngle (full radial)
+        icons.circle,            // tileInfo (atlas circle)
+        colA, colB,              // colorStartA/B (hue range)
+        colA.scale(1, 0), colB.scale(1, 0), // colorEndA/B (fade alpha to 0)
+        life,                    // particleTime
+        sizeStart, .1,           // sizeStart, sizeEnd (was lerp(.1,.9,t/.6))
+        speed/60,                // speed (per-frame; was per-sec)
+        0, .96, 1,               // angleSpeed, damping (air drag), angleDamping
+        0,                       // gravityScale (no gravity)
+        0,                       // particleConeAngle
+        .2,                      // fadeRate
+        .4,                      // randomness
+        false, false             // collideTiles, additive
+    );
 }
 
 function gameRender()
 {
     drawField();
     drawBat();
-    drawParticles();
 }
 
 function gameRenderPost()
