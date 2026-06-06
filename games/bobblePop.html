@@ -25,8 +25,8 @@ const START_ROWS   = 7;
 
 const DESCEND_SECONDS_PER_ROW = 14;            // continuous descent rate
 const DESCEND_SPEED = ROW_STEP_Y / DESCEND_SECONDS_PER_ROW;
-const MIN_SHOT_ANGLE = 10 * PI/180;            // radians from +X
-const MAX_SHOT_ANGLE = 170 * PI/180;
+const MIN_SHOT_ANGLE = -80 * PI/180;           // radians from +Y, clockwise (LittleJS .angle())
+const MAX_SHOT_ANGLE =  80 * PI/180;            // i.e. up = 0, sweep +/-80deg toward right/left
 
 // Field dimensions (account for odd-row half offset)
 const FIELD_W = COLS*BUBBLE_DIAM + BUBBLE_DIAM/2;
@@ -107,7 +107,7 @@ function resetGame()
     }
 
     // setup shooter
-    aimAngle = PI/2;
+    aimAngle = 0;   // straight up (0 = +Y in LittleJS angle convention)
 
     descendOffset = 0;
     gridParity = 0;
@@ -282,7 +282,7 @@ function spawnPopFX(cells)
             popFX.push({
                 kind:'shard',
                 pos: pos.copy(),
-                vel: vec2(cos(ang)*speed, sin(ang)*speed),
+                vel: vec2().setAngle(ang, speed),
                 color,
                 time:0,
                 life:SHARD_LIFE,
@@ -430,7 +430,7 @@ function shoot()
 
     // shoot in the current aim direction (aimAngle is continuously updated from mouse)
     const shooterPos = vec2(0, SHOOT_Y);
-    const dir = vec2(cos(aimAngle), sin(aimAngle));
+    const dir = vec2().setAngle(aimAngle);
 
     projectile = {
         pos: shooterPos.copy(),
@@ -693,15 +693,15 @@ function gameUpdate()
                 let dir = mousePos.subtract(shooterPos);
                 if (dir.lengthSquared() < .001)
                     dir = vec2(0, 1);
-                aimAngle = clamp(atan2(dir.y, dir.x), MIN_SHOT_ANGLE, MAX_SHOT_ANGLE);
+                aimAngle = clamp(dir.angle(), MIN_SHOT_ANGLE, MAX_SHOT_ANGLE);
             }
         }
         else
         {
             const AIM_SWEEP = 1.0; // radians per second
             const adj = clamp(gamepadStick(0).x + keyDirection().x, -1, 1); // +1 = right
-            if (adj) // aimAngle measured from +X, so right (+) lowers the angle
-                aimAngle = clamp(aimAngle - adj * AIM_SWEEP * timeDelta, MIN_SHOT_ANGLE, MAX_SHOT_ANGLE);
+            if (adj) // aimAngle measured from +Y clockwise, so right (+) raises the angle
+                aimAngle = clamp(aimAngle + adj * AIM_SWEEP * timeDelta, MIN_SHOT_ANGLE, MAX_SHOT_ANGLE);
         }
 
         // shoot: on touch, fire on release (lets you drag to aim first);
@@ -768,7 +768,7 @@ function drawAimLine()
     // walls, stopping when we hit a bubble or reach the top. Plot a small dot
     // every few steps so the path reads as a dashed guide.
     const shooterPos = vec2(0, SHOOT_Y);
-    let dir = vec2(cos(aimAngle), sin(aimAngle));
+    let dir = vec2().setAngle(aimAngle);
     let pos = shooterPos.add(dir.scale(BUBBLE_R * 2.4)); // start past the arrow tip
 
     const stepSize = .25;
@@ -880,15 +880,15 @@ function gameRenderPost()
 
     // shooter + arrow-style aim
     const shooterPos = vec2(0, SHOOT_Y);
-    const dir = vec2(cos(aimAngle), sin(aimAngle));
+    const dir = vec2().setAngle(aimAngle);
     const aimEnd = shooterPos.add(dir.scale(2));
     const aimColor = hsl(0, 0, 1);
     const arrowWidth = .1;
     // arrowhead — two wings rotated ±0.5 rad back from the tip
     const headLen = .55;
     const headSpread = .55;
-    const wing1 = aimEnd.add(vec2().setAngle(-PI/2-aimAngle - headSpread, headLen));
-    const wing2 = aimEnd.add(vec2().setAngle(-PI/2-aimAngle + headSpread, headLen));
+    const wing1 = aimEnd.add(vec2().setAngle(aimAngle - PI - headSpread, headLen));
+    const wing2 = aimEnd.add(vec2().setAngle(aimAngle - PI + headSpread, headLen));
     // draw arrow as a poly
     drawLine(shooterPos.add(dir.scale(-2)), shooterPos.add(dir.scale(1.6)), arrowWidth, aimColor);
     drawPoly([aimEnd, wing1, wing2], aimColor, arrowWidth, CLEAR_WHITE);
