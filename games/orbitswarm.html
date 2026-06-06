@@ -378,69 +378,38 @@ function drawWedge(pos, dir, size, color)
 // -------------------------------------------------------------
 // Ship explosion effects
 
-let explosionEffects = []; // {pos, particles[]}
-
+// Cosmetic explosion burst via the engine's ParticleEmitter (was a hand-rolled
+// nested array). Radial atlas-circle shards that drag out and grow as they fade.
+// The old per-particle bright core is dropped (one tile per particle now).
 function spawnExplosion(pos, hue)
 {
-    const particles = [];
     const count = 6 + randInt(4);  // 6-9 particles
-    for (let i = 0; i < count; ++i)
-    {
-        const ang = rand(0, 6.28);
-        const speed = rand(.8, 2.5);
-        const pLife = rand(.15, .35);
-        particles.push({
-            pos: pos.copy(),
-            vel: vec2(cos(ang) * speed, sin(ang) * speed),
-            size: rand(.08, .16),
-            life: pLife,
-            maxLife: pLife,
-            hue: hue
-        });
-    }
-    explosionEffects.push({ particles });
+    const c0 = hsl(hue, .9, .6), c1 = hsl(hue, .9, .6, 0);
+    new ParticleEmitter(
+        pos, 0,                  // pos, angle
+        0,                       // emitSize (point)
+        count/600, 600,          // emitTime, emitRate -> ~count particles
+        PI,                      // emitConeAngle (radial)
+        spriteAtlas.circle,      // tileInfo (atlas circle)
+        c0, c0,                  // colorStartA/B
+        c1, c1,                  // colorEndA/B (fade alpha to 0)
+        .25,                     // particleTime (was rand .15-.35)
+        .12, .18,                // sizeStart, sizeEnd (was size*(1+(1-t)*.5) grow)
+        1.65/60,                 // speed (per-frame; was per-sec rand .8-2.5)
+        0, .92, 1,               // angleSpeed, damping (friction), angleDamping
+        0,                       // gravityScale (no gravity)
+        0,                       // particleConeAngle
+        .15,                     // fadeRate
+        .45,                     // randomness
+        false, false             // collideTiles, additive
+    );
 }
 
-function updateExplosionEffects(dt)
+// Destroy any live explosion emitters so a reset leaves a clean field.
+function clearParticles()
 {
-    for (let i = explosionEffects.length; i--;)
-    {
-        const e = explosionEffects[i];
-        let alive = false;
-        for (let j = e.particles.length; j--;)
-        {
-            const p = e.particles[j];
-            p.life -= dt;
-            if (p.life <= 0)
-            {
-                e.particles.splice(j, 1);
-                continue;
-            }
-            alive = true;
-            p.pos = p.pos.add(p.vel.scale(dt));
-            p.vel = p.vel.scale(.92);  // friction
-        }
-        if (!alive)
-            explosionEffects.splice(i, 1);
-    }
-}
-
-function renderExplosionEffects()
-{
-    for (let i = 0; i < explosionEffects.length; ++i)
-    {
-        const e = explosionEffects[i];
-        for (let j = 0; j < e.particles.length; ++j)
-        {
-            const p = e.particles[j];
-            const t = clamp(p.life / p.maxLife);
-            const a = t;  // fade out
-            const size = p.size * (1 + (1-t) * .5);  // grow slightly as it fades
-            drawCircleSprite(p.pos, size, hsl(p.hue, .9, .6, a));
-            // bright core
-            drawCircleSprite(p.pos, size * .5, hsl(p.hue, .5, .9, a * .8));
-        }
-    }
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy();
 }
 
 // -------------------------------------------------------------
@@ -519,7 +488,7 @@ function quitToTitleWithCleanup()
         aiTimer = 0;
         selectedPlanet = null;
         initStarfield();
-        explosionEffects.length = 0;
+        clearParticles();
     });
 }
 
@@ -533,7 +502,7 @@ function resetGame()
     sendPreset = 3;
     aiTimer = 0;
     selectedPlanet = null;
-    explosionEffects.length = 0;
+    clearParticles();
 
     initStarfield();
 
@@ -950,8 +919,7 @@ function gameUpdate()
         return;
     }
 
-    updateExplosionEffects(timeDelta);
-    
+
     // track play time
     gameTimer += timeDelta;
 
@@ -1069,8 +1037,6 @@ function gameRender()
             drawWedge(pos, f.dir, .32, c);
         }
     }
-
-    renderExplosionEffects();
 
     // drag line + send preview
     if (dragSource)
