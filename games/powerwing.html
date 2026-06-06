@@ -54,7 +54,7 @@ let player;
 let bullets = [];
 let enemies = [];
 let powerups = [];
-let particles = [];
+let flameEmitter;     // persistent engine-flame trail (ParticleEmitter)
 let stars = [];
 
 let score = 0;
@@ -93,21 +93,29 @@ function worldWrap(pos)
     if (pos.x > WORLD_WIDTH/2 - 4) pos.x = WORLD_WIDTH/2 - 4;
 }
 
+// Radial burst via the engine's ParticleEmitter (was a hand-rolled array).
+// Additive untextured squares that drag out and fade - no gravity.
 function spawnParticles(pos, color, count = 10, speed = 8)
 {
-    for (let i = 0; i < count; i++)
-    {
-        const angle = rand(0, PI * 2);
-        const vel = vec2(cos(angle), sin(angle)).scale(rand(2, speed));
-        particles.push({
-            pos: pos.copy(),
-            vel,
-            color: color.copy(),
-            life: rand(.3, .6),
-            lifeMax: .6,
-            size: rand(.15, .35)
-        });
-    }
+    const fade = rgb(color.r, color.g, color.b, 0);
+    new ParticleEmitter(
+        pos, 0,              // pos, angle
+        0,                   // emitSize (point)
+        count/600, 600,      // emitTime, emitRate -> ~count particles
+        PI,                  // emitConeAngle (radial)
+        undefined,           // tileInfo (untextured square)
+        color, color,        // colorStartA/B
+        fade, fade,          // colorEndA/B (fade alpha to 0)
+        .5,                  // particleTime (was rand .3-.6)
+        .25, .1,             // sizeStart, sizeEnd
+        (speed+2)/2/60,      // speed (per-frame; was per-sec rand 2-speed)
+        0, .96, 1,           // angleSpeed, damping, angleDamping
+        0,                   // gravityScale (no gravity)
+        0,                   // particleConeAngle
+        .1,                  // fadeRate
+        .6,                  // randomness
+        false, true          // collideTiles, additive (explosion glow)
+    );
 }
 
 function spawnExplosion(pos, color, big = false)
@@ -235,7 +243,11 @@ function resetPlayer()
 
 function updatePlayer(dt)
 {
-    if (!player.alive) return;
+    if (!player.alive) { flameEmitter.emitRate = 0; return; }
+
+    // drive the persistent engine-flame trail at the ship's tail
+    flameEmitter.pos = player.pos.add(vec2(-1, 0));
+    flameEmitter.emitRate = 120;
 
     // Movement
     const speed = PLAYER_SPEED * (1 + speedLevel * 0.25);
@@ -446,20 +458,6 @@ function renderPlayer()
     const engineGlow = hsl(.55, .9, .5 + .2 * sin(time * 15));
     drawRect(player.pos.add(vec2(-.85, 0)), vec2(.3, .35), engineGlow);
 
-    // Engine flame particles
-    for (let i = 0; i < 2; i++)
-    {
-        const flamePos = player.pos.add(vec2(-.95 - rand(0, .3), rand(-.15, .15)));
-        particles.push({
-            pos: flamePos,
-            vel: vec2(-rand(3, 8), rand(-1, 1)),
-            color: hsl(rand(.02, .14), 1, rand(.5, .7)),
-            life: rand(.1, .25),
-            lifeMax: .25,
-            size: rand(.15, .3)
-        });
-    }
-
     // Shield effect
     if (shieldTimer > 0)
     {
@@ -476,19 +474,6 @@ function updateBullets(dt)
     for (let i = bullets.length - 1; i >= 0; i--)
     {
         const b = bullets[i];
-
-        // Missile smoke trail
-        if (b.isMissile && b.isPlayer)
-        {
-            particles.push({
-                pos: b.pos.add(vec2(-.3, rand(-.1, .1))),
-                vel: vec2(rand(-2, -4), rand(-.5, .5)),
-                color: hsl(0, 0, rand(.4, .7)),
-                life: rand(.2, .4),
-                lifeMax: .4,
-                size: rand(.15, .3)
-            });
-        }
 
         // Missile homing
         if (b.isMissile)
@@ -1099,31 +1084,32 @@ function renderPowerups()
 ///////////////////////////////////////////////////////////////////////////////
 // PARTICLES
 
-function updateParticles(dt)
+// Persistent engine-flame trail emitter (pos/emitRate driven by updatePlayer).
+function makeFlameEmitter()
 {
-    for (let i = particles.length - 1; i >= 0; i--)
-    {
-        const p = particles[i];
-        p.life -= dt;
-        if (p.life <= 0)
-        {
-            particles.splice(i, 1);
-            continue;
-        }
-        p.pos = p.pos.add(p.vel.scale(dt));
-        p.vel = p.vel.scale(.96);
-    }
+    return new ParticleEmitter(
+        vec2(), -PI/2,       // pos (driven), angle (-PI/2 = emit leftward -x)
+        vec2(.3, .3),        // emitSize (box jitter at the engine nozzle)
+        0, 0,                // emitTime (0 = forever), emitRate (driven; 0 = off)
+        .35,                 // emitConeAngle (flame spread)
+        undefined,           // tileInfo (untextured square)
+        hsl(.02,1,.6), hsl(.14,1,.6),     // colorStartA/B (fire hue range)
+        hsl(.02,1,.6,0), hsl(.14,1,.6,0), // colorEndA/B (fade)
+        .18,                 // particleTime (~rand .1-.25)
+        .22, .05,            // sizeStart, sizeEnd
+        5.5/60,              // speed (per-frame; was per-sec rand 3-8)
+        0, .96, 1,           // angleSpeed, damping, angleDamping
+        0,                   // gravityScale (no gravity)
+        0, .15, .4,          // particleConeAngle, fadeRate, randomness
+        false, true          // collideTiles, additive (fire glow)
+    );
 }
 
-function renderParticles()
+// Destroy all live emitters (flame trail + bursts) for a clean reset.
+function clearParticles()
 {
-    for (const p of particles)
-    {
-        const alpha = p.life / p.lifeMax;
-        const c = p.color.copy();
-        c.a = alpha;
-        drawRect(p.pos, vec2(p.size), c);
-    }
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy(true);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1149,7 +1135,8 @@ function resetGame()
     bullets = [];
     enemies = [];
     powerups = [];
-    particles = [];
+    clearParticles();
+    flameEmitter = makeFlameEmitter();
 
     resetPlayer();
     initStars();
@@ -1256,7 +1243,6 @@ function gameUpdate()
     updateEnemies(dt);
     updateBullets(dt);
     updatePowerups(dt);
-    updateParticles(dt);
 }
 
 function gameUpdatePost()
@@ -1274,7 +1260,6 @@ function gameRender()
     renderEnemies();
     renderBullets();
     renderPlayer();
-    renderParticles();
 }
 
 function gameRenderPost()
