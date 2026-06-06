@@ -393,10 +393,12 @@ async function gameInit()
     };
     medalsInit('Skyhop');
 
-    // wire menu nav sounds
+    // wire menu nav sounds (construct once, not per nav)
+    const sndSelect   = new Sound([,,520,,,.05,,,,,,,,,,,,,,5]);
+    const sndActivate = new Sound([,,300,,.05,.12,,,,,,,,,.3]);
     setMenuSounds({
-        select:   () => new Sound([,,520,,,.05,,,,,,,,,,,,,,5]).play(undefined, .4),
-        activate: () => new Sound([,,300,,.05,.12,,,,,,,,,.3]).play(undefined, .5),
+        select:   () => sndSelect.play(undefined, .4),
+        activate: () => sndActivate.play(undefined, .5),
     });
 
     // ----- title -----
