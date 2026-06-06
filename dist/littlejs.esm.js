@@ -35,7 +35,7 @@ const engineName = 'LittleJS';
  *  @type {string}
  *  @default
  *  @memberof Engine */
-const engineVersion = '1.18.17.1';
+const engineVersion = '1.18.18';
 
 /** Frames per second to update
  *  @type {number}
@@ -5187,14 +5187,13 @@ function isOnScreen(pos, size=0)
            y + size > -h && y - size < h;
 }
 
-/** Enable normal or additive blend mode
+/** Enable additive blending
  *  @param {boolean} [additive]
- *  @param {CanvasRenderingContext2D|OffscreenCanvasRenderingContext2D} [context]
  *  @memberof Draw */
-function setBlendMode(additive=false, context=drawContext)
+function setAdditiveBlendMode(additive=true)
 {
     glAdditive = additive;
-    context.globalCompositeOperation = additive ? 'lighter' : 'source-over';
+    drawContext.globalCompositeOperation = additive ? 'lighter' : 'source-over';
 }
 
 /** Combines LittleJS canvases onto the main canvas
@@ -8678,9 +8677,6 @@ class Particle
         this.color.b = p2 * this.colorStart.b + p1 * this.colorEnd.b;
         this.color.a = (p2 * this.colorStart.a + p1 * this.colorEnd.a) * alphaFade;
 
-        // draw the particle
-        additive && setBlendMode(true);
-
         // update the position and angle for drawing
         const pos = particleDrawPos.set(this.pos.x, this.pos.y);
         let angle = this.angle;
@@ -8693,6 +8689,9 @@ class Particle
                 emitter.pos.y + pos.x*s + pos.y*c);
             angle += a;
         }
+
+        // draw the particle
+        additive && setAdditiveBlendMode();
         if (trailScale)
         {
             // trail style particles
@@ -8710,7 +8709,7 @@ class Particle
         }
         else
             drawTile(pos, size, this.tileInfo, this.color, angle, this.mirror);
-        additive && setBlendMode();
+        additive && setAdditiveBlendMode(false);
         debugParticles && debugRect(pos, size, '#f005', 0, angle);
     }
 }
@@ -10620,7 +10619,7 @@ class LightSystemPlugin
 
             // 3. walk engineObjects calling renderLight() — additive blend
             //    (lightmap accumulates raw additive color contributions)
-            setBlendMode(true);
+            setAdditiveBlendMode();
             glContext.enable(glContext.BLEND);
             glContext.blendFunc(glContext.ONE, glContext.ONE);
 
@@ -10654,7 +10653,7 @@ class LightSystemPlugin
             //    is, and any debug text / future draw could sample the lightmap)
             if (glActiveTexture)
                 glContext.bindTexture(glContext.TEXTURE_2D, glActiveTexture);
-            setBlendMode(prevAdditive);
+            setAdditiveBlendMode(prevAdditive);
             glSetInstancedMode(true);
         }
         function lightSystemContextLost()
@@ -16479,7 +16478,7 @@ export
     drawCanvas2D,
     drawText,
     drawTextScreen,
-    setBlendMode,
+    setAdditiveBlendMode,
     combineCanvases,
     engineImageFont,
     ImageFont,
