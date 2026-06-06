@@ -926,7 +926,7 @@ function gameRenderPost()
     if (!isPlaying()) return;   // no HUD over the title screen
 
     // HUD
-    const progress = clamp((player.pos.x - levelStartX) / (endX - levelStartX), 0, 1);
+    const progress = percent(player.pos.x, levelStartX, endX);
     const pct = (progress * 100)|0;
 
     // Geometry-Dash-style progress bar

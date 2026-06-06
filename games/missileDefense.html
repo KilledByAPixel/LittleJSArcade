@@ -1254,7 +1254,7 @@ function gameUpdate()
             if (m.pos.y <= m.demoMidY) continue;               // already past the strike height
 
             // P = where this missile's straight path crosses its mid-screen height
-            const p = clamp((m.demoMidY - m.start.y) / (m.target.y - m.start.y), 0, 1);
+            const p = percent(m.demoMidY, m.start.y, m.target.y);
             const P = vec2(m.start.x + (m.target.x - m.start.x) * p, m.demoMidY);
 
             // nearest stocked base (the one launchPlayerMissile will fire from)

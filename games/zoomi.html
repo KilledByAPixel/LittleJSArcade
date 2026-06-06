@@ -309,7 +309,7 @@ function updateFloatingTexts(dt)
 // 0 at safe distance, ramps to 1 as the chain head approaches the hole.
 function dangerOf(arc)
 {
-    return clamp((arc / pathTotalArc - DANGER_START) / (DANGER_FULL - DANGER_START), 0, 1);
+    return percent(arc / pathTotalArc, DANGER_START, DANGER_FULL);
 }
 
 function chainDanger()

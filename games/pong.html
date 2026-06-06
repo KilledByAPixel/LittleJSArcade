@@ -563,7 +563,7 @@ function gameUpdate()
         }
 
         // Danger ramps up as the ball approaches max speed
-        dangerLevel = clamp((ball.vel.length() - dangerStart) / (maxBallSpeed - dangerStart), 0, 1);
+        dangerLevel = percent(ball.vel.length(), dangerStart, maxBallSpeed);
         if (dangerLevel > 0)
                 addScreenShake(.02 * dangerLevel, .05); // low continuous rumble at top speed
 

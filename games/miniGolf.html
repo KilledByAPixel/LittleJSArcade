@@ -580,7 +580,7 @@ class GolfBall extends Box2dObject
 
         if (speed > minSpeed)
         {
-            const volume = clamp((speed - minSpeed) / (maxSpeed - minSpeed), 0, 1);
+            const volume = percent(speed, minSpeed, maxSpeed);
             sfxBounce.play(undefined, volume);
 
             // dust puff in the direction the ball came from
