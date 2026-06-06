@@ -74,7 +74,6 @@ let versusResult;       // 'win' | 'lose' | 'draw' | null
 let stepTimer, stepInterval;
 
 // juice
-let particles;       // array of {pos, vel, life, lifeMax, size, color}
 let foodPulseTimer;  // ticks up from 0; used to pulse food size
 let scorePopTimer;   // brief score-bump animation
 let deathFreezeTimer;// counts down after a round ends before the menu surfaces
@@ -214,51 +213,42 @@ function resetGame()
     bonusTimer = 0;
     bonusLifeMax = bonusLifeTime;
 
-    particles = [];
+    clearParticles();
     foodPulseTimer = 0;
     scorePopTimer = 0;
     deathFreezeTimer = 0;
 }
 
+// One-shot radial burst via the engine's ParticleEmitter (was a hand-rolled
+// array). Squares that drag to a stop and shrink/fade out — no gravity (top-down).
 function spawnParticles(worldPos, color, count, speedMin, speedMax, life=.6)
 {
-    for (let i=0; i<count; ++i)
-    {
-        const a = rand(0, PI*2);
-        const speed = rand(speedMin, speedMax);
-        particles.push({
-            pos: worldPos.add(vec2(rand(-.15,.15), rand(-.15,.15))),
-            vel: vec2(cos(a), sin(a)).scale(speed),
-            life: life * rand(.7, 1.1),
-            lifeMax: life,
-            size: rand(.10, .22),
-            color: color.copy(),
-        });
-    }
+    const fade = rgb(color.r, color.g, color.b, 0);
+    new ParticleEmitter(
+        worldPos, 0,                 // pos, angle
+        .3,                          // emitSize (circle ~ old +/-.15 jitter)
+        count/600, 600,              // emitTime, emitRate -> ~count particles
+        PI,                          // emitConeAngle (full radial)
+        undefined,                   // tileInfo (untextured square)
+        color, color,                // colorStartA/B
+        fade, fade,                  // colorEndA/B (fade alpha to 0)
+        life,                        // particleTime
+        .16, .096,                   // sizeStart, sizeEnd (was size*(.6+.4*t))
+        (speedMin+speedMax)/2/60,    // speed (per-frame; was per-sec)
+        0, .92, 1,                   // angleSpeed, damping (drag), angleDamping
+        0,                           // gravityScale (no gravity)
+        0,                           // particleConeAngle (axis-aligned squares)
+        .1,                          // fadeRate
+        .4,                          // randomness
+        false, false                 // collideTiles, additive
+    );
 }
 
-function updateParticles(dt)
+// Destroy any live burst emitters so a reset leaves a clean field.
+function clearParticles()
 {
-    for (let i=particles.length-1; i>=0; --i)
-    {
-        const p = particles[i];
-        p.life -= dt;
-        if (p.life <= 0) { particles.splice(i,1); continue; }
-        // gentle drag, no gravity (top-down)
-        p.vel = p.vel.scale(.92);
-        p.pos = p.pos.add(p.vel.scale(dt));
-    }
-}
-
-function renderParticles()
-{
-    for (const p of particles)
-    {
-        const t = clamp(p.life / p.lifeMax, 0, 1);
-        const c = p.color.copy();
-        c.a *= t;
-        drawRect(p.pos, vec2(p.size * (.6 + .4*t)), c);
-    }
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy();
 }
 
 // depleting ring drawn as short line segments around a circle (frac of full)
@@ -832,8 +822,6 @@ function gameUpdate()
         if (s.flashTimer > 0) s.flashTimer -= timeDelta;
     }
 
-    updateParticles(timeDelta);
-
     // keep the board topped up to appleTarget, staggering each new apple in
     if (!roundOver && foods.length < appleTarget)
     {
@@ -956,8 +944,6 @@ function gameRender()
     // snakes — draw AI first so the player tube sits on top where they overlap
     for (let i=snakes.length-1; i>=0; --i)
         drawSnake(snakes[i]);
-
-    renderParticles();
 }
 
 // one snake as a rounded, connected tube with a gliding head + googly eyes
