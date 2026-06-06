@@ -289,8 +289,8 @@ function resetBall()
 
 function launchBall()
 {
-    const angle = rand(.25, .75) * PI; // 45..135 degrees
-    balls[0].vel = vec2(cos(angle), sin(angle)).normalize(ballSpeed);
+    // launch straight up with a random +/-45deg spread
+    balls[0].vel = vec2().setAngle(rand(-.25, .25) * PI, ballSpeed);
 }
 
 // Level 5 (Gauntlet) is regenerated each visit so it feels fresh.
@@ -531,9 +531,11 @@ function applyPowerup(type)
 
         const src = balls[balls.length - 1];
         const baseDir = src.vel.length() ? src.vel.normalize() : vec2(0, 1);
-        const a = baseDir.angle();
-        balls.push(makeBall(src.pos, vec2(cos(a + .35), sin(a + .35)).normalize(ballSpeed), src.size));
-        balls.push(makeBall(src.pos, vec2(cos(a - .35), sin(a - .35)).normalize(ballSpeed), src.size));
+        // fan two balls +/-.35 rad off the source direction (rotate the vector
+        // directly; the old angle()+cos/sin pair mismatched conventions and split
+        // the balls roughly perpendicular to where the source ball was heading).
+        balls.push(makeBall(src.pos, baseDir.rotate(.35).scale(ballSpeed), src.size));
+        balls.push(makeBall(src.pos, baseDir.rotate(-.35).scale(ballSpeed), src.size));
     }
     else if (type === 'T')
     {
