@@ -251,9 +251,8 @@ function spawnPlayerWarpIn(target)
     const count = 140;
     for (let i = 0; i < count; i++)
     {
-        const ang = rand(0, 6.28);
         const dist = rand(6, 14);                // wide scatter across most of the arena
-        const startPos = target.add(vec2(cos(ang), sin(ang)).scale(dist));
+        const startPos = target.add(randVec2(dist));
         const life = randInt(50, 70);             // tight finish — most done by player-appear time
         const size = rand(.12, .3);              // chunky pieces
         // Mix the player's palette + rainbow flecks
