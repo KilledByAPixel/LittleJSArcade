@@ -484,7 +484,7 @@ function drawTwinkles(centerPos, halfSize, count, color, phase)
         drawTile(vec2(x, y), vec2(.18 + .06 * alpha), sprites.circle,
                  color.withAlpha(alpha));
     }
-    setBlendMode();
+    setBlendMode(false);
 }
 
 const enemies = [];
@@ -1671,7 +1671,7 @@ function drawExplosions()
             0, CLEAR_BLACK,
             e.pos, e.innerAngle);
     }
-    setBlendMode();
+    setBlendMode(false);
 }
 
 // Damage every enemy in `radius` and emit a radial chainFlash burst plus
