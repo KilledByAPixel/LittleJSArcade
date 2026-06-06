@@ -104,46 +104,28 @@ function addScore(pts)
 
 ///////////////////////////////////////////////////////////////////////////////
 // Sparks (small fade-out squares used for hits, kills, and crunch effects)
-// Named "Spark" because LittleJS already exports a "Particle" class.
-
-class Spark extends EngineObject
-{
-        constructor(pos, vel, color, lifeSpan=.6, size=.22)
-        {
-                super(pos.copy(), vec2(size));
-                this.setCollision(false, false, false, false);
-                this.mass = 0;
-                this.vel = vel.copy();
-                this.color = color;
-                this.lifeTime = 0;
-                this.maxLife = lifeSpan;
-                this.renderOrder = 15;
-        }
-
-        update()
-        {
-                this.lifeTime += timeDelta;
-                this.pos = this.pos.add(this.vel.scale(timeDelta));
-                this.vel = this.vel.scale(.9);
-                if (this.lifeTime >= this.maxLife) this.destroy();
-        }
-
-        render()
-        {
-                const t = 1 - this.lifeTime / this.maxLife;
-                const c = rgb(this.color.r, this.color.g, this.color.b, t);
-                drawRect(this.pos, vec2(this.size.x * t), c);
-        }
-}
-
+// Fired as one-shot ParticleEmitter bursts (was a hand-rolled Spark EngineObject).
 function spawnBurst(pos, color, count=8, speed=4)
 {
-        for (let i = 0; i < count; ++i)
-        {
-                const angle = (i / count) * PI * 2 + rand(-.3, .3);
-                const v = vec2(cos(angle), sin(angle)).scale(speed * rand(.5, 1.2));
-                new Spark(pos, v, color, rand(.4, .7), rand(.15, .28));
-        }
+    const fade = rgb(color.r, color.g, color.b, 0);
+    new ParticleEmitter(
+        pos, 0,                 // pos, angle
+        0,                      // emitSize (point)
+        count/600, 600,         // emitTime, emitRate -> ~count particles
+        PI,                     // emitConeAngle (full radial)
+        undefined,              // tileInfo (untextured square)
+        color, color,           // colorStartA/B
+        fade, fade,             // colorEndA/B (fade alpha to 0)
+        .55,                    // particleTime (was rand .4-.7)
+        .22, 0,                 // sizeStart, sizeEnd (shrink to 0; was rand .15-.28)
+        speed/60,               // speed (per-frame; was speed*timeDelta per-sec)
+        0, .9, 1,               // angleSpeed, damping .9, angleDamping
+        0,                      // gravityScale (no gravity)
+        0,                      // particleConeAngle (axis-aligned squares)
+        .1,                     // fadeRate
+        .4,                     // randomness
+        false, false, true, 15  // collideTiles, additive, randomColorLinear, renderOrder
+    );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
