@@ -192,82 +192,9 @@ function _shakeUpdate()
     cameraPos = cameraPos.add(vec2(rand(-a, a), rand(-a, a)));
 }
 
-// ============================================================================
-// cameraFit — frame a world-space rectangle into the visible canvas.
-//
-// Sets cameraPos and cameraScale so the content rect (center, size) is fully
-// visible (letterbox fit, never cropped), with optional world-unit padding
-// around it and optional screen-pixel insets reserved on each edge (e.g. for a
-// HUD band). Reserved insets also recenter the content into the space that's
-// left, so a top inset pushes the content down automatically.
-//
-//   cameraFit(center, size, worldMargin, screenInset) -> the cameraScale applied
-//
-//   center       Vector2  world-space center of the content to frame
-//   size         Vector2  world-space (width, height) of the content
-//   worldMargin  world UNITS of padding around the content (default 0)
-//   screenInset  screen PIXELS reserved per edge, e.g. HUD (default 0)
-//
-// worldMargin and screenInset each accept three forms, "top" = +y world side /
-// top of screen (they align):
-//   number   -> uniform on all four sides
-//   Vector2  -> x = left & right, y = top & bottom
-//   object   -> {top, right, bottom, left}, any omitted side is 0
-//
-// Call it every frame from gameUpdatePost to re-fit on canvas resize (or once
-// if the canvas never changes). gameUpdatePost is the proper call site: the
-// engine runs it even while paused and before gameRender, so the camera stays
-// correct for a paused menu/title backdrop too — gameRender works but reframes
-// one frame late on resize. Assumes cameraAngle === 0 (no support for a rotated
-// camera). Bails without touching the camera if the content or the post-inset
-// viewport is degenerate.
-//
-//   // frame a board, reserving the top ~22% of the screen for a score HUD:
-//   cameraFit(vec2(0, 0), vec2(boardSize), 0, { top: mainCanvasSize.y * .22 });
-// ============================================================================
-
-function cameraFit(center, size, worldMargin, screenInset)
-{
-    ASSERT(isVector2(center), 'center must be a vec2');
-    ASSERT(isVector2(size), 'size must be a vec2');
-
-    // pad the content
-    const margin = padSides(worldMargin);
-    const inset  = padSides(screenInset);
-    const worldW = size.x + margin.left + margin.right;
-    const worldH = size.y + margin.top  + margin.bottom;
-    const viewW  = mainCanvasSize.x - inset.left - inset.right;
-    const viewH  = mainCanvasSize.y - inset.top  - inset.bottom;
-
-    // bail on a degenerate rect or viewport rather than NaN the camera
-    if (!(worldW > 0 && worldH > 0 && viewW > 0 && viewH > 0))
-        return cameraScale;
-
-    // scale to fit the padded content
-    cameraScale = min(viewW / worldW, viewH / worldH);
-
-    // calculate offset vectors
-    const marginVector = vec2(margin.right - margin.left, margin.top - margin.bottom).scale(.5);
-    const insetVector = vec2(inset.right - inset.left, inset.top - inset.bottom).scale(.5 / cameraScale);
-
-    // apply the offsets and return camera scale
-    cameraPos = center.add(marginVector).add(insetVector);
-    return cameraScale;
-
-    function padSides(p)
-    {
-        // normalize a padding option to {top, right, bottom, left}
-        if (p === undefined) return { top: 0, right: 0, bottom: 0, left: 0 };
-        if (isNumber(p))     return { top: p, right: p, bottom: p, left: p };
-        if (isVector2(p))    return { top: p.y, right: p.x, bottom: p.y, left: p.x };
-        return {
-            top:    p.top    || 0,
-            right:  p.right  || 0,
-            bottom: p.bottom || 0,
-            left:   p.left   || 0,
-        };
-    }
-}
+// cameraFit(center, size, worldMargin, screenInset) is now a built-in LittleJS
+// engine function (it used to be defined here). worldMargin/screenInset each
+// accept a number, a Vector2, or a {top,right,bottom,left} object.
 
 // ============================================================================
 // Active input device — mouse vs keyboard vs gamepad, "most recently used".

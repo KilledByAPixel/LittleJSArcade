@@ -139,7 +139,7 @@ class PlinkoBall extends Box2dObject
     render()
     {
         // glossy ball — soft glow + tinted circle sprite + highlight
-        const glow = this.color.copy(); glow.a = .4;
+        const glow = this.color.copy().setAlpha(.4);
         drawTile(this.pos, vec2(BALL_RADIUS*4), icons.glow, glow);
         drawTile(this.pos, vec2(BALL_RADIUS*2.3), icons.circle, this.color);
         drawTile(this.pos.add(vec2(-BALL_RADIUS*.32, BALL_RADIUS*.32)),
@@ -406,18 +406,18 @@ function drawPops()
         if (p.ring)
         {
             const t = 1 - a;                 // expand as it fades
-            const c = p.color.copy(); c.a = a;
+            const c = p.color.copy().setAlpha(a);
             drawTile(p.pos, vec2(p.size * (.6 + t*2)), icons.ring, c);
         }
         else if (p.value)
         {
-            const c = p.color.copy(); c.a = a;
+            const c = p.color.copy().setAlpha(a);
             const oc = hsl(0,0,0,a);
             drawText(p.value, p.pos, p.size, c, .15, oc);
         }
         else
         {
-            const c = p.color.copy(); c.a = a;
+            const c = p.color.copy().setAlpha(a);
             drawTile(p.pos, vec2(p.size * a * 2.5), icons.glow, c);
         }
     });
