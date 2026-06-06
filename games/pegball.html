@@ -36,7 +36,7 @@ const OUTLINE = .16;        // black backing-ring thickness for solid discs
 
 let cannonPos, aimDir;
 let pegs, bucket, activeBall;
-let particles, scorePops, stars, trail;
+let scorePops, stars, trail;
 let score, ballsRemaining, orangeLeft, comboCount, maxCombo;
 let win, gameOver;
 let endDialogShown;  // prevents re-triggering the game-over dialog
@@ -68,6 +68,12 @@ function gameInit()
     saveDataInit('peggle');
     icons = initDefaultAtlas();  // bake the 16 white icons into tiles 0-15
     whitenAtlasAlpha();          // kill the dark edge fringe on the white icons
+
+    // Peg-hit sparks run on the engine's ParticleEmitter, whose gravity comes
+    // from the global `gravity`. Match the old particle pull (-18 units/sec^2)
+    // in the emitter's per-frame model. The ball has its own fall logic, so
+    // nothing else reads the global.
+    gravity = vec2(0, -18/3600);
 
     initSounds();
     createStars();
@@ -115,7 +121,7 @@ function resetGame()
     slowMoT = 0;
     comboCount = maxCombo = 0;
     trail = [];
-    particles = [];
+    clearParticles();
     scorePops = [];
 
     createPegs();
@@ -302,7 +308,6 @@ function gameUpdate()
 
     updateBucket(dt);
     updatePegs(dt);
-    updateParticles(dt);
     updateScorePops(dt);
 
     if (activeBall && activeBall.pos.y < -BOARD_H/2 - 3)
@@ -332,19 +337,6 @@ function updatePegs(dt)
     }
 }
 
-function updateParticles(dt)
-{
-    for (let i = particles.length - 1; i >= 0; i--)
-    {
-        const p = particles[i];
-        p.pos = p.pos.add(p.vel.scale(dt));
-        p.vel = p.vel.scale(.9);
-        p.vel.y -= 18 * dt;
-        p.life -= dt * 1.8;
-        if (p.life <= 0) particles.splice(i, 1);
-    }
-}
-
 function updateScorePops(dt)
 {
     for (let i = scorePops.length - 1; i >= 0; i--)
@@ -356,20 +348,36 @@ function updateScorePops(dt)
     }
 }
 
+// Peg-hit / bucket sparks: radial additive squares that arc down via the global
+// gravity, drag .9, brighten then darken-and-fade (was a hand-rolled array).
 function emitParticles(pos, hue, count)
 {
-    for (let i = 0; i < count; i++)
-    {
-        const a = rand(0, PI*2);
-        const speed = rand(4, 11);
-        particles.push({
-            pos: pos.copy(),
-            vel: vec2(cos(a), sin(a)).scale(speed),
-            life: 1,
-            hue,
-            size: rand(.08, .2),
-        });
-    }
+    const c0 = hsl(hue, .9, .9), c1 = hsl(hue, .9, .6, 0);
+    new ParticleEmitter(
+        pos, 0,                  // pos, angle
+        0,                       // emitSize (point)
+        count/600, 600,          // emitTime, emitRate -> ~count particles
+        PI,                      // emitConeAngle (radial)
+        undefined,               // tileInfo (untextured square)
+        c0, c0,                  // colorStartA/B (bright)
+        c1, c1,                  // colorEndA/B (darker, fade alpha to 0)
+        .56,                     // particleTime (life 1 at -1.8/sec)
+        .14, 0,                  // sizeStart, sizeEnd (was p.size*min(1,life*2))
+        7.5/60,                  // speed (per-frame; was per-sec rand 4-11)
+        0, .9, 1,                // angleSpeed, damping, angleDamping
+        1,                       // gravityScale (global gravity = -18/sec^2)
+        0,                       // particleConeAngle (axis-aligned squares)
+        .1,                      // fadeRate
+        .45,                     // randomness
+        false, true              // collideTiles, additive (glow)
+    );
+}
+
+// Destroy any live burst emitters so a reset leaves a clean field.
+function clearParticles()
+{
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy();
 }
 
 function addScorePop(pos, text, hue, big)
@@ -616,12 +624,6 @@ function gameRender()
     drawRect(bucket.pos.add(vec2(0, bucket.size.y/2 - .08)),
         vec2(bucket.size.x - .4, .1), hsl(.16, .9, .85));
 
-    // Particles
-    for (const p of particles)
-    {
-        const s = p.size * min(1, p.life * 2);
-        drawRect(p.pos, vec2(s, s), hsl(p.hue, .9, .6 + .3 * p.life, p.life));
-    }
 
     // Ball trail
     for (const t of trail)
