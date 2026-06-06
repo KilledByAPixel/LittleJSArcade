@@ -306,7 +306,7 @@ function partBurst(pos, count, speed, life, sizeStart, sizeEnd, spin, hueA, hueB
         spin ? PI : 0,           // particleConeAngle (random start angle if spinning)
         .1,                      // fadeRate
         .4,                      // randomness
-        false, false             // collideTiles, additive
+        false, true              // collideTiles, additive (neon glow)
     );
 }
 

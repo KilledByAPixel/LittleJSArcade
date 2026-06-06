@@ -401,7 +401,7 @@ function spawnExplosion(pos, hue)
         0,                       // particleConeAngle
         .15,                     // fadeRate
         .45,                     // randomness
-        false, false             // collideTiles, additive
+        false, true              // collideTiles, additive (glow; compensates lost core)
     );
 }
 

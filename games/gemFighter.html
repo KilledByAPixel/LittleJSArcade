@@ -1529,7 +1529,7 @@ function spawnClearParticles(boardIdx, cell, delay = 0, intensity = 1)
         0,                       // particleConeAngle
         .15,                     // fadeRate
         .35,                     // randomness
-        false, false             // collideTiles, additive
+        false, true              // collideTiles, additive (glow)
     );
 
     // central white flash — one stationary particle that shrinks and fades
@@ -1549,7 +1549,7 @@ function spawnClearParticles(boardIdx, cell, delay = 0, intensity = 1)
         0,                       // particleConeAngle
         0,                       // fadeRate
         0,                       // randomness
-        false, false             // collideTiles, additive
+        false, true              // collideTiles, additive (glow)
     );
 }
 
