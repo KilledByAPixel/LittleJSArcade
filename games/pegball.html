@@ -393,12 +393,16 @@ function updateInput()
     //  - gamepad / keyboard: left/right (left stick, d-pad, or arrows/A-D)
     //    sweeps the aim by fixed increments; idle holds the current angle so it
     //    never snaps back to the mouse.
-    const minAng = -PI * .95, maxAng = -PI * .05;
-    let ang = atan2(aimDir.y, aimDir.x);
+    // Aim is constrained to a cone around straight down. Work in `off` = signed
+    // angular distance from straight-down: distanceAngle wraps cleanly across the
+    // +-PI seam (which sits exactly at straight down in .angle() convention), so a
+    // plain clamp on `off` works where a clamp on the raw angle could not.
+    const DOWN = PI, HALF_ARC = PI * .45;   // +-81deg around straight down
+    let off = distanceAngle(aimDir.angle(), DOWN);
     if (usingMouseInput())
     {
         const toMouse = mousePos.subtract(cannonPos);
-        if (toMouse.length() > .01) ang = atan2(toMouse.y, toMouse.x);
+        if (toMouse.length() > .01) off = distanceAngle(toMouse.angle(), DOWN);
     }
     else
     {
@@ -406,11 +410,11 @@ function updateInput()
         if (adj)
         {
             const AIM_SWEEP = 2.0; // radians per second
-            ang += adj * AIM_SWEEP * timeDelta; // ang grows toward maxAng (right) within the arc
+            off -= adj * AIM_SWEEP * timeDelta; // right sweeps the aim toward +X
         }
     }
-    ang = clamp(ang, minAng, maxAng);
-    aimDir = vec2(cos(ang), sin(ang));
+    off = clamp(off, -HALF_ARC, HALF_ARC);
+    aimDir = vec2().setAngle(DOWN + off);
 
     if (!isPlaying() || gameOver) return;
     if ((mouseWasPressed(0) || keyWasPressed('Space') || gamepadWasPressed(0)) && !activeBall && ballsRemaining > 0)
