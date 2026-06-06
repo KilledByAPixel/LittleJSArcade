@@ -192,10 +192,6 @@ function _shakeUpdate()
     cameraPos = cameraPos.add(vec2(rand(-a, a), rand(-a, a)));
 }
 
-// cameraFit(center, size, worldMargin, screenInset) is now a built-in LittleJS
-// engine function (it used to be defined here). worldMargin/screenInset each
-// accept a number, a Vector2, or a {top,right,bottom,left} object.
-
 // ============================================================================
 // Active input device — mouse vs keyboard vs gamepad, "most recently used".
 //
