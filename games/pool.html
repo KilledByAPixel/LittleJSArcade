@@ -11,10 +11,6 @@
 <script>
 'use strict';
 
-// engine settings
-canvasFixedSize = vec2(1920, 1080);
-cameraScale = 45;
-
 ///////////////////////////////////////////////////////////////////////////////
 // pool (box2d)
 
@@ -34,6 +30,11 @@ const WHEEL_STEP   = .08;               // wheel ticks per unit of added power (
 const STOP_SPEED   = 0.15;
 const RAPID_STOP_THRESHOLD = 1.0;       // below this world-units/sec we squash velocity each frame to end turns faster
 const RAPID_STOP_FACTOR    = 0.95;      // velocity multiplier applied each frame while in the rapid-stop band
+
+// Camera fit — full table extent including the wood rail (the outer rect
+// drawTable paints). fitCamera() sizes the camera to this each frame.
+const TABLE_OUTER = TABLE_SIZE.add(vec2(RAIL_THICK*2));
+const FIT_MARGIN  = 1.06;               // a little breathing room around the table edge
 
 // Visual tuning
 const SHADOW_ALPHA  = .5;               // shared shadow opacity for balls + cue stick (0 = invisible, 1 = solid black)
@@ -646,7 +647,9 @@ function startPlay()
 async function gameInit()
 {
     saveDataInit('pool');
-    setOrientationLock('landscape');
+    // No orientation lock — fitCamera() now rotates the table upright in
+    // portrait, so the game is playable either way. (Re-add
+    // setOrientationLock('landscape') to force landscape instead.)
     bestShots = getSaveData().bestShots ?? 0;
 
     await box2dInit();
@@ -939,8 +942,33 @@ function rapidStop(b)
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// Size the camera so the whole table fills the screen. When the screen is
+// taller than wide (portrait), rotate the camera 90° so the table's long axis
+// runs vertically — much better use of the space than a tiny letterboxed table.
+// The engine factors cameraAngle into screenToWorld/worldToScreen, so mousePos
+// (and therefore all aiming) stays correct while rotated — no other changes.
+function fitCamera()
+{
+    cameraPos = vec2();
+    const w = TABLE_OUTER.x * FIT_MARGIN;
+    const h = TABLE_OUTER.y * FIT_MARGIN;
+    if (mainCanvasSize.y > mainCanvasSize.x)   // portrait — rotate the table upright
+    {
+        cameraAngle = PI/2;                    // (clockwise positive; use -PI/2 to flip)
+        cameraScale = min(mainCanvasSize.x / h, mainCanvasSize.y / w);
+    }
+    else                                       // landscape — table sits normally
+    {
+        cameraAngle = 0;
+        cameraScale = min(mainCanvasSize.x / w, mainCanvasSize.y / h);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
 function gameRender()
 {
+    fitCamera();    // keep the table fitted/rotated to the current window size
+
     // Drawn every frame — table + pockets sit behind the title menu
     // as a backdrop. Numbered balls / cue ball render themselves as
     // engine objects (also always-on), so the rack is visible too.
