@@ -849,8 +849,7 @@ function gameRenderPost()
         {
             const scale = 1 + (POP_SCALE_MAX - 1) * t;
             const alpha = 1 - t;
-            const fill = fx.color.copy();
-            fill.a = alpha * .8;
+            const fill = fx.color.withAlpha(alpha * .8);
             // soft expanding glow + bright ring for the burst
             drawTile(fx.pos, vec2(BUBBLE_DIAM * scale * 1.13), icons.glow, fill);
             drawTile(fx.pos, vec2(BUBBLE_DIAM * scale), icons.ring, hsl(0,0,1,alpha));
@@ -858,8 +857,7 @@ function gameRenderPost()
         else // shard
         {
             const alpha = 1 - t;
-            const c = fx.color.copy();
-            c.a = alpha;
+            const c = fx.color.withAlpha(alpha);
             drawTile(fx.pos, vec2(.28 * (1 - t*.4)), icons.circle, c);
         }
     }

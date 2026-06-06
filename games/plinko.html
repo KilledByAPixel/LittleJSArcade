@@ -139,7 +139,7 @@ class PlinkoBall extends Box2dObject
     render()
     {
         // glossy ball — soft glow + tinted circle sprite + highlight
-        const glow = this.color.copy().setAlpha(.4);
+        const glow = this.color.withAlpha(.4);
         drawTile(this.pos, vec2(BALL_RADIUS*4), icons.glow, glow);
         drawTile(this.pos, vec2(BALL_RADIUS*2.3), icons.circle, this.color);
         drawTile(this.pos.add(vec2(-BALL_RADIUS*.32, BALL_RADIUS*.32)),
@@ -406,18 +406,18 @@ function drawPops()
         if (p.ring)
         {
             const t = 1 - a;                 // expand as it fades
-            const c = p.color.copy().setAlpha(a);
+            const c = p.color.withAlpha(a);
             drawTile(p.pos, vec2(p.size * (.6 + t*2)), icons.ring, c);
         }
         else if (p.value)
         {
-            const c = p.color.copy().setAlpha(a);
+            const c = p.color.withAlpha(a);
             const oc = hsl(0,0,0,a);
             drawText(p.value, p.pos, p.size, c, .15, oc);
         }
         else
         {
-            const c = p.color.copy().setAlpha(a);
+            const c = p.color.withAlpha(a);
             drawTile(p.pos, vec2(p.size * a * 2.5), icons.glow, c);
         }
     });
@@ -567,8 +567,7 @@ function gameRender()
     {
         const t = s.flashTimer.active() ? s.flashTimer.getPercent() : 0;
         const flash = 1 - t;
-        const c = s.color.copy();
-        c.a = .65 + flash * .35;
+        const c = s.color.withAlpha(.65 + flash * .35);
         drawRect(vec2(s.x, SLOT_TOP_Y - 2), vec2(s.width, 2.5), c);
         // value text inside the slot
         const maxWidth = 60;

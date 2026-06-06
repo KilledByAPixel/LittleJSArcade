@@ -159,13 +159,6 @@ function shadeColor(c, amount)
     return out;
 }
 
-function withAlpha(c, a)
-{
-    const out = c.copy();
-    out.a = a;
-    return out;
-}
-
 function getBlocks(type, rot){ return PIECES[type].rots[mod(rot,4)]; }
 
 function makeEmptyBoard()
@@ -220,23 +213,23 @@ function drawBlock3D(pos, size, color)
     const inner   = size - bevel;
 
     // outer outline
-    drawRect(pos, vec2(size + outline), withAlpha(rgb(0,0,0), base.a));
+    drawRect(pos, vec2(size + outline), rgb(0,0,0).withAlpha(base.a));
 
     // base
     drawRect(pos, vec2(size), base);
 
     // top highlight strip
-    drawRect(pos.add(vec2(0, inner/2)), vec2(size - outline*0.7, bevel), withAlpha(hi2, base.a));
+    drawRect(pos.add(vec2(0, inner/2)), vec2(size - outline*0.7, bevel), hi2.withAlpha(base.a));
     // left highlight strip
-    drawRect(pos.add(vec2(-inner/2, 0)), vec2(bevel, size - outline*0.7), withAlpha(hi, base.a));
+    drawRect(pos.add(vec2(-inner/2, 0)), vec2(bevel, size - outline*0.7), hi.withAlpha(base.a));
 
     // bottom shadow strip
-    drawRect(pos.add(vec2(0, -inner/2)), vec2(size - outline*0.7, bevel), withAlpha(sh2, base.a));
+    drawRect(pos.add(vec2(0, -inner/2)), vec2(size - outline*0.7, bevel), sh2.withAlpha(base.a));
     // right shadow strip
-    drawRect(pos.add(vec2(inner/2, 0)), vec2(bevel, size - outline*0.7), withAlpha(sh, base.a));
+    drawRect(pos.add(vec2(inner/2, 0)), vec2(bevel, size - outline*0.7), sh.withAlpha(base.a));
 
     // tiny specular corner
-    drawRect(pos.add(vec2(-inner/2 + bevel*0.55, inner/2 - bevel*0.55)), vec2(bevel*0.75), withAlpha(rgb(1,1,1), .12*base.a));
+    drawRect(pos.add(vec2(-inner/2 + bevel*0.55, inner/2 - bevel*0.55)), vec2(bevel*0.75), rgb(1,1,1).withAlpha(.12*base.a));
 }
 
 function drawCell(player, cx, cy, color, pad=.06)
@@ -381,7 +374,7 @@ function spawnSparkleAt(pos, color)
         lifeMax: SPARKLE_LIFE,
         size,
         size0: size,
-        color: withAlpha(shadeColor(color, .25), 1),
+        color: shadeColor(color, .25).withAlpha(1),
         tw: frand(0, 6.28),
         aMul: 1,
     });
@@ -476,7 +469,7 @@ function renderParticles()
             c.a *= t * (p.aMul || 1);
             // bright core + faint glow
             drawRect(p.pos, vec2(p.size), c);
-            drawRect(p.pos, vec2(p.size*2.2), withAlpha(rgb(1,1,1), c.a*.15));
+            drawRect(p.pos, vec2(p.size*2.2), rgb(1,1,1).withAlpha(c.a*.15));
         }
         else
         {
@@ -1615,8 +1608,7 @@ function renderMenuBackground()
     for (const p of menuBgPieces)
     {
         const blocks = getBlocks(p.type, p.rot);
-        const color = PIECES[p.type].color.copy();
-        color.a = p.alpha;
+        const color = PIECES[p.type].color.withAlpha(p.alpha);
 
         for (const b of blocks)
         {

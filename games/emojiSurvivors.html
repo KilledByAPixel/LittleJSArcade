@@ -461,7 +461,7 @@ function drawSparkleRing(centerPos, radius, phase, speed, color)
         const sy = centerPos.y + sin(a) * r;
         const alpha = .25 + .55 * breathe;
         drawTile(vec2(sx, sy), vec2(.22 + .08 * breathe), sprites.circle,
-                 new Color(color.r, color.g, color.b, alpha));
+                 color.withAlpha(alpha));
     }
 }
 
@@ -482,7 +482,7 @@ function drawTwinkles(centerPos, halfSize, count, color, phase)
         const alpha = max(0, wink * .85 - .05);
         if (alpha <= 0) continue;
         drawTile(vec2(x, y), vec2(.18 + .06 * alpha), sprites.circle,
-                 new Color(color.r, color.g, color.b, alpha));
+                 color.withAlpha(alpha));
     }
     setBlendMode();
 }
@@ -604,7 +604,7 @@ class Enemy extends EngineObject
             const t = 1 - this.spawnInvulnTimer / .5;
             const a = .35 + .65 * t;
             const c = finalTint || WHITE;
-            finalTint = new Color(c.r, c.g, c.b, a);
+            finalTint = c.withAlpha(a);
         }
         drawEmoji(renderPos, renderSize, this.tileInfo, finalTint, additive, renderAngle, this.facingLeft);
 
@@ -1472,7 +1472,7 @@ function drawDamageNumbers()
         drawText(String(d.value),
                  vec2(d.pos.x, d.pos.y + yOffset),
                  .75,
-                 new Color(c.r, c.g, c.b, alpha),
+                 c.withAlpha(alpha),
                  .12, new Color(0, 0, 0, alpha * .9));
     }
 }
@@ -1594,7 +1594,7 @@ function drawChainFlashes()
         const lifetime = f.lifetime || .15;
         const alpha = remaining / lifetime;
         const c = f.color || new Color(1, 1, .4, 1);
-        const col = new Color(c.r, c.g, c.b, alpha);
+        const col = c.withAlpha(alpha);
         if (f.zigzag)
         {
             // Lazily build + cache the bolt path so the same flash is

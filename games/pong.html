@@ -652,7 +652,7 @@ function gameRender()
         drawRect(
                 ball.pos,
                 ballSize.scale(1.6 + speedT * 1.4 + dangerPulse * 1.3),
-                new Color(haloCol.r, haloCol.g, haloCol.b, .18 + speedT * .25 + dangerPulse * .3),
+                haloCol.withAlpha(.18 + speedT * .25 + dangerPulse * .3),
         );
 
         // core — stretched along travel direction on impact, tinted hot when dangerous

@@ -1374,8 +1374,7 @@ function drawParticles()
     {
         if (!p.life.active()) continue;
         const a = 1 - p.life.getPercent();
-        const c = p.color.copy();
-        c.a = a;
+        const c = p.color.withAlpha(a);
         drawRect(vec2(camDrawX(p.pos.x), p.pos.y), vec2(p.size, p.size), c);
     }
 }

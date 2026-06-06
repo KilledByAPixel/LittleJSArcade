@@ -1104,8 +1104,7 @@ function gameRender()
     for (const s of shatter)
     {
         const k = 1 - s.life / s.maxLife;
-        const c = s.color.copy();
-        c.a = k;
+        const c = s.color.withAlpha(k);
         drawRect(s.pos, s.size.scale(k), c);
     }
 
@@ -1114,7 +1113,7 @@ function gameRender()
     {
         const pulse = 1 + .15 * sin(time * 8);
         const c = powerupColor(p.type);
-        drawRect(p.pos, p.size.scale(1.4 * pulse), new Color(c.r, c.g, c.b, .25));
+        drawRect(p.pos, p.size.scale(1.4 * pulse), c.withAlpha(.25));
         drawRect(p.pos, p.size, c);
         drawPowerLetter(p.pos, p.type);
     }
@@ -1169,8 +1168,7 @@ function gameRender()
     for (const t of floatTexts)
     {
         const k = 1 - t.life / t.maxLife;
-        const c = t.color.copy();
-        c.a = k;
+        const c = t.color.withAlpha(k);
         drawText(t.text, t.pos, .9, c, .2, hsl(0, 0, 0, k), 'center');
     }
 }

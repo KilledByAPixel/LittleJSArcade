@@ -805,7 +805,7 @@ function gameRender()
         const fade = 1 - u * u;                          // fade slowly, then quick
         const pop  = clamp(p.t / .12, 0, 1);             // quick scale-in
         const size = p.size * (.4 + .6 * pop);
-        const col  = p.color.copy().setAlpha(fade);
+        const col  = p.color.withAlpha(fade);
         drawText(p.text, p.pos, size, col, size * .12, hsl(0, 0, 0, fade));
     }
 }

@@ -73,13 +73,6 @@ function shadeColor(c, amount)
     return out;
 }
 
-function withAlpha(c, a)
-{
-    const out = c.copy();
-    out.a = a;
-    return out;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // GAME LOGIC (untouched — gameplay stays exactly the same)
 
@@ -423,7 +416,7 @@ function renderParticles()
         {
             // bright core + faint glow
             drawRect(p.pos, vec2(p.size), c);
-            drawRect(p.pos, vec2(p.size * 2.4), withAlpha(rgb(1,1,1), c.a * .18));
+            drawRect(p.pos, vec2(p.size * 2.4), rgb(1,1,1).withAlpha(c.a * .18));
         }
         else
         {
@@ -439,7 +432,7 @@ function renderParticles()
 // so colorblind players can match by shape.
 function drawJewel3D(pos, size, color, alpha=1, symbol, symbolYFrac=0)
 {
-    const base = withAlpha(color, alpha);
+    const base = color.withAlpha(alpha);
     const hi   = shadeColor(base, .18);
     const hi2  = shadeColor(base, .30);
     const sh   = shadeColor(base, -.18);
@@ -450,21 +443,21 @@ function drawJewel3D(pos, size, color, alpha=1, symbol, symbolYFrac=0)
     const bevel   = size * .14;
     const inner   = size - bevel;
 
-    drawRect(pos, vec2(size + outline), withAlpha(rgb(0,0,0), alpha));
+    drawRect(pos, vec2(size + outline), rgb(0,0,0).withAlpha(alpha));
     drawRect(pos, vec2(size), base);
-    drawRect(pos.add(vec2(0, inner/2)), vec2(size - outline*0.7, bevel), withAlpha(hi2, alpha));
-    drawRect(pos.add(vec2(-inner/2, 0)), vec2(bevel, size - outline*0.7), withAlpha(hi, alpha));
-    drawRect(pos.add(vec2(0, -inner/2)), vec2(size - outline*0.7, bevel), withAlpha(sh2, alpha));
-    drawRect(pos.add(vec2(inner/2, 0)), vec2(bevel, size - outline*0.7), withAlpha(sh, alpha));
-    drawRect(pos.add(vec2(-inner/2 + bevel*0.55, inner/2 - bevel*0.55)), vec2(bevel*0.75), withAlpha(rgb(1,1,1), .14*alpha));
+    drawRect(pos.add(vec2(0, inner/2)), vec2(size - outline*0.7, bevel), hi2.withAlpha(alpha));
+    drawRect(pos.add(vec2(-inner/2, 0)), vec2(bevel, size - outline*0.7), hi.withAlpha(alpha));
+    drawRect(pos.add(vec2(0, -inner/2)), vec2(size - outline*0.7, bevel), sh2.withAlpha(alpha));
+    drawRect(pos.add(vec2(inner/2, 0)), vec2(bevel, size - outline*0.7), sh.withAlpha(alpha));
+    drawRect(pos.add(vec2(-inner/2 + bevel*0.55, inner/2 - bevel*0.55)), vec2(bevel*0.75), rgb(1,1,1).withAlpha(.14*alpha));
 
     if (symbol)
     {
         // dark glyph with a thin light outline reads on every jewel hue
         drawText(symbol, pos.add(vec2(0, symbolYFrac * size)), size * .70,
-            withAlpha(rgb(0,0,0), .80*alpha),
+            rgb(0,0,0).withAlpha(.80*alpha),
             size * .06,
-            withAlpha(rgb(1,1,1), .55*alpha));
+            rgb(1,1,1).withAlpha(.55*alpha));
     }
 }
 
@@ -574,7 +567,7 @@ function drawPanel()
         drawText(`CHAIN x${lastChainCount}!`,
             vec2(px, panelTop - 11.0 + lift),
             0.55,
-            hsl(.12, 1, .65, a), 0.14, withAlpha(BLACK, a));
+            hsl(.12, 1, .65, a), 0.14, BLACK.withAlpha(a));
     }
 }
 

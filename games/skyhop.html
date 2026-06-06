@@ -67,9 +67,6 @@ const SPRING_COL = hsl(.15, .95, .6);    // spring marker
 const PLAYER_COL = hsl(.10, .9, .55);
 const PLAYER_GLOW= hsl(.10, .95, .6, .35);
 
-// apply an extra alpha multiplier to a color (for fade-out)
-function withAlpha(c, a) { return new Color(c.r, c.g, c.b, c.a * a); }
-
 ///////////////////////////////////////////////////////////////////////////////
 // game state
 let icons;
@@ -314,16 +311,16 @@ function drawPlatform(p)
     if      (p.type === 'moving') { col = MOVE_COL;   glow = MOVE_GLOW; }
     else if (p.type === 'broken') { col = BROKEN_COL; glow = BROKEN_GLOW; }
     const a = p.alpha;
-    drawTile(p.pos, vec2(5, 2.4), icons.glow, withAlpha(glow, a));
-    drawTile(p.pos, vec2(PLAT_HW*2, PLAT_HH*2 + .5), icons.roundSquare, withAlpha(col, a));
+    drawTile(p.pos, vec2(5, 2.4), icons.glow, glow.scale(1, a));
+    drawTile(p.pos, vec2(PLAT_HW*2, PLAT_HH*2 + .5), icons.roundSquare, col.scale(1, a));
     if (p.spring)
     {
         const sp = p.pos.add(vec2(0, PLAT_HH + .75));
-        drawTile(sp, vec2(2.6), icons.glow, withAlpha(SPRING_COL, .6));
+        drawTile(sp, vec2(2.6), icons.glow, SPRING_COL.scale(1, .6));
         drawTile(p.pos.add(vec2(0, PLAT_HH + .25)), vec2(1.1, .5), icons.roundSquare,
-            withAlpha(hsl(.13, .9, .45), a));                       // coil base
+            hsl(.13, .9, .45).scale(1, a));                         // coil base
         drawTile(sp.add(vec2(0, .2)), vec2(1.5, 1.6), icons.triangle,
-            withAlpha(SPRING_COL, a));                             // up arrow
+            SPRING_COL.scale(1, a));                               // up arrow
     }
 }
 

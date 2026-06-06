@@ -1446,8 +1446,7 @@ function gameRenderPost()
     {
         const pct = announceTimer.getPercent();      // 0..1, 1 at expiry
         const alpha = pct < .75 ? 1 : (1-pct)/.25;   // hold then fade
-        const fade = announceColor.copy();
-        fade.a = alpha;
+        const fade = announceColor.withAlpha(alpha);
         drawTextScreen(announceText, vec2(W/2, H * .25), 56, fade, 6, hsl(0,0,0,alpha));
     }
 
