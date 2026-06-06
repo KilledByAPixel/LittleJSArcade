@@ -146,8 +146,8 @@ let sMove, sRotate, sDrop, sLock, sClear, sHold, sOver, sGarbage, sSelect;
 ///////////////////////////////////////////////////////////////////////////////
 // HELPERS
 
-function frand(min=0, max=1){ return min + rand()*(max-min); }
-function clamp01(x){ return x < 0 ? 0 : x > 1 ? 1 : x; }
+function frand(min=0, max=1){ return rand(max, min); }   // engine rand has reversed args
+function clamp01(x){ return clamp(x, 0, 1); }
 
 function shadeColor(c, amount)
 {
