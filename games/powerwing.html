@@ -379,8 +379,10 @@ function shootMissile()
         isPlayer: true,
         isMissile: true,
         target,
-        damage: 3
+        damage: 3,
+        smoke: makeSmokeEmitter()
     };
+    missile.smoke.pos = missile.pos.add(vec2(-.3, 0));
     bullets.push(missile);
 }
 
@@ -509,11 +511,13 @@ function updateBullets(dt)
         }
 
         b.pos = b.pos.add(b.vel.scale(dt));
+        if (b.isMissile) b.smoke.pos = b.pos.add(vec2(-.3, 0));
 
         // Remove if off screen
         if (b.pos.x > WORLD_WIDTH/2 + 2 || b.pos.x < -WORLD_WIDTH/2 - 2 ||
             b.pos.y > WORLD_HEIGHT/2 + 2 || b.pos.y < -WORLD_HEIGHT/2 - 2)
         {
+            b.smoke?.destroy();
             bullets.splice(i, 1);
             continue;
         }
@@ -527,6 +531,7 @@ function updateBullets(dt)
                 {
                     e.health -= b.damage;
                     spawnParticles(b.pos, hsl(.14, .9, .6), 4);
+                    b.smoke?.destroy();
                     bullets.splice(i, 1);
                     break;
                 }
@@ -1105,11 +1110,33 @@ function makeFlameEmitter()
     );
 }
 
-// Destroy all live emitters (flame trail + bursts) for a clean reset.
+// Destroy all live emitters (flame trail + missile smoke + bursts) for a clean reset.
 function clearParticles()
 {
     for (const o of engineObjects)
         if (o instanceof ParticleEmitter) o.destroy(true);
+}
+
+// Per-missile gray smoke trail (pos driven each frame; destroyed when the
+// missile is removed). Matte - smoke shouldn't glow.
+function makeSmokeEmitter()
+{
+    return new ParticleEmitter(
+        vec2(), -PI/2,       // pos (driven), angle (-PI/2 = emit leftward -x)
+        vec2(.2, .2),        // emitSize (small nozzle jitter)
+        0, 60,               // emitTime (0 = forever), emitRate (steady puffs)
+        .4,                  // emitConeAngle (smoke spread)
+        undefined,           // tileInfo (untextured square)
+        hsl(0,0,.55), hsl(0,0,.55),       // gray
+        hsl(0,0,.55,0), hsl(0,0,.55,0),   // fade
+        .3,                  // particleTime (~rand .2-.4)
+        .22, .3,             // sizeStart, sizeEnd (smoke expands a touch)
+        3/60,                // speed (per-frame; was per-sec rand 2-4)
+        0, .98, 1,           // angleSpeed, damping, angleDamping
+        0,                   // gravityScale (no gravity)
+        0, .2, .4,           // particleConeAngle, fadeRate, randomness
+        false, false         // collideTiles, additive (smoke = matte)
+    );
 }
 
 ///////////////////////////////////////////////////////////////////////////////
