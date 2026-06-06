@@ -354,7 +354,7 @@ function drawParticles()
         if (p.additive) { anyAdditive = true; break; }
     if (anyAdditive)
     {
-        setAdditiveBlendMode(true);
+        setAdditiveBlendMode();
         for (const p of particles)
             if (p.additive)
                 drawOneParticle(p);
@@ -1774,7 +1774,7 @@ function drawFliers()
 function drawExplosions()
 {
     if (!explosions.length) return;
-    setAdditiveBlendMode(true);
+    setAdditiveBlendMode();
     for (const e of explosions)
     {
         if (e.r <= 0) continue;

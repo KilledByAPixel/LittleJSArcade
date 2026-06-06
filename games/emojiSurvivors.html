@@ -472,7 +472,7 @@ function drawSparkleRing(centerPos, radius, phase, speed, color)
 // this many props.
 function drawTwinkles(centerPos, halfSize, count, color, phase)
 {
-    setAdditiveBlendMode(true);
+    setAdditiveBlendMode();
     for (let i = 0; i < count; ++i)
     {
         const ph    = phase + i * 2.3;
@@ -1646,7 +1646,7 @@ function pushExplosion(pos, radius)
 
 function drawExplosions()
 {
-    setAdditiveBlendMode(true);
+    setAdditiveBlendMode();
     for (let i = explosions.length - 1; i >= 0; --i)
     {
         const e = explosions[i];
