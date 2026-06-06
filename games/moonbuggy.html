@@ -83,8 +83,7 @@ function groundAngle(x) { return Math.atan(groundSlope(x)); }
 // rotate an offset in math convention (CCW positive = nose-up on uphill)
 function rot(v, a)
 {
-    const c = cos(a), s = sin(a);
-    return vec2(v.x*c - v.y*s, v.x*s + v.y*c);
+    return v.rotate(-a);   // engine .rotate() is clockwise-positive; -a keeps this CCW
 }
 
 function playSoundSafe(s) { try { s && s.play && s.play(); } catch (e) {} }
