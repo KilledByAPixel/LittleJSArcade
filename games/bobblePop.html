@@ -277,12 +277,11 @@ function spawnPopFX(cells)
         // colored shards flying outward
         for (let i=0; i<SHARD_COUNT; ++i)
         {
-            const ang = rand(0, 2*PI);
             const speed = rand(SHARD_SPEED_MIN, SHARD_SPEED_MAX);
             popFX.push({
                 kind:'shard',
                 pos: pos.copy(),
-                vel: vec2().setAngle(ang, speed),
+                vel: randVec2(speed),
                 color,
                 time:0,
                 life:SHARD_LIFE,

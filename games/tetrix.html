@@ -354,9 +354,8 @@ function spawnCellParticles(player, cellX, cellY, baseColor)
 
     for (let i=0; i<PARTICLES_PER_CELL; ++i)
     {
-        const a = frand(0, PI*2);
         const speed = frand(3, 8);
-        const vel = vec2(cos(a), sin(a)).scale(speed);
+        const vel = randVec2(speed);
 
         particles.push({
             kind: 'burst',

@@ -235,9 +235,8 @@ function emitExplosionSparks(pos, friendly, count)
 {
     for (let i = 0; i < count; i++)
     {
-        const angle = rand(0, PI * 2);
         const speed = rand(3, 10);
-        const vel = vec2(cos(angle) * speed, sin(angle) * speed);
+        const vel = randVec2(speed);
         const hue = friendly ? .55 + rand(-.05, .12) : .03 + rand(-.02, .12);
         const light = .65 + rand() * .3;
         addParticle(pos, vel, hsl(hue, .9, light, 1), rand(.45, .95), rand(.08, .18), {
@@ -291,9 +290,8 @@ function emitEnemyKillBurst(pos)
 {
     for (let i = 0; i < 12; i++)
     {
-        const angle = rand(0, PI * 2);
         const speed = rand(2, 7);
-        const vel = vec2(cos(angle) * speed, sin(angle) * speed);
+        const vel = randVec2(speed);
         addParticle(pos, vel, hsl(.13, 1, .85, 1), rand(.3, .55), rand(.08, .15), {
             damping: .9, gravity: 3, fade: 'shrink', additive: true,
         });

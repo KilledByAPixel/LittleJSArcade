@@ -155,11 +155,10 @@ function spark(pos, count, color, speed = .4, life = .8)
 {
     for (let i = 0; i < count; i++)
     {
-        const a = rand(0, PI * 2);
         const s = rand(speed * .3, speed);
         particles.push({
             pos: pos.copy(),
-            vel: vec2(cos(a) * s, sin(a) * s),
+            vel: randVec2(s),
             life: new Timer(life * rand(.6, 1.2)),
             color: color,
             size: rand(.15, .35),
