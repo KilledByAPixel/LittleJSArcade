@@ -244,12 +244,7 @@ function spawnParticles(worldPos, color, count, speedMin, speedMax, life=.6)
     );
 }
 
-// Destroy any live burst emitters so a reset leaves a clean field.
-function clearParticles()
-{
-    for (const o of engineObjects)
-        if (o instanceof ParticleEmitter) o.destroy();
-}
+// clearParticles() lives in gameFx.js (shared).
 
 // depleting ring drawn as short line segments around a circle (frac of full)
 function drawTimerRing(center, radius, frac, color)

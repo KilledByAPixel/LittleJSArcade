@@ -310,12 +310,7 @@ function partBurst(pos, count, speed, life, sizeStart, sizeEnd, spin, hueA, hueB
     );
 }
 
-// Destroy any live burst emitters so a reset leaves a clean field.
-function clearParticles()
-{
-    for (const o of engineObjects)
-        if (o instanceof ParticleEmitter) o.destroy();
-}
+// clearParticles() lives in gameFx.js (shared).
 
 // quick puff of dust at a contact point
 function spawnDust(pos, count, spread, hue=.62)

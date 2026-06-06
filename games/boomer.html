@@ -143,12 +143,7 @@ function clearBombs() {
     bombs = [];
 }
 
-// Destroy every live ParticleEmitter (bomb trails + in-flight bursts) so a reset
-// or quit leaves a clean backdrop instead of frozen particles.
-function clearParticles() {
-    for (const o of engineObjects)
-        if (o instanceof ParticleEmitter) o.destroy();
-}
+// clearParticles() lives in gameFx.js (shared).
 
 // Stack is anchored at BUCKET_BOTTOM_Y so when a bucket is lost the catching
 // bucket moves DOWN — the bottom of the stack sits on the ground regardless of

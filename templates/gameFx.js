@@ -466,6 +466,21 @@ class Starfield
     }
 }
 
+// ============================================================================
+// clearParticles — destroy every live ParticleEmitter (and its particles) so a
+// reset/quit leaves a clean field instead of frozen or fading particles.
+//
+// Uses immediate destroy so a trail/flame emitter that gets recreated right
+// after a reset doesn't briefly double up with the old one. Games that moved a
+// hand-rolled particle array onto ParticleEmitter call this where they used to
+// do `particles.length = 0`. Harmless (a no-op) in games with no emitters.
+// ============================================================================
+function clearParticles()
+{
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy(true);
+}
+
 function gameFxUpdate()
 {
     _shakeUpdate();

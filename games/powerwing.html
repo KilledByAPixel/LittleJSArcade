@@ -1110,12 +1110,7 @@ function makeFlameEmitter()
     );
 }
 
-// Destroy all live emitters (flame trail + missile smoke + bursts) for a clean reset.
-function clearParticles()
-{
-    for (const o of engineObjects)
-        if (o instanceof ParticleEmitter) o.destroy(true);
-}
+// clearParticles() lives in gameFx.js (shared).
 
 // Per-missile gray smoke trail (pos driven each frame; destroyed when the
 // missile is removed). Matte - smoke shouldn't glow.

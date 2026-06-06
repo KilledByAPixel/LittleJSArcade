@@ -521,12 +521,7 @@ function spawnCellParticles(gx, gy, colorIdx)
     );
 }
 
-// Destroy any live burst emitters so a reset leaves a clean field.
-function clearParticles()
-{
-    for (const o of engineObjects)
-        if (o instanceof ParticleEmitter) o.destroy();
-}
+// clearParticles() lives in gameFx.js (shared).
 
 ///////////////////////////////////////////////////////////////////////////////////
 // New game

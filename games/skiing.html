@@ -473,12 +473,7 @@ function makeSnowEmitter()
     );
 }
 
-// Destroy all live emitters (snow trail + crash bursts) for a clean reset.
-function clearParticles()
-{
-    for (const o of engineObjects)
-        if (o instanceof ParticleEmitter) o.destroy(true);
-}
+// clearParticles() lives in gameFx.js (shared).
 
 ///////////////////////////////////////////////////////////////////////////////
 // Game Logic
