@@ -143,7 +143,7 @@
         const m = c.match(/rgba?\(([^)]+)\)/i);
         if (m) {
             const p = m[1].split(',').map(x => parseFloat(x));
-            return '#' + p.slice(0,3).map(n => ('0'+Math.max(0,Math.min(255,n|0)).toString(16)).slice(-2)).join('');
+            return '#' + p.slice(0,3).map(n => ('0'+clamp(n|0,0,255).toString(16)).slice(-2)).join('');
         }
         return '#000000';
     }

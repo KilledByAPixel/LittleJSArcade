@@ -2933,7 +2933,7 @@ function adjustFocused(menu, delta)
     {
         const sl = entry.focusEl;
         const step = parseFloat(sl.step) || ((+sl.max - +sl.min) / 100);
-        const v = Math.max(+sl.min, Math.min(+sl.max, +sl.value + step * delta));
+        const v = clamp(+sl.value + step * delta, +sl.min, +sl.max);
         h.setValue(v);
         sl.dispatchEvent(new Event('input'));
     }
@@ -3546,7 +3546,7 @@ function buildSlider(item)
         {
             const n = +v;
             const clamped = Number.isFinite(n)
-                ? Math.max(+slider.min, Math.min(+slider.max, n))
+                ? clamp(n, +slider.min, +slider.max)
                 : +slider.min;
             slider.value = String(clamped);
             renderValue();

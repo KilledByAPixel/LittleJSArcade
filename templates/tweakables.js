@@ -378,7 +378,7 @@ function buildBooleanRow(path, codeDefault, options)
 
 function colorToHex(c)
 {
-    const toByte = (x) => Math.max(0, Math.min(255, Math.round(x * 255)));
+    const toByte = (x) => clamp(Math.round(x * 255), 0, 255);
     const hex = (n) => n.toString(16).padStart(2, '0');
     return '#' + hex(toByte(c.r)) + hex(toByte(c.g)) + hex(toByte(c.b));
 }
