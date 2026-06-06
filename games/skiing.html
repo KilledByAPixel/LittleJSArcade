@@ -139,9 +139,12 @@ class Player
         // snow spray — drive the persistent trail emitter behind the skier
         if (!this.isJumping && this.vel.length() > 2)
         {
-            const backDir = vec2(cos(this.angle + PI), sin(this.angle + PI));
+            // behind the skier = opposite of travel = +moveDir (movement is -moveDir).
+            // The old vec2(cos(angle+PI),sin(angle+PI)) was standard-convention cos/sin
+            // on a .rotate()/.angle()-convention this.angle, so it sprayed ~sideways.
+            const backDir = vec2(0, 1).rotate(this.angle);
             snowEmitter.pos = this.pos.add(backDir.scale(.4));
-            snowEmitter.angle = -this.angle - PI/2;  // emit backward (engine sin/cos)
+            snowEmitter.angle = this.angle;          // emit up-behind, along backDir
             snowEmitter.emitRate = 50;
         }
         else
