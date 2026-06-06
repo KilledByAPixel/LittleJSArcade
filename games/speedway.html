@@ -71,8 +71,9 @@ const MAX_OFF_X       = ROAD_W * 1.4; // cap how far off the road sideways you c
 let segments = [];
 let trackLen = 0;
 
-// game state
-let state = 'title'; // 'title' | 'play' | 'timeup'
+// game state — round phase only. The title screen is the menu + isPlaying();
+// its backdrop renders as 'play'. resetGame() sets this before anything runs.
+let state = 'play'; // 'play' | 'timeup'
 let trackPos = 0;    // distance along track in segments
 let speed = 0;
 let playerX = 0;     // lateral offset in world units
