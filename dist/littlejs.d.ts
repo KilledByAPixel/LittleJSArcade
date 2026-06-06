@@ -2349,10 +2349,27 @@ declare module "littlejsengine" {
      *  @type {boolean}
      *  @memberof Input */
     export let mouseInWindow: boolean;
-    /** Returns true if user is using gamepad (has more recently pressed a gamepad button)
+    /** True if a gamepad is the most recently used input device.
+     *  Equivalent to usingGamepadInput(); derived from lastInputDevice each frame.
      *  @type {boolean}
      *  @memberof Input */
     export let isUsingGamepad: boolean;
+    /** The most recently used input device: 'mouse' | 'keyboard' | 'gamepad'.
+     *  Sticky: it holds its value while every device is idle, so a mouse-follow
+     *  control (e.g. paddle = mousePos) won't snap back the instant the stick/keys
+     *  are released. With several devices in play at once (e.g. keyboard to move +
+     *  mouse to aim) it tracks whichever was touched last each frame, so it may
+     *  alternate — that's intended; use it to pick which control drives a shared
+     *  action. Updated every frame by inputUpdate().
+     *  @type {string}
+     *  @memberof Input */
+    export let lastInputDevice: string;
+    /** Screen-pixel mouse movement per frame that counts as "using the mouse"
+     *  (so sub-pixel hand jitter doesn't steal focus from the keyboard/gamepad).
+     *  @type {number}
+     *  @default
+     *  @memberof Input */
+    export let inputMouseMoveThreshold: number;
     /** Prevents input continuing to the default browser handling (true by default)
      *  @type {boolean}
      *  @memberof Input */
@@ -2369,6 +2386,16 @@ declare module "littlejsengine" {
      *  @param {boolean} preventDefault
      *  @memberof Input */
     export function setInputPreventDefault(preventDefault?: boolean): void;
+    /** Set the screen-pixel mouse movement per frame that counts as using the mouse
+     *  @param {number} threshold
+     *  @memberof Input */
+    export function setInputMouseMoveThreshold(threshold: number): void;
+    /** @return {boolean} - Is the mouse the most recently used input device?    @memberof Input */
+    export function usingMouseInput(): boolean;
+    /** @return {boolean} - Is the keyboard the most recently used input device? @memberof Input */
+    export function usingKeyboardInput(): boolean;
+    /** @return {boolean} - Is a gamepad the most recently used input device?    @memberof Input */
+    export function usingGamepadInput(): boolean;
     /** Returns true if gamepad button is down
      *  @param {number} button
      *  @param {number} [gamepad]
@@ -5244,11 +5271,16 @@ declare module "littlejsengine" {
     }
     /** Draw a scalable nine-slice UI element in world space
      *  This function can apply color and additive color if WebGL is enabled
+     *  The nine-slice samples a 3x3 block of tiles from the tilesheet, it does not
+     *  subdivide a single tile. Pass the top-left tile of that block as startTile;
+     *  the other 8 tiles (edges, corners, and center) are taken automatically from
+     *  the 3x3 grid of tiles extending right and down from it. borderSize only sets
+     *  the rendered thickness of the edges and corners, not how the texture is cut.
      *  @param {Vector2} pos - World space position
      *  @param {Vector2} size - World space size
-     *  @param {TileInfo} startTile - Starting tile for the nine-slice pattern
+     *  @param {TileInfo} startTile - Top-left tile of the 3x3 block to sample the nine-slice from
      *  @param {Color} [color] - Color to modulate with
-     *  @param {number} [borderSize] - Width of the border sections
+     *  @param {number} [borderSize] - Rendered thickness of the border sections
      *  @param {Color} [additiveColor] - Additive color
      *  @param {number} [extraSpace] - Extra spacing adjustment
      *  @param {number} [angle] - Angle to rotate by
@@ -5267,19 +5299,23 @@ declare module "littlejsengine" {
      *  This function can not apply color because it draws using the 2d context
      *  @param {Vector2} pos - Screen space position
      *  @param {Vector2} size - Screen space size
-     *  @param {TileInfo} startTile - Starting tile for the nine-slice pattern
-     *  @param {number} [borderSize] - Width of the border sections
+     *  @param {TileInfo} startTile - Top-left tile of the 3x3 block to sample (see drawNineSlice)
+     *  @param {number} [borderSize] - Rendered thickness of the border sections
      *  @param {number} [extraSpace] - Extra spacing adjustment
      *  @param {number} [angle] - Angle to rotate by
      *  @memberof DrawUtilities */
     export function drawNineSliceScreen(pos: Vector2, size: Vector2, startTile: TileInfo, borderSize?: number, extraSpace?: number, angle?: number): void;
     /** Draw a scalable three-slice UI element in world space
      *  This function can apply color and additive color if WebGL is enabled
+     *  The three-slice samples 3 consecutive tiles from the tilesheet, it does not
+     *  subdivide a single tile. Pass the first tile as startTile; the three tiles
+     *  are used in order as corner, side, and center, then rotated and mirrored to
+     *  build all four edges and corners. borderSize only sets the rendered thickness.
      *  @param {Vector2} pos - World space position
      *  @param {Vector2} size - World space size
-     *  @param {TileInfo} startTile - Starting tile for the three-slice pattern
+     *  @param {TileInfo} startTile - First of 3 consecutive tiles (corner, side, center) for the three-slice
      *  @param {Color} [color] - Color to modulate with
-     *  @param {number} [borderSize] - Width of the border sections
+     *  @param {number} [borderSize] - Rendered thickness of the border sections
      *  @param {Color} [additiveColor] - Additive color
      *  @param {number} [extraSpace] - Extra spacing adjustment
      *  @param {number} [angle] - Angle to rotate by
@@ -5292,8 +5328,8 @@ declare module "littlejsengine" {
      *  This function can not apply color because it draws using the 2d context
      *  @param {Vector2} pos - Screen space position
      *  @param {Vector2} size - Screen space size
-     *  @param {TileInfo} startTile - Starting tile for the three-slice pattern
-     *  @param {number} [borderSize] - Width of the border sections
+     *  @param {TileInfo} startTile - First of 3 consecutive tiles: corner, side, center (see drawThreeSlice)
+     *  @param {number} [borderSize] - Rendered thickness of the border sections
      *  @param {number} [extraSpace] - Extra spacing adjustment
      *  @param {number} [angle] - Angle to rotate by
      *  @memberof DrawUtilities */

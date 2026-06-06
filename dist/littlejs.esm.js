@@ -5520,10 +5520,29 @@ let mouseWheel = 0;
  *  @memberof Input */
 let mouseInWindow = true;
 
-/** Returns true if user is using gamepad (has more recently pressed a gamepad button)
+/** True if a gamepad is the most recently used input device.
+ *  Equivalent to usingGamepadInput(); derived from lastInputDevice each frame.
  *  @type {boolean}
  *  @memberof Input */
 let isUsingGamepad = false;
+
+/** The most recently used input device: 'mouse' | 'keyboard' | 'gamepad'.
+ *  Sticky: it holds its value while every device is idle, so a mouse-follow
+ *  control (e.g. paddle = mousePos) won't snap back the instant the stick/keys
+ *  are released. With several devices in play at once (e.g. keyboard to move +
+ *  mouse to aim) it tracks whichever was touched last each frame, so it may
+ *  alternate — that's intended; use it to pick which control drives a shared
+ *  action. Updated every frame by inputUpdate().
+ *  @type {string}
+ *  @memberof Input */
+let lastInputDevice = 'mouse';
+
+/** Screen-pixel mouse movement per frame that counts as "using the mouse"
+ *  (so sub-pixel hand jitter doesn't steal focus from the keyboard/gamepad).
+ *  @type {number}
+ *  @default
+ *  @memberof Input */
+let inputMouseMoveThreshold = 6;
 
 /** Prevents input continuing to the default browser handling (true by default)
  *  @type {boolean}
@@ -5544,6 +5563,18 @@ const isTouchDevice = !headlessMode && window.ontouchstart !== undefined;
  *  @param {boolean} preventDefault
  *  @memberof Input */
 function setInputPreventDefault(preventDefault=true) { inputPreventDefault = preventDefault; }
+
+/** Set the screen-pixel mouse movement per frame that counts as using the mouse
+ *  @param {number} threshold
+ *  @memberof Input */
+function setInputMouseMoveThreshold(threshold) { inputMouseMoveThreshold = threshold; }
+
+/** @return {boolean} - Is the mouse the most recently used input device?    @memberof Input */
+function usingMouseInput()    { return lastInputDevice === 'mouse'; }
+/** @return {boolean} - Is the keyboard the most recently used input device? @memberof Input */
+function usingKeyboardInput() { return lastInputDevice === 'keyboard'; }
+/** @return {boolean} - Is a gamepad the most recently used input device?    @memberof Input */
+function usingGamepadInput()  { return lastInputDevice === 'gamepad'; }
 
 /** Clears an input key state
  *  @param {string|number} key
@@ -5845,7 +5876,6 @@ function inputInit()
     {
         if (!e.repeat)
         {
-            isUsingGamepad = false;
             inputData[0][e.code] = 3;
             if (inputWASDEmulateDirection)
                 inputData[0][remapKey(e.code)] = 3;
@@ -5904,7 +5934,6 @@ function inputInit()
         if (soundEnable && !headlessMode && audioContext && !audioIsRunning())
             audioContext.resume();
 
-        isUsingGamepad = false;
         inputData[0][e.button] = 3;
 
         const mousePosScreenLast = mousePosScreen;
@@ -5995,10 +6024,7 @@ function inputInit()
                     if (wasTouching)
                         mouseDeltaScreen = mouseDeltaScreen.add(mousePosScreen.subtract(mousePosScreenLast));
                     else
-                    {
                         inputData[0][button] = 3;
-                        isUsingGamepad = false; // a passthrough tap is mouse-style input
-                    }
                 }
                 else if (wasTouching)
                     inputData[0][button] = inputData[0][button] & 2 | 4;
@@ -6044,7 +6070,43 @@ function inputUpdate()
 
     // update gamepads if enabled
     gamepadsUpdate();
-        
+
+    // update most recently used input device
+    updateLastInputDevice();
+
+    function updateLastInputDevice()
+    {
+        // mouse: any button held or moved
+        const mouseActive = mouseIsDown(0) || mouseIsDown(1) || mouseIsDown(2) || mouseDeltaScreen.length() > inputMouseMoveThreshold;
+
+        // gamepad: any button held or stick moved
+        let gamepadActive = false;
+        for (let s = gamepadStickCount(); s-- && !gamepadActive;)
+            gamepadActive = gamepadStick(s).lengthSquared() > .04;
+        for (let b = 17; b-- && !gamepadActive;)
+            gamepadActive = gamepadIsDown(b);
+
+        // keyboard: any non-mouse key down
+        let keyboardActive = false;
+        for (const k in inputData[0])
+            if (isNaN(+k) && (inputData[0][k] & 1))
+            {
+                keyboardActive = true;
+                break;
+            }
+
+        // update the last input
+        if (gamepadActive)
+            lastInputDevice = 'gamepad';
+        else if (mouseActive)
+            lastInputDevice = 'mouse';
+        else if (keyboardActive)
+            lastInputDevice = 'keyboard';
+
+        // set flag if gamepad is last device
+        isUsingGamepad = lastInputDevice === 'gamepad';
+    }
+
     // gamepads are updated by engine every frame automatically
     function gamepadsUpdate()
     {
@@ -6167,7 +6229,6 @@ function inputUpdate()
                 gamepadHadInput[i] = true;
                 if (!gamepadHadInput[gamepadPrimary])
                     gamepadPrimary = i;
-                isUsingGamepad ||= (gamepadPrimary === i);
             }
 
             if (gamepad.mapping === 'standard')
@@ -6602,7 +6663,6 @@ function touchGamepadPointerDown(e, zone)
     e.preventDefault();
     zone.setPointerCapture(e.pointerId);
     touchGamepadTimer.set();
-    isUsingGamepad = true;
 
     // resume audio on first interaction
     if (soundEnable && !headlessMode && audioContext && !audioIsRunning())
@@ -14640,8 +14700,8 @@ async function box2dInit()
  *  This function can not apply color because it draws using the 2d context
  *  @param {Vector2} pos - Screen space position
  *  @param {Vector2} size - Screen space size
- *  @param {TileInfo} startTile - Starting tile for the nine-slice pattern
- *  @param {number} [borderSize] - Width of the border sections
+ *  @param {TileInfo} startTile - Top-left tile of the 3x3 block to sample (see drawNineSlice)
+ *  @param {number} [borderSize] - Rendered thickness of the border sections
  *  @param {number} [extraSpace] - Extra spacing adjustment
  *  @param {number} [angle] - Angle to rotate by
  *  @memberof DrawUtilities */
@@ -14652,11 +14712,16 @@ function drawNineSliceScreen(pos, size, startTile, borderSize=32, extraSpace=2, 
 
 /** Draw a scalable nine-slice UI element in world space
  *  This function can apply color and additive color if WebGL is enabled
+ *  The nine-slice samples a 3x3 block of tiles from the tilesheet, it does not
+ *  subdivide a single tile. Pass the top-left tile of that block as startTile;
+ *  the other 8 tiles (edges, corners, and center) are taken automatically from
+ *  the 3x3 grid of tiles extending right and down from it. borderSize only sets
+ *  the rendered thickness of the edges and corners, not how the texture is cut.
  *  @param {Vector2} pos - World space position
  *  @param {Vector2} size - World space size
- *  @param {TileInfo} startTile - Starting tile for the nine-slice pattern
+ *  @param {TileInfo} startTile - Top-left tile of the 3x3 block to sample the nine-slice from
  *  @param {Color} [color] - Color to modulate with
- *  @param {number} [borderSize] - Width of the border sections
+ *  @param {number} [borderSize] - Rendered thickness of the border sections
  *  @param {Color} [additiveColor] - Additive color
  *  @param {number} [extraSpace] - Extra spacing adjustment
  *  @param {number} [angle] - Angle to rotate by
@@ -14666,7 +14731,8 @@ function drawNineSliceScreen(pos, size, startTile, borderSize=32, extraSpace=2, 
  *  @memberof DrawUtilities */
 function drawNineSlice(pos, size, startTile, color, borderSize=1, additiveColor, extraSpace=.05, angle=0, useWebGL=glEnable, screenSpace, context)
 {
-    // setup nine slice tiles
+    // setup nine slice tiles - startTile is the top-left of a 3x3 tile block,
+    // so the center tile is one tile down and right from it
     const centerTile = startTile.offset(startTile.size);
     const centerSize = size.add(vec2(extraSpace-borderSize*2));
     const cornerSize = vec2(borderSize);
@@ -14700,8 +14766,8 @@ function drawNineSlice(pos, size, startTile, color, borderSize=1, additiveColor,
  *  This function can not apply color because it draws using the 2d context
  *  @param {Vector2} pos - Screen space position
  *  @param {Vector2} size - Screen space size
- *  @param {TileInfo} startTile - Starting tile for the three-slice pattern
- *  @param {number} [borderSize] - Width of the border sections
+ *  @param {TileInfo} startTile - First of 3 consecutive tiles: corner, side, center (see drawThreeSlice)
+ *  @param {number} [borderSize] - Rendered thickness of the border sections
  *  @param {number} [extraSpace] - Extra spacing adjustment
  *  @param {number} [angle] - Angle to rotate by
  *  @memberof DrawUtilities */
@@ -14712,11 +14778,15 @@ function drawThreeSliceScreen(pos, size, startTile, borderSize=32, extraSpace=2,
 
 /** Draw a scalable three-slice UI element in world space
  *  This function can apply color and additive color if WebGL is enabled
+ *  The three-slice samples 3 consecutive tiles from the tilesheet, it does not
+ *  subdivide a single tile. Pass the first tile as startTile; the three tiles
+ *  are used in order as corner, side, and center, then rotated and mirrored to
+ *  build all four edges and corners. borderSize only sets the rendered thickness.
  *  @param {Vector2} pos - World space position
  *  @param {Vector2} size - World space size
- *  @param {TileInfo} startTile - Starting tile for the three-slice pattern
+ *  @param {TileInfo} startTile - First of 3 consecutive tiles (corner, side, center) for the three-slice
  *  @param {Color} [color] - Color to modulate with
- *  @param {number} [borderSize] - Width of the border sections
+ *  @param {number} [borderSize] - Rendered thickness of the border sections
  *  @param {Color} [additiveColor] - Additive color
  *  @param {number} [extraSpace] - Extra spacing adjustment
  *  @param {number} [angle] - Angle to rotate by
@@ -14726,7 +14796,7 @@ function drawThreeSliceScreen(pos, size, startTile, borderSize=32, extraSpace=2,
  *  @memberof DrawUtilities */
 function drawThreeSlice(pos, size, startTile, color, borderSize=1, additiveColor, extraSpace=.05, angle=0, useWebGL=glEnable, screenSpace, context)
 {
-    // setup three slice tiles
+    // setup three slice tiles - 3 tiles in a row starting at startTile
     const cornerTile = startTile.frame(0);
     const sideTile   = startTile.frame(1);
     const centerTile = startTile.frame(2);
@@ -16461,10 +16531,16 @@ export
     mouseWheel,
     mouseInWindow,
     isUsingGamepad,
+    lastInputDevice,
+    inputMouseMoveThreshold,
     inputPreventDefault,
     gamepadPrimary,
     isTouchDevice,
     setInputPreventDefault,
+    setInputMouseMoveThreshold,
+    usingMouseInput,
+    usingKeyboardInput,
+    usingGamepadInput,
     gamepadIsDown,
     gamepadWasPressed,
     gamepadWasReleased,
