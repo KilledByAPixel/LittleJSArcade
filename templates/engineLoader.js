@@ -8,8 +8,11 @@
 //
 // Build selection precedence (highest first):
 //   1. ?engine=debug|release|min   URL param      — one-shot spot check on a single game
-//   2. localStorage['littlejs-build']             — set via littlejsBuild() in the console; sticks across ALL games
-//   3. BUILD constant below                       — the shipped default
+//   2. #debug | #release | #min    URL hash flag  — one-shot too; just append it to the URL.
+//                                                   Word-boundary matched, so it composes with
+//                                                   other hash flags (e.g. games/snake.html#demo,debug).
+//   3. localStorage['littlejs-build']             — set via littlejsBuild() in the console; sticks across ALL games
+//   4. BUILD constant below                       — the shipped default
 //
 // document.write is the right tool here: called inline during the initial parse it
 // is the supported, order-preserving way to inject a parser-blocking script. The
@@ -33,7 +36,8 @@
             console.log(
                 '%clittlejs build:%c ' + (localStorage.getItem(KEY) || BUILD) + '%c\n' +
                 'Options: ' + Object.keys(FILES).join(', ') + '   (' + BUILD + ' = default)\n' +
-                "Switch every game with littlejsBuild('debug') / ('release') / ('min'), or littlejsDebug().",
+                "Switch every game with littlejsBuild('debug') / ('release') / ('min'), or littlejsDebug().\n" +
+                'One-shot for this page only: append #debug (or #release / #min) to the URL.',
                 'color: #f7c948; font-weight: bold;', 'color: #58a6ff; font-weight: bold;', 'color: #8b949e;'
             );
             return;
@@ -51,7 +55,12 @@
     let stored = null;
     try { stored = localStorage.getItem(KEY); } catch (e) {}     // private-mode / disabled storage
     const param = new URLSearchParams(location.search).get('engine');
+    // #debug / #release / #min hash flag — a one-shot like ?engine=, but trivial to append
+    // to any URL. Word-boundary matched so it composes with other hash flags (e.g. the
+    // cabinet's #demo → #demo,debug) without a false hit from a substring like "min".
+    const hashFlag = (location.hash.match(/\b(debug|release|min)\b/) || [])[1];
     const build = (param && FILES[param]) ? param
+                : (hashFlag && FILES[hashFlag]) ? hashFlag
                 : (stored && FILES[stored]) ? stored
                 : BUILD;
     document.write('<script src="../dist/' + FILES[build] + '?' + VER + '"><\/script>');
