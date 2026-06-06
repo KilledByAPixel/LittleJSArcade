@@ -502,22 +502,28 @@ function demoWantsJump()
     return false;
 }
 
+// Draw an upright (apex-up) triangle of base width `w` / height `h`, base
+// centered on (cx, baseY), through the default atlas (icons.triangle) — one
+// The atlas triangle is inscribed in its tile (base spans .866 of the tile
+// width at .75 of its height), so scale up to put the base/apex exactly where
+// the collision triangle's are: W = w/.866, H = h/.75, centered at baseY + h/3.
+function drawTriIcon(cx, baseY, w, h, color)
+{
+    drawTile(vec2(cx, baseY + h/3), vec2(w / .866, h / .75), atlasIcons.triangle, color);
+}
+
 function drawSpike(s)
 {
-    const a = vec2(s.x,           s.y);
-    const b = vec2(s.x + s.w,     s.y);
-    const c = vec2(s.x + s.w/2,   s.y + s.h);
+    const cx = s.x + s.w/2;
 
-    // glow halo
-    const ga = vec2(s.x - .2,         s.y);
-    const gb = vec2(s.x + s.w + .2,   s.y);
-    const gc = vec2(s.x + s.w/2,      s.y + s.h + .3);
-    drawPoly([ga,gb,gc], hsl(pal.haz, .9, .6, .24));
-
-    // body with crisp bright outline
-    drawPoly([a,b,c], hsl(pal.haz, .9, .62), .08, hsl(pal.haz + .02, 1, .82));
-    // highlight edge
-    drawLine(c, a.lerp(b,.5), .06, hsl(0,0,1,.4));
+    // soft outer glow so the spike lifts off the dark background
+    drawTriIcon(cx, s.y, s.w + .4, s.h + .3, hsl(pal.haz, .9, .6, .24));
+    // bright neon rim (slightly larger than the body — replaces the old outline)
+    drawTriIcon(cx, s.y, s.w + .16, s.h + .12, hsl(pal.haz + .02, 1, .82));
+    // body
+    drawTriIcon(cx, s.y, s.w, s.h, hsl(pal.haz, .9, .62));
+    // highlight edge (apex down the center to the base)
+    drawLine(vec2(cx, s.y + s.h), vec2(cx, s.y), .06, hsl(0,0,1,.4));
 }
 
 function drawBlock(b)
@@ -749,6 +755,10 @@ function buildMenus()
                 onChange: v => setScreenShakeEnabled(v)},
             {type:'button',   label:'FULLSCREEN', onClick: toggleFullscreen},
             {type:'separator'},
+            // dev-only: only present in a LittleJS debug build (e.g. ?engine=debug)
+            ...(debug ? [{type:'button', label:'UNLOCK ALL', title:'Open every level in Classic & Remix (for testing)', onClick: () => {
+                unlocked = {classic: TOTAL_LEVELS, remix: TOTAL_LEVELS}; saveData({unlocked});
+                showMenuToast({icon:'🔓', title:'All levels unlocked'}); }}] : []),
             {type:'button',   label:'RESET PROGRESS', onClick: () => showConfirmDialog({
                 title:'RESET PROGRESS', icon:'⚠️', message:'Re-lock all levels in Classic and Remix?',
                 keepStack: true,   // not a navigation — return to OPTIONS on YES
@@ -879,6 +889,17 @@ function gameUpdate()
         return;
     }
 
+    // dev: [ / ] jump to the previous / next level layout (wraps) — debug build only
+    if (debug && (keyWasPressed('BracketRight') || keyWasPressed('BracketLeft')))
+    {
+        const dir = keyWasPressed('BracketRight') ? 1 : -1;
+        levelIndex = mod(levelIndex + dir, TOTAL_LEVELS);
+        buildLevel();
+        resetGame();
+        announceLevel();
+        return;
+    }
+
     playerStep();
     updateParticles();
 }
@@ -907,14 +928,18 @@ function gameRender()
     // draw solids
     for (const b of solids)
     {
-        // only draw in-view-ish (cheap test)
-        if (b.pos.y + b.size.y/2 <= FLOOR_Y) continue; // skip under-floor visuals
+        if (b.pos.y + b.size.y/2 <= FLOOR_Y) continue;      // skip under-floor visuals
+        if (!isOnScreen(b.pos, b.size.add(vec2(1)))) continue; // cull off-screen (pad for glow)
         drawBlock(b);
     }
 
-    // spikes
+    // spikes (cull off-screen; +1 pads the glow halo so it never pops at the edge)
     for (const s of spikes)
+    {
+        const c = vec2(s.x + s.w/2, s.y + s.h/2);
+        if (!isOnScreen(c, vec2(s.w + 1, s.h + 1))) continue;
         drawSpike(s);
+    }
 
     drawTrail();
     drawPlayer();
