@@ -66,7 +66,6 @@ let respawnTimer = 0; // frames to wait before respawning
 const inCabinet = /demo/.test(location.hash);
 let playerHidden = false; // true when player is dead and waiting to respawn
 let gameOverTimer = 0; // frames before can click to return to title
-let inputMode = 'mouse'; // 'mouse' or 'keyboard'
 
 let invaderDir = 1;
 let invaderSpeed = .12;        // wu/frame; recomputed each frame from alien count
@@ -482,21 +481,14 @@ class Player extends RectObject
             return;
         }
 
-        // Switch input mode based on most recent activity. Stick/D-pad press
-        // counts as keyboard-mode (uses the same "compute X delta" path).
+        // Mouse follows the cursor while it's the active device (gameFx.js
+        // usingMouseInput = most-recently-used); otherwise keyboard/gamepad
+        // integrates a horizontal velocity.
         const stick = gamepadStick(0);
-        const stickActive = abs(stick.x) > .3;
         const kbdX = keyDirection().x;
-        if (kbdX || stickActive)
-            inputMode = 'keyboard';
-
-        // Switch to mouse mode if mouse clicked
-        if (mouseWasPressed(0))
-            inputMode = 'mouse';
-
-        if (inputMode === 'keyboard')
+        if (!usingMouseInput())
         {
-            // Keyboard / gamepad: integrate per-frame horizontal velocity
+            // Keyboard / gamepad: integrate per-frame horizontal velocity.
             // Analog stick adds in; clamp to [-1, 1] so combined isn't faster than max.
             const move = clamp(kbdX + stick.x, -1, 1);
             this.pos.x += move * .55;
@@ -513,7 +505,7 @@ class Player extends RectObject
         // Shooting — arcade single-bullet rule plus a small min-interval so you
         // can't spam-fire by destroying your bullet immediately against a barrier.
         if (this.shotCooldown > 0) this.shotCooldown--;
-        const wantsShoot = inputMode === 'keyboard'
+        const wantsShoot = !usingMouseInput()
             ? (keyIsDown('Space') || keyIsDown('KeyK') || gamepadIsDown(0))
             : mouseIsDown(0);
         const hasActiveBullet = bullets.some(b => !b.destroyed && b.fromPlayer);
