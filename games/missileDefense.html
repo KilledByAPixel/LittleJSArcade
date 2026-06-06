@@ -354,11 +354,11 @@ function drawParticles()
         if (p.additive) { anyAdditive = true; break; }
     if (anyAdditive)
     {
-        setBlendMode(true);
+        setAdditiveBlendMode(true);
         for (const p of particles)
             if (p.additive)
                 drawOneParticle(p);
-        setBlendMode(false);
+        setAdditiveBlendMode(false);
     }
 }
 
@@ -1774,7 +1774,7 @@ function drawFliers()
 function drawExplosions()
 {
     if (!explosions.length) return;
-    setBlendMode(true);
+    setAdditiveBlendMode(true);
     for (const e of explosions)
     {
         if (e.r <= 0) continue;
@@ -1801,7 +1801,7 @@ function drawExplosions()
             drawTile(e.pos, vec2(e.lifetime*8), icons.ring, hsl(.06, 1, .8, .2 * phase));
         }
     }
-    setBlendMode(false);
+    setAdditiveBlendMode(false);
 }
 
 function drawCrosshair(atPos, alpha)

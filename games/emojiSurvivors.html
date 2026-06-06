@@ -472,7 +472,7 @@ function drawSparkleRing(centerPos, radius, phase, speed, color)
 // this many props.
 function drawTwinkles(centerPos, halfSize, count, color, phase)
 {
-    setBlendMode(true);
+    setAdditiveBlendMode(true);
     for (let i = 0; i < count; ++i)
     {
         const ph    = phase + i * 2.3;
@@ -484,7 +484,7 @@ function drawTwinkles(centerPos, halfSize, count, color, phase)
         drawTile(vec2(x, y), vec2(.18 + .06 * alpha), sprites.circle,
                  color.withAlpha(alpha));
     }
-    setBlendMode(false);
+    setAdditiveBlendMode(false);
 }
 
 const enemies = [];
@@ -1646,7 +1646,7 @@ function pushExplosion(pos, radius)
 
 function drawExplosions()
 {
-    setBlendMode(true);
+    setAdditiveBlendMode(true);
     for (let i = explosions.length - 1; i >= 0; --i)
     {
         const e = explosions[i];
@@ -1671,7 +1671,7 @@ function drawExplosions()
             0, CLEAR_BLACK,
             e.pos, e.innerAngle);
     }
-    setBlendMode(false);
+    setAdditiveBlendMode(false);
 }
 
 // Damage every enemy in `radius` and emit a radial chainFlash burst plus

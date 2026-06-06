@@ -344,7 +344,7 @@ function initStarfield()
 function renderStarfield()
 {
     // set additive blending
-    setBlendMode(true);
+    setAdditiveBlendMode(true);
 
     // Deep space background
     drawRect(vec2(0, 0), vec2(500, 300), hsl(.62, .22, .03));
@@ -361,7 +361,7 @@ function renderStarfield()
     stars.draw();
 
     // set normal blending
-    setBlendMode(false);
+    setAdditiveBlendMode(false);
 }
 
 // -------------------------------------------------------------
@@ -716,12 +716,12 @@ function drawPlanet(p)
     const atmoLit = p.owner ? .6 : .4;
 
     // Hazy atmosphere layer BEHIND planet using dot tiles (drawn before planet)
-    setBlendMode(true);  // Enable additive blending
+    setAdditiveBlendMode(true);  // Enable additive blending
     drawDotSprite(p.pos, p.radius*2 + 2.5, hsl(hue, atmoSat, atmoLit, .15));
     drawDotSprite(p.pos, p.radius*2 + 2.1, hsl(hue, atmoSat, atmoLit + .1, .20));
     drawDotSprite(p.pos, p.radius*2 + 1.5, hsl(hue, atmoSat, atmoLit + .15, .25));
     drawDotSprite(p.pos, p.radius*2, base, .14, outline);
-    setBlendMode(false);  // Disable additive blending
+    setAdditiveBlendMode(false);  // Disable additive blending
 
     // Draw main planet circle
     drawCircleSprite(p.pos, p.radius*2, base, .14, outline);
