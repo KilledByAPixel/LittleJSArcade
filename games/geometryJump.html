@@ -38,7 +38,6 @@ let solids = [];
 let spikes = [];
 let endX = 0;
 let levelStartX = 2;
-let particles = [];
 let trail = [];       // glowing motion trail behind the cube
 let campaignComplete = false;
 
@@ -75,7 +74,7 @@ let atlasIcons;
 function resetGame()
 {
     state = 'play';
-    particles.length = 0;
+    clearParticles();
     trail.length = 0;
 
     player = {
@@ -231,38 +230,9 @@ function killPlayer()
     addScreenShake(.7, .4);
     trail.length = 0;
 
-    // shatter the cube into spinning neon fragments
-    for (let i=0; i<14; ++i)
-    {
-        const a = rand(PI*2);
-        const sp = rand(.45, .15);
-        particles.push({
-            pos: player.pos.add(randVec2(.2)),
-            vel: vec2(cos(a), sin(a)).scale(sp).add(vec2(0, .15)),
-            life: rand(55, 35),
-            maxLife: 55,
-            size: rand(.30, .14),
-            angle: rand(PI*2),
-            spin: rand(-.4, .4),
-            hue: .90,
-        });
-    }
-    // bright spark flecks
-    for (let i=0; i<14; ++i)
-    {
-        const a = rand(PI*2);
-        const sp = rand(.55, .25);
-        particles.push({
-            pos: player.pos.copy(),
-            vel: vec2(cos(a), sin(a)).scale(sp),
-            life: rand(28, 14),
-            maxLife: 28,
-            size: rand(.12, .05),
-            angle: 0,
-            spin: 0,
-            hue: .95,
-        });
-    }
+    // shatter the cube into spinning neon fragments + bright spark flecks
+    partBurst(player.pos, 14, .3, .75, .22, .073, .4, .90, .90, .2);
+    partBurst(player.pos, 14, .4, .35, .085, .048, 0, .95, .95, 0);
 }
 
 function winGame()
@@ -282,22 +252,8 @@ function winGame()
         if (next > (unlocked[mode] || 1)) { unlocked[mode] = next; saveData({unlocked}); }
     }
 
-    // confetti burst
-    for (let i=0; i<30; ++i)
-    {
-        const a = rand(PI*2);
-        const sp = rand(.6, .2);
-        particles.push({
-            pos: player.pos.add(randVec2(.3)),
-            vel: vec2(cos(a), sin(a)).scale(sp).add(vec2(0, .25)),
-            life: rand(70, 40),
-            maxLife: 70,
-            size: rand(.22, .10),
-            angle: rand(PI*2),
-            spin: rand(-.5, .5),
-            hue: rand(),
-        });
-    }
+    // confetti burst (full-rainbow hue range)
+    partBurst(player.pos, 30, .4, .92, .16, .038, .5, 0, 1, .3);
 }
 
 // brief corner toast announcing the level + its theme name
@@ -327,41 +283,49 @@ function advanceLevel()
         quitToTitle(titleBackdrop);   // campaign finished -> back to title
 }
 
-// spawn a quick puff of dust at a contact point
-function spawnDust(pos, count, spread, hue=.62)
+// One-shot juice burst via the engine's ParticleEmitter (was a hand-rolled array).
+// Square particles that arc down via the global gravity (set in gameInit to
+// GRAVITY*.35), drag .97, shrink, optionally spin, and fade out. hueA..hueB is
+// the start-color hue range (confetti spans the whole wheel).
+function partBurst(pos, count, speed, life, sizeStart, sizeEnd, spin, hueA, hueB, emitR)
 {
-    for (let i=0; i<count; ++i)
-    {
-        const a = rand(PI*2);
-        const sp = rand(spread, spread*.3);
-        particles.push({
-            pos: pos.add(randVec2(.15)),
-            vel: vec2(cos(a), sin(a)*.6 + .04).scale(sp),
-            life: rand(22, 12),
-            maxLife: 22,
-            size: rand(.16, .07),
-            angle: 0,
-            spin: 0,
-            hue,
-        });
-    }
+    const cA = hsl(hueA, .80, .65), cB = hsl(hueB, .80, .65);
+    new ParticleEmitter(
+        pos, 0,                  // pos, angle
+        emitR,                   // emitSize (spawn jitter radius)
+        count/600, 600,          // emitTime, emitRate -> ~count particles
+        PI,                      // emitConeAngle (full radial)
+        undefined,               // tileInfo (untextured square)
+        cA, cB,                  // colorStartA/B (hue range)
+        cA.scale(1, 0), cB.scale(1, 0), // colorEndA/B (fade alpha to 0)
+        life,                    // particleTime (seconds)
+        sizeStart, sizeEnd,      // size (linear approx of the *.98 shrink)
+        speed,                   // speed (per-frame)
+        spin, .97, 1,            // angleSpeed, damping (drag), angleDamping
+        1,                       // gravityScale (global gravity = GRAVITY*.35)
+        spin ? PI : 0,           // particleConeAngle (random start angle if spinning)
+        .1,                      // fadeRate
+        .4,                      // randomness
+        false, false             // collideTiles, additive
+    );
 }
 
+// Destroy any live burst emitters so a reset leaves a clean field.
+function clearParticles()
+{
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy();
+}
+
+// quick puff of dust at a contact point
+function spawnDust(pos, count, spread, hue=.62)
+{
+    partBurst(pos, count, spread*.65, .28, .115, .074, 0, hue, hue, .15);
+}
+
+// Now only fades the player's motion trail; bursts moved to ParticleEmitter.
 function updateParticles()
 {
-    for (let i=particles.length; i--;)
-    {
-        const p = particles[i];
-        p.life -= 1;
-        p.vel.y += GRAVITY * .35;
-        p.vel = p.vel.scale(.97);
-        p.pos = p.pos.add(p.vel);
-        p.angle += p.spin || 0;
-        p.size *= .98;
-        if (p.life <= 0 || p.size < .02)
-            particles.splice(i, 1);
-    }
-
     // fade the motion trail
     for (let i=trail.length; i--;)
     {
@@ -670,15 +634,6 @@ function drawFinish()
         drawRect(vec2(endX + .55, 6.6 - i*.5), vec2(.5, .5), (i%2) ? hsl(0,0,1) : hsl(0,0,.1));
 }
 
-function drawParticles()
-{
-    for (const p of particles)
-    {
-        const a = clamp(p.life / (p.maxLife || 40), 0, 1);
-        drawRect(p.pos, vec2(p.size), hsl(p.hue ?? .90, .80, .65, a), p.angle || 0);
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 // Menus
 
@@ -851,6 +806,11 @@ function gameInit()
     unlocked.remix   = unlocked.remix   ?? 1;
     setShowSplashScreen(false);
 
+    // Juice bursts run on the engine's ParticleEmitter, which reads gravity from
+    // the global `gravity`. Gameplay keeps its own GRAVITY const, so point the
+    // global at the old particle pull (GRAVITY*.35) just for the emitters.
+    gravity = vec2(0, GRAVITY * .35);
+
     // sprite atlas: bake the default white-on-transparent icon set into tiles
     // 0-15 so drawTile(pos, size, atlasIcons.NAME, color) is available for art.
     initDrawToTexture();
@@ -962,7 +922,6 @@ function gameRender()
         drawSpike(s);
 
     drawTrail();
-    drawParticles();
     drawPlayer();
 }
 
