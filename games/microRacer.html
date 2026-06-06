@@ -302,13 +302,6 @@ function buildTileLayer()
 ///////////////////////////////////////////////////////////////////////////////
 // car
 
-function wrapAngle(a)
-{
-    while (a >  PI) a -= 2*PI;
-    while (a < -PI) a += 2*PI;
-    return a;
-}
-
 function ordinalSuffix(n)
 {
     const v = n % 100;
@@ -522,7 +515,7 @@ class Car extends Box2dObject
         );
         const diff = targetWorld.subtract(this.pos);
         const desired = diff.angle();
-        const delta = wrapAngle(desired - this.angle);
+        const delta = distanceAngle(desired, this.angle);
         const turn = clamp(delta / 0.18, -1, 1);
 
         // ease off throttle on hard turns

@@ -1365,9 +1365,7 @@ function gameRender()
         const dist = toS.length();
         if (dist > MAX_DIST || dist < .1) return;
         // toS.angle() is atan2(x, y): 0 = +Y, clockwise positive (LittleJS convention)
-        let relAng = toS.angle() - playerAngle;
-        while (relAng >  PI) relAng -= 2 * PI;
-        while (relAng < -PI) relAng += 2 * PI;
+        let relAng = distanceAngle(toS.angle(), playerAngle);
         if (abs(relAng) > FOV / 2 + .8) return;     // very off-screen
         const perpDist = dist * cos(relAng);
         if (perpDist < .15) return;
