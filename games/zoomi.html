@@ -552,9 +552,9 @@ async function gameInit()
 ///////////////////////////////////////////////////////////////////////////////
 function fitCameraToCanvas()
 {
-    // Fit the spiral (outerR + a small margin) into the smaller canvas dimension.
-    const fitR = SPIRAL_OUTER_R + 1;
-    cameraScale = min(mainCanvasSize.x, mainCanvasSize.y) / (2 * fitR);
+    // Fit the spiral (outerR + a 1-unit margin) into the canvas via the shared
+    // helper. Centered at the origin (the game never moves cameraPos).
+    cameraFit(vec2(), vec2(2 * SPIRAL_OUTER_R), { margin: 1 });
 }
 
 function gameUpdate()
