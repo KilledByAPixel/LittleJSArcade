@@ -157,7 +157,7 @@ function roadCenterX(y)
         if (y >= a.y && y <= b.y)
         {
             const t = (y - a.y) / (b.y - a.y);
-            const s = t * t * (3 - 2*t); // smoothstep — no kinks at anchors
+            const s = smoothStep(t); // smoothstep — no kinks at anchors
             return lerp(a.x, b.x, s);
         }
     }
@@ -737,7 +737,7 @@ class Car extends EngineObject
 
         // attenuate heading toward the road's local tangent angle
         const targetAngle = roadAngleAtY(this.pos.y);
-        this.angle = lerp(this.angle, targetAngle, .15);
+        this.angle = lerpAngle(this.angle, targetAngle, .15);
 
         // enforcer fires periodically toward player; confused enforcers miss wildly
         if (this.fireTimer && this.fireTimer.elapsed() && player && !gameOver)
@@ -950,7 +950,7 @@ class PlayerCar extends EngineObject
         this.smoothedVX = lerp(this.smoothedVX, vx, .22);
         const LEAN_MAX = PI/6;                  // 30° cap so the car never points sideways
         const targetAngle = clamp(this.smoothedVX * .035, -LEAN_MAX, LEAN_MAX);
-        this.angle = lerp(this.angle, targetAngle, .22);
+        this.angle = lerpAngle(this.angle, targetAngle, .22);
 
         // shooting — bullets always fly straight ahead in the car's heading direction
         // gamepad: X(2) held to fire (alongside Space / mouse)

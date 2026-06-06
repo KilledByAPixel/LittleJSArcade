@@ -431,7 +431,7 @@ function updateRover(dt)
 
         rover.pos.x += rover.speed * cos(ang) * dt;
         rover.pos.y = groundY(rover.pos.x) + RIDE_HEIGHT;
-        rover.angle = lerp(rover.angle, groundAngle(rover.pos.x), 0.25);
+        rover.angle = lerpAngle(rover.angle, groundAngle(rover.pos.x), 0.25);
 
         // kick up dust, more the faster we go
         if (rand() < rover.speed/TUNE.maxSpeed * 0.8)
@@ -457,7 +457,7 @@ function updateRover(dt)
 
         // tilt toward velocity in the air
         const target = clamp(atan2(rover.vel.y, abs(rover.vel.x)+0.1), -0.6, 0.6);
-        rover.angle = lerp(rover.angle, target, 0.12);
+        rover.angle = lerpAngle(rover.angle, target, 0.12);
 
         const gy = groundY(rover.pos.x) + RIDE_HEIGHT;
         if (rover.pos.y <= gy && rover.vel.y <= 0)

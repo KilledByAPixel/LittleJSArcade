@@ -89,8 +89,7 @@ function distPointToSegment(p, a, b)
 
 function smoothstep01(t)
 {
-    t = clamp(t, 0, 1);
-    return t*t*(3 - 2*t);
+    return smoothStep(clamp(t, 0, 1));
 }
 
 function inStrikeZone(p)

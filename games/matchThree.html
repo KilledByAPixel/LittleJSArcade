@@ -587,7 +587,7 @@ function gameRender()
     if (swapAnim)
     {
         const t01 = min(swapAnim.t / swapTime, 1);
-        const ease = t01 * t01 * (3 - 2*t01);
+        const ease = smoothStep(t01);
         swapProgress = swapAnim.reversing ? 1 - ease : ease;
     }
 

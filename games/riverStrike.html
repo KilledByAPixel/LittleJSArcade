@@ -307,7 +307,7 @@ function gameUpdate()
     playerPos.y += speed;
 
     // bank into the direction of movement (positive velX should tilt right)
-    playerAngle = lerp(playerAngle, playerVelX*1.2, .2);
+    playerAngle = lerpAngle(playerAngle, playerVelX*1.2, .2);
 
     // shoot (hold to keep firing; cooldown controls rate)
     // gamepad: A (button 0) held also fires
