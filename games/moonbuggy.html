@@ -56,7 +56,7 @@ let damageFlash;
 let kills;
 let bestDist;         // furthest x reached this run (for distance score)
 
-let rocks, ufos, bullets, bombs, particles, powerups;
+let rocks, ufos, bullets, bombs, powerups;
 let nextRockX, nextUfoX;
 
 let sJump, sShoot, sBoom, sThud, sHit, sHeal;
@@ -92,23 +92,44 @@ function playSoundSafe(s) { try { s && s.play && s.play(); } catch (e) {} }
 ///////////////////////////////////////////////////////////////////////////////
 // --- particles (per-frame velocity, engine convention)
 
+// One-shot burst via the engine's ParticleEmitter (was a hand-rolled array).
+// Atlas-circle particles that shrink and shift colA->colB, arcing via the
+// global gravity (gravityScale = the old per-particle grav). opts.dir aims a
+// directional cone; opts.additive glows (explosions/muzzle, not dust).
 function burst(pos, count, speed, colA, colB, opts = {})
 {
     const sizeBase = opts.size  || 0.14;
     const grav     = opts.grav  != null ? opts.grav : 0.004;
     const lifeMax  = opts.life  || 50;
     const spread   = opts.dir;  // {ang, arc} for directional bursts
-    for (let i = 0; i < count; ++i)
-    {
-        const a   = spread ? spread.ang + (rand()-0.5)*spread.arc : rand(PI*2);
-        const spd = speed * (0.4 + rand());
-        particles.push({
-            pos: pos.copy(),
-            vel: vec2(cos(a)*spd, sin(a)*spd),
-            life: lifeMax*(0.5+rand()*0.5), max: lifeMax,
-            colA, colB, size: sizeBase*(0.7+rand()*0.8), grav,
-        });
-    }
+    const angle    = spread ? PI/2 - spread.ang : 0;  // (cos,sin) dir -> emitter (sin,cos)
+    const cone     = spread ? spread.arc/2 : PI;
+    const fade     = rgb(colB.r, colB.g, colB.b, 0);
+    new ParticleEmitter(
+        pos, angle,              // pos, angle (directional bursts aim via angle)
+        0,                       // emitSize (point)
+        count/600, 600,          // emitTime, emitRate -> ~count particles
+        cone,                    // emitConeAngle (arc, or full circle)
+        icons.circle,            // tileInfo (atlas circle)
+        colA, colA,              // colorStartA/B
+        fade, fade,              // colorEndA/B (lerp to colB + fade out)
+        lifeMax/60,              // particleTime (frames -> seconds)
+        sizeBase*1.3, sizeBase*0.2, // sizeStart, sizeEnd (was size*(1.2-t))
+        speed*0.9,               // speed (per-frame; was speed*(0.4+rand))
+        0, .98, 1,               // angleSpeed, damping, angleDamping
+        grav,                    // gravityScale (global gravity vec2(0,-1) => vel.y-=grav)
+        0,                       // particleConeAngle
+        .12,                     // fadeRate
+        .5,                      // randomness
+        false, !!opts.additive   // collideTiles, additive (glow for explosions)
+    );
+}
+
+// Destroy any live burst emitters so a reset leaves a clean field.
+function clearParticles()
+{
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -147,7 +168,7 @@ function resetGame()
     shootTimer = 0;
     aimDir = vec2(1, 0.6).normalize();
 
-    rocks = []; ufos = []; bullets = []; bombs = []; particles = []; powerups = [];
+    rocks = []; ufos = []; bullets = []; bombs = []; clearParticles(); powerups = [];
 
     const x0 = 6;
     rover = {
@@ -177,7 +198,7 @@ function takeDamage(atPos, amount = 1)
     rover.speed *= 0.45;
     addScreenShake(0.6, 0.4);
     playSoundSafe(sHit);
-    burst(atPos, 16, 0.18, hsl(.05,.9,.65), hsl(.05,.9,.35), {life:45});
+    burst(atPos, 16, 0.18, hsl(.05,.9,.65), hsl(.05,.9,.35), {life:45, additive:true});
     if (health <= 0) die(atPos);
 }
 
@@ -188,7 +209,7 @@ function die(atPos)
     deathTimer = 0;
     addScreenShake(1.4, 0.7);
     playSoundSafe(sBoom);
-    burst(atPos, 60, 0.35, hsl(.08,.9,.7), hsl(.0,.9,.3), {life:70, size:0.22});
+    burst(atPos, 60, 0.35, hsl(.08,.9,.7), hsl(.0,.9,.3), {life:70, size:0.22, additive:true});
 }
 
 function heal(amount)
@@ -198,7 +219,7 @@ function heal(amount)
     if (health > before)
     {
         playSoundSafe(sHeal);
-        burst(rover.pos.add(vec2(0,0.3)), 12, 0.12, hsl(.33,.8,.7), hsl(.33,.8,.4), {life:40});
+        burst(rover.pos.add(vec2(0,0.3)), 12, 0.12, hsl(.33,.8,.7), hsl(.33,.8,.4), {life:40, additive:true});
     }
 }
 
@@ -211,7 +232,7 @@ function fire()
     bullets.push({ pos: muzzle.add(dir.scale(0.9)), vel: dir.scale(BULLET_SPEED), life: 1.4 });
     playSoundSafe(sShoot);
     burst(muzzle.add(dir.scale(1.0)), 4, 0.12, hsl(.14,.9,.8), hsl(.08,.9,.5),
-        {life:14, dir:{ang:atan2(dir.y, dir.x), arc:0.6}, grav:0});
+        {life:14, dir:{ang:atan2(dir.y, dir.x), arc:0.6}, grav:0, additive:true});
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -223,6 +244,13 @@ function gameInit()
 {
     saveDataInit('moonPatrol');
     icons = initDefaultAtlas();
+
+    // burst() particles run on the engine's ParticleEmitter; its gravity comes
+    // from the global `gravity`. Set it to unit-down so each emitter's
+    // gravityScale equals the old per-particle `grav` (vel.y -= grav). Nothing
+    // else reads it (rover/rocks/bullets all use their own motion).
+    gravity = vec2(0, -1);
+
     document.addEventListener('contextmenu', e => e.preventDefault());
 
     // gamepad: on-screen touch pad — right stick aims the turret, face buttons jump/fire
@@ -310,7 +338,6 @@ function gameUpdate()
     if (state == 'dead')
     {
         deathTimer += dt;
-        updateEffects(dt);
         if (deathTimer > 0.9 && !isMenuVisible())
             showGameOverDialog({
                 score: round(bestDist),
@@ -354,7 +381,6 @@ function gameUpdate()
     updateUfos(dt, d);
     updateBombs(dt);
     updatePowerups(dt);
-    updateEffects(dt);
     checkCollisions();
 
     // timers
@@ -476,7 +502,7 @@ function updateBullets(dt)
                 kills++;
                 addScreenShake(0.3, 0.25);
                 playSoundSafe(sBoom);
-                burst(u.pos, 24, 0.22, hsl(.82,.6,.7), hsl(.6,.4,.6), {life:50, size:0.18});
+                burst(u.pos, 24, 0.22, hsl(.82,.6,.7), hsl(.6,.4,.6), {life:50, size:0.18, additive:true});
                 if (rand() < 0.4) spawnPowerup(u.pos, 2);
                 break;
             }
@@ -514,7 +540,7 @@ function updateBombs(dt)
         if (b.pos.y <= groundY(b.pos.x) + 0.2)
         {
             b.alive = false;
-            burst(b.pos, 14, 0.18, hsl(.05,.9,.65), hsl(.08,.9,.4), {life:36});
+            burst(b.pos, 14, 0.18, hsl(.05,.9,.65), hsl(.08,.9,.4), {life:36, additive:true});
             playSoundSafe(sThud);
         }
     }
@@ -535,18 +561,6 @@ function updatePowerups(dt)
             p.life = 0;
         }
     }
-}
-
-function updateEffects(dt)
-{
-    for (const p of particles)
-    {
-        p.life -= 1;
-        p.vel.y -= p.grav;
-        p.vel = p.vel.scale(0.98);
-        p.pos = p.pos.add(p.vel);
-    }
-    particles = particles.filter(p => p.life > 0);
 }
 
 function checkCollisions()
@@ -805,12 +819,6 @@ function drawEntities()
         drawTile(b.pos, vec2(0.18), icons.circle, hsl(.14,1,.85));
     }
 
-    // particles
-    for (const p of particles)
-    {
-        const t = clamp(1 - p.life/p.max, 0, 1);
-        drawTile(p.pos, vec2(p.size*(1.2-t)), icons.circle, p.colA.lerp(p.colB, t));
-    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
