@@ -40,9 +40,7 @@ let gameState = 'playing'; // 'playing', 'crashed'
 let gameStarted = false;
 
 let obstacles = [];  // {pos, size, type: 'tree'|'rock'|'bump'|'ramp'}
-let particles = [];  // snow spray particles
-
-let snowTimer = 0;
+let snowEmitter;     // persistent snow-spray trail (ParticleEmitter)
 
 // sounds
 let sfxWoosh, sfxCrash, sfxStart;
@@ -138,16 +136,16 @@ class Player
             }
         }
 
-        // snow spray particles
+        // snow spray — drive the persistent trail emitter behind the skier
         if (!this.isJumping && this.vel.length() > 2)
         {
-            snowTimer -= timeDelta;
-            if (snowTimer <= 0)
-            {
-                snowTimer = .04;
-                this.spawnSnowSpray();
-            }
+            const backDir = vec2(cos(this.angle + PI), sin(this.angle + PI));
+            snowEmitter.pos = this.pos.add(backDir.scale(.4));
+            snowEmitter.angle = -this.angle - PI/2;  // emit backward (engine sin/cos)
+            snowEmitter.emitRate = 50;
         }
+        else
+            snowEmitter.emitRate = 0;
     }
 
     jump()
@@ -170,27 +168,6 @@ class Player
         sfxWoosh && sfxWoosh.play(this.pos);
     }
 
-    spawnSnowSpray()
-    {
-        const count = 2;
-        const backDir = vec2(cos(this.angle + PI), sin(this.angle + PI));
-        
-        for (let i = 0; i < count; i++)
-        {
-            const spread = rand(-.3, .3);
-            const vel = backDir.scale(rand(2, 4)).add(vec2(spread, spread));
-            
-            particles.push({
-                pos: this.pos.add(backDir.scale(.4)),
-                vel: vel,
-                life: rand(.3, .6),
-                maxLife: .6,
-                size: rand(.15, .3),
-                color: hsl(0, 0, 1, .8)
-            });
-        }
-    }
-
     crash()
     {
         if (this.crashed) return;
@@ -199,20 +176,24 @@ class Player
         submitBestScore(floor(distance));
         sfxCrash && sfxCrash.play(this.pos);
 
-        // crash particles
-        for (let i = 0; i < 30; i++)
-        {
-            const angle = rand(0, PI * 2);
-            const speed = rand(4, 12);
-            particles.push({
-                pos: this.pos.copy(),
-                vel: vec2(cos(angle), sin(angle)).scale(speed),
-                life: rand(.5, 1.2),
-                maxLife: 1.2,
-                size: rand(.2, .4),
-                color: hsl(.6, .8, .6, 1)
-            });
-        }
+        // crash particles — one-shot radial burst of icy spray
+        new ParticleEmitter(
+            this.pos, 0,         // pos, angle
+            0,                   // emitSize (point)
+            30/600, 600,         // emitTime, emitRate -> 30
+            PI,                  // emitConeAngle (radial)
+            icons.circle,        // tileInfo (atlas circle)
+            hsl(.6,.8,.6), hsl(.6,.8,.6),       // cyan
+            hsl(.6,.8,.6,0), hsl(.6,.8,.6,0),   // fade to transparent
+            1.2,                 // particleTime (was rand .5-1.2)
+            .3, .3,              // sizeStart, sizeEnd (was rand .2-.4)
+            8/60,                // speed (per-frame; was per-sec rand 4-12)
+            0, .95, 1,           // angleSpeed, damping, angleDamping
+            1,                   // gravityScale (global gravity = -8/sec^2)
+            0, .15, .45,         // particleConeAngle, fadeRate, randomness
+            false, false         // collideTiles, additive
+        );
+        snowEmitter.emitRate = 0;  // stop the trail on crash
     }
 
     render()
@@ -471,34 +452,32 @@ function renderObstacles()
 ///////////////////////////////////////////////////////////////////////////////
 // Particles
 
-function updateParticles()
+// Persistent snow-spray trail emitter (emitRate driven by Player.update; 0=off).
+function makeSnowEmitter()
 {
-    for (let i = particles.length - 1; i >= 0; i--)
-    {
-        const p = particles[i];
-        p.life -= timeDelta;
-        
-        if (p.life <= 0)
-        {
-            particles.splice(i, 1);
-            continue;
-        }
-
-        p.pos = p.pos.add(p.vel.scale(timeDelta));
-        p.vel = p.vel.scale(.95); // slow down
-        p.vel.y -= 8 * timeDelta; // gravity
-    }
+    return new ParticleEmitter(
+        vec2(), 0,           // pos, angle (driven each frame)
+        0,                   // emitSize (point)
+        0, 0,                // emitTime (0 = forever), emitRate (driven; 0 = off)
+        .5,                  // emitConeAngle (spray spread)
+        icons.circle,        // tileInfo (atlas circle)
+        hsl(0,0,1,.8), hsl(0,0,1,.8),  // white snow
+        hsl(0,0,1,0), hsl(0,0,1,0),    // fade to transparent
+        .6,                  // particleTime (~rand .3-.6)
+        .22, .22,            // sizeStart, sizeEnd (was rand .15-.3, constant)
+        3/60,                // speed (per-frame; was per-sec rand 2-4)
+        0, .95, 1,           // angleSpeed, damping, angleDamping
+        1,                   // gravityScale (global gravity = -8/sec^2)
+        0, .15, .4,          // particleConeAngle, fadeRate, randomness
+        false, false         // collideTiles, additive (snow = matte)
+    );
 }
 
-function renderParticles()
+// Destroy all live emitters (snow trail + crash bursts) for a clean reset.
+function clearParticles()
 {
-    for (const p of particles)
-    {
-        const alpha = p.life / p.maxLife;
-        const c = p.color.copy();
-        c.a *= alpha;
-        drawTile(p.pos, vec2(p.size), icons.circle, c);
-    }
+    for (const o of engineObjects)
+        if (o instanceof ParticleEmitter) o.destroy(true);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -514,8 +493,8 @@ function resetGame()
     gameStarted = true;
 
     obstacles = [];
-    particles = [];
-    snowTimer = 0;
+    clearParticles();
+    snowEmitter = makeSnowEmitter();
 
     // spawn initial obstacles around spawn
     spawnObstaclesAround(player.pos);
@@ -530,6 +509,12 @@ async function gameInit()
 {
     saveDataInit('skiing');
     icons = initDefaultAtlas();
+
+    // Snow-spray + crash particles run on the engine's ParticleEmitter, whose
+    // gravity comes from the global `gravity`. The skier's jump uses its own
+    // GRAVITY const, so set the global to the old particle pull (-8/sec^2 in
+    // the emitter's per-frame model). No EngineObjects read it.
+    gravity = vec2(0, -8/3600);
 
     // sounds
     sfxWoosh = new SoundGenerator({frequency: 180, release: .15, noise: .1, volume: .3});
@@ -602,8 +587,6 @@ function gameUpdate()
 
     if (gameState === 'crashed')
     {
-        updateParticles();
-
         if (keyWasPressed('Space') || keyWasPressed('Enter') || keyWasPressed('KeyR')
             || gamepadWasPressed(0) || gamepadWasPressed(9)) // gamepad A or Start
             resetGame();
@@ -619,7 +602,6 @@ function gameUpdate()
 
         player.update();
         updateObstacles();
-        updateParticles();
     }
 }
 
@@ -643,7 +625,6 @@ function gameRender()
     if (gameStarted)
     {
         renderObstacles();
-        renderParticles();
         player.render();
     }
 }
