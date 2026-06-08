@@ -35,7 +35,7 @@ const engineName = 'LittleJS';
  *  @type {string}
  *  @default
  *  @memberof Engine */
-const engineVersion = '1.18.18';
+const engineVersion = '1.18.19';
 
 /** Frames per second to update
  *  @type {number}
@@ -3669,8 +3669,6 @@ class EngineObject
 
                 // notify objects of collision and check if should be resolved
                 const collide1 = this.collideWithObject(o);
-                // callback may have destroyed us; stop resolving against more objects
-                if (this.destroyed) return;
                 const collide2 = o.collideWithObject(this);
                 if (!collide1 || !collide2) continue;
 
