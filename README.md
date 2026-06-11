@@ -1,10 +1,10 @@
 # 🕹️ LittleJS Arcade
 
-![LittleJS Logo](images/screenshots.png)
-
 *50+ classic games built with LittleJS. Each one is a single, self-contained file and playable instantly in your browser.*
 
 ## 🎮 [▶ Play in LittleJS Arcade](https://killedbyapixel.github.io/LittleJSArcade)
+
+![LittleJS Logo](images/screenshots.png)
 
 The **LittleJS Arcade** is a growing collection of arcade games — shooters, puzzlers, board games, racers, physics toys, and more — all built with the [LittleJS](https://github.com/KilledByAPixel/LittleJS) engine. There's nothing to install: every game runs right in your browser, and because each one is open source, you can fork any of them as a starting point for your own.
 
