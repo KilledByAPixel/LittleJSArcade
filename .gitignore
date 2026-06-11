@@ -8,12 +8,8 @@ docs/
 .github/
 .vscode/
 
-# personal Claude Code settings (machine-specific)
-.claude/settings.json
-.claude/settings.local.json
-
-# runtime data from skills (per-session scratch dirs)
-.claude/skills/*/sessions/
+# Claude Code settings and skills (local only)
+.claude/
 
 # playwright-mcp scratch dir
 .playwright-mcp/
