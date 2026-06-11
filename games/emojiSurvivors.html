@@ -4287,14 +4287,21 @@ function gameUpdatePost()
     // clears the "was pressed" bit in inputUpdatePost which runs after
     // gameUpdatePost but before gameRenderPost. gameUpdatePost runs every
     // frame including while paused, so this works on the game-over menu.
-    if (keyWasPressed('KeyT')) playerAI = !playerAI;
+    // These are dev/test toggles, so they're gated to the engine debug build
+    // (like the console cheat helpers below) — the shipped release never
+    // exposes them.
+    if (debug)
+    {
+        // AI auto-player toggle (T) — useful for balance testing.
+        if (keyWasPressed('KeyT')) playerAI = !playerAI;
 
-    // Debug — while god mode is on, E drops a test explosion at the mouse
-    // cursor. Same shape as a Bomb blast: AOE damage + starburst + radial
-    // flash. Lets us QA the explosion visuals without waiting for a real
-    // bomb to land. mousePos is already in world space.
-    if (godMode && keyWasPressed('KeyE'))
-        radialBlast(mousePos.copy(), 4, 50);
+        // While god mode is on, E drops a test explosion at the mouse cursor.
+        // Same shape as a Bomb blast: AOE damage + starburst + radial flash.
+        // Lets us QA the explosion visuals without waiting for a real bomb to
+        // land. mousePos is already in world space.
+        if (godMode && keyWasPressed('KeyE'))
+            radialBlast(mousePos.copy(), 4, 50);
+    }
 
     if (gameOver &&
         (keyWasPressed('KeyR') || (playerAI && gameOverFrameCount > 90)))
