@@ -1031,8 +1031,7 @@ function gameUpdate()
         startLevel();
     }
     
-    // Debug: hold X to kill enemies quickly for testing (only when the debug
-    // overlay is enabled — press ` / ~ to toggle it on).
+    // Debug: hold X to kill enemies quickly for testing (debug build only).
     if (debug && keyIsDown('KeyX') && aliens.length > 0 && frame % 5 === 0)
     {
         const a = aliens[0];

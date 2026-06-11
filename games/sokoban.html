@@ -513,10 +513,10 @@ function gameUpdate()
         undo();
     }
     
-    // Level skip (for testing)
-    if (keyWasPressed('KeyN'))
+    // Level skip (for testing) — debug build only
+    if (debug && keyWasPressed('KeyN'))
         nextLevel();
-    if (keyWasPressed('KeyP'))
+    if (debug && keyWasPressed('KeyP'))
         loadLevel(max(0, currentLevel - 1));
     
     // Movement with timing

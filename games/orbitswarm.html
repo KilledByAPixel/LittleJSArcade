@@ -894,8 +894,8 @@ function gameUpdate()
     if (!isPlaying())
         return;
 
-    // Debug toggle: show troop/defense stats on all planets
-    if (keyWasPressed('KeyG'))
+    // Debug toggle: show troop/defense stats on all planets (debug build only)
+    if (debug && keyWasPressed('KeyG'))
         debugShowStats = !debugShowStats;
 
     if (keyWasPressed('KeyR'))

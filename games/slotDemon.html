@@ -830,8 +830,10 @@ async function gameInit()
     window.BALANCE = BALANCE;
 
     // Dev cheat: type giveMoney() in the browser console (or giveMoney(50000)
-    // for a specific amount). Adds cash and saves so it persists.
-    window.giveMoney = (amount = 100000) => { cash += amount; saveGame(); return cash; };
+    // for a specific amount). Adds cash and saves so it persists. Debug build
+    // only — never exposed in the shipped release.
+    if (debug)
+        window.giveMoney = (amount = 100000) => { cash += amount; saveGame(); return cash; };
 
     tweakDivider('Slot Demon');
     tweak('BALANCE.decayRate',    {min:0.005, max:0.2});
