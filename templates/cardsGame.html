@@ -56,6 +56,7 @@ const StackType = { Stock: 0, Waste: 1, Tableau: 2 };
 function tableauOffset(index) { return vec2(0, -CARD_PITCH_Y * index); }
 
 let stacks       = [];
+let stockStack, wasteStack;     // stock (deck) + waste piles, built in buildTable
 let handStack    = null;        // cards currently glued to the cursor
 let pickupOrigin = null;
 let mouseHoldPos = vec2();
@@ -97,8 +98,8 @@ function buildTable()
         cascades.push(c);
         stacks.push(c);
     }
-    window.stockStack = stock;
-    window.wasteStack = waste;
+    stockStack = stock;
+    wasteStack = waste;
 
     // Deal 4 face-up cards into each column; the rest become the face-down stock.
     const deck = shuffledDeck();

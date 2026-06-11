@@ -145,18 +145,19 @@ let demoPlayer = null;       // CardDemoPlayer (created in gameInit only when #d
 // SoundGenerator options (from templates/gameFx.js):
 //   volume, randomness, frequency, attack, release, shapeCurve, slide,
 //   pitchJump, pitchJumpTime, repeatTime, noise, bitCrush, delay
-// Exposed via window globals so the rest of the file (and the demo player) can
-// reach them. Tune by ear during polish — these are starting points.
+// Module-level so the rest of the file (and the demo-triggered game code) can
+// reach them; constructed in setupSounds (called from gameInit). Tune by ear.
+let sndPickup, sndPlace, sndInvalid, sndFoundation, sndWin;
 function setupSounds()
 {
     // Match the engine's master volume to whatever the options slider starts at,
     // so the very first menu sound plays at the user-visible volume.
     setSoundVolume(.8);
-    window.sndPickup     = new SoundGenerator({ frequency: 400, attack: 0, release: 0.005, volume: 0.4, noise:2 });
-    window.sndPlace      = new SoundGenerator({ frequency: 200, attack: 0, release: 0.01, volume: 0.4, noise:2 });
-    window.sndInvalid    = new SoundGenerator({ frequency: 110, attack: 0.005, release: 0.14, shapeCurve: 2, noise: 0.4, slide: -2, volume: 0.4 });
-    window.sndFoundation = new SoundGenerator({ frequency: 880, attack: 0.002, release: 0.08, volume: 0.4 });
-    window.sndWin        = new SoundGenerator({ frequency: 440, attack: 0.02, release: 0.5, pitchJump: 660, pitchJumpTime: 0.2, repeatTime: 0.25, volume: 0.5 });
+    sndPickup     = new SoundGenerator({ frequency: 400, attack: 0, release: 0.005, volume: 0.4, noise:2 });
+    sndPlace      = new SoundGenerator({ frequency: 200, attack: 0, release: 0.01, volume: 0.4, noise:2 });
+    sndInvalid    = new SoundGenerator({ frequency: 110, attack: 0.005, release: 0.14, shapeCurve: 2, noise: 0.4, slide: -2, volume: 0.4 });
+    sndFoundation = new SoundGenerator({ frequency: 880, attack: 0.002, release: 0.08, volume: 0.4 });
+    sndWin        = new SoundGenerator({ frequency: 440, attack: 0.02, release: 0.5, pitchJump: 660, pitchJumpTime: 0.2, repeatTime: 0.25, volume: 0.5 });
 }
 
 async function gameInit()
@@ -168,7 +169,7 @@ async function gameInit()
     // Undo/redo + autosave. snapshot()/loadState() are the game-specific hooks.
     history = new CardHistory({ serialize: snapshot, deserialize: loadState });
 
-    setupSounds();   // window.sndPickup..sndWin — used by both normal play and demo
+    setupSounds();   // builds sndPickup..sndWin — used by both normal play and demo
 
     // Attract / hero-cabinet mode (#demo): a self-playing AI solves a fresh
     // random deal and plays it out, looping forever. It never reads or writes
@@ -417,7 +418,7 @@ function trySendHome()
                 if (fits)
                 {
                     s.moveTopCard(f, true);
-                    window.sndFoundation && window.sndFoundation.play(f.topCard().pos, 0.5, 1 + chain * 0.07);
+                    sndFoundation.play(f.topCard().pos, 0.5, 1 + chain * 0.07);
                     ++chain;
                     progressed = true;
                     break;
@@ -443,7 +444,7 @@ function checkWin()
     if (foundationTotal() < 52) return;
 
     won = true;
-    window.sndWin && window.sndWin.play();
+    sndWin.play();
     showMenuToast({
         icon:     '🎉',
         title:    'You Win!',
@@ -574,7 +575,7 @@ function gameUpdate()
                     handStack.type = savedType;
                     if (placedTarget)
                     {
-                        window.sndPlace && window.sndPlace.play(placedTarget.topCard().pos);
+                        sndPlace.play(placedTarget.topCard().pos);
                         trySendHome(); saveState(); checkWin(); checkLoss();
                     }
                     return;
@@ -592,12 +593,12 @@ function gameUpdate()
                 handStack.type = hit.stack.type;
                 // Play BEFORE moveManyToStack so hit.card.pos is still the
                 // original cascade slot, not the new handStack position.
-                window.sndPickup && window.sndPickup.play(hit.card.pos);
+                sndPickup.play(hit.card.pos);
                 hit.stack.moveManyToStack(handStack, hit.card);
             }
             else if (hit.stack.type === StackType.Cascade)
             {
-                window.sndInvalid && window.sndInvalid.play(hit.card.pos);
+                sndInvalid.play(hit.card.pos);
             }
         }
     }
@@ -635,12 +636,12 @@ function gameUpdate()
         pickupOrigin = null;
         if (placed)
         {
-            window.sndPlace && window.sndPlace.play(target.topCard().pos);
+            sndPlace.play(target.topCard().pos);
             trySendHome(); saveState(); checkWin(); checkLoss();
         }
         else
         {
-            window.sndInvalid && window.sndInvalid.play(mousePos);
+            sndInvalid.play(mousePos);
         }
     }
 
@@ -1181,7 +1182,7 @@ function setupDemo()
         for (let k = startIdx; k < from.cards.length; ++k)
             from.cards[k].tweenDuration = DEMO_TWEEN_TIME;
         from.moveManyToStack(to, startCard, true);
-        const snd = to.type === StackType.Foundation ? window.sndFoundation : window.sndPlace;
+        const snd = to.type === StackType.Foundation ? sndFoundation : sndPlace;
         const land = to.topCard();
         if (snd && land) snd.play(land.pos);
     };
