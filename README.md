@@ -1,6 +1,6 @@
 # 🕹️ LittleJS Arcade
 
-*50+ classic games built with LittleJS. Each one is a single, self-contained file and playable instantly in your browser.*
+*A collection of classic games built with LittleJS. Each one is a single, self-contained file and playable instantly in your browser.*
 
 ## 🎮 [▶ Play in LittleJS Arcade](https://killedbyapixel.github.io/LittleJSArcade)
 
@@ -11,14 +11,14 @@ The **LittleJS Arcade** is a growing collection of arcade games — shooters, pu
 ### Inside the arcade
 - ▶️ **Instant play** — pick a game and go, no installs or downloads
 - 🔎 **Browse & search** by category, with Top Picks and Recently Played
-- 🎲 **Random** button for when you can't decide
+- 🎬 **Live demos** — many games play themselves in attract mode right on the home screen
 - 🎮 **Gamepad support**, fullscreen, and shareable links
 - 💾 **Saved high scores** for each game
 - 📱 Works on **desktop and mobile**
 - 🧩 Every game is **open source** — fork it and make it your own
 
 ## 🕹️ Featured Games
-A few favorites to start with — play all 50+ in the arcade...
+A few favorites to start with — play the whole collection in the arcade...
 
 - 🏙️ [Missile Defense](https://killedbyapixel.github.io/LittleJSArcade/games/missileDefense.html)
 - 🤖 [Robo Rescue](https://killedbyapixel.github.io/LittleJSArcade/games/roboRescue.html)
