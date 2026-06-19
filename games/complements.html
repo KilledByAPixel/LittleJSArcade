@@ -1,0 +1,187 @@
+<!DOCTYPE html><head>
+<title>Complements</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* Override any CSS variable on #littlejs-menus to re-skin all menus
+   and toolbars. Uncomment to try a different look — the helper itself
+   never needs to change. */
+/*
+#littlejs-menus {
+    --menu-bg:           rgba(20, 0, 30, 0.92);
+    --menu-fg:           #fff;
+    --menu-accent:       #f0a;
+    --menu-font:         sans-serif;
+    --menu-border-width: 4px;
+    --menu-radius:       18px;
+}
+*/
+</style>
+</head>
+<script src="../templates/engineLoader.js"></script>
+<script src="../templates/bloom.js"></script>
+<script src="../templates/menus.js"></script>
+<script src="../templates/gameFx.js"></script>
+<script src="../templates/textureGenerator.js"></script>
+<script src="../templates/tweakables.js"></script>
+<script>
+'use strict';
+
+// --- Color model (ported from ComplementsPiece::colors / GetComplement) ---
+const RED=0, ORANGE=1, YELLOW=2, GREEN=3, BLUE=4, PURPLE=5, BLACK=6, WHITE=7, CLEAR=8, NUM_COLORS=9;
+const COLORS = [
+    new Color(1.0, 0.0, 0.0),   // Red
+    new Color(1.0, 0.5, 0.0),   // Orange
+    new Color(1.0, 1.0, 0.0),   // Yellow
+    new Color(0.0, 0.9, 0.2),   // Green
+    new Color(0.0, 0.0, 1.0),   // Blue
+    new Color(0.7, 0.0, 1.0),   // Purple
+    new Color(0.0, 0.0, 0.0),   // Black
+    new Color(1.0, 1.0, 1.0),   // White
+    new Color(1.0, 1.0, 1.0),   // Clear (drawn as glow/outline)
+];
+const COMPLEMENT = [GREEN, BLUE, PURPLE, RED, ORANGE, YELLOW, WHITE, BLACK, CLEAR];
+const complementOf = c => COMPLEMENT[c];
+
+// --- Tuning (ported verbatim from complementsSettingsDefault) ---
+const settings = {
+    breakDamage:10, elasticity:0.5, friction:0.5, wallElasticity:0.8,
+    groundElasticity:0.2, groundFriction:0.2, connectionSpringConstant:1.5,
+    minRadius:0.0625, maxRadius:0.125, maxDeathTime:4, maxComboTime:1,
+    defendCoeff:1, veryLargeDamage:40, dropRate:0.1, gravity:-2,
+    maxBreakTime:0.5, maxBombTime:10, shakeSpeed:0.7, clearPiecePercent:0.2,
+    blackPiecePercent:0.1, whitePiecePercent:0.01, maxShakeTime:2,
+    playThroughCombos:false, shakeTimePerDamage:0.1, drag:0.985,
+    timeAttackRiseSpeed:0.005, launchSpeed:2.5, maxVelocity:3,
+    radiusChangeSpeed:0.2, shakeUseAmount:0.25,
+};
+const BOARD_HALF = 1;          // board is x,y in [-BOARD_HALF, BOARD_HALF]
+let icons;                     // default-atlas icon map
+
+///////////////////////////////////////////////////////////////////////////////
+function fitCamera() {
+    // fit the 2x2 board into the canvas with a small margin
+    const margin = 0.92;
+    cameraScale = min(mainCanvasSize.x, mainCanvasSize.y) / (2 * BOARD_HALF) * margin;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+async function gameInit()
+{
+    saveDataInit('Complements');
+    initDrawToTexture();
+    icons = initDefaultAtlas();
+    bloomInit({threshold:0.3, intensity:1.5});
+    cameraPos = vec2(0, 0);
+    fitCamera();
+
+    setSoundVolume(.8);
+
+    // One callback drives `paused` for every menu, including dialogs.
+    setMenuVisibilityCallback(v => paused = v);
+
+    // ----- title menu -----
+    const playFromTitle = () => { setPlaying(true); titleMenu.hide(); };
+    const titleMenu = createMenu({
+        id: 'title',
+        title: 'COMPLEMENTS',
+        dismissable: false,
+        onStart: playFromTitle,
+        items: [
+            {type:'button', label:'PLAY',    onClick: playFromTitle},
+            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
+        ],
+    });
+
+    // ----- options menu (shared between title and pause) -----
+    createMenu({
+        id: 'options',
+        title: 'OPTIONS',
+        onHide: popMenu,
+        items: [
+            {type:'slider',   id:'volume', label:'VOLUME',       value: 0.8, min:0, max:1,
+                persist:'volume',
+                onChange: v => setSoundVolume(v)},
+            {type:'separator'},
+            {type:'checkbox', id:'shake',  label:'SCREEN SHAKE', value: true,
+                persist:'shake',
+                onChange: v => setScreenShakeEnabled(v)},
+            {type:'button',   label:'FULLSCREEN', onClick: toggleFullscreen},
+            {type:'separator'},
+            {type:'button',   label:'BACK',       onClick: () => hideMenu('options')},
+        ],
+    });
+
+    // ----- help menu -----
+    createMenu({
+        id: 'help',
+        title: 'HELP',
+        onHide: popMenu,
+        items: [
+            {type:'text', text:'Match gems with their color complements to clear them from the board.\n\nRed ↔ Green  Orange ↔ Blue  Yellow ↔ Purple\nBlack ↔ White'},
+            {type:'separator'},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
+        ],
+    });
+
+    // ----- pause menu -----
+    createMenu({
+        id: 'pause',
+        title: 'PAUSED',
+        initialItemId: 'resume',
+        items: [
+            {type:'button', id:'resume',  label:'RESUME',        onClick: () => hideMenu('pause')},
+            {type:'button', id:'options', label:'OPTIONS',       onClick: () => pushMenu('options')},
+            {type:'button', id:'quit',    label:'QUIT TO TITLE', onClick: () =>
+            {
+                showConfirmDialog({
+                    message: 'Quit to title?',
+                    onYes: () => quitToTitle(),
+                });
+            }},
+        ],
+    });
+
+    // ----- toolbar -----
+    installDefaultToolbar();
+
+    // Show the title menu immediately — no click-to-reveal step.
+    showMenu('title');
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdate()
+{
+    if (isPlaying() && (keyWasPressed('Escape') || gamepadWasPressed(9)))
+    {
+        playMenuSound('activate');
+        showMenu('pause');
+        inputClearKey('Escape');
+        inputClearKey(9, 1, false, true, false);
+    }
+}
+
+function gameUpdatePost()
+{
+}
+
+function gameRender()
+{
+    fitCamera();
+    drawRect(vec2(0,0), vec2(2*BOARD_HALF, 2*BOARD_HALF), new Color(0.04,0.04,0.06)); // backdrop
+    // floor + side walls
+    drawRect(vec2(0,-BOARD_HALF), vec2(2*BOARD_HALF, 0.02), new Color(0.4,0.4,0.5));
+    drawRect(vec2(-BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
+    drawRect(vec2( BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
+    // one sample gem (temporary)
+    drawTile(vec2(0,0), vec2(2*settings.maxRadius), icons.circle, COLORS[RED]);
+}
+
+function gameRenderPost()
+{
+}
+
+///////////////////////////////////////////////////////////////////////////////
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+</script></body></html>
