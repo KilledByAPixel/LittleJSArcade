@@ -59,6 +59,7 @@ const settings = {
 };
 const BOARD_HALF = 1;          // board is x,y in [-BOARD_HALF, BOARD_HALF]
 let icons;                     // default-atlas icon map
+let showTrajectory = true;     // toggle trajectory preview
 
 ///////////////////////////////////////////////////////////////////////////////
 // --- Temporary stubs (replaced in later tasks) ---
@@ -913,28 +914,280 @@ function gameUpdatePost()
 {
 }
 
+///////////////////////////////////////////////////////////////////////////////
+// --- Rendering helpers ---
+
+// Brighten a color toward white by a 0..1 amount (port of the collision-flash logic).
+function colorFlash(baseColor, amount) {
+    const t = clamp(amount, 0, 1);
+    return new Color(
+        baseColor.r + (1 - baseColor.r) * t,
+        baseColor.g + (1 - baseColor.g) * t,
+        baseColor.b + (1 - baseColor.b) * t,
+        baseColor.a
+    );
+}
+
+// Draw one gem + impact flash + breaking rings + active-clear spinner.
+// Port of ComplementsPiece::Render.
+function drawPiece(p) {
+    const pos  = p.pos;
+    const r    = p.radius;
+    const diam = vec2(2 * r);
+
+    // Determine base tint
+    let baseColor;
+    if (p.colorType === C_CLEAR) {
+        // Clear gem: tinted by its complement's effective color
+        baseColor = COLORS[complementOf(p.effectiveColorType)].copy();
+    } else {
+        baseColor = COLORS[p.colorType].copy();
+    }
+
+    // Impact flash: brighten toward white
+    const flashAmt = clamp(p.lastCollisionAmount / 1.5, 0, 1);
+    const gemColor = flashAmt > 0.01 ? colorFlash(baseColor, flashAmt) : baseColor;
+
+    if (p.colorType === C_CLEAR) {
+        // Clear gem: draw black outline circle
+        drawTile(pos, diam.scale(1.03), icons.ring, new Color(0, 0, 0, 1));
+
+        if (p.clearStartTime >= 0) {
+            // Active-clear spinner
+            const growPct = p.clearStartTime / 0.3;
+
+            // Calculate spinner angle from lifeTime
+            let theta = Math.PI * p.lifeTime;
+            if (p.breakTime > 0) {
+                // Speed up when breaking
+                const breakPct = p.breakTime / p.maxBreakTime;
+                theta += Math.PI * 2 * (1 - breakPct) * (1 - breakPct);
+            }
+
+            const spinSize = vec2(1.1 * r * growPct * 2);
+
+            // Two rotating stars (one bounceColor, one effectiveColorType)
+            drawTile(pos, spinSize, icons.star, gemColor, (theta + Math.PI / 3) / 2);
+            drawTile(pos, spinSize, icons.star, COLORS[p.effectiveColorType], -theta);
+
+            // Inner pulse
+            const pulseR = growPct * (r * 0.2 + r * 0.1 * Math.sin(p.lifeTime * Math.PI));
+            if (pulseR > 0) {
+                drawTile(pos, vec2(pulseR * 2), icons.glow, gemColor.scale(1, 0.7));
+            }
+        }
+    } else {
+        // Normal filled gem
+        drawTile(pos, diam.scale(1.03), icons.circle, gemColor);
+    }
+
+    // Breaking rings: two rings moving in opposite directions
+    if (p.breakTime > 0) {
+        const pct   = p.breakTime / p.maxBreakTime;
+        const rOuter = r * pct;
+        const rInner = r * (1 - pct);
+        const ringColor = (p.colorType === C_BLACK) ? COLORS[C_WHITE] : new Color(0, 0, 0, 1);
+
+        if (rOuter > 0) drawTile(pos, vec2(2 * rOuter), icons.ring, ringColor);
+        if (rInner > 0) drawTile(pos, vec2(2 * rInner), icons.ring, ringColor);
+    }
+}
+
+// Glow pass — drawn BEFORE the filled pass so glow sits behind gems.
+// Port of ComplementsPiece::RenderGlow.
+function drawPieceGlow(p) {
+    const pos     = p.pos;
+    const r       = p.radius;
+    const glowDiam = 1.6 * r * 2;  // diameter = 1.6 * radius * 2
+
+    if (p.colorType === C_CLEAR) {
+        if (p.clearStartTime >= 0) {
+            const pct = p.clearStartTime / 0.3;
+            // Pulsing glow for active clear gem
+            const pulse = 0.1 * r * Math.sin(p.lifeTime * Math.PI * 0.5 * 2);
+            const sz = vec2(glowDiam * pct + pulse * 2);
+            // Normal-alpha glow tinted by effective color — bloom amplifies it
+            drawTile(pos, sz, icons.glow, COLORS[p.effectiveColorType].scale(1, 0.6));
+        }
+        // inactive clear gems: no glow
+    } else if (p.colorType === C_WHITE) {
+        // White gems: bright white glow
+        drawTile(pos, vec2(glowDiam), icons.glow, new Color(1, 1, 1, 0.6));
+    } else {
+        // All other gems: dim white glow (from C++: ColorMultiply(glowColor, 0.1))
+        drawTile(pos, vec2(glowDiam), icons.glow, new Color(1, 1, 1, 0.1));
+    }
+}
+
+// Connection bonds between linked pieces.
+// Port of ComplementsPhysicsController::RenderPieces bond section (~lines 606-674).
+function drawBonds() {
+    for (const a of physics.pieces) {
+        for (const b of a.connections) {
+            // Draw each pair only once
+            if (a.handle >= b.handle) continue;
+
+            const deltaPos = a.pos.subtract(b.pos);
+            const dist     = deltaPos.length();
+            const minDist  = a.radius + b.radius;
+
+            // Bond length: stretch a bit beyond gem edges but not hugely
+            const length = (dist - minDist) + minDist * 0.7;
+            if (length <= 0) continue;
+
+            const center = a.pos.subtract(deltaPos.scale(0.5));
+
+            // Falloff: thicker when gems are close, thinner when stretched
+            const falloff0 = 0.05 / (0.1 + dist - minDist);
+            const falloff  = falloff0 * falloff0;
+            const thickness = 0.55 * dist * falloff;
+
+            // Bond angle: from a to b (atan2 of deltaPos gives correct angle)
+            const angle = Math.atan2(deltaPos.y, deltaPos.x);
+
+            // Color: complement of the effective color, with special cases
+            let colorType = b.effectiveColorType;
+            if (colorType === C_BLACK || colorType === C_WHITE)
+                colorType = a.effectiveColorType;
+            if (b.colorType === C_CLEAR &&
+                a.effectiveColorType !== C_BLACK &&
+                a.effectiveColorType !== C_WHITE)
+                colorType = a.effectiveColorType;
+
+            const bondColor = COLORS[complementOf(colorType)];
+            drawTile(center, vec2(length, thickness), icons.circle, bondColor, angle);
+        }
+    }
+}
+
+// Trajectory prediction — dotted arc showing where the current piece will land.
+// Port of ComplementsBoard.cpp trajectory sim (~lines 856-937).
+function drawTrajectory() {
+    if (!showTrajectory || board.gameOver || !board.currentPiece) return;
+    const cp = board.currentPiece;
+
+    const dir = vec2(Math.sin(board.rotation), -Math.cos(board.rotation));
+    let vel = dir.scale(settings.launchSpeed * 1.05);
+    let pos = cp.pos.copy();
+
+    const predictDelta = 1 / 60;  // fixed engine timestep
+    let drawTimer = 0;
+    let loopsafe = 1000;
+
+    const dotSize = vec2(settings.minRadius * 0.5);
+
+    // Trajectory dot color
+    let dotColor;
+    if (cp.colorType === C_CLEAR) {
+        dotColor = new Color(0, 0, 0, 0.8);
+    } else {
+        dotColor = COLORS[cp.colorType].copy();
+    }
+
+    const dotIcon = cp.colorType === C_CLEAR ? icons.ring : icons.circle;
+
+    while (--loopsafe > 0) {
+        // Step velocity: gravity + drag
+        vel = vel.add(vec2(0, settings.gravity * predictDelta));
+        vel = vel.scale(settings.drag);
+
+        pos = pos.add(vel.scale(predictDelta));
+
+        // Reflect off side walls
+        const minR = settings.minRadius;
+        if (pos.x + minR > BOARD_HALF) {
+            vel.x *= -settings.wallElasticity;
+            pos.x = BOARD_HALF - minR - 0.0001;
+        } else if (pos.x - minR < -BOARD_HALF) {
+            vel.x *= -settings.wallElasticity;
+            pos.x = -BOARD_HALF + minR + 0.0001;
+        }
+
+        // Stop at floor
+        if (pos.y < -BOARD_HALF) break;
+
+        drawTimer += predictDelta;
+        if (drawTimer > 0.06) {
+            drawTimer -= 0.06;
+            // alpha fades with height: 1 at top, 0 at bottom
+            const alpha = clamp((pos.y + BOARD_HALF) / (2 * BOARD_HALF), 0, 1);
+            const c = dotColor.copy();
+            c.a = alpha * 0.7;
+            drawTile(pos, dotSize, dotIcon, c);
+        }
+    }
+}
+
+// Death line bar + next-color arrow indicator.
+// Port of ComplementsBoard.cpp Render case 6 (death warning, ~lines 1098-1116).
+function drawDeathLine() {
+    const dl = board.deathLine;
+
+    // How far into the death countdown? 0=safe, 1=dead
+    const deathPct = clamp(board.deathTime / settings.maxDeathTime, 0, 1);
+
+    // Bar tints from dim gray toward bright red as deathTime rises
+    const barR = 0.3 + 0.7 * deathPct;
+    const barG = 0.3 * (1 - deathPct);
+    const barB = 0.3 * (1 - deathPct);
+    const barColor = new Color(barR, barG, barB, 0.7 + 0.3 * deathPct);
+
+    drawRect(vec2(0, dl), vec2(2 * BOARD_HALF, 0.025), barColor);
+
+    // Next-color indicator arrow above the death line at top-center (launcher position)
+    if (board.nextColor !== undefined) {
+        const arrowPos = vec2(0, dl + settings.maxRadius);
+        const arrowColor = COLORS[board.nextColor];
+        drawTile(arrowPos, vec2(2 * settings.maxRadius), icons.arrow, arrowColor, board.rotation);
+    }
+}
+
+// Launcher arrow + current piece at the top.
+function drawLauncher() {
+    if (!board.currentPiece) return;
+    const cp = board.currentPiece;
+
+    // Glow behind the current piece
+    drawPieceGlow(cp);
+
+    // The current piece itself
+    drawPiece(cp);
+
+    // Aim arrow on top of the piece
+    const arrowColor = COLORS[cp.colorType === C_CLEAR ? complementOf(cp.effectiveColorType) : cp.colorType];
+    drawTile(cp.pos, vec2(2 * cp.radius), icons.arrow, arrowColor, board.rotation);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 function gameRender()
 {
     fitCamera();
-    drawRect(vec2(0,0), vec2(2*BOARD_HALF, 2*BOARD_HALF), new Color(0.04,0.04,0.06)); // backdrop
-    // floor + side walls
-    drawRect(vec2(0,-BOARD_HALF), vec2(2*BOARD_HALF, 0.02), new Color(0.4,0.4,0.5));
-    drawRect(vec2(-BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
-    drawRect(vec2( BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
 
-    // draw all settled pieces
-    for (const p of physics.pieces)
-        drawTile(p.pos, vec2(2*p.radius), icons.circle, COLORS[p.colorType]);
+    // Backdrop
+    drawRect(vec2(0, 0), vec2(2 * BOARD_HALF, 2 * BOARD_HALF), new Color(0.04, 0.04, 0.06));
 
-    // draw current (launcher) piece and aim arrow
-    if (board.currentPiece) {
-        const cp = board.currentPiece;
-        drawTile(cp.pos, vec2(2*cp.radius), icons.circle, COLORS[cp.colorType]);
-        drawTile(cp.pos, vec2(2*cp.radius), icons.arrow, COLORS[cp.colorType], board.rotation);
-    }
+    // Floor + side walls
+    drawRect(vec2(0, -BOARD_HALF), vec2(2 * BOARD_HALF, 0.02),  new Color(0.4, 0.4, 0.5));
+    drawRect(vec2(-BOARD_HALF, 0), vec2(0.02, 2 * BOARD_HALF),  new Color(0.4, 0.4, 0.5));
+    drawRect(vec2( BOARD_HALF, 0), vec2(0.02, 2 * BOARD_HALF),  new Color(0.4, 0.4, 0.5));
 
-    // death line — red bar spanning the board width
-    drawRect(vec2(0, board.deathLine), vec2(2*BOARD_HALF, 0.02), new Color(1,0,0,0.7));
+    // Trajectory (drawn behind everything)
+    drawTrajectory();
+
+    // Glow pass — behind gems
+    for (const p of physics.pieces) drawPieceGlow(p);
+
+    // Bonds — between glow and filled gem layers
+    drawBonds();
+
+    // Filled gem pass
+    for (const p of physics.pieces) drawPiece(p);
+
+    // Current piece (launcher) + aim arrow
+    drawLauncher();
+
+    // Death line overlay
+    drawDeathLine();
 }
 
 function gameRenderPost()
