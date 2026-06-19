@@ -180,13 +180,13 @@ function onGameOver() {
         showGameOverDialog({
             won: true, score: undefined,
             customMessage: `Cleared ${DIFF_NAMES[board.difficulty]} in ${formatTime(t)}` + (isBest ? '\nNEW BEST!' : ''),
-            onContinue: () => quitToTitle(),
+            onContinue: () => quitToTitle(() => board.startNewGame(0)),
         });
     } else {
         showGameOverDialog({
             won: false, score: undefined,
             customMessage: 'The pieces reached the line.',
-            onContinue: () => quitToTitle(),
+            onContinue: () => quitToTitle(() => board.startNewGame(0)),
         });
     }
 }
@@ -210,7 +210,7 @@ function aimAngleToMouse() {
 const SEED_COUNT = [20, 40, 60, 80]; // easy, medium, hard, insane
 
 class Board {
-    constructor() { this.physics = physics; this.difficulty = 0; }
+    constructor() { this.difficulty = 0; }
 
     getComboBrakeCountLast() { return this.comboBrokeLast; }
 
@@ -232,8 +232,6 @@ class Board {
 
     shootAllowed() {
         if (this.dropTime < settings.dropRate || this.gameOver) return false;
-        // time attack always allows play-through combos
-        if (!(this.comboTime<=0 || this.comboBroke===0 || true)) return false;
         return physics.isAreaOpen(this.currentPiece.pos, this.currentPiece.radius);
     }
 
@@ -1012,7 +1010,7 @@ function buildMenus() {
             {type: 'button', id: 'quit',    label: 'QUIT TO TITLE', onClick: () => {
                 showConfirmDialog({
                     message: 'Quit to title?',
-                    onYes: () => quitToTitle(),
+                    onYes: () => quitToTitle(() => board.startNewGame(0)),
                 });
             }},
         ],
