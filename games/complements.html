@@ -61,6 +61,381 @@ const BOARD_HALF = 1;          // board is x,y in [-BOARD_HALF, BOARD_HALF]
 let icons;                     // default-atlas icon map
 
 ///////////////////////////////////////////////////////////////////////////////
+// --- Temporary stubs (replaced in later tasks) ---
+function playBounceSound() {}
+function playBreakSound() {}
+
+///////////////////////////////////////////////////////////////////////////////
+// --- Piece class (ported from ComplementsPiece.cpp constructor + Update) ---
+
+let pieceHandleCounter = 1;
+class Piece {
+    constructor(pos, radius, colorType, bomb=false) {
+        this.pos = pos.copy();
+        this.vel = vec2(0,0);
+        this.deltaPosition = vec2(0,0);
+        this.radius = radius;
+        this.colorType = colorType;
+        this.effectiveColorType = colorType;
+        this.mass = radius*radius;
+        this.connections = [];
+        this.breaking = false;
+        this.fakeBreak = false;
+        this.lifeTime = 0;
+        this.bombTime = bomb ? settings.maxBombTime : 0;
+        this.breakTime = 0;
+        this.maxBreakTime = 0;
+        this.breakTimeScale = 0;
+        this.lastCollisionAmount = 0;
+        this.startedCombo = false;
+        this.playBounceSound = false;
+        this.collisionCount = 0;
+        this.wasOnTop = false;
+        this.isOnTop = true;
+        this.locked = false;
+        this.clearStartTime = -1;   // >=0 while an active-clear spinner is running
+        this.handle = pieceHandleCounter++;
+        this.possibleCollisions = [];
+    }
+    isUniversalBlocker() { return this.effectiveColorType === C_BLACK; }
+    isUniversalBreaker() { return this.effectiveColorType === C_WHITE; }
+    isBreaking() { return this.breakTime > 0; }
+
+    // --- Temporary stubs for connect/break (Task 3) ---
+    connect() { return false; }
+    startBreak() {}
+    updateBreaks() {}
+
+    update(dt) {
+        if (this.playBounceSound) { playBounceSound(this, this.lastCollisionAmount); this.playBounceSound = false; }
+        const last = this.pos.copy();
+        this.pos = this.pos.add(this.vel.scale(dt));
+        this.deltaPosition = last.subtract(this.pos);
+        this.lastCollisionAmount *= 0.9;
+        this.lifeTime += dt;
+        this.bombTime -= dt;
+
+        // active-clear spinner timer (0.3s ramp), ported from clearStartTimer
+        if (this.colorType === C_CLEAR && this.effectiveColorType !== C_CLEAR) {
+            if (this.clearStartTime < 0) this.clearStartTime = 0;
+            else this.clearStartTime = min(this.clearStartTime + dt, 0.3);
+        } else this.clearStartTime = -1;
+
+        // prune connections that have stretched too far (port)
+        for (let i = this.connections.length-1; i >= 0; --i) {
+            const o = this.connections[i];
+            const d = this.pos.subtract(o.pos);
+            const dist = 1.5*(this.radius + o.radius);
+            if (d.lengthSquared() > dist*dist && this.breakTime === 0 && o.breakTime === 0) {
+                this.connections.splice(i,1);
+                const j = o.connections.indexOf(this); if (j>=0) o.connections.splice(j,1);
+            }
+        }
+
+        if (this.breakTime > 0) {
+            this.breakTime -= dt * this.breakTimeScale;
+            if (this.breakTime <= 0) this.doBreak();
+        }
+    }
+    doBreak() { if (!this.breaking) { this.breaking = true; playBreakSound(this); } }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// --- Physics class ---
+
+const MAX_COLLISION_COUNT = 10, EXTRA_MAX_COLLISION_COUNT = 3000;
+class Physics {
+    constructor() { this.pieces = []; this.collisionCount = 0; this.collision = false; }
+    reset() { this.pieces.length = 0; }
+    add(p) { this.pieces.push(p); }
+    remove(p) { const i=this.pieces.indexOf(p); if(i>=0) this.pieces.splice(i,1); }
+    count() { return this.pieces.length; }
+    empty() { return this.pieces.length === 0; }
+
+    isAreaOpen(pos, radius, exclude=null) {
+        for (const p of this.pieces) {
+            if (p === exclude) continue;
+            const minD = radius + p.radius;
+            if (pos.subtract(p.pos).lengthSquared() <= minD*minD) return false;
+        }
+        return true;
+    }
+    getColorCount(out) {
+        for (let i=0;i<NUM_COLORS;++i) out[i]=0;
+        for (const p of this.pieces) ++out[p.colorType];
+    }
+    isDying(deathLine, wasDying) {
+        for (const p of this.pieces)
+            if ((p.lifeTime > 1.0 || (p.bombTime > 0 && wasDying)) && p.pos.y + p.radius > deathLine)
+                return true;
+        return false;
+    }
+    shake(dir) {
+        for (const p of this.pieces) {
+            const theta = rand(PI/5, PI/3);
+            p.vel = p.vel.add(vec2(dir*settings.shakeSpeed*Math.cos(theta), settings.shakeSpeed*Math.sin(theta)));
+        }
+    }
+
+    // Port of ResolveCollision (ComplementsPhysics.cpp:193-344)
+    _resolveCollision(p1, p2, deltaPos) {
+        ++p1.collisionCount;
+        ++p2.collisionCount;
+        ++this.collisionCount;
+
+        // keep track if a piece is on top
+        if (p1.pos.y < p2.pos.y)
+            p1.isOnTop = false;
+        else
+            p2.isOnTop = false;
+
+        // OPT: zero out velocities of each piece if they have received a lot of collisions
+        // and the velocity is under a certain threshold
+        const topMinSpeed = 0.00001;
+        const bottomMinSpeed = 0.001;
+        if (
+            p1.collisionCount >= MAX_COLLISION_COUNT
+            && !p1.wasOnTop && p1.vel.lengthSquared() < bottomMinSpeed
+            || p1.wasOnTop && p1.vel.lengthSquared() < topMinSpeed
+        ) {
+            p1.locked = true;
+            p1.vel = vec2(0, 0);
+        }
+        if (
+            p2.collisionCount >= MAX_COLLISION_COUNT
+            && !p2.wasOnTop && p2.vel.lengthSquared() < bottomMinSpeed
+            || p2.wasOnTop && p2.vel.lengthSquared() < topMinSpeed
+        ) {
+            p2.locked = true;
+            p2.vel = vec2(0, 0);
+            if (p1.locked)
+                return;
+        }
+
+        // OPT: zero out velocities and exit if the collision count is really high
+        if (this.collisionCount > EXTRA_MAX_COLLISION_COUNT) {
+            p1.vel = vec2(0, 0);
+            p2.vel = vec2(0, 0);
+            return;
+        }
+
+        // attempt to connect the pieces and notify board if break started
+        if (p1.connect(p2)) {
+            // board.breakStarted() — stub, wired in Task 3
+        }
+
+        // center of mass velocity
+        const m1addm2 = p1.mass + p2.mass;
+        const vcm = p1.vel.scale(p1.mass).add(p2.vel.scale(p2.mass)).scale(1/m1addm2);
+
+        // velocities relative to center of mass
+        const vr1 = p1.vel.subtract(vcm);
+        const vr2 = p2.vel.subtract(vcm);
+
+        // separate out normal and tangent components
+        const normal = deltaPos.normalize();
+        const sn1 = vr1.dot(normal);
+        const sn2 = vr2.dot(normal);
+        const vn1 = normal.scale(sn1);
+        const vn2 = normal.scale(sn2);
+        let vt1 = vr1.subtract(vn1);
+        let vt2 = vr2.subtract(vn2);
+
+        // final velocity along normal component (elastic reflection in CM frame)
+        const snf1 = -settings.elasticity * sn1;
+        const snf2 = -settings.elasticity * sn2;
+
+        // friction (port of C++ friction block)
+        const fs1 = sn1 * settings.friction;
+        if (fs1*fs1 < vt1.lengthSquared())
+            vt1 = vt1.subtract(vt1.normalize().scale(Math.abs(fs1)));
+        else
+            vt1 = vec2(0, 0);
+
+        const fs2 = sn2 * settings.friction;
+        if (fs2*fs2 < vt2.lengthSquared())
+            vt2 = vt2.subtract(vt2.normalize().scale(Math.abs(fs2)));
+        else
+            vt2 = vec2(0, 0);
+
+        // update bounce sounds
+        let soundVol = Math.abs(sn1);
+        if (p1.lastCollisionAmount < soundVol) {
+            p1.lastCollisionAmount = soundVol;
+            if (soundVol > 0.5) p1.playBounceSound = true;
+        }
+        soundVol = Math.abs(sn2);
+        if (p2.lastCollisionAmount < soundVol) {
+            p2.lastCollisionAmount = soundVol;
+            if (soundVol > 0.5) p2.playBounceSound = true;
+        }
+
+        // extra speed reduction to prevent jitter from rounding errors
+        const extraSpeedReduction = 0.995;
+        const maxVelocitySquared = settings.maxVelocity * settings.maxVelocity;
+
+        if (!p1.locked) {
+            p1.vel = vcm.add(vt1.add(normal.scale(snf1))).scale(extraSpeedReduction);
+            if (p1.vel.lengthSquared() > maxVelocitySquared)
+                p1.vel = p1.vel.normalize().scale(settings.maxVelocity);
+        }
+        if (!p2.locked) {
+            p2.vel = vcm.add(vt2.add(normal.scale(snf2))).scale(extraSpeedReduction);
+            if (p2.vel.lengthSquared() > maxVelocitySquared)
+                p2.vel = p2.vel.normalize().scale(settings.maxVelocity);
+        }
+    }
+
+    // Port of UpdatePiece (ComplementsPhysics.cpp:347-434)
+    _updatePiece(dt, p1) {
+        if (p1.locked) return;
+
+        // bottom wall (floor)
+        if (p1.pos.y + dt * p1.vel.y < -BOARD_HALF + p1.radius) {
+            this.collision = true;
+            ++p1.collisionCount;
+
+            const soundVol = Math.abs(p1.vel.y);
+            if (p1.lastCollisionAmount < soundVol) {
+                p1.lastCollisionAmount = soundVol;
+                if (soundVol > 0.5) p1.playBounceSound = true;
+            }
+            p1.vel = vec2(
+                p1.vel.x * settings.groundFriction,
+                p1.vel.y * -settings.groundElasticity
+            );
+        }
+        // left and right walls
+        if (Math.abs(p1.pos.x + dt * p1.vel.x) > BOARD_HALF - p1.radius) {
+            this.collision = true;
+            ++p1.collisionCount;
+
+            const soundVol = Math.abs(p1.vel.x);
+            if (p1.lastCollisionAmount < soundVol) {
+                p1.lastCollisionAmount = soundVol;
+                if (soundVol > 0.5) p1.playBounceSound = true;
+            }
+            p1.vel = vec2(
+                p1.vel.x * -settings.wallElasticity,
+                p1.vel.y
+            );
+        }
+
+        // test against all possible collision partners (broadphase list)
+        for (const p2 of p1.possibleCollisions) {
+            // AABB test (y-axis first for speed), then circle test
+            const dy = p1.pos.y - p2.pos.y;
+            const dyn = dy + dt * (p1.vel.y - p2.vel.y);
+            const distanceMin = p1.radius + p2.radius;
+
+            if (dyn < distanceMin && dyn > -distanceMin) {
+                const dx = p1.pos.x - p2.pos.x;
+                const dxn = dx + dt * (p1.vel.x - p2.vel.x);
+
+                if (dxn < distanceMin && dxn > -distanceMin) {
+                    // precise circle overlap test on next-frame positions
+                    if (dxn*dxn + dyn*dyn < distanceMin * distanceMin) {
+                        this.collision = true;
+                        this._resolveCollision(p1, p2, vec2(dx, dy));
+
+                        if (p1.locked) {
+                            p1.possibleCollisions = [];
+                            break;
+                        }
+                        if (p2.locked) {
+                            p2.possibleCollisions = [];
+                            // don't break — p1 is still processing
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Port of Update (ComplementsPhysics.cpp:437-573)
+    update(dt) {
+        const maxVelocitySquared = settings.maxVelocity * settings.maxVelocity;
+
+        // clear possible-collision lists
+        for (const p of this.pieces) p.possibleCollisions = [];
+
+        // --- Spring pass: apply connection spring forces ---
+        for (const p1 of this.pieces) {
+            for (const p2 of p1.connections) {
+                // process each pair only once (port: if (&piece1 > &piece2) in C++,
+                // here we use handle comparison for a stable total order)
+                if (p1.handle <= p2.handle) continue;
+
+                const deltaPos = p1.pos.subtract(p2.pos);
+                const slackRange = 0.005;
+                const testDist = p1.radius + p2.radius + slackRange;
+                if (deltaPos.lengthSquared() > testDist * testDist) {
+                    // spring force: stretch beyond rest length
+                    const stretch = deltaPos.subtract(deltaPos.normalize().scale(p1.radius + p2.radius + slackRange));
+                    const force = stretch.scale(dt * settings.connectionSpringConstant);
+                    p1.vel = p1.vel.subtract(force.scale(1/p1.mass));
+                    p2.vel = p2.vel.add(force.scale(1/p2.mass));
+                }
+            }
+        }
+
+        // --- Forces + broadphase pass ---
+        for (const p1 of this.pieces) {
+            // apply drag
+            p1.vel = p1.vel.scale(settings.drag);
+
+            // apply gravity (lower pieces get slightly more gravity — C++ hack)
+            const grav = settings.gravity * (1 - 0.01 * p1.pos.y);
+            p1.vel = p1.vel.add(vec2(0, grav * dt));
+
+            // reset per-frame collision bookkeeping
+            p1.collisionCount = 0;
+            p1.wasOnTop = p1.isOnTop;
+            p1.isOnTop = true;
+            p1.locked = false;
+
+            // pre-clamp velocity before broadphase
+            if (p1.vel.lengthSquared() > maxVelocitySquared)
+                p1.vel = p1.vel.normalize().scale(settings.maxVelocity);
+
+            // broadphase: fill possibleCollisions for pairs ahead in the list
+            const idx = this.pieces.indexOf(p1);
+            for (let j = idx + 1; j < this.pieces.length; ++j) {
+                const p2 = this.pieces[j];
+                const deltaPos = p1.pos.subtract(p2.pos);
+                const distanceMin = p1.radius + p2.radius + dt * settings.maxVelocity + 0.01;
+
+                if (
+                    deltaPos.y < distanceMin && deltaPos.y > -distanceMin
+                    && deltaPos.x < distanceMin && deltaPos.x > -distanceMin
+                    && deltaPos.lengthSquared() < distanceMin * distanceMin
+                ) {
+                    p1.possibleCollisions.push(p2);
+                    p2.possibleCollisions.push(p1);
+                }
+            }
+        }
+
+        // --- Resolve loop: repeat until no new collisions this frame ---
+        this.collisionCount = 0;
+        do {
+            this.collision = false;
+            for (const p1 of this.pieces)
+                this._updatePiece(dt, p1);
+        } while (this.collision);
+
+        // --- Integrate + break update ---
+        for (const p of this.pieces) p.update(dt);
+        for (const p of this.pieces) p.updateBreaks(dt);
+    }
+}
+let physics = new Physics();
+
+///////////////////////////////////////////////////////////////////////////////
+// --- Temporary test harness state ---
+let testRotation = 0;
+
+///////////////////////////////////////////////////////////////////////////////
 function fitCamera() {
     // fit the 2x2 board into the canvas with a small margin
     const margin = 0.92;
@@ -162,6 +537,15 @@ function gameUpdate()
         inputClearKey('Escape');
         inputClearKey(9, 1, false, true, false);
     }
+
+    // Temporary click-to-shoot harness (Task 2)
+    if (mouseWasPressed(0)) {
+        const dir = vec2(Math.sin(testRotation), -Math.cos(testRotation));
+        const p = new Piece(vec2(0, 0.7), settings.minRadius, randInt(0, 6));
+        p.vel = dir.scale(settings.launchSpeed);
+        physics.add(p);
+    }
+    physics.update(timeDelta);
 }
 
 function gameUpdatePost()
@@ -176,8 +560,8 @@ function gameRender()
     drawRect(vec2(0,-BOARD_HALF), vec2(2*BOARD_HALF, 0.02), new Color(0.4,0.4,0.5));
     drawRect(vec2(-BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
     drawRect(vec2( BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
-    // one sample gem (temporary)
-    drawTile(vec2(0,0), vec2(2*settings.maxRadius), icons.circle, COLORS[C_RED]);
+    // draw all pieces
+    for (const p of physics.pieces) drawTile(p.pos, vec2(2*p.radius), icons.circle, COLORS[p.colorType]);
 }
 
 function gameRenderPost()
