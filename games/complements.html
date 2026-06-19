@@ -64,9 +64,302 @@ let icons;                     // default-atlas icon map
 // --- Temporary stubs (replaced in later tasks) ---
 function playBounceSound() {}
 function playBreakSound() {}
+function spawnBreakBurst(p) {}     // real version in Task 7
+function playAlarmMaybe(deathTime) {}   // real version in Task 6
+function onGameOver() {}           // real version in Task 6
 
-// Temporary board shim — replaced by real Board in Task 4
-let board = { getComboBrakeCountLast:()=>0, breakStarted(){}, breakHappened(p){} };
+///////////////////////////////////////////////////////////////////////////////
+// --- Input helpers ---
+let aimWithMouse = true;
+function shootHeld() { return mouseIsDown(0) || keyIsDown('Space') || keyDirection().y > 0; }
+function shakeHeld() { return mouseIsDown(2) || keyDirection().y < 0; }
+function aimAngleToMouse() {
+    const launcher = vec2(0, board.deathLine + settings.maxRadius);
+    const d = mousePos.subtract(launcher);
+    // rotation 0 = straight down; positive = clockwise (right)
+    let a = Math.atan2(d.x, -d.y);
+    return clamp(a, -PI/2, PI/2);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// --- Board class ---
+
+const SEED_COUNT = [20, 40, 60, 80]; // easy, medium, hard, insane
+
+class Board {
+    constructor() { this.physics = physics; this.difficulty = 0; }
+
+    getComboBrakeCountLast() { return this.comboBrokeLast; }
+
+    breakStarted() {
+        if (!this.comboInProgress) { this.comboCount=0; this.comboBroke=0; }
+        this.comboInProgress = true;
+        this.comboTime = settings.maxComboTime;
+        ++this.comboCount;
+    }
+
+    breakHappened(p) {
+        ++this.comboBroke;
+        const dd = settings.breakDamage * p.radius*p.radius * this.comboBroke;
+        this.shakeTime = min(this.shakeTime + dd*settings.shakeTimePerDamage, settings.maxShakeTime);
+        this.breakDamage += dd;
+        spawnBreakBurst(p);
+        if (this.comboBroke >= 4 && isScreenShakeEnabled()) addScreenShake(0.15, 0.2);
+    }
+
+    shootAllowed() {
+        if (this.dropTime < settings.dropRate || this.gameOver) return false;
+        // time attack always allows play-through combos
+        if (!(this.comboTime<=0 || this.comboBroke===0 || true)) return false;
+        return physics.isAreaOpen(this.currentPiece.pos, this.currentPiece.radius);
+    }
+
+    getColor(attack) {
+        const pct = rand();
+
+        if (attack) {
+            // Attack drops: uniform 6 hues
+            if (pct < 1.0/6.0)       return C_RED;
+            else if (pct < 2.0/6.0)  return C_BLUE;
+            else if (pct < 3.0/6.0)  return C_YELLOW;
+            else if (pct < 4.0/6.0)  return C_GREEN;
+            else if (pct < 5.0/6.0)  return C_ORANGE;
+            else                     return C_PURPLE;
+        } else {
+            // Time-attack mode: helpful colors weighted toward what's on the board
+            let colorType;
+            const colorCount = new Array(NUM_COLORS);
+            physics.getColorCount(colorCount);
+
+            if (this.dropCount % 6 === 4) {
+                colorType = C_CLEAR;
+            } else if (this.dropCount % 6 === 1) {
+                colorType = C_BLACK;
+            } else {
+                let red = 1;
+                if (colorCount[C_RED] === 0 && colorCount[C_GREEN] === 0) red = 0;
+                let blue = 1;
+                if (colorCount[C_BLUE] === 0 && colorCount[C_ORANGE] === 0) blue = 0;
+                let yellow = 1;
+                if (colorCount[C_YELLOW] === 0 && colorCount[C_PURPLE] === 0) yellow = 0;
+
+                // weight toward colors still present; reduce redundancy with current/next
+                const hueCount = red + blue + yellow;
+                if (this.currentPiece && hueCount > 1) {
+                    if (this.nextColor === C_RED || this.nextColor === C_GREEN)
+                        red = 0;
+                    if (this.nextColor === C_BLUE || this.nextColor === C_ORANGE)
+                        blue = 0;
+                    if (
+                        (hueCount > 2 && (this.currentPiece.colorType === C_YELLOW || this.currentPiece.colorType === C_PURPLE))
+                        || this.nextColor === C_YELLOW
+                        || this.nextColor === C_PURPLE
+                    )
+                        yellow = 0;
+                }
+
+                let redPct = 0, bluePct = 0, yellowPct = 0;
+                if (red + blue + yellow > 0) {
+                    redPct    = red    / (red + blue + yellow);
+                    bluePct   = blue   / (red + blue + yellow);
+                    yellowPct = yellow / (red + blue + yellow);
+                }
+
+                if (redPct + bluePct + yellowPct > 0) {
+                    if (pct < redPct*0.5)
+                        colorType = C_RED;
+                    else if (pct < (redPct + bluePct)*0.5)
+                        colorType = C_BLUE;
+                    else if (pct < (redPct + bluePct + yellowPct)*0.5)
+                        colorType = C_YELLOW;
+                    else if (pct < (2*redPct + bluePct + yellowPct)*0.5)
+                        colorType = C_GREEN;
+                    else if (pct < (2*redPct + 2*bluePct + yellowPct)*0.5)
+                        colorType = C_ORANGE;
+                    else
+                        colorType = C_PURPLE;
+                } else {
+                    colorType = C_WHITE;
+                }
+            }
+
+            // no two blacks in a row (player can't see the direction arrow)
+            if (colorType === C_BLACK && this.nextColor === C_BLACK)
+                colorType = C_WHITE;
+
+            return colorType;
+        }
+    }
+
+    getNextPiece() {
+        ++this.dropCount;
+        const oldNext = this.nextColor;
+        this.nextColor = this.getColor(false);
+        this.currentPiece = new Piece(vec2(0, this.deathLine + settings.maxRadius), settings.minRadius, oldNext);
+    }
+
+    startNewGame(difficulty) {
+        this.difficulty = difficulty;
+        physics.reset();
+        this.inputWasUp = false;
+        this.deathLine = 1.0 - 2*settings.maxRadius;
+        this.dropCount = 0; this.gameTime = 0;
+        this.rotation = 0; this.rotationSpeed = 0;
+        this.radiusChangeDirection = -1;
+        this.deathTime = 0; this.breakDamage = 0;
+        this.comboTime = 0; this.comboInProgress = false;
+        this.comboBroke = 0; this.comboBrokeLast = 0; this.comboCount = 0;
+        this.shakeTime = 0; this.shakeDirection = 1;
+        this.dropTime = settings.dropRate;
+        this.gameOver = false; this.won = false;
+        this.currentPiece = null;
+        this.nextColor = this.getColor(false);
+        this.getNextPiece();
+        // time attack: first piece is Clear, next is White
+        this.currentPiece.colorType = C_CLEAR; this.currentPiece.effectiveColorType = C_CLEAR;
+        this.nextColor = C_WHITE;
+        // seed the board with falling pieces
+        let safety = 0;
+        for (let n = 0; n < SEED_COUNT[difficulty] && safety < 5000; ++safety) {
+            const radius = rand(settings.minRadius, settings.maxRadius);
+            const x = (rand()<0.5?-1:1) * rand(radius+settings.maxRadius, BOARD_HALF-radius);
+            const y = rand(1.0+radius, 1.0+2*settings.maxRadius);
+            const pos = vec2(x,y);
+            if (physics.isAreaOpen(pos, radius)) {
+                const p = new Piece(pos, radius, this.getColor(true), false);
+                p.vel.y = -0.1;
+                physics.add(p);
+                ++n;
+            }
+        }
+    }
+
+    updateInput(dt) {
+        const allowed = this.shootAllowed();
+
+        if (!allowed) {
+            // ease radius back to minRadius
+            if (this.currentPiece.radius > settings.minRadius) {
+                if (this.radiusChangeDirection > 0) this.radiusChangeDirection = -1;
+                this.currentPiece.radius += dt * this.radiusChangeDirection * settings.radiusChangeSpeed;
+                if (this.currentPiece.radius <= settings.minRadius)
+                    this.currentPiece.radius = settings.minRadius;
+            } else if (this.currentPiece.radius < settings.minRadius) {
+                if (this.radiusChangeDirection < 0) this.radiusChangeDirection = 1;
+                this.currentPiece.radius += dt * this.radiusChangeDirection * settings.radiusChangeSpeed;
+                if (this.currentPiece.radius >= settings.minRadius) {
+                    this.currentPiece.radius = settings.minRadius;
+                    this.radiusChangeDirection *= -1;
+                }
+            }
+        } else {
+            const held = shootHeld();
+            if (!held && this.inputWasUp) {
+                // Shoot!
+                this.comboInProgress = false;
+                this.radiusChangeDirection = -1;
+                this.dropTime = 0;
+                this.currentPiece.vel = vec2(Math.sin(this.rotation), -Math.cos(this.rotation)).scale(settings.launchSpeed);
+                this.currentPiece.mass = this.currentPiece.radius * this.currentPiece.radius;
+                physics.add(this.currentPiece);
+                this.getNextPiece();
+            } else if (held && this.inputWasUp) {
+                // charge: grow radius, bounce between min/max
+                this.currentPiece.radius += dt * this.radiusChangeDirection * settings.radiusChangeSpeed;
+                if (this.radiusChangeDirection < 0 && this.currentPiece.radius <= settings.minRadius) {
+                    this.currentPiece.radius = settings.minRadius;
+                    this.radiusChangeDirection = 1;
+                } else if (this.currentPiece.radius >= settings.maxRadius) {
+                    this.currentPiece.radius = settings.maxRadius;
+                    this.radiusChangeDirection = -1;
+                }
+            }
+        }
+        this.inputWasUp = shootHeld();
+
+        // aim
+        const rotationAcceleration = 6;
+        if (aimWithMouse && !this.gameOver) {
+            this.rotation = aimAngleToMouse();
+        } else {
+            const dir = keyDirection();
+            // natural mapping: right (dir.x>0) → clockwise (rotation increases)
+            if (dir.x > 0) {
+                this.rotationSpeed += dt * rotationAcceleration;
+            } else if (this.rotationSpeed > 0) {
+                this.rotationSpeed = 0;
+            }
+            if (dir.x < 0) {
+                this.rotationSpeed -= dt * rotationAcceleration;
+            } else if (this.rotationSpeed < 0) {
+                this.rotationSpeed = 0;
+            }
+            this.rotation += this.rotationSpeed * dt;
+        }
+
+        if (this.rotation > PI/2)  { this.rotation = PI/2;  this.rotationSpeed = 0; }
+        else if (this.rotation < -PI/2) { this.rotation = -PI/2; this.rotationSpeed = 0; }
+
+        // shake: debounced so holding doesn't drain instantly
+        if (shakeHeld() && !this.shook && this.shakeTime > settings.shakeUseAmount && !this.gameOver) {
+            this.shakeDirection *= -1;
+            physics.shake(this.shakeDirection);
+            this.shakeTime -= settings.shakeUseAmount;
+            if (this.shakeTime < 0) this.shakeTime = 0;
+        }
+        this.shook = shakeHeld();
+
+        // keep current piece at launcher position while not yet shot
+        this.currentPiece.pos = vec2(0, this.deathLine + settings.maxRadius);
+    }
+
+    updatePhysics(dt) {
+        this.comboBrokeLast = this.comboBroke;
+        physics.update(dt);
+        const before = new Array(NUM_COLORS); physics.getColorCount(before);
+        const breakCount = physics.removeBrokenPieces();
+        if (breakCount > 0) {
+            const after = new Array(NUM_COLORS); physics.getColorCount(after);
+            const gone = (a, b) => after[a]+after[b]===0 && before[a]+before[b]>0;
+            const blue = gone(C_BLUE, C_ORANGE), red = gone(C_RED, C_GREEN), yellow = gone(C_YELLOW, C_PURPLE);
+            if (blue||red||yellow) {
+                const c = this.currentPiece.colorType;
+                if ((blue&&(c===C_BLUE||c===C_ORANGE))||(red&&(c===C_RED||c===C_GREEN))||(yellow&&(c===C_YELLOW||c===C_PURPLE)))
+                    { this.currentPiece.colorType=C_WHITE; this.currentPiece.effectiveColorType=C_WHITE; }
+                else this.nextColor = C_WHITE;
+            }
+        }
+    }
+
+    updateGameLogic(dt) {
+        if (!this.gameOver) {
+            const dying = physics.isDying(this.deathLine, this.deathTime > 0);
+            if (dying) {
+                this.deathTime += dt;
+                playAlarmMaybe(this.deathTime);
+                if (this.deathTime > settings.maxDeathTime) { this.gameOver = true; this.won = false; onGameOver(); return; }
+            } else {
+                this.deathTime -= 2*dt; if (this.deathTime < 0) this.deathTime = 0;
+            }
+        }
+        if (this.comboTime > 0 && !physics.isBreakingAny()) { this.comboTime -= dt; if (this.comboTime<0) this.comboTime=0; }
+        if (physics.empty() && !this.gameOver) { this.gameOver = true; this.won = true; onGameOver(); }
+        if (!this.gameOver) {
+            this.deathLine -= settings.timeAttackRiseSpeed*dt;
+            if (this.currentPiece) this.currentPiece.pos.y -= settings.timeAttackRiseSpeed*dt;
+        }
+    }
+
+    update(dt) {
+        this.gameTime += dt; this.dropTime += dt;
+        this.updateInput(dt);
+        this.updatePhysics(dt);
+        this.updateGameLogic(dt);
+    }
+}
+
+// board is created after physics exists
+let board = new Board();
 
 ///////////////////////////////////////////////////////////////////////////////
 // --- Piece class (ported from ComplementsPiece.cpp constructor + Update) ---
@@ -506,10 +799,6 @@ class Physics {
 let physics = new Physics();
 
 ///////////////////////////////////////////////////////////////////////////////
-// --- Temporary test harness state ---
-let testRotation = 0;
-
-///////////////////////////////////////////////////////////////////////////////
 function fitCamera() {
     // fit the 2x2 board into the canvas with a small margin
     const margin = 0.92;
@@ -599,6 +888,10 @@ async function gameInit()
 
     // Show the title menu immediately — no click-to-reveal step.
     showMenu('title');
+
+    // Temporary: start a game immediately so a human can test without the difficulty menu.
+    // Task 6 replaces this with the difficulty menu flow.
+    board.startNewGame(0);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -612,19 +905,8 @@ function gameUpdate()
         inputClearKey(9, 1, false, true, false);
     }
 
-    // Temporary click-to-shoot harness (Tasks 2–3): alternates complementary colors
-    // so the human tester can observe breaks/combos.
-    if (mouseWasPressed(0)) {
-        const dir = vec2(Math.sin(testRotation), -Math.cos(testRotation));
-        // Cycle through hues + occasionally Clear/White so complements are easy to produce
-        const cycle = [C_RED, C_GREEN, C_ORANGE, C_BLUE, C_YELLOW, C_PURPLE, C_CLEAR, C_WHITE];
-        const colorType = cycle[physics.pieces.length % cycle.length];
-        const p = new Piece(vec2(0, 0.7), settings.minRadius, colorType);
-        p.vel = dir.scale(settings.launchSpeed);
-        physics.add(p);
-    }
-    physics.update(timeDelta);
-    physics.removeBrokenPieces();
+    if (!isPlaying()) return;
+    board.update(timeDelta);
 }
 
 function gameUpdatePost()
@@ -639,8 +921,20 @@ function gameRender()
     drawRect(vec2(0,-BOARD_HALF), vec2(2*BOARD_HALF, 0.02), new Color(0.4,0.4,0.5));
     drawRect(vec2(-BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
     drawRect(vec2( BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
-    // draw all pieces
-    for (const p of physics.pieces) drawTile(p.pos, vec2(2*p.radius), icons.circle, COLORS[p.colorType]);
+
+    // draw all settled pieces
+    for (const p of physics.pieces)
+        drawTile(p.pos, vec2(2*p.radius), icons.circle, COLORS[p.colorType]);
+
+    // draw current (launcher) piece and aim arrow
+    if (board.currentPiece) {
+        const cp = board.currentPiece;
+        drawTile(cp.pos, vec2(2*cp.radius), icons.circle, COLORS[cp.colorType]);
+        drawTile(cp.pos, vec2(2*cp.radius), icons.arrow, COLORS[cp.colorType], board.rotation);
+    }
+
+    // death line — red bar spanning the board width
+    drawRect(vec2(0, board.deathLine), vec2(2*BOARD_HALF, 0.02), new Color(1,0,0,0.7));
 }
 
 function gameRenderPost()
