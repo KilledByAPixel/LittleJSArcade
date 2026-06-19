@@ -66,8 +66,56 @@ let showTrajectory = true;     // toggle trajectory preview
 function playBounceSound() {}
 function playBreakSound() {}
 function spawnBreakBurst(p) {}     // real version in Task 7
-function playAlarmMaybe(deathTime) {}   // real version in Task 6
-function onGameOver() {}           // real version in Task 6
+function playAlarmMaybe(deathTime) {}   // real version in Task 7
+
+///////////////////////////////////////////////////////////////////////////////
+// --- Difficulty names / best-time helpers ---
+const DIFF_NAMES = ['EASY', 'MEDIUM', 'HARD', 'INSANE'];
+
+function bestTimeFor(d) {
+    const b = getSaveData().bestTimes || {};
+    return b[d] || 0;
+}
+
+function recordTime(d, seconds) {
+    const b = Object.assign({}, getSaveData().bestTimes || {});
+    const prev = b[d] || 0;
+    const isBest = !prev || seconds < prev;
+    if (isBest) { b[d] = seconds; saveData({bestTimes: b}); }
+    return isBest;
+}
+
+function formatTime(s) {
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// --- Game-flow helpers ---
+function startGame(d) {
+    board.startNewGame(d);
+    setPlaying(true);
+    hideAllMenus();
+}
+
+function onGameOver() {
+    setPlaying(false);
+    if (board.won) {
+        const t = board.gameTime;
+        const isBest = recordTime(board.difficulty, t);
+        showGameOverDialog({
+            won: true, score: undefined,
+            customMessage: `Cleared ${DIFF_NAMES[board.difficulty]} in ${formatTime(t)}` + (isBest ? '\nNEW BEST!' : ''),
+            onContinue: () => quitToTitle(),
+        });
+    } else {
+        showGameOverDialog({
+            won: false, score: undefined,
+            customMessage: 'The pieces reached the line.',
+            onContinue: () => quitToTitle(),
+        });
+    }
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // --- Input helpers ---
@@ -800,6 +848,104 @@ class Physics {
 let physics = new Physics();
 
 ///////////////////////////////////////////////////////////////////////////////
+// --- Menu builder ---
+function buildMenus() {
+    // Difficulty button labels — refreshed in onShow so best times update.
+    let diffMenu;
+
+    function diffLabel(d) {
+        const t = bestTimeFor(d);
+        const best = t ? ' — BEST ' + formatTime(t) : '';
+        return DIFF_NAMES[d] + ' (' + SEED_COUNT[d] + ')' + best;
+    }
+
+    // ----- title -----
+    createTitleMenu({
+        title: 'COMPLEMENTS',
+        titleFx: {fill: 'neon', motion: 'float'},
+        playLabel: 'PLAY',
+        playGlow: true,
+        revealOnClick: false,
+        onPlay: () => pushMenu('difficulty'),
+        canReveal: () => !isPlaying(),
+        items: [
+            {type: 'button', label: 'OPTIONS', onClick: () => pushMenu('options')},
+            {type: 'button', label: 'ABOUT',   onClick: () => pushMenu('about')},
+        ],
+    });
+
+    // ----- difficulty -----
+    diffMenu = createMenu({
+        id: 'difficulty',
+        title: 'DIFFICULTY',
+        onHide: popMenu,
+        onShow: () => {
+            for (let d = 0; d < 4; ++d) {
+                const item = diffMenu.getItem('diff' + d);
+                if (item) item.setLabel(diffLabel(d));
+            }
+        },
+        items: [
+            {type: 'button', id: 'diff0', label: diffLabel(0), onClick: () => startGame(0)},
+            {type: 'button', id: 'diff1', label: diffLabel(1), onClick: () => startGame(1)},
+            {type: 'button', id: 'diff2', label: diffLabel(2), onClick: () => startGame(2)},
+            {type: 'button', id: 'diff3', label: diffLabel(3), onClick: () => startGame(3)},
+        ],
+    });
+
+    // ----- options (shared between title and pause) -----
+    createMenu({
+        id: 'options',
+        title: 'OPTIONS',
+        onHide: popMenu,
+        items: [
+            {type: 'slider',   id: 'volume',     label: 'VOLUME',       value: 0.8,  min: 0, max: 1,
+                persist: 'volume',
+                onChange: v => setSoundVolume(v)},
+            {type: 'separator'},
+            {type: 'checkbox', id: 'shake',       label: 'SCREEN SHAKE', value: true,
+                persist: 'shake',
+                onChange: v => setScreenShakeEnabled(v)},
+            {type: 'checkbox', id: 'trajectory',  label: 'TRAJECTORY',   value: true,
+                persist: 'trajectory',
+                onChange: v => { showTrajectory = v; }},
+            {type: 'checkbox', id: 'aimMouse',    label: 'MOUSE AIM',    value: true,
+                persist: 'aimMouse',
+                onChange: v => { aimWithMouse = v; }},
+        ],
+    });
+
+    // ----- about -----
+    createMenu({
+        id: 'about',
+        title: 'ABOUT',
+        onHide: popMenu,
+        items: [
+            {type: 'text', text: 'Match gems with their color complements to clear them from the board.\n\nRed ↔ Green   Orange ↔ Blue   Yellow ↔ Purple\nBlack ↔ White\n\nClear (transparent) gems adopt any color they touch.\nShoot gems from the launcher at the top.\nHold to grow the gem before firing.'},
+            {type: 'separator'},
+            {type: 'button', label: 'BACK', onClick: () => hideMenu('about')},
+        ],
+    });
+
+    // ----- pause -----
+    createMenu({
+        id: 'pause',
+        title: 'PAUSED',
+        initialItemId: 'resume',
+        items: [
+            {type: 'button', id: 'resume',  label: 'RESUME',        onClick: () => hideMenu('pause')},
+            {type: 'button', id: 'options', label: 'OPTIONS',       onClick: () => pushMenu('options')},
+            {type: 'button', id: 'quit',    label: 'QUIT TO TITLE', onClick: () => {
+                showConfirmDialog({
+                    message: 'Quit to title?',
+                    onYes: () => quitToTitle(),
+                });
+            }},
+        ],
+    });
+}
+
+///////////////////////////////////////////////////////////////////////////////
 function fitCamera() {
     // fit the 2x2 board into the canvas with a small margin
     const margin = 0.92;
@@ -821,90 +967,22 @@ async function gameInit()
     // One callback drives `paused` for every menu, including dialogs.
     setMenuVisibilityCallback(v => paused = v);
 
-    // ----- title menu -----
-    const playFromTitle = () => { setPlaying(true); titleMenu.hide(); };
-    const titleMenu = createMenu({
-        id: 'title',
-        title: 'COMPLEMENTS',
-        dismissable: false,
-        onStart: playFromTitle,
-        items: [
-            {type:'button', label:'PLAY',    onClick: playFromTitle},
-            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
-            {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
-        ],
-    });
-
-    // ----- options menu (shared between title and pause) -----
-    createMenu({
-        id: 'options',
-        title: 'OPTIONS',
-        onHide: popMenu,
-        items: [
-            {type:'slider',   id:'volume', label:'VOLUME',       value: 0.8, min:0, max:1,
-                persist:'volume',
-                onChange: v => setSoundVolume(v)},
-            {type:'separator'},
-            {type:'checkbox', id:'shake',  label:'SCREEN SHAKE', value: true,
-                persist:'shake',
-                onChange: v => setScreenShakeEnabled(v)},
-            {type:'button',   label:'FULLSCREEN', onClick: toggleFullscreen},
-            {type:'separator'},
-            {type:'button',   label:'BACK',       onClick: () => hideMenu('options')},
-        ],
-    });
-
-    // ----- help menu -----
-    createMenu({
-        id: 'help',
-        title: 'HELP',
-        onHide: popMenu,
-        items: [
-            {type:'text', text:'Match gems with their color complements to clear them from the board.\n\nRed ↔ Green  Orange ↔ Blue  Yellow ↔ Purple\nBlack ↔ White'},
-            {type:'separator'},
-            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
-        ],
-    });
-
-    // ----- pause menu -----
-    createMenu({
-        id: 'pause',
-        title: 'PAUSED',
-        initialItemId: 'resume',
-        items: [
-            {type:'button', id:'resume',  label:'RESUME',        onClick: () => hideMenu('pause')},
-            {type:'button', id:'options', label:'OPTIONS',       onClick: () => pushMenu('options')},
-            {type:'button', id:'quit',    label:'QUIT TO TITLE', onClick: () =>
-            {
-                showConfirmDialog({
-                    message: 'Quit to title?',
-                    onYes: () => quitToTitle(),
-                });
-            }},
-        ],
-    });
+    buildMenus();
 
     // ----- toolbar -----
     installDefaultToolbar();
 
-    // Show the title menu immediately — no click-to-reveal step.
-    showMenu('title');
-
-    // Temporary: start a game immediately so a human can test without the difficulty menu.
-    // Task 6 replaces this with the difficulty menu flow.
+    // Seed the board for the title backdrop (frozen while paused by menu visibility).
     board.startNewGame(0);
+
+    // Show title immediately — no click-to-reveal.
+    showMenu('title');
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 function gameUpdate()
 {
-    if (isPlaying() && (keyWasPressed('Escape') || gamepadWasPressed(9)))
-    {
-        playMenuSound('activate');
-        showMenu('pause');
-        inputClearKey('Escape');
-        inputClearKey(9, 1, false, true, false);
-    }
+    if (isPlaying() && bindPauseKey({when: () => isPlaying() && !board.gameOver})) return;
 
     if (!isPlaying()) return;
     board.update(timeDelta);
