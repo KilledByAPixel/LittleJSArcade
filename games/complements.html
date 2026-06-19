@@ -167,6 +167,10 @@ function formatTime(s) {
 ///////////////////////////////////////////////////////////////////////////////
 // --- Game-flow helpers ---
 function startGame(d) {
+    // Clear the pushMenu stack first: hideAllMenus() dismisses the difficulty
+    // menu, whose onHide:popMenu would otherwise restore the parent (title)
+    // right back over the freshly-started game.
+    clearSubmenuStack();
     board.startNewGame(d);
     setPlaying(true);
     hideAllMenus();
