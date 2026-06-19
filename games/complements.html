@@ -28,7 +28,9 @@
 'use strict';
 
 // --- Color model (ported from ComplementsPiece::colors / GetComplement) ---
-const RED=0, ORANGE=1, YELLOW=2, GREEN=3, BLUE=4, PURPLE=5, BLACK=6, WHITE=7, CLEAR=8, NUM_COLORS=9;
+// NOTE: color-type indices are C_-prefixed — bare RED/WHITE/BLACK/etc. are reserved
+// LittleJS Color globals (declared `const`), and redeclaring them is a load-time SyntaxError.
+const C_RED=0, C_ORANGE=1, C_YELLOW=2, C_GREEN=3, C_BLUE=4, C_PURPLE=5, C_BLACK=6, C_WHITE=7, C_CLEAR=8, NUM_COLORS=9;
 const COLORS = [
     new Color(1.0, 0.0, 0.0),   // Red
     new Color(1.0, 0.5, 0.0),   // Orange
@@ -40,7 +42,7 @@ const COLORS = [
     new Color(1.0, 1.0, 1.0),   // White
     new Color(1.0, 1.0, 1.0),   // Clear (drawn as glow/outline)
 ];
-const COMPLEMENT = [GREEN, BLUE, PURPLE, RED, ORANGE, YELLOW, WHITE, BLACK, CLEAR];
+const COMPLEMENT = [C_GREEN, C_BLUE, C_PURPLE, C_RED, C_ORANGE, C_YELLOW, C_WHITE, C_BLACK, C_CLEAR];
 const complementOf = c => COMPLEMENT[c];
 
 // --- Tuning (ported verbatim from complementsSettingsDefault) ---
@@ -175,7 +177,7 @@ function gameRender()
     drawRect(vec2(-BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
     drawRect(vec2( BOARD_HALF,0), vec2(0.02, 2*BOARD_HALF), new Color(0.4,0.4,0.5));
     // one sample gem (temporary)
-    drawTile(vec2(0,0), vec2(2*settings.maxRadius), icons.circle, COLORS[RED]);
+    drawTile(vec2(0,0), vec2(2*settings.maxRadius), icons.circle, COLORS[C_RED]);
 }
 
 function gameRenderPost()
