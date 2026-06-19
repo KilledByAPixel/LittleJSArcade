@@ -1043,7 +1043,7 @@ function drawBonds() {
             const thickness = 0.55 * dist * falloff;
 
             // Bond angle: from a to b (atan2 of deltaPos gives correct angle)
-            const angle = Math.atan2(deltaPos.y, deltaPos.x);
+            const angle = Math.atan2(-deltaPos.y, deltaPos.x);
 
             // Color: complement of the effective color, with special cases
             let colorType = b.effectiveColorType;
@@ -1074,7 +1074,7 @@ function drawTrajectory() {
     let drawTimer = 0;
     let loopsafe = 1000;
 
-    const dotSize = vec2(settings.minRadius * 0.5);
+    const dotSize = vec2(settings.minRadius);
 
     // Trajectory dot color
     let dotColor;
