@@ -135,7 +135,7 @@ function spawnBreakBurst(p) {
         p.pos.copy(), 0, emitSz, 0.1, rate, PI,
         icons.spark,
         c, c, cFade, cFade,
-        0.5, 0.1, 0.3,
+        0.5, 0.01, 0.03,
         0.3, 0.05,
         0.95, 1, 0.3, PI,
         0.15, 0.4, false, true
@@ -1034,7 +1034,7 @@ async function gameInit()
     saveDataInit('Complements');
     initDrawToTexture();
     icons = initDefaultAtlas();
-    bloomInit({threshold:0.3, intensity:1.5});
+    // bloomInit({threshold:0.3, intensity:1.5});  // disabled for now — post-process washed hues together
     cameraPos = vec2(0, 0);
     fitCamera();
 
@@ -1045,7 +1045,7 @@ async function gameInit()
     tweak('settings.elasticity',          {min:  0,   max: 1});
     tweak('settings.maxRadius',           {min:  0.06, max: 0.25});
     tweak('settings.timeAttackRiseSpeed', {min:  0,   max: 0.02});
-    bloomTweaks();
+    // bloomTweaks();  // disabled with bloom
 
     setSoundVolume(.8);
 
@@ -1301,7 +1301,7 @@ function drawDeathLine() {
     if (board.nextColor !== undefined) {
         const arrowPos = vec2(0, dl + settings.maxRadius);
         const arrowColor = COLORS[board.nextColor];
-        drawTile(arrowPos, vec2(2 * settings.maxRadius), icons.arrow, arrowColor, board.rotation);
+        drawTile(arrowPos, vec2(2 * settings.maxRadius), icons.arrow, arrowColor, PI - board.rotation);
     }
 }
 
@@ -1310,15 +1310,14 @@ function drawLauncher() {
     if (!board.currentPiece) return;
     const cp = board.currentPiece;
 
-    // Glow behind the current piece
-    drawPieceGlow(cp);
-
-    // The current piece itself
+    // The current piece itself (glow pass disabled)
     drawPiece(cp);
 
-    // Aim arrow on top of the piece
+    // Aim arrow on top of the piece. The arrow art points up (+Y) at angle 0;
+    // a tile at angle t points (sin t, cos t), but the launch dir is
+    // (sin r, -cos r), so the matching draw angle is PI - rotation.
     const arrowColor = COLORS[cp.colorType === C_CLEAR ? complementOf(cp.effectiveColorType) : cp.colorType];
-    drawTile(cp.pos, vec2(2 * cp.radius), icons.arrow, arrowColor, board.rotation);
+    drawTile(cp.pos, vec2(2 * cp.radius), icons.arrow, arrowColor, PI - board.rotation);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1337,14 +1336,11 @@ function gameRender()
     // Trajectory (drawn behind everything)
     drawTrajectory();
 
-    // Glow pass — behind gems
-    for (const p of physics.pieces) drawPieceGlow(p);
-
-    // Bonds — between glow and filled gem layers
-    drawBonds();
-
-    // Filled gem pass
+    // Filled gem pass (glow pass disabled — the white halo washed hues together)
     for (const p of physics.pieces) drawPiece(p);
+
+    // Bonds — drawn AFTER the gems so the connection lines sit on top and are visible
+    drawBonds();
 
     // Current piece (launcher) + aim arrow
     drawLauncher();
