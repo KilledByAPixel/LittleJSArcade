@@ -62,11 +62,85 @@ let icons;                     // default-atlas icon map
 let showTrajectory = true;     // toggle trajectory preview
 
 ///////////////////////////////////////////////////////////////////////////////
-// --- Temporary stubs (replaced in later tasks) ---
-function playBounceSound() {}
-function playBreakSound() {}
-function spawnBreakBurst(p) {}     // real version in Task 7
-function playAlarmMaybe(deathTime) {}   // real version in Task 7
+// --- Sound + particles (Task 7) ---
+
+// Pentatonic ratio table: maps ball size → musical pitch multiplier.
+// Large balls (low t) → low pitch (index 0=1.0); small balls → high pitch (index 5=2.0).
+const SCALE = [1, 9/8, 5/4, 3/2, 5/3, 2];  // major pentatonic ratios
+function pitchForRadius(r) {
+    const t = clamp((r - settings.minRadius) / (settings.maxRadius - settings.minRadius), 0, 1);
+    return SCALE[Math.min(SCALE.length - 1, Math.floor((1 - t) * SCALE.length))];
+}
+
+// Bounce sound: short click/thud, pitched by ball size.
+const bounceSound = new SoundGenerator({frequency: 200, release: 0.08, slide: -0.3, noise: 0.05, volume: 0.4});
+
+// Break sound: brighter pop/chime, pitched by ball size.
+const breakSound  = new SoundGenerator({frequency: 520, release: 0.15, slide: 0.4, pitchJump: 260, pitchJumpTime: 0.05, volume: 0.6});
+
+// Extra low break for WHITE / CLEAR (lower-octave double, per brief).
+const breakSoundLow = new SoundGenerator({frequency: 260, release: 0.2, slide: 0.2, pitchJump: 130, pitchJumpTime: 0.05, volume: 0.5});
+
+// Near-death alarm: pulsing warning tone.
+const alarmSound  = new SoundGenerator({frequency: 880, release: 0.25, slide: -0.6, volume: 0.5});
+
+// Timer throttles the alarm to ~every 0.5 s.
+const alarmTimer  = new Timer;
+
+function playBounceSound(p, speed) {
+    const pitch = pitchForRadius(p.radius);
+    bounceSound.play(p.pos, 1, pitch);
+}
+
+function playBreakSound(p) {
+    const pitch = pitchForRadius(p.radius);
+    breakSound.play(p.pos, 1, pitch);
+    // For WHITE or CLEAR pieces, play an additional lower-octave double.
+    if (p.colorType === C_WHITE || p.colorType === C_CLEAR) {
+        breakSoundLow.play(p.pos, 0.7, pitch * 0.5);
+    }
+}
+
+function playAlarmMaybe(deathTime) {
+    // Only pulse while deathTime > 0, throttled to ~every 0.5 s.
+    if (deathTime <= 0) return;
+    if (!alarmTimer.isSet() || alarmTimer.elapsed()) {
+        alarmSound.play();
+        alarmTimer.set(0.5);
+    }
+}
+
+function spawnBreakBurst(p) {
+    // Choose particle color: CLEAR uses the complement of its effective color.
+    const c = (p.colorType === C_CLEAR)
+        ? COLORS[complementOf(p.effectiveColorType)]
+        : COLORS[p.colorType];
+
+    // Scale rate/emitSize with radius so big gems burst more dramatically.
+    const rScale = p.radius / settings.maxRadius;   // 0.5..1
+    const rate   = Math.round(20 + 30 * rScale);    // 20..50 particles
+    const emitSz = p.radius * (0.8 + 0.4 * rScale); // slightly larger for big gems
+
+    // Color fades to alpha=0 at end-of-life (c.scale(1, 0) keeps RGB, zeroes alpha).
+    const cFade = c.scale(1, 0);
+
+    // ParticleEmitter(pos, angle, emitSize, emitTime, emitRate, emitConeAngle,
+    //   tileInfo,
+    //   colorStartA, colorStartB, colorEndA, colorEndB,
+    //   particleTime, sizeStart, sizeEnd,
+    //   speed, angleSpeed,
+    //   damping, angleDamping, gravityScale, particleConeAngle,
+    //   fadeRate, randomness, collideTiles, additive)
+    new ParticleEmitter(
+        p.pos.copy(), 0, emitSz, 0.1, rate, PI,
+        icons.spark,
+        c, c, cFade, cFade,
+        0.5, 0.1, 0.3,
+        0.3, 0.05,
+        0.95, 1, 0.3, PI,
+        0.15, 0.4, false, true
+    );
+}
 
 ///////////////////////////////////////////////////////////////////////////////
 // --- Difficulty names / best-time helpers ---
@@ -961,6 +1035,15 @@ async function gameInit()
     bloomInit({threshold:0.3, intensity:1.5});
     cameraPos = vec2(0, 0);
     fitCamera();
+
+    // Tweakables panel — press \ to toggle.
+    tweakDivider('Complements');
+    tweak('settings.gravity',             {min: -5,   max: 0});
+    tweak('settings.launchSpeed',         {min:  0.5, max: 5});
+    tweak('settings.elasticity',          {min:  0,   max: 1});
+    tweak('settings.maxRadius',           {min:  0.06, max: 0.25});
+    tweak('settings.timeAttackRiseSpeed', {min:  0,   max: 0.02});
+    bloomTweaks();
 
     setSoundVolume(.8);
 
