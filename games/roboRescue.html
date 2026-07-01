@@ -5,6 +5,7 @@
 <script src="../templates/engineLoader.js?1780767748506"></script>
 <script src="../templates/gameFx.js?1780767748506"></script>
 <script src="../templates/menus.js?1780767748506"></script>
+<script src="../templates/tweakables.js?1780767748506"></script>
 <script>
 'use strict';
 
@@ -63,6 +64,9 @@ const scoreEnemyBullet   = 25;     // arcade: sparks/missiles/shells are killabl
 // lives and bonus (arcade default)
 const startingLives = 3;
 const bonusLifeInterval = 25000;
+
+// player fire cadence — frames between shots (arcade LSPROC was 8; lower = faster)
+let playerShootCooldown = 6;
 
 // game state
 let player;
@@ -1908,8 +1912,9 @@ function endWave()
 function respawnMidWave()
 {
     // Count surviving enemies by type so we can respawn the same count at fresh positions.
+    // Progs (reprogrammed humans) are intentionally NOT counted — that human is already
+    // dead, so they vanish on player death instead of respawning as possessed humans.
     let nG=0, nH=0, nB=0, nS=0, nQ=0, nT=0, nE=0;
-    const survivingProgs = [];
     for (const e of enemies)
     {
         if (e.destroyed) continue;
@@ -1920,7 +1925,6 @@ function respawnMidWave()
         else if (e instanceof Quark)    nQ++;
         else if (e instanceof Tank)     nT++;
         else if (e instanceof Enforcer) nE++;
-        else if (e instanceof Prog)     survivingProgs.push(e.humanType);
     }
     // Arcade PLEND2 (RRG23.ASM): convert surviving Enforcers into additional Spheroids.
     //   A = ENFCNT / 4 (integer divide, drops fraction)
@@ -1947,8 +1951,6 @@ function respawnMidWave()
     for (let i=0;i<nT;i++) spawnTank();
     // Arcade: surviving Enforcers are wiped by GNCIDE — only the converted Spheroids above
     // bring them back (those new Spheroids will drop fresh Enforcers in due time).
-    for (const t of survivingProgs)
-        enemies.push(new Prog(randEdgeSpawn(), t));
 
     // Grunt speed ramp restarts (matches arcade — speed climb resets on each death)
     waveTime = 0;
@@ -2041,7 +2043,7 @@ class Player extends EngineObject
             // Bullets fire straight from the player — no aim barrel in arcade Robotron
             const bulletSpeed = 1;
             bullets.push(new Bullet(this.pos.copy(), this.facing.scale(bulletSpeed)));
-            this.cooldown = 8;
+            this.cooldown = playerShootCooldown;
             sfxShoot.play(this.pos);
         }
         if (this.invuln > 0) this.invuln--;
@@ -2492,6 +2494,8 @@ function gameInit()
 
     buildMenus();
     spawnAttractDecoration();
+
+    tweak('playerShootCooldown', {min: 2, max: 16});
 }
 
 // Title-screen attract: family wandering, electrodes pulsing, a few enemies for flavor.
