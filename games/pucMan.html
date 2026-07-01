@@ -327,6 +327,14 @@ function gameRender()
             if (isWallXY(x, y-1) !== 1) drawRect(vec2(cx, y+t/2),   vec2(1, t), wallColor);
             if (isWallXY(x+1, y) !== 1) drawRect(vec2(x+1-t/2, cy), vec2(t, 1), wallColor);
             if (isWallXY(x-1, y) !== 1) drawRect(vec2(x+t/2,   cy), vec2(t, 1), wallColor);
+
+            // Inside (concave) corners: the two neighbors' edge strips are each inset
+            // into their own cell and only meet corner-to-corner, leaving a t x t gap
+            // in this cell when its diagonal is open but both flanking sides are solid.
+            for (const sx of [-1, 1])
+            for (const sy of [-1, 1])
+                if (isWallXY(x+sx, y+sy) !== 1 && isWallXY(x+sx, y) === 1 && isWallXY(x, y+sy) === 1)
+                    drawRect(vec2(cx + sx*(.5-t/2), cy + sy*(.5-t/2)), vec2(t, t), wallColor);
         }
         else if (w === 2)
         {
