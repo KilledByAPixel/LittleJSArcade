@@ -35,7 +35,7 @@ const engineName = 'LittleJS';
  *  @type {string}
  *  @default
  *  @memberof Engine */
-const engineVersion = '1.18.19';
+const engineVersion = '1.18.20';
 
 /** Frames per second to update
  *  @type {number}
@@ -474,6 +474,11 @@ function engineObjectsUpdate()
     // get list of solid objects for physics optimization
     engineObjectsCollide = engineObjects.filter(o=>o.collideSolidObjects);
 
+    // update physics before object update
+    for (const o of engineObjects)
+        if (!o.parent && !o.destroyed)
+            o.updatePhysics();
+
     // recursive object update
     function updateChildObject(o)
     {
@@ -489,7 +494,6 @@ function engineObjectsUpdate()
 
         // update top level objects
         o.update();
-        o.updatePhysics();
         for (const child of o.children)
             updateChildObject(child);
         o.updateTransforms();
@@ -815,7 +819,7 @@ function smoothStep(percent) { return percent * percent * (3 - 2 * percent); }
  *  @param {number} value
  *  @return {boolean}
  *  @memberof Math */
-function isPowerOfTwo(value) { return !(value & (value - 1)); }
+function isPowerOfTwo(value) { return value > 0 && !(value & (value - 1)); }
 
 /** Returns the nearest power of two not less than the value
  *  @param {number} value
@@ -892,7 +896,7 @@ function isIntersecting(start, end, pos, size)
  *  @memberof Math */
 function oscillate(frequency=1, amplitude=1, t=time, offset=0, type=0)
 {
-    const phase = (offset + t*frequency) % 1;
+    const phase = mod(offset + t*frequency, 1);
     let value;
     
     if (type === 1) // triangle
@@ -1828,7 +1832,7 @@ const MAGENTA = debugProtectConstant(rgb(1,0,1));
 class Timer
 {
     /** Create a timer object set time passed in
-     *  @param {number} [timeLeft] - How much time left before the timer 
+     *  @param {number} [timeLeft] - How much time left before the timer is elapsed in seconds (undefined = unset)
      *  @param {boolean} [useRealTime] - Should the timer keep running even when the game is paused? (useful for UI) */
     constructor(timeLeft, useRealTime=false)
     {
@@ -2427,6 +2431,7 @@ let vibrateEnable = true;
 let soundEnable = true;
 
 /** Volume scale to apply to all sound, music and speech
+ *  Use setSoundVolume to also update the audio master gain immediately
  *  @type {number}
  *  @default
  *  @memberof Settings */
@@ -3507,6 +3512,14 @@ class TileInfo
     }
 
     /**
+     * Returns a tile info for an index using this tile as reference
+     * @param {Vector2|number} [index=0]
+     * @return {TileInfo}
+     */
+    index(index)
+    { return tile(index, this.size, this.textureInfo, this.padding, this.bleed); }
+
+    /**
      * Set this tile to use a full image in a texture info
      * @param {TextureInfo} [textureInfo]
      * @return {TileInfo}
@@ -3519,14 +3532,6 @@ class TileInfo
         this.bleed = this.padding = 0;
         return this;
     }
-
-    /**
-     * Returns a tile info for an index using this tile as reference
-     * @param {Vector2|number} [index=0]
-     * @return {TileInfo}
-     */
-    tile(index)
-    { return tile(index, this.size, this.textureInfo, this.padding, this.bleed); }
 }
 
 /**
@@ -5224,7 +5229,10 @@ function inputInit()
     {
         inputData[0][e.code] = (inputData[0][e.code]&2) | 4;
         if (inputWASDEmulateDirection)
-            inputData[0][remapKey(e.code)] = 4;
+        {
+            const remap = remapKey(e.code);
+            inputData[0][remap] = (inputData[0][remap]&2) | 4;
+        }
     }
     function remapKey(k)
     {
@@ -5299,7 +5307,7 @@ function inputInit()
         document.addEventListener('touchend',   (e)=> handleTouch(e), { passive: false });
 
         // handle all touch events the same way
-        let wasTouching;
+        let wasTouching, touchIdentifier;
         function handleTouch(e)
         {
             if (!touchInputEnable) return;
@@ -5330,10 +5338,11 @@ function inputInit()
                     const pos = vec2(gameTouches[0].clientX, gameTouches[0].clientY);
                     const mousePosScreenLast = mousePosScreen;
                     mousePosScreen = mouseEventToScreen(pos);
-                    if (wasTouching)
+                    if (wasTouching && gameTouches[0].identifier === touchIdentifier)
                         mouseDeltaScreen = mouseDeltaScreen.add(mousePosScreen.subtract(mousePosScreenLast));
-                    else
+                    else if (!wasTouching)
                         inputData[0][button] = 3;
+                    touchIdentifier = gameTouches[0].identifier;
                 }
                 else if (wasTouching)
                     inputData[0][button] = inputData[0][button] & 2 | 4;
@@ -6491,7 +6500,7 @@ class SoundInstance
  *  @param {number} [rate] - How quickly to speak
  *  @param {number} [pitch] - How much to change the pitch by
  *  @param {string} [language] - The language/accent to use (examples: en, it, ru, ja, zh)
- *  @return {SpeechSynthesisUtterance} - The utterance that was spoken
+ *  @return {SpeechSynthesisUtterance|undefined} - The utterance that was spoken, or undefined if speech is unavailable
  *  @memberof Audio */
 function speak(text, volume=1, rate=1, pitch=1, language='')
 {
@@ -6544,7 +6553,7 @@ function getNoteFrequency(semitoneOffset, rootFrequency=220)
  *  @param {number}   [pan] - How much to apply stereo panning
  *  @param {boolean}  [loop] - True if the sound should loop when it reaches the end
  *  @param {number}   [sampleRate=44100] - Sample rate for the sound
- *  @param {GainNode} [gainNode] - Optional gain node for volume control while playing
+ *  @param {GainNode} [gainNode] - Optional gain node for volume control while playing (disconnected when the sound ends)
  *  @param {number}   [offset] - Offset in seconds to start playback from
  *  @param {AudioEndedCallback} [onended] - Callback for when the sound ends
  *  @return {AudioBufferSourceNode} - The source node of the sound played, may be undefined if play fails
@@ -6786,10 +6795,14 @@ function tileCollisionGetData(pos, solidOnly=true)
     // check all tile collision layers
     for (const layer of tileCollisionLayers)
         if (!solidOnly || layer.isSolid)
-        if (pos.arrayCheck(layer.size))
         {
-            const data = layer.getCollisionData(pos);
-            if (data) return data;
+            // convert world pos to layer local space
+            const layerPos = pos.subtract(layer.pos);
+            if (layerPos.arrayCheck(layer.size))
+            {
+                const data = layer.getCollisionData(layerPos);
+                if (data) return data;
+            }
         }
     return 0;
 }
@@ -7064,7 +7077,7 @@ class TileLayer extends CanvasLayer
         
         /** @property {TileInfo} - Default tile info for layer */
         this.tileInfo = undefined;
-        /** @property {Array<TileLayerData>} - Default tile info for layer */
+        /** @property {Array<TileLayerData>} - Array of tile data for the layer */
         this.data = [];
         /** @property {boolean} - Is this layer using a webgl texture? */
         this.isUsingWebGL = false;
@@ -7149,7 +7162,7 @@ class TileLayer extends CanvasLayer
 
         const size = this.drawSize || this.size;
         const pos = this.pos.add(size.scale(.5));
-        this.draw(pos, this.size, this.color, this.angle, this.mirror, this.additiveColor);
+        this.draw(pos, size, this.color, this.angle, this.mirror, this.additiveColor);
     }
 
     /** Called after this layer is redrawn, does nothing by default */
@@ -7238,7 +7251,7 @@ class TileLayer extends CanvasLayer
         const d = this.getData(layerPos);
         if (!d || !d.tile) return;
 
-        const tileInfo = this.tileInfo && this.tileInfo.tile(d.tile);
+        const tileInfo = this.tileInfo && this.tileInfo.index(d.tile);
         this.drawLayerTile(drawPos, drawSize, tileInfo, d.color, d.direction*PI/2, d.mirror);
     }
 
@@ -7532,8 +7545,8 @@ class TileCollisionLayer extends TileLayer
  *     rgb(1,1,1,1), rgb(0,0,0,1), // colorStartA, colorStartB
  *     rgb(1,1,1,0), rgb(0,0,0,0), // colorEndA, colorEndB
  *     1, .2, .2, .1, .05,  // particleTime, sizeStart, sizeEnd, particleSpeed, particleAngleSpeed
- *     .99, 1, 1, PI, .05,  // damping, angleDamping, gravityScale, particleCone, fadeRate,
- *     .5, 1                // randomness, collide, additive, randomColorLinear, renderOrder
+ *     .99, 1, 1, PI, .05,  // damping, angleDamping, gravityScale, particleCone, fadeRate
+ *     .5, 1                // randomness, collide
  * );
  */
 class ParticleEmitter extends EngineObject
@@ -7925,13 +7938,12 @@ class Particle
             const hitLayer = tileCollisionTest(this.pos);
             if (!testCollision(oldPos))
             {
-                // testCollision already invoked collideCallback with the
-                // correct (this, data, pos) args; no need to re-check here.
                 // test which side we bounced off (or both if a corner)
                 const isBlockedX = testCollision(vec2(this.pos.x, oldPos.y));
                 const isBlockedY = testCollision(vec2(oldPos.x, this.pos.y));
-                const hitRestitution = max(restitution, hitLayer.restitution);
-                const hitFriction = max(friction, hitLayer.friction);
+                // collide callback may hit where the layer test does not, so hitLayer can be undefined
+                const hitRestitution = hitLayer ? max(restitution, hitLayer.restitution) : restitution;
+                const hitFriction = hitLayer ? max(friction, hitLayer.friction) : friction;
                 if (isBlockedX)
                 {
                     // move to previous X position and bounce
@@ -9580,7 +9592,8 @@ class NewgroundsPlugin
             return;
         }
         debugMedals && LOG(xmlHttp.responseText);
-        return xmlHttp.responseText && JSON.parse(xmlHttp.responseText);
+        try { return xmlHttp.responseText && JSON.parse(xmlHttp.responseText); }
+        catch(e) { debugMedals && LOG('newgrounds response is not valid JSON', e); }
     }
 }
 /**
@@ -9599,8 +9612,8 @@ class NewgroundsPlugin
 let postProcess;
 
 /////////////////////////////////////////////////////////////////////////
-/** 
- * UI System Global Object
+/**
+ * Post Process Plugin - Applies a full screen shader to the rendered output
  * @memberof PostProcess
  */
 class PostProcessPlugin
@@ -9714,8 +9727,9 @@ class PostProcessPlugin
                 workCanvas.height = mainCanvasSize.y;
                 glCopyToContext(workContext);
                 workContext.drawImage(mainCanvas, 0, 0);
-                mainCanvas.width |= 0
-                
+                mainCanvas.width |= 0; // setting size clears the main canvas
+
+
                 // copy work canvas to texture
                 glContext.texImage2D(glContext.TEXTURE_2D, 0, glContext.RGBA, glContext.RGBA, glContext.UNSIGNED_BYTE, workCanvas);
             }
@@ -10820,7 +10834,7 @@ class UISystemPlugin
     }
 
     /** Get other axis navigation direction from gamepad or keyboard
-     *  @return {Vector2} */
+     *  @return {number} */
     getNavigationOtherDirection()
     {
         if (uiSystem.navigationDirection === 2)
@@ -10909,6 +10923,7 @@ class UISystemPlugin
             uiSystem.navigationDirection = savedNavigationDirection;
             inputClear();
         }
+        return confirmMenu;
     }
 }
 
@@ -11342,7 +11357,7 @@ class UITextInput extends UIObject
         this.onClick();
     }
 
-    /** Stop editing the text edited */
+    /** Stop editing the text */
     stopEditing()
     {
         if (!this.isKeyInputObject())
@@ -11505,7 +11520,7 @@ class UICheckbox extends UIObject
         ASSERT(isStringLike(text), 'ui checkbox must be a string');
         ASSERT(isColor(color), 'ui checkbox color must be a color');
 
-        /** @property {boolean} - Current percentage value of this slider 0-1 */
+        /** @property {boolean} - Is the checkbox currently checked? */
         this.checked = checked;
         // set properties
         this.text = text;
@@ -12270,7 +12285,7 @@ class Box2dObject extends EngineObject
             shape.set_m_vertex3(box2d.vec2dTo(getPoint(i+2)));
             const f = this.addShape(shape, density, friction, restitution, isSensor);
             fixtures.push(f);
-            i < points.length && edgePoints.push(points[i].copy());
+            edgePoints.push(points[i].copy());
         }
         this.edgeLoops.push(edgePoints);
         return fixtures;
@@ -12336,7 +12351,7 @@ class Box2dObject extends EngineObject
     /** Sets the position
      *  @param {Vector2} pos */
     setPosition(pos)
-    { this.setTransform(pos, this.body.GetAngle()); }
+    { this.setTransform(pos, -this.body.GetAngle()); }
 
     /** Sets the angle
      *  @param {number} angle */
@@ -12433,6 +12448,7 @@ class Box2dObject extends EngineObject
             filter.set_categoryBits(categoryBits);
             filter.set_maskBits(0xffff & ~ignoreCategoryBits);
             filter.set_groupIndex(groupIndex);
+            fixture.SetFilterData(filter); // applies and refilters contacts
         });
     }
 
@@ -12968,7 +12984,7 @@ class Box2dRevoluteJoint extends Box2dJoint
         jointDef.set_bodyB(objectB.body);
         jointDef.set_localAnchorA(box2d.vec2dTo(localAnchorA));
         jointDef.set_localAnchorB(box2d.vec2dTo(localAnchorB));
-        jointDef.set_referenceAngle(objectA.body.GetAngle() - objectB.body.GetAngle());
+        jointDef.set_referenceAngle(objectB.body.GetAngle() - objectA.body.GetAngle());
         jointDef.set_collideConnected(collide);
         super(jointDef);
     }
@@ -13115,14 +13131,14 @@ class Box2dPrismaticJoint extends Box2dJoint
         anchor ||= box2d.vec2From(objectB.body.GetPosition());
         const localAnchorA = objectA.worldToLocal(anchor);
         const localAnchorB = objectB.worldToLocal(anchor);
-        const localAxisA = objectB.worldToLocalVector(worldAxis);
+        const localAxisA = objectA.worldToLocalVector(worldAxis);
         const jointDef = new box2d.instance.b2PrismaticJointDef();
         jointDef.set_bodyA(objectA.body);
         jointDef.set_bodyB(objectB.body);
         jointDef.set_localAnchorA(box2d.vec2dTo(localAnchorA));
         jointDef.set_localAnchorB(box2d.vec2dTo(localAnchorB));
         jointDef.set_localAxisA(box2d.vec2dTo(localAxisA));
-        jointDef.set_referenceAngle(objectA.body.GetAngle() - objectB.body.GetAngle());
+        jointDef.set_referenceAngle(objectB.body.GetAngle() - objectA.body.GetAngle());
         jointDef.set_collideConnected(collide);
         super(jointDef);
     }
@@ -13225,7 +13241,7 @@ class Box2dWheelJoint extends Box2dJoint
         anchor ||= box2d.vec2From(objectB.body.GetPosition());
         const localAnchorA = objectA.worldToLocal(anchor);
         const localAnchorB = objectB.worldToLocal(anchor);
-        const localAxisA = objectB.worldToLocalVector(worldAxis);
+        const localAxisA = objectA.worldToLocalVector(worldAxis);
         const jointDef = new box2d.instance.b2WheelJointDef();
         jointDef.set_bodyA(objectA.body);
         jointDef.set_bodyB(objectB.body);
@@ -13325,7 +13341,7 @@ class Box2dWeldJoint extends Box2dJoint
         jointDef.set_bodyB(objectB.body);
         jointDef.set_localAnchorA(box2d.vec2dTo(localAnchorA));
         jointDef.set_localAnchorB(box2d.vec2dTo(localAnchorB));
-        jointDef.set_referenceAngle(objectA.body.GetAngle() - objectB.body.GetAngle());
+        jointDef.set_referenceAngle(objectB.body.GetAngle() - objectA.body.GetAngle());
         jointDef.set_collideConnected(collide);
         super(jointDef);
     }
@@ -13772,7 +13788,7 @@ class Box2dPlugin
      *  @param {number} [lineWidth]
      *  @param {boolean} [useWebGL=glEnable]
      *  @param {CanvasRenderingContext2D} [context] */
-    drawFixture(fixture, pos, angle, color=WHITE, lineColor=BLACK, lineWidth=.1, useWebgl, context)
+    drawFixture(fixture, pos, angle, color=WHITE, lineColor=BLACK, lineWidth=.1, useWebGL, context)
     {
         const shape = box2d.castShapeObject(fixture.GetShape());
         switch (shape.GetType())
@@ -13782,20 +13798,20 @@ class Box2dPlugin
                 let points = [];
                 for (let i=shape.GetVertexCount(); i--;)
                     points.push(box2d.vec2From(shape.GetVertex(i)));
-                drawPoly(points, color, lineWidth, lineColor, pos, angle, useWebgl, false, context);
+                drawPoly(points, color, lineWidth, lineColor, pos, angle, useWebGL, false, context);
                 break;
             }
             case box2d.instance.b2Shape.e_circle:
             {
                 const radius = shape.get_m_radius();
-                drawCircle(pos, radius*2, color, lineWidth, lineColor, useWebgl, false, context);
+                drawCircle(pos, radius*2, color, lineWidth, lineColor, useWebGL, false, context);
                 break;
             }
             case box2d.instance.b2Shape.e_edge:
             {
                 const v1 = box2d.vec2From(shape.get_m_vertex1());
                 const v2 = box2d.vec2From(shape.get_m_vertex2());
-                drawLine(v1, v2, lineWidth, lineColor, pos, angle, useWebgl, false, context);
+                drawLine(v1, v2, lineWidth, lineColor, pos, angle, useWebGL, false, context);
                 break;
             }
         }
@@ -14626,7 +14642,11 @@ function tweenProperty(target, propertyPath, start, end, duration = 1, options =
     const callback = (value) =>
     {
         let obj = target;
-        for (const k of parts) obj = obj[k];
+        for (const k of parts)
+        {
+            obj = obj[k];
+            ASSERT(obj != null, 'tweenProperty path does not resolve: ' + propertyPath);
+        }
         obj[lastKey] = value;
     };
     return new Tween(callback, start, end, duration, options);
