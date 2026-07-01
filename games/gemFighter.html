@@ -49,6 +49,20 @@ function gemCrash(color)   { return { type:'crash',   color }; }
 function gemCounter(color, countdown) { return { type:'counter', color, countdown }; }
 function gemDiamond()      { return { type:'diamond' }; }
 
+// Deep-copy a gem. Grids must NEVER share gem objects — mergePowerGems writes
+// powerGemId on gems in place, so one object aliased into two grids (both
+// boards spawn from one shared sequence; the AI locks the live piece into sim
+// grids) lets one board silently corrupt another board's power gems. Clone at
+// every boundary where a gem crosses into a different grid.
+function cloneGem(g)
+{
+    if (!g) return null;
+    if (g.type === 'regular') return { type:'regular', color:g.color, powerGemId:g.powerGemId };
+    if (g.type === 'crash')   return gemCrash(g.color);
+    if (g.type === 'counter') return gemCounter(g.color, g.countdown);
+    return gemDiamond();
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Grid helpers
 
@@ -1112,8 +1126,10 @@ class GameMatch
 
     spawn(boardIdx)
     {
+        // Clone — the sequence is shared between both boards, so handing out
+        // its gem objects directly would alias one object into both grids.
         const piece = this.sequence[this.seqIndex[boardIdx]++];
-        this.boards[boardIdx].spawnNext(piece);
+        this.boards[boardIdx].spawnNext({ a: cloneGem(piece.a), b: cloneGem(piece.b) });
     }
 
     onLock(boardIdx, lockResult)
@@ -1772,14 +1788,7 @@ function cloneGrid(grid)
     const out = [...Array(BOARD_W)].map(()=> Array(BOARD_H).fill(null));
     for (let x = 0; x < BOARD_W; x++)
     for (let y = 0; y < BOARD_H; y++)
-    {
-        const g = grid[x][y];
-        if (!g) continue;
-        if (g.type === 'regular') out[x][y] = { type:'regular', color:g.color, powerGemId:g.powerGemId };
-        else if (g.type === 'crash') out[x][y] = gemCrash(g.color);
-        else if (g.type === 'counter') out[x][y] = gemCounter(g.color, g.countdown);
-        else out[x][y] = gemDiamond();
-    }
+        out[x][y] = cloneGem(grid[x][y]);
     return out;
 }
 
@@ -1798,7 +1807,9 @@ function scorePlacement(board, piece, x, rot, opponentPattern, weights)
     if (landY < 0) return -Infinity;
 
     const sim = cloneGrid(board.grid);
-    const simPiece = { a: piece.a, b: piece.b, x, y: landY, rot };
+    // Clone the piece gems too — locking the live gems into the sim would let
+    // the sim's mergePowerGems stamp ids on them.
+    const simPiece = { a: cloneGem(piece.a), b: cloneGem(piece.b), x, y: landY, rot };
     lockPieceWithSeparation(sim, simPiece);
     const before = sim.map(col => col.filter(c => c).length).reduce((a,b)=>a+b, 0);
     const res = resolveBoard(sim, { characterMultiplier: 1 });
@@ -2615,6 +2626,29 @@ function runUnitTests()
         assert(g[2][0] === null, 'diamond: tech bonus still removes diamond');
     }
 
+    // --- Gem object aliasing (the "power gems un-join" bug) ---
+    {
+        // Both boards draw pieces from ONE shared sequence. If spawn hands the
+        // sequence's gem objects out directly, the same gem object ends up in
+        // BOTH grids; mergePowerGems then writes powerGemId on it from both
+        // sides, and one board's merge corrupts the other's power gems.
+        const match = new GameMatch(CHARACTERS[0], CHARACTERS[1], 12345);
+        match.spawn(0); match.spawn(1);
+        const a0 = match.boards[0].active, a1 = match.boards[1].active;
+        assert(a0.a !== a1.a && a0.b !== a1.b, 'alias: boards get distinct gem objects from the shared sequence');
+        assert(a0.a.type === a1.a.type && a0.b.type === a1.b.type, 'alias: cloned pieces still match the sequence');
+
+        // The AI sim locks the piece into a cloned grid — it must NOT mutate
+        // the live piece gems (the sim's mergePowerGems would stamp ids on
+        // them, which they then carry into the real grid on lock).
+        const b = new Board(CHARACTERS[0]);
+        b.grid[0][0] = gemRegular(COLOR_R); b.grid[1][0] = gemRegular(COLOR_R);
+        b.grid[0][1] = gemRegular(COLOR_R);
+        const piece = { a: gemRegular(COLOR_R), b: gemRegular(COLOR_B) };
+        scorePlacement(b, piece, 1, 0, null, AI_WEIGHTS.normal);
+        assert(piece.a.powerGemId === -1, 'alias: scorePlacement leaves live piece gems unmutated');
+    }
+
     // --- resolveBoard integration tests ---
     {
         // 2x2 red power gem + red crash adjacent → wave 1, expected damage 9
@@ -2870,7 +2904,7 @@ async function gameInit()
 
     // Build marker — confirm in the console which power-gem build is loaded.
     // If you see non-rectangles joining, you're on a cached OLD build; hard-reload.
-    console.log('%cGem Fighter — overlay shows settled boards + on-screen self-check (rev 9)', 'color:#0f0;font-weight:bold');
+    console.log('%cGem Fighter — gem-object aliasing fixed, boards no longer share gems (rev 10)', 'color:#0f0;font-weight:bold');
 
     runUnitTests();
 }
@@ -2978,6 +3012,7 @@ function gameUpdatePost()
     cameraPos = vec2(0, 0);
     screenFlash = max(0, screenFlash - timeDelta * 3);
     if (currentMatch)
+    {
         for (const b of currentMatch.boards)
         {
             if (b.chainPop)  b.chainPop.t  = max(0, b.chainPop.t  - timeDelta * 1.3);
@@ -2987,8 +3022,14 @@ function gameUpdatePost()
             // this mid-animation (the chain owns its own merges) so a falling gem
             // doesn't visually fuse in mid-air — gems join when they land.
             if (!b.chainAnim) mergePowerGems(b.grid);
-            auditPowerGems(b, b.index);   // always: flags any invalid gem + its phase
         }
+        // Audit AFTER all boards have merged — this is the state the renderer
+        // draws. Auditing each board right after its own merge hid the shared-
+        // gem-object bug: board 1's merge corrupted board 0's (already audited)
+        // gems, so the banner stayed quiet while the player saw broken gems.
+        for (const b of currentMatch.boards)
+            auditPowerGems(b, b.index);   // flags any invalid gem + its phase
+    }
     if (_pgBugTimer > 0) _pgBugTimer = max(0, _pgBugTimer - timeDelta);
 }
 function gameRender()
@@ -3112,7 +3153,7 @@ function gameRenderPost()
     }
 
     // Build tag (always visible) so the running version is confirmable at a glance.
-    drawTextScreen('rev 9', vec2(34, mainCanvasSize.y - 12), 11, hsl(0,0,.45), 2);
+    drawTextScreen('rev 10', vec2(34, mainCanvasSize.y - 12), 11, hsl(0,0,.45), 2);
     // On-screen self-check banner: flashes red if any invalid power gem is detected.
     if (_pgBugTimer > 0)
         drawTextScreen(_pgBugMsg, vec2(mainCanvasSize.x/2, 26), 22, rgb(1,.25,.25), 4, hsl(0,0,0));
