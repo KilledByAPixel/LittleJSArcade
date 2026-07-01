@@ -1,0 +1,231 @@
+<!DOCTYPE html><head>
+<title>Blastman</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<script src="../templates/engineLoader.js"></script>
+<script src="../templates/menus.js"></script>
+<script src="../templates/gameFx.js"></script>
+<script src="../templates/textureGenerator.js"></script>
+<script>
+'use strict';
+
+// on-screen touch gamepad: left stick to move, one face button to drop bombs
+touchGamepadEnable = true;
+touchGamepadAnalog = true;
+touchGamepadButtonCount = 1;
+
+///////////////////////////////////////////////////////////////////////////////
+// constants
+
+const LEVEL_W = 15, LEVEL_H = 13;              // arena size including solid border
+const TT = {EMPTY:0, HARD:1, SOFT:2, BOMB:3};  // tile types in collision data
+const BOMB_FUSE  = 2.5;    // seconds until a bomb explodes
+const FLAME_TIME = .4;     // seconds a flame cell burns
+const STAGE_TIME = 180;    // stage timer in seconds
+const MOVE_SPEED  = .085;  // player speed, world units per frame
+const ASSIST_SPEED = .06;  // corner-assist perpendicular nudge, per frame
+
+///////////////////////////////////////////////////////////////////////////////
+// state
+
+let icons;                 // default-atlas name -> TileInfo map
+let collisionLayer;        // TileCollisionLayer, the authoritative solids grid
+let player;                // Player EngineObject (created in gameInit)
+let enemies = [];          // Enemy cell-walkers
+let bombs = [];            // {x, y, range, timer}
+let flames = new Map();    // cellKey -> Timer
+let powerups = new Map();  // cellKey -> 'bomb' | 'fire'  (revealed, collectible)
+let hiddenPowerups = new Map(); // cellKey -> type, still under a soft block
+let doorCell = null;       // vec2 cell hiding the exit door
+let doorRevealed = false;  // soft block over the door destroyed
+let doorOpen = false;      // all enemies dead
+let stage = 1, score = 0;
+let bombCount = 1, fireRange = 2;   // run-persistent power-up state
+let stageTimer, deathTimer, gameOverMsg;
+
+const cellKey = (x, y) => x + ',' + y;
+
+function getTile(x, y)
+{
+    if (x < 0 || y < 0 || x >= LEVEL_W || y >= LEVEL_H)
+        return TT.HARD;
+    return collisionLayer.getCollisionData(vec2(x, y));
+}
+
+function setTile(x, y, t) { collisionLayer.setCollisionData(vec2(x, y), t); }
+
+///////////////////////////////////////////////////////////////////////////////
+// sfx (SoundGenerator from gameFx.js)
+
+const sfxPlace     = new SoundGenerator({volume:.4,  frequency:220, attack:0, release:.08, shapeCurve:.5, slide:-.5});
+const sfxBoom      = new SoundGenerator({volume:.7,  frequency:90,  attack:0, release:.5,  shapeCurve:.4, slide:-.6, noise:1});
+const sfxPickup    = new SoundGenerator({volume:.5,  frequency:520, attack:0, release:.15, pitchJump:260, pitchJumpTime:.06});
+const sfxEnemyDie  = new SoundGenerator({volume:.5,  frequency:300, attack:0, release:.2,  slide:-1, noise:.3});
+const sfxPlayerDie = new SoundGenerator({volume:.6,  frequency:400, attack:0, release:.6,  slide:-1.5, noise:.2});
+const sfxDoor      = new SoundGenerator({volume:.55, frequency:440, attack:0, release:.3,  pitchJump:220, pitchJumpTime:.1});
+const sfxMenuSelect   = new SoundGenerator({volume:.3,  frequency:600, attack:0, release:.04, shapeCurve:1.5});
+const sfxMenuActivate = new SoundGenerator({volume:.35, frequency:800, attack:0, release:.08, pitchJump:200, pitchJumpTime:.03});
+
+///////////////////////////////////////////////////////////////////////////////
+// game flow
+
+// Stub — Task 2 replaces this with real stage generation.
+function buildStage()
+{
+    if (collisionLayer)
+        collisionLayer.destroy();
+    collisionLayer = new TileCollisionLayer(vec2(), vec2(LEVEL_W, LEVEL_H), null, 0, false);
+
+    bombs = [];
+    flames = new Map();
+    powerups = new Map();
+    hiddenPowerups = new Map();
+    doorCell = null;
+    doorRevealed = doorOpen = false;
+    enemies = [];
+    stageTimer = new Timer(STAGE_TIME);
+
+    if (player)
+    {
+        player.pos = vec2(1.5, 1.5);
+        player.velocity = vec2();
+        player.bombPass = null;
+    }
+}
+
+function resetRun()
+{
+    stage = 1;
+    score = 0;
+    bombCount = 1;
+    fireRange = 2;
+    gameOverMsg = null;
+    deathTimer = null;
+    if (player)
+        player.dead = false;
+    buildStage();
+}
+
+function startGame()
+{
+    resetRun();
+    setPlaying(true);
+}
+
+function endGame(msg)
+{
+    setPlaying(false);
+    showGameOverDialog({
+        score,
+        won: false,
+        customMessage: msg,
+        extraLines: ['Stage ' + stage],
+        onContinue: () => quitToTitle(resetRun),
+    });
+}
+
+///////////////////////////////////////////////////////////////////////////////
+async function gameInit()
+{
+    canvasClearColor = new Color().setHex('#101418');
+    setSoundVolume(.8);
+
+    // must precede any menu construction / medal / tweak / save access
+    saveDataInit('Blastman');
+    setMenuVisibilityCallback(v => paused = v);
+
+    initDrawToTexture();
+    icons = initDefaultAtlas();
+
+    setMenuTheme('arcade', {accent:'#ff8822'});
+    setMenuSounds({
+        select:   () => sfxMenuSelect.play(),
+        activate: () => sfxMenuActivate.play(),
+    });
+
+    createTitleMenu({
+        title: 'BLASTMAN',
+        subtitle: 'Bomb the blocks. Blast the baddies.',
+        titleFx: {fill:'fire', motion:'float', sparkle:true},
+        revealOnClick: false,
+        canReveal: () => !isPlaying(),
+        showBest: true,
+        onPlay: startGame,
+        items: [
+            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
+        ],
+    });
+
+    createOptionsMenu({
+        showResetBest: true,
+        extraItems: [
+            {type:'checkbox', id:'shake', label:'SCREEN SHAKE', value: isScreenShakeEnabled(),
+                persist:'shake',
+                onChange: v => setScreenShakeEnabled(v)},
+        ],
+    });
+
+    createMenu({
+        id: 'help',
+        title: 'HELP',
+        onHide: popMenu,
+        items: [
+            {type:'text', text:'Blast every enemy, then find the exit door ' +
+                'hidden under a soft block.\n\nMove: arrows / WASD / stick.\n' +
+                'Drop bomb: Space / A button.\n\nGrab power-ups for more bombs ' +
+                'and bigger blasts — but watch the clock!'},
+            {type:'separator'},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
+        ],
+    });
+
+    createPauseMenu({
+        onRestart: startGame,
+        onQuit: () => quitToTitle(resetRun),
+    });
+
+    installDefaultToolbar();
+
+    // build the arena once so the title menu has a live backdrop
+    resetRun();
+
+    showMenu('title');
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdate()
+{
+    if (bindPauseKey({when: () => isPlaying() && player && !player.dead}))
+        return;
+    if (!isPlaying())
+        return;
+}
+
+function gameUpdatePost()
+{
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRender()
+{
+    // fit the arena every frame so window resizes just work
+    cameraPos = vec2(LEVEL_W/2, LEVEL_H/2);
+    cameraScale = min(mainCanvasSize.x/(LEVEL_W + .5), mainCanvasSize.y/(LEVEL_H + 1.5));
+
+    // arena floor with a subtle checker so movement reads
+    drawRect(cameraPos, vec2(LEVEL_W, LEVEL_H), hsl(.35, .2, .22));
+    for (let x = 1; x < LEVEL_W-1; ++x)
+    for (let y = 1; y < LEVEL_H-1; ++y)
+        if ((x + y) & 1)
+            drawRect(vec2(x + .5, y + .5), vec2(1), hsl(.35, .2, .2));
+}
+
+function gameRenderPost()
+{
+}
+
+///////////////////////////////////////////////////////////////////////////////
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+</script></body></html>
