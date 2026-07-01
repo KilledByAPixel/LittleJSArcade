@@ -70,9 +70,9 @@ const sfxMenuActivate = new SoundGenerator({volume:.35, frequency:800, attack:0,
 ///////////////////////////////////////////////////////////////////////////////
 // game flow
 
-// Stub — Task 2 replaces this with real stage generation.
 function buildStage()
 {
+    // recreate the layer fresh so debug physics sees the new stage
     if (collisionLayer)
         collisionLayer.destroy();
     collisionLayer = new TileCollisionLayer(vec2(), vec2(LEVEL_W, LEVEL_H), null, 0, false);
@@ -81,9 +81,51 @@ function buildStage()
     flames = new Map();
     powerups = new Map();
     hiddenPowerups = new Map();
-    doorCell = null;
     doorRevealed = doorOpen = false;
     enemies = [];
+
+    // solid border + classic checkerboard pillars
+    for (let x = 0; x < LEVEL_W; ++x)
+    for (let y = 0; y < LEVEL_H; ++y)
+        if (!x || !y || x == LEVEL_W-1 || y == LEVEL_H-1 || (x%2 == 0 && y%2 == 0))
+            setTile(x, y, TT.HARD);
+
+    // soft blocks — density creeps up per stage; spawn corner stays clear
+    const softDensity = min(.45 + stage*.02, .6);
+    const softCells = [];
+    for (let x = 1; x < LEVEL_W-1; ++x)
+    for (let y = 1; y < LEVEL_H-1; ++y)
+    {
+        if (getTile(x, y) != TT.EMPTY)
+            continue;
+        if ((x <= 2 && y == 1) || (x == 1 && y <= 2))
+            continue; // player spawn corner: (1,1) (2,1) (1,2)
+        if (rand() < softDensity)
+        {
+            setTile(x, y, TT.SOFT);
+            softCells.push(vec2(x, y));
+        }
+    }
+
+    // hide the exit door and a few power-ups under random soft blocks
+    const pickSoft = () => softCells.splice(randInt(softCells.length), 1)[0];
+    doorCell = pickSoft();
+    if (!doorCell)
+    {
+        // pathological empty roll — park an exposed door in the far corner
+        doorCell = vec2(LEVEL_W-2, LEVEL_H-2);
+        doorRevealed = true;
+    }
+    const powerupTotal = 2 + (stage & 1);
+    for (let i = powerupTotal; i--;)
+    {
+        const c = pickSoft();
+        if (c)
+            hiddenPowerups.set(cellKey(c.x, c.y), rand() < .5 ? 'bomb' : 'fire');
+    }
+
+    // (enemies spawn here — added in Task 5)
+
     stageTimer = new Timer(STAGE_TIME);
 
     if (player)
@@ -216,10 +258,21 @@ function gameRender()
 
     // arena floor with a subtle checker so movement reads
     drawRect(cameraPos, vec2(LEVEL_W, LEVEL_H), hsl(.35, .2, .22));
-    for (let x = 1; x < LEVEL_W-1; ++x)
-    for (let y = 1; y < LEVEL_H-1; ++y)
-        if ((x + y) & 1)
-            drawRect(vec2(x + .5, y + .5), vec2(1), hsl(.35, .2, .2));
+    for (let x = 0; x < LEVEL_W; ++x)
+    for (let y = 0; y < LEVEL_H; ++y)
+    {
+        const p = vec2(x + .5, y + .5), t = getTile(x, y);
+        if (t == TT.HARD)
+        {
+            // beveled slab: dark base + lighter face
+            drawRect(p, vec2(1), hsl(0, 0, .25));
+            drawRect(p.add(vec2(0, .04)), vec2(.88), hsl(0, 0, .42));
+        }
+        else if (t == TT.SOFT)
+            drawTile(p, vec2(.98), icons.roundSquare, hsl(.07, .55, .48));
+        else if ((x + y) & 1 && x && y && x < LEVEL_W-1 && y < LEVEL_H-1)
+            drawRect(p, vec2(1), hsl(.35, .2, .2));
+    }
 }
 
 function gameRenderPost()
