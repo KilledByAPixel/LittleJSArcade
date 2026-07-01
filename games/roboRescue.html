@@ -1871,7 +1871,6 @@ function enterGetReadyForWave(nextWave)
     playerControlLocked = true;
     respawnTimer = 0;
     humanRescueBonus = humanRescueStart;  // fresh family each wave
-    gruntsKilledThisWave = 0;             // ROBSPD restores to wave default for new wave
 
     if (player) { player.pos = vec2(0); player.invuln = respawnInvulnFrames; }
 
@@ -1882,6 +1881,10 @@ function enterGetReadyForWave(nextWave)
 
     clearAllEnemies();
     clearAllBullets();
+    // ROBSPD restores to wave default for the new wave. MUST happen AFTER clearAllEnemies:
+    // Grunt.destroy() increments gruntsKilledThisWave, so clearing surviving grunts (level
+    // skip) would otherwise start the next wave with the speed ramp already maxed out.
+    gruntsKilledThisWave = 0;
     const c = getWaveComposition(nextWave);
     spawnElectrodesForWave(c.electrodes);
     spawnHumansForWave(c.mommies, c.daddies, c.mikeys);
