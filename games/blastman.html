@@ -68,6 +68,109 @@ const sfxMenuSelect   = new SoundGenerator({volume:.3,  frequency:600, attack:0,
 const sfxMenuActivate = new SoundGenerator({volume:.35, frequency:800, attack:0, release:.08, pitchJump:200, pitchJumpTime:.03});
 
 ///////////////////////////////////////////////////////////////////////////////
+// player
+
+class Player extends EngineObject
+{
+    constructor(pos)
+    {
+        super(pos, vec2(.8)); // slightly under a cell so corridors forgive
+        this.setCollision(false, false, true, false); // tiles only
+        // custom feel: engine resolves collision, we own all motion
+        this.damping = 1;
+        this.friction = 1;
+        this.restitution = 0;
+        this.gravityScale = 0;
+        this.dead = false;
+        this.bombPass = null; // cell of a just-placed bomb we may still stand on
+    }
+
+    collideWithTile(tileData, pos)
+    {
+        // pos is the tile's integer corner. The bomb we just placed stays
+        // passable until we step off its cell.
+        if (tileData == TT.BOMB && this.bombPass
+            && pos.x == this.bombPass.x && pos.y == this.bombPass.y)
+            return false;
+        return tileData > TT.EMPTY;
+    }
+
+    // returns true if the cell blocks the player right now
+    isSolidTo(x, y)
+    {
+        const t = getTile(x, y);
+        if (t == TT.BOMB && this.bombPass
+            && this.bombPass.x == x && this.bombPass.y == y)
+            return false;
+        return t > TT.EMPTY;
+    }
+
+    cornerAssist(move)
+    {
+        // Classic Bomberman assist: while moving along one axis, steer the
+        // other axis toward the open corridor so corners never snag.
+        const cx = this.pos.x|0, cy = this.pos.y|0;
+        if (move.x)
+        {
+            const offY = this.pos.y - (cy + .5);
+            if (!this.isSolidTo(cx + move.x, cy))
+                this.velocity.y = clamp(-offY, -ASSIST_SPEED, ASSIST_SPEED);
+            else if (offY > .2 && !this.isSolidTo(cx + move.x, cy + 1) && !this.isSolidTo(cx, cy + 1))
+                this.velocity.y = ASSIST_SPEED;    // slide up into the open row
+            else if (offY < -.2 && !this.isSolidTo(cx + move.x, cy - 1) && !this.isSolidTo(cx, cy - 1))
+                this.velocity.y = -ASSIST_SPEED;   // slide down into the open row
+        }
+        else if (move.y)
+        {
+            const offX = this.pos.x - (cx + .5);
+            if (!this.isSolidTo(cx, cy + move.y))
+                this.velocity.x = clamp(-offX, -ASSIST_SPEED, ASSIST_SPEED);
+            else if (offX > .2 && !this.isSolidTo(cx + 1, cy + move.y) && !this.isSolidTo(cx + 1, cy))
+                this.velocity.x = ASSIST_SPEED;
+            else if (offX < -.2 && !this.isSolidTo(cx - 1, cy + move.y) && !this.isSolidTo(cx - 1, cy))
+                this.velocity.x = -ASSIST_SPEED;
+        }
+    }
+
+    update()
+    {
+        this.velocity = vec2();
+        if (isPlaying() && !this.dead)
+        {
+            // 4-way movement on the dominant input axis, like the classics
+            const dir = keyDirection().add(gamepadStick(0)).clampLength(1);
+            const move = vec2();
+            if (dir.x || dir.y)
+            {
+                if (abs(dir.x) >= abs(dir.y))
+                    move.x = sign(dir.x);
+                else
+                    move.y = sign(dir.y);
+            }
+            this.velocity = move.scale(MOVE_SPEED);
+            this.cornerAssist(move);
+        }
+
+        // pass-through expires once we leave the bomb's cell
+        if (this.bombPass
+            && ((this.pos.x|0) != this.bombPass.x || (this.pos.y|0) != this.bombPass.y))
+            this.bombPass = null;
+
+        super.update(); // engine applies velocity + resolves tile collision
+    }
+
+    render()
+    {
+        if (this.dead && oscillate(8) < .5)
+            return; // death blink
+        const p = this.pos;
+        drawTile(p, vec2(.95), icons.pentagon, hsl(.55, .5, .8));
+        drawCircle(p.add(vec2(-.14, .1)), .13, hsl(0, 0, .1));
+        drawCircle(p.add(vec2( .14, .1)), .13, hsl(0, 0, .1));
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // game flow
 
 function buildStage()
@@ -229,6 +332,8 @@ async function gameInit()
     });
 
     installDefaultToolbar();
+
+    player = new Player(vec2(1.5, 1.5));
 
     // build the arena once so the title menu has a live backdrop
     resetRun();
