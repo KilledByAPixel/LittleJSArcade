@@ -40,6 +40,12 @@ const POWER_FRAMES = 60*7;
 const FRIGHT_FLASH_FRAMES = 60*2; // last 2 seconds of fright blink white
 const READY_FRAMES = 60*2;        // "READY!" intro at game start and after a death
 
+// classic arcade death sequence phases (frames, in play order)
+const DEATH_FREEZE = 54;          // everything frozen, ghosts still visible
+const DEATH_ANIM   = 80;          // ghosts gone, Pac-Man folds upward
+const DEATH_POP    = 24;          // final starburst pop
+const DEATH_FRAMES = DEATH_FREEZE + DEATH_ANIM + DEATH_POP;
+
 // "Cruise Elroy" Blinky: once the maze is mostly cleared, Blinky stops scattering
 // and gets a small speed boost so the endgame doesn't drag.
 const ELROY_PELLET_THRESHOLD = 50;
@@ -90,6 +96,7 @@ let endHoldTimer = 0; // frames before win/gameOver menu surfaces
 let powerTimer = 0;
 let ghostEatChain = 0;
 let readyTimer = 0;
+let deathTimer = 0;   // counts down through the death sequence phases, 0 = not dying
 let slowMoUntil = 0;                // wall-clock deadline (timeReal seconds) for ghost-eat hit-stop
 let globalMode = 'scatter';        // current phase mode shared by all ghosts
 let globalModeTimer = 0;            // frames remaining in this phase
@@ -262,6 +269,17 @@ function gameUpdate()
         return;
     }
 
+    // Death sequence — the whole world holds still while it plays out.
+    // Phase timings live in the DEATH_* constants; lives resolve at the end.
+    if (deathTimer > 0)
+    {
+        if (--deathTimer === DEATH_ANIM + DEATH_POP)
+            sDie.play(); // freeze beat over — ghosts vanish, the fold-up starts
+        if (deathTimer === 0)
+            finishDeath();
+        return;
+    }
+
     // "READY!" intro — freeze player + ghosts so nothing moves until it expires
     if (readyTimer > 0)
     {
@@ -341,11 +359,17 @@ function gameRender()
     drawFruit();
 
     // entities
-    for (const g of ghosts)
-        drawGhost(g);
+    // Arcade rules: ghosts vanish for the level-clear flash and game over, and
+    // once the death fold-up starts (they stay on screen through the death freeze).
+    const hideGhosts = win || gameOver ||
+        (deathTimer > 0 && deathTimer <= DEATH_ANIM + DEATH_POP);
+    if (!hideGhosts)
+        for (const g of ghosts)
+            drawGhost(g);
     // No Pac-Man during the attract demo — only the ghosts wander the maze.
-    if (!demoMode())
-        drawPac(player);
+    // After the death pop on the last life he stays gone (empty maze under GAME OVER).
+    if (!demoMode() && !gameOver)
+        deathTimer > 0 ? drawPacDeath(player) : drawPac(player);
 
     // arcade-style "READY!" banner shown at game start and after each death
     // Placed in the open corridor just below the ghost house (one tile tall)
@@ -561,6 +585,7 @@ function resetRun(isFirst)
     win = false;
     gameOver = false;
     powerTimer = 0;
+    deathTimer = 0;
     ghostEatChain = 0;
     pelletsEaten = 0;
     fruitTimer = 0;
@@ -1066,8 +1091,15 @@ function checkCollisions()
 
 function onPlayerDie()
 {
+    // Kick off the arcade death sequence (see gameUpdate): a silent freeze with
+    // the ghosts still on screen, then the fold-up animation and pop. Lives are
+    // decided in finishDeath once the animation completes.
+    deathTimer = DEATH_FRAMES;
+}
+
+function finishDeath()
+{
     lives--;
-    sDie.play();
 
     if (lives <= 0)
     {
@@ -1125,8 +1157,10 @@ function drawPac(p)
     const faceAngle = face.angle();
 
     // chomp animation: open/close as a fraction 0..1.
-    // Frozen during the READY intro so Pac-Man holds a still, slightly-open pose.
-    const moving = (p.dir.x || p.dir.y) && readyTimer <= 0;
+    // Frozen during the READY intro, the death freeze, and the level-clear flash
+    // so Pac-Man holds a still, slightly-open pose.
+    const moving = (p.dir.x || p.dir.y) && readyTimer <= 0 && deathTimer <= 0
+        && !(win && endHoldTimer > 0);
     const phase = moving ? oscillate(6, 1, time) : .25;
     const halfMouth = phase * PI/4.5;          // up to 40-degree half-angle
 
@@ -1149,6 +1183,40 @@ function drawPac(p)
         points.push(vec2().setAngle(a, r));
     }
     drawPoly(points, rgb(1, .92, 0), 0, rgb(0,0,0), p.pos, faceAngle);
+}
+
+// Classic arcade death: a still freeze (drawn by drawPac), then the mouth opens
+// upward wider and wider until the body folds away to nothing, then a starburst pop.
+function drawPacDeath(p)
+{
+    const yellow = rgb(1, .92, 0);
+    if (deathTimer > DEATH_ANIM + DEATH_POP)
+    {
+        drawPac(p); // freeze phase — ghosts still visible, still pose
+        return;
+    }
+    if (deathTimer > DEATH_POP)
+    {
+        // fold-up: mouth half-angle sweeps from a normal bite to a full PI
+        const k = 1 - (deathTimer - DEATH_POP) / DEATH_ANIM;
+        const halfMouth = lerp(PI/5, PI, k);
+        const sweep = 2*PI - 2*halfMouth;
+        if (sweep < .08)
+            return; // fully folded away
+        const N = 32, r = .45;
+        const points = [vec2(0, 0)];
+        for (let i = 0; i <= N; i++)
+            points.push(vec2().setAngle(halfMouth + sweep*(i/N), r));
+        drawPoly(points, yellow, 0, rgb(0,0,0), p.pos); // mouth points up (angle 0)
+        return;
+    }
+    // pop: ring of short dashes bursting outward
+    const k = 1 - deathTimer / DEATH_POP;
+    for (let i = 0; i < 8; i++)
+    {
+        const dir = vec2().setAngle(i*PI/4 + PI/8, 1);
+        drawLine(p.pos.add(dir.scale(.12 + .38*k)), p.pos.add(dir.scale(.3 + .55*k)), .06, yellow);
+    }
 }
 
 // Build the ghost body outline once — dome on top, scalloped 3-hump bottom.
