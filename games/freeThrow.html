@@ -34,7 +34,6 @@ cameraScale = 90;
 // constants
 
 const SPAWN_POS    = vec2(-8.5, -5.05);    // ball rests on the floor (FLOOR_Y + BALL_RADIUS)
-const DRAG_CENTER  = vec2(-8.5, -3);       // drag radius / gradient center, suspended above the floor
 const HOOP_BASE_X  = 7.5;
 const HOOP_Y       = 2.5;
 const RIM_HALF_W   = 0.85;        // distance from rim center to each peg center
@@ -48,9 +47,10 @@ const LEVEL_TOP    = 8;
 
 const BALL_RADIUS       = 0.55;
 const GRAB_RADIUS       = BALL_RADIUS * 1.4;   // forgiving click radius around the ball
-const MAX_DRAG          = BALL_RADIUS * 10;    // drag beyond this auto-launches
-const VEL_WINDOW        = 0.08;                // seconds of mouse history used for release velocity
-const MAX_LAUNCH_SPEED  = 40;                  // cap on flick velocity, world units per second
+const MAX_DRAG          = BALL_RADIUS * 10;    // drag distance that maps to full power
+const MIN_DRAG          = BALL_RADIUS;         // releases shorter than this cancel the shot
+const PAD_DEADZONE      = 0.2;                 // stick deflection below this isn't aiming
+const MAX_LAUNCH_SPEED  = 40;                  // launch speed at full power, world units per second
 
 const TIME_LIMIT       = 60;
 const RACK_TRANSIT     = 0.35;    // seconds for next ball to fly in onto the pedestal
@@ -93,10 +93,8 @@ let timeLeft     = TIME_LIMIT;
 let streak       = 0;
 let onFire       = false;
 let balls        = [];
-let dragging     = false;
-let dragPos      = SPAWN_POS.copy();
-let grabOffset   = vec2();  // ball-center minus mouse at grab time, so the click point stays under the cursor
-let mouseTrail   = [];     // [{pos, t}, ...] for computing release velocity
+let aiming       = false;  // a mouse/touch drag-aim is in progress
+let aimVel       = null;   // launch velocity currently being aimed (vec2), null when not aiming
 let rackAnim     = null;   // {t} while a ball is animating onto the pedestal; null = ball is resting on pedestal
 let hoopOffsetX  = 0;
 // Standalone accumulator for the hoop's sin-wave phase. Mirrors elapsed game
@@ -118,29 +116,16 @@ function getRightPeg()   { const h = getHoopCenter(); return vec2(h.x + RIM_HALF
 function getBoardPos()   { const h = getHoopCenter(); return vec2(h.x + BOARD_OFFSET.x, h.y + BOARD_OFFSET.y); }
 
 //------------------------------------------------------------------------------
-// Drag-to-throw launch: the player grabs the ball, drags it with the mouse,
-// and on release the ball flies with whatever velocity the mouse had over the
-// last VEL_WINDOW seconds. Drag beyond MAX_DRAG and it auto-launches.
+// Aim-to-throw launch: the ball stays on its spot; the player drags away from
+// it (mouse or touch) to set direction and power — drag length up to MAX_DRAG
+// maps to launch speed up to MAX_LAUNCH_SPEED — and releases to shoot. On
+// gamepad the left stick aims (deflection = power) and A launches.
 
 function launchBall(pos, vel)
 {
     balls.push(new Ball(pos, vel));
     const freq = lerp(.5, 1, vel.length() * .05);
     sThrow.play(pos, vel.length() * .02, freq);
-}
-
-// Velocity computed across the recorded mouse trail — averages out jitter
-// while still capturing a sharp flick at release. Capped at MAX_LAUNCH_SPEED
-// so frantic flicks don't fly off-screen.
-function getMouseVelocity()
-{
-    if (mouseTrail.length < 2) return vec2();
-    const a = mouseTrail[0], b = mouseTrail[mouseTrail.length - 1];
-    const dt = b.t - a.t;
-    if (dt < .001) return vec2();
-    const v = b.pos.subtract(a.pos).scale(1/dt);
-    const speed = v.length();
-    return speed > MAX_LAUNCH_SPEED ? v.scale(MAX_LAUNCH_SPEED / speed) : v;
 }
 
 // Compute where the rack ball should be drawn (animating in from off-screen,
@@ -357,9 +342,8 @@ function startGame()
     streak = 0;
     onFire = false;
     balls.length = 0;
-    dragging = false;
-    dragPos = SPAWN_POS.copy();
-    mouseTrail = [];
+    aiming = false;
+    aimVel = null;
     rackAnim = null;
     hoopOffsetX = 0;
     popups.length = 0;
@@ -368,7 +352,8 @@ function startGame()
 
 function endGame()
 {
-    dragging = false;
+    aiming = false;
+    aimVel = null;
     if (inCabinet) { startGame(); return; }   // loop the demo; no menu, no best-score
     gamePhase = 'gameover';
     submitBestScore(score);
@@ -449,7 +434,9 @@ async function gameInit()
         items: [
             {type:'text', text:'Score as many baskets as you can before time runs out. ' +
                 'A swish scores more than a bank shot, and consecutive makes build a streak bonus.'},
-            {type:'text', text:'Drag the ball like a slingshot, then release to shoot'},
+            {type:'text', text:'Grab the ball and drag to aim — the dotted arc previews your shot. ' +
+                'Release to launch. Farther drags throw harder.'},
+            {type:'text', text:'Gamepad: aim with the left stick (deflection sets power), press A to shoot.'},
             {type:'separator'},
             {type:'button', label:'BACK', onClick: () => hideMenu('help')},
         ],
@@ -558,7 +545,8 @@ function gameUpdate()
         if (timeLeft <= 0)
         {
             sBuzzer.play();
-            dragging = false;
+            aiming = false;
+            aimVel = null;
             rackAnim = null;
             // If a shot is still in the air, give it a chance to land
             // (buzzer-beater rule). Otherwise end immediately.
@@ -585,49 +573,58 @@ function gameUpdate()
             return;
         }
 
-        // record mouse trail (for release velocity)
-        mouseTrail.push({pos: mousePos.copy(), t: time});
-        while (mouseTrail.length > 0 && time - mouseTrail[0].t > VEL_WINDOW) mouseTrail.shift();
+        // aim & shoot — the ball stays put; only the aim preview moves
+        aimVel = null;
 
-        // grab / drag / release
-        if (!dragging && mouseWasPressed(0))
+        // mouse / touch: press on the ball, drag away to aim, release to launch
+        if (!aiming && mouseWasPressed(0))
         {
             const ballNow = rackAnim ? getRackBallPose().pos : SPAWN_POS;
             if (mousePos.distance(ballNow) < GRAB_RADIUS)
             {
-                dragging = true;
-                rackAnim = null;
-                grabOffset = ballNow.subtract(mousePos);   // keep grab point under the cursor
-                dragPos = ballNow.copy();
-                mouseTrail = [{pos: mousePos.copy(), t: time}];
+                aiming = true;
+                rackAnim = null;   // snap an inbound ball onto the spot to aim from
             }
         }
-        if (dragging)
+        if (aiming)
         {
-            dragPos = mousePos.add(grabOffset);
-            const offset = dragPos.subtract(DRAG_CENTER);
-            const dist = offset.length();
-
-            if (dist > MAX_DRAG)
+            const offset = mousePos.subtract(SPAWN_POS).clampLength(MAX_DRAG);
+            if (offset.length() > MIN_DRAG)
+                aimVel = offset.scale(MAX_LAUNCH_SPEED / MAX_DRAG);
+            if (!mouseIsDown(0))
             {
-                // ripped past the limit — auto-launch from the ring with current flick velocity
-                const launchPos = DRAG_CENTER.add(offset.normalize(MAX_DRAG));
-                launchBall(launchPos, getMouseVelocity());
-                dragging = false;
-                rackAnim = { t: 0 };
+                aiming = false;
+                // launch only on a real release beyond MIN_DRAG — a short-drag
+                // release cancels, and a release swallowed while paused (no
+                // mouseWasReleased event) cancels rather than surprise-firing
+                if (mouseWasReleased(0) && aimVel)
+                {
+                    launchBall(SPAWN_POS, aimVel);
+                    rackAnim = { t: 0 };
+                }
+                aimVel = null;
             }
-            else if (mouseWasReleased(0))
+        }
+        else if (!rackAnim)
+        {
+            // gamepad: left stick sets direction + power, A launches
+            const stick = gamepadStick(0);
+            if (stick.length() > PAD_DEADZONE)
             {
-                // any release counts as a launch — even a zero-velocity drop
-                launchBall(dragPos, getMouseVelocity());
-                dragging = false;
-                rackAnim = { t: 0 };
+                aimVel = stick.clampLength(1).scale(MAX_LAUNCH_SPEED);
+                if (gamepadWasPressed(0))
+                {
+                    launchBall(SPAWN_POS, aimVel);
+                    rackAnim = { t: 0 };
+                    aimVel = null;
+                }
             }
         }
     }
     else
     {
-        dragging = false;
+        aiming = false;
+        aimVel = null;
         rackAnim = null;
     }
 }
@@ -663,17 +660,28 @@ function drawCourt()
     drawLine(vec2(SPAWN_POS.x - 1.5, FLOOR_Y + .04), vec2(SPAWN_POS.x + 1.5, FLOOR_Y + .04), .14, COLOR_LINE);
 }
 
-// Vertical dashed red line rising from the floor at the drag center, length =
-// MAX_DRAG. Lets the player gauge the radius distance against the ground.
-function drawDragRadiusGuide()
+// Aim feedback while a shot is being lined up: a slingshot stretch line with a
+// ring handle at the drag point (mouse/touch only), plus a dotted arc sampling
+// the first stretch of the ball's predicted flight. The arc deliberately stops
+// short of the hoop so aiming still takes judgement.
+function drawAimPreview(vel)
 {
-    const x = DRAG_CENTER.x + MAX_DRAG;
-    const yBase = FLOOR_Y - 4;
-    const yTop  = FLOOR_Y + .02;
-    const dashLen = .3, gapLen = .4, step = dashLen + gapLen;
-    const color = WHITE;
-    for (let y = yTop; y>yBase; y -= step)
-        drawLine(vec2(x, y), vec2(x, max(y - dashLen, yBase)), .3, color);
+    if (aiming)
+    {
+        const tip = SPAWN_POS.add(vel.scale(MAX_DRAG / MAX_LAUNCH_SPEED));
+        //drawLine(SPAWN_POS, tip, .06, COLOR_RETICLE.withAlpha(.5));
+        drawTile(tip, vec2(.5), icons.ring, COLOR_RETICLE);
+    }
+
+    const dt = .05;
+    let p = SPAWN_POS.copy(), v = vel.copy();
+    for (let i = 0; i < 12; i++)
+    {
+        v = v.add(gravity.scale(dt));
+        p = p.add(v.scale(dt));
+        const fade = 1 - i / 12;
+        drawTile(p, vec2(.14 + .12 * fade), icons.circle, COLOR_RETICLE.withAlpha(.9 * fade));
+    }
 }
 
 function drawHoopAssembly()
@@ -771,25 +779,19 @@ function gameRender()
 {
     drawRectGradient(vec2(0, FLOOR_Y + 10), vec2(40,20), hsl(0,0,1,.5), CLEAR_BLACK);
 
-    // soft radial glow marking the drag zone (radius = MAX_DRAG)
-    drawTile(DRAG_CENTER, vec2(MAX_DRAG * 2), icons.glow, hsl(.6, .5, .6, .35));
+    // soft radial glow spotlighting the ball's shooting spot
+    drawTile(SPAWN_POS, vec2(MAX_DRAG), icons.glow, hsl(.6, .5, .6, .35));
 
     drawCourt();
     drawHoopAssembly();
-    drawDragRadiusGuide();
 
-    // rack ball animates in after each shot, landing on the floor.
+    // rack ball animates in after each shot, landing on the floor. It stays
+    // planted on the spot while aiming — only the aim preview moves.
     if (gamePhase === 'playing')
     {
-        if (dragging)
-        {
-            drawBasketball(dragPos, 0);
-        }
-        else
-        {
-            const pose = getRackBallPose();
-            drawBasketball(pose.pos, pose.rot);
-        }
+        const pose = getRackBallPose();
+        drawBasketball(pose.pos, pose.rot);
+        if (aimVel) drawAimPreview(aimVel);
     }
     else
     {
