@@ -70,6 +70,7 @@ const COLLIDE_R2 = (.68)**2;
 // --- level state
 let gridW, gridH;
 let walls;              // Uint8Array gridW*gridH (1=wall)
+let wallGeo;            // precomputed rounded wall outline {rects, segs, doors}
 let pellets;            // Uint8Array gridW*gridH (1=pellet)
 let powerPellets;       // Uint8Array gridW*gridH (1=power)
 let pelletCount = 0;
@@ -310,37 +311,19 @@ function gameRender()
     // pure black playfield, like the arcade
     drawRect(vec2(gridW/2, gridH/2), vec2(gridW, gridH), rgb(0,0,0));
 
-    // Walls drawn as arcade-style hollow outlines:
-    // for each wall cell, lay down a thin blue edge along every side that faces a non-wall.
-    // Internal cell-to-cell wall borders are skipped, so connected wall regions read as one shape.
-    const wallColor = rgb(.13, .22, .95);
-    const doorColor = rgb(1, .72, .82);
-    const t = .18;
-    for (let y=0; y<gridH; y++)
-    for (let x=0; x<gridW; x++)
-    {
-        const w = isWallXY(x, y);
-        if (w === 1)
-        {
-            const cx = x + .5, cy = y + .5;
-            if (isWallXY(x, y+1) !== 1) drawRect(vec2(cx, y+1-t/2), vec2(1, t), wallColor);
-            if (isWallXY(x, y-1) !== 1) drawRect(vec2(cx, y+t/2),   vec2(1, t), wallColor);
-            if (isWallXY(x+1, y) !== 1) drawRect(vec2(x+1-t/2, cy), vec2(t, 1), wallColor);
-            if (isWallXY(x-1, y) !== 1) drawRect(vec2(x+t/2,   cy), vec2(t, 1), wallColor);
+    // Walls: precomputed rounded-outline geometry (see buildWallGeometry).
+    // Level-clear celebration flashes the maze blue/white like the arcade.
+    const flash = win && endHoldTimer > 0 && (((endHoldTimer/14)|0) & 1);
+    const wallColor = flash ? rgb(.87, .87, 1) : rgb(.13, .13, 1); // arcade #2121ff
+    for (const r of wallGeo.rects)
+        drawRect(vec2(r[0], r[1]), vec2(r[2], r[3]), wallColor);
+    for (const s of wallGeo.segs)
+        drawLine(vec2(s[0], s[1]), vec2(s[2], s[3]), WALL_T, wallColor);
 
-            // Inside (concave) corners: the two neighbors' edge strips are each inset
-            // into their own cell and only meet corner-to-corner, leaving a t x t gap
-            // in this cell when its diagonal is open but both flanking sides are solid.
-            for (const sx of [-1, 1])
-            for (const sy of [-1, 1])
-                if (isWallXY(x+sx, y+sy) !== 1 && isWallXY(x+sx, y) === 1 && isWallXY(x, y+sy) === 1)
-                    drawRect(vec2(cx + sx*(.5-t/2), cy + sy*(.5-t/2)), vec2(t, t), wallColor);
-        }
-        else if (w === 2)
-        {
-            drawRect(vec2(x+.5, y+.5), vec2(1, .18), doorColor);
-        }
-    }
+    // ghost-house door
+    const doorColor = rgb(1, .72, .87);
+    for (const dr of wallGeo.doors)
+        drawRect(vec2(dr[0], dr[1]), vec2(1, WALL_T), doorColor);
 
     // pellets
     const pelletColor = rgb(1, .72, .68); // arcade peach
@@ -349,12 +332,9 @@ function gameRender()
     {
         const i = x + y*gridW;
         if (pellets[i])
-            drawRect(vec2(x+.5, y+.5), vec2(.16, .16), pelletColor);
-        else if (powerPellets[i])
-        {
-            const pulse = .42 + .12*oscillate(3, 1, time);
-            drawTile(vec2(x+.5, y+.5), vec2(pulse), icons.circle, pelletColor);
-        }
+            drawRect(vec2(x+.5, y+.5), vec2(.25, .25), pelletColor); // arcade dot: 2px of an 8px tile
+        else if (powerPellets[i] && (((timeReal*6)|0) & 1))
+            drawTile(vec2(x+.5, y+.5), vec2(.85), icons.circle, pelletColor); // arcade energizer blinks, ~10 frames on/off
     }
 
     // bonus fruit (drawn under the entities so Pac-Man visually walks over it)
@@ -374,14 +354,37 @@ function gameRender()
 }
 
 // -----------------------------------------------------------------------------
+// mini Pac-Man wedge for the HUD lives display (screen-space pixels, faces left)
+const _hudPacPts = (() =>
+{
+    const r = 11, m = PI/4.5, pts = [vec2()];
+    for (let i = 0; i <= 24; i++)
+    {
+        const a = PI + m + (2*PI - 2*m) * i/24;
+        pts.push(vec2(r*cos(a), r*sin(a)));
+    }
+    return pts;
+})();
+
 function gameRenderPost()
 {
-    // HUD strip — drawn in real play AND in the attract demo (ghosts don't score,
-    // so the demo shows a static SCORE 000000; lives is the title default).
+    // Arcade-style HUD strip — drawn in real play AND in the attract demo
+    // (ghosts don't score, so the demo shows 000000; lives is the title default).
     drawRect(vec2(mainCanvasSize.x/2, 28), vec2(mainCanvasSize.x, 56), hsl(0,0,0,.55), 0, false, true);
 
-    drawTextScreen(`SCORE ${score.toString().padStart(6,'0')}`, vec2(20, 22), 24, hsl(.58, .2, .92), 3, hsl(0,0,0,.7), 'left');
-    drawTextScreen(`LIVES ${lives}`, vec2(mainCanvasSize.x - 20, 22), 24, hsl(.58, .2, .92), 3, hsl(0,0,0,.7), 'right');
+    const hudFont = 'monospace';
+    const hudCol = hsl(0, 0, .95);
+    if (((timeReal*2)|0) & 1) // 1UP blinks like the arcade
+        drawTextScreen('1UP', vec2(30, 18), 20, hudCol, 0, undefined, 'left', hudFont);
+    drawTextScreen(score.toString().padStart(6,'0'), vec2(30, 42), 22, hudCol, 0, undefined, 'left', hudFont);
+
+    drawTextScreen('HIGH SCORE', vec2(mainCanvasSize.x/2, 18), 20, hudCol, 0, undefined, 'center', hudFont);
+    drawTextScreen(max(score, getBestScore()).toString().padStart(6,'0'),
+        vec2(mainCanvasSize.x/2, 42), 22, hudCol, 0, undefined, 'center', hudFont);
+
+    // spare lives (not counting the one in play) as arcade-style pac icons
+    for (let i = 0; i < max(0, lives-1); i++)
+        drawPoly(_hudPacPts, rgb(1, .92, 0), 0, undefined, vec2(mainCanvasSize.x - 30 - i*32, 28), 0, glEnable, true);
 
     if (!isPlaying()) return; // title screen — menu owns the rest of the display
 
@@ -458,6 +461,97 @@ function buildLevel()
         else if (ch === 'E')      ghostStartCells.push(vec2(x, y));
         // '_' and anything else = empty walkway, nothing to set
     }
+
+    buildWallGeometry();
+}
+
+// -----------------------------------------------------------------------------
+// Wall outline geometry — arcade-style rounded corners, built once per level.
+// Strokes follow the wall/corridor boundary inset t/2 into the wall: straight
+// strips along each open face, quarter arcs at every corner (convex arcs wrap
+// wall-cell corners, concave arcs curve around corridor corners).
+
+const WALL_T = .15; // outline stroke thickness in world units
+
+function buildWallGeometry()
+{
+    const t = WALL_T, d = t/2;
+    const rCorner = .5 - d; // corner arc radius, ~half a tile like the arcade
+    const c = .5 - t;       // concave arc center inset into the open cell (same visual radius)
+    const rects = [], segs = [], doors = [];
+
+    // Render-only openness: unlike isWallXY, out-of-bounds counts as OPEN so the
+    // border wall outlines its outer face too — the arcade's double-line border.
+    const open = (x, y) => x < 0 || y < 0 || x >= gridW || y >= gridH || walls[x + y*gridW] !== 1;
+
+    // quarter arc starting at math angle a0, as short line segments
+    const arc = (cx, cy, r, a0) =>
+    {
+        const N = 6;
+        for (let i = 0; i < N; i++)
+        {
+            const b0 = a0 + PI/2 * i/N, b1 = a0 + PI/2 * (i+1)/N;
+            segs.push([cx + r*cos(b0), cy + r*sin(b0), cx + r*cos(b1), cy + r*sin(b1)]);
+        }
+    };
+
+    for (let y=0; y<gridH; y++)
+    for (let x=0; x<gridW; x++)
+    {
+        if (walls[x + y*gridW] === 2)
+            doors.push([x+.5, y+.5]);
+        if (open(x, y))
+            continue;
+
+        // Straight strips along each open face. Each end trims by corner type:
+        // convex (side face also open) pulls back to the cell center line,
+        // flush (wall continues past the corner) runs to the cell edge,
+        // concave (wall turns away) pulls back to meet the concave arc.
+        const trim = (sideOpen, diagOpen) => sideOpen ? .5 : diagOpen ? 0 : c;
+        if (open(x, y+1)) // top face
+        {
+            const x0 = x   + trim(open(x-1, y), open(x-1, y+1));
+            const x1 = x+1 - trim(open(x+1, y), open(x+1, y+1));
+            if (x1 > x0) rects.push([(x0+x1)/2, y+1-d, x1-x0, t]);
+        }
+        if (open(x, y-1)) // bottom face
+        {
+            const x0 = x   + trim(open(x-1, y), open(x-1, y-1));
+            const x1 = x+1 - trim(open(x+1, y), open(x+1, y-1));
+            if (x1 > x0) rects.push([(x0+x1)/2, y+d, x1-x0, t]);
+        }
+        if (open(x+1, y)) // right face
+        {
+            const y0 = y   + trim(open(x, y-1), open(x+1, y-1));
+            const y1 = y+1 - trim(open(x, y+1), open(x+1, y+1));
+            if (y1 > y0) rects.push([x+1-d, (y0+y1)/2, t, y1-y0]);
+        }
+        if (open(x-1, y)) // left face
+        {
+            const y0 = y   + trim(open(x, y-1), open(x-1, y-1));
+            const y1 = y+1 - trim(open(x, y+1), open(x-1, y+1));
+            if (y1 > y0) rects.push([x+d, (y0+y1)/2, t, y1-y0]);
+        }
+
+        // convex corner arcs — two adjacent faces open, curve wraps this cell's corner
+        if (open(x, y+1) && open(x+1, y)) arc(x+.5, y+.5, rCorner, 0);
+        if (open(x, y+1) && open(x-1, y)) arc(x+.5, y+.5, rCorner, PI/2);
+        if (open(x, y-1) && open(x-1, y)) arc(x+.5, y+.5, rCorner, PI);
+        if (open(x, y-1) && open(x+1, y)) arc(x+.5, y+.5, rCorner, PI*3/2);
+
+        // concave corner arcs — open diagonal with both flanking walls solid;
+        // curve sits just inside the open cell, wrapping around the corridor corner
+        for (const sx of [-1, 1])
+        for (const sy of [-1, 1])
+            if (open(x+sx, y+sy) && !open(x+sx, y) && !open(x, y+sy))
+            {
+                const kx = x + (sx+1)/2, ky = y + (sy+1)/2; // shared corner point
+                // the quarter faces back toward this wall cell: direction (-sx,-sy)
+                const a0 = sx < 0 ? (sy < 0 ? 0 : PI*3/2) : (sy < 0 ? PI/2 : PI);
+                arc(kx + sx*c, ky + sy*c, c + d, a0);
+            }
+    }
+    wallGeo = {rects, segs, doors};
 }
 
 function resetRun(isFirst)
