@@ -171,6 +171,107 @@ class Player extends EngineObject
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+// bombs & flames
+
+function placeBomb()
+{
+    const x = player.pos.x|0, y = player.pos.y|0;
+    if (bombs.length >= bombCount || getTile(x, y) != TT.EMPTY)
+        return;
+    setTile(x, y, TT.BOMB);
+    bombs.push({x, y, range: fireRange, timer: new Timer(BOMB_FUSE)});
+    player.bombPass = {x, y};
+    sfxPlace.play(vec2(x + .5, y + .5));
+}
+
+function addFlame(x, y)
+{
+    const k = cellKey(x, y);
+    flames.set(k, new Timer(FLAME_TIME));
+    powerups.delete(k); // flames burn exposed pickups — classic risk
+}
+
+function destroySoft(x, y)
+{
+    setTile(x, y, TT.EMPTY);
+    score += 10;
+    const k = cellKey(x, y);
+    if (hiddenPowerups.has(k))
+    {
+        powerups.set(k, hiddenPowerups.get(k));
+        hiddenPowerups.delete(k);
+    }
+    if (doorCell && doorCell.x == x && doorCell.y == y)
+        doorRevealed = true;
+}
+
+function explodeBomb(b)
+{
+    const i = bombs.indexOf(b);
+    if (i < 0)
+        return; // already chained away this frame
+    bombs.splice(i, 1);
+    setTile(b.x, b.y, TT.EMPTY);
+    addFlame(b.x, b.y);
+
+    for (const d of [vec2(1,0), vec2(-1,0), vec2(0,1), vec2(0,-1)])
+    for (let r = 1; r <= b.range; ++r)
+    {
+        const x = b.x + d.x*r, y = b.y + d.y*r;
+        const t = getTile(x, y);
+        if (t == TT.HARD)
+            break;
+        if (t == TT.SOFT)
+        {
+            destroySoft(x, y);
+            addFlame(x, y);
+            break; // blast is absorbed by the block
+        }
+        if (t == TT.BOMB)
+        {
+            const other = bombs.find(o => o.x == x && o.y == y);
+            if (other)
+                explodeBomb(other); // instant chain reaction
+            break;
+        }
+        addFlame(x, y);
+    }
+
+    sfxBoom.play(vec2(b.x + .5, b.y + .5));
+    addScreenShake(.3, .25);
+    burstFx(vec2(b.x + .5, b.y + .5), hsl(.08, 1, .6));
+}
+
+// small radial one-shot burst (speed is per-FRAME — keep it small)
+function burstFx(pos, color)
+{
+    new ParticleEmitter(
+        pos, 0,             // pos, angle
+        .3,                 // emitSize
+        .08, 200,           // emitTime, emitRate -> ~16 particles
+        PI,                 // emitConeAngle (all directions)
+        icons.spark,        // tileInfo
+        color, color,                                   // colorStartA/B
+        color.scale(1, 0), color.scale(1, 0),           // colorEndA/B (alpha to 0)
+        .4, .5, .1,         // particleTime, sizeStart, sizeEnd
+        .25, .02,           // speed (per frame!), angleSpeed
+        .95, 1, 0,          // damping, angleDamping, gravityScale
+        PI, .1, .5,         // particleConeAngle, fadeRate, randomness
+        false, true);       // collideTiles, additive
+}
+
+function killPlayer(msg)
+{
+    if (player.dead)
+        return;
+    player.dead = true;
+    gameOverMsg = msg;
+    deathTimer = new Timer(1.2);
+    sfxPlayerDie.play();
+    addScreenShake(.5, .4);
+}
+
+///////////////////////////////////////////////////////////////////////////////
 // game flow
 
 function buildStage()
@@ -348,6 +449,39 @@ function gameUpdate()
         return;
     if (!isPlaying())
         return;
+
+    // flames burn out
+    for (const [k, t] of flames)
+        if (t.elapsed())
+            flames.delete(k);
+
+    // bombs: fuse ran out, or a flame touched them (chain)
+    for (const b of [...bombs])
+        if (b.timer.elapsed() || flames.has(cellKey(b.x, b.y)))
+            explodeBomb(b);
+
+    // (enemies update here — Task 5)
+
+    if (player.dead)
+    {
+        if (deathTimer && deathTimer.elapsed())
+        {
+            deathTimer = null;
+            endGame(gameOverMsg);
+        }
+        return;
+    }
+
+    // drop a bomb
+    if (keyWasPressed('Space') || gamepadWasPressed(0))
+        placeBomb();
+
+    // cell events under the player
+    const pk = cellKey(player.pos.x|0, player.pos.y|0);
+    if (flames.has(pk))
+        killPlayer();
+
+    // (pickups, door, stage timer — Task 6)
 }
 
 function gameUpdatePost()
@@ -377,6 +511,25 @@ function gameRender()
             drawTile(p, vec2(.98), icons.roundSquare, hsl(.07, .55, .48));
         else if ((x + y) & 1 && x && y && x < LEVEL_W-1 && y < LEVEL_H-1)
             drawRect(p, vec2(1), hsl(.35, .2, .2));
+    }
+
+    // bombs pulse faster as the fuse runs down
+    for (const b of bombs)
+    {
+        const p = vec2(b.x + .5, b.y + .5);
+        const s = .72 + .12*oscillate(2 + 5*b.timer.getPercent());
+        drawTile(p, vec2(s), icons.circle, hsl(0, 0, .12));
+        drawTile(p.add(vec2(.18, .3)), vec2(.22), icons.spark, hsl(.1, 1, .6));
+    }
+
+    // flames grow then shrink over their lifetime
+    for (const [k, t] of flames)
+    {
+        const [x, y] = k.split(',').map(Number);
+        const p = vec2(x + .5, y + .5);
+        const s = Math.sin(t.getPercent()*PI);
+        drawTile(p, vec2(.5 + .7*s), icons.burst, hsl(.09, 1, .55));
+        drawTile(p, vec2(.3 + .5*s), icons.glow, hsl(.13, 1, .7, 0), 0, false, hsl(.1, 1, .3, 0));
     }
 }
 
