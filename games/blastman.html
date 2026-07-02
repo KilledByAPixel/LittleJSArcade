@@ -223,8 +223,10 @@ function explodeBomb(b)
             break;
         if (t == TT.SOFT)
         {
-            destroySoft(x, y);
+            // flame first so the reveal survives the revealing blast
+            // (later blasts still burn exposed pickups via addFlame)
             addFlame(x, y);
+            destroySoft(x, y);
             break; // blast is absorbed by the block
         }
         if (t == TT.BOMB)
@@ -351,6 +353,11 @@ class Enemy
             this.pickTarget();
         if (!this.target)
             return;
+        if (!this.free(this.target) && this.pos.distance(this.target.add(vec2(.5))) > .5)
+        {
+            this.target = null; // bomb dropped in our path — repick from current cell
+            return;
+        }
         const tc = this.target.add(vec2(.5));
         const delta = tc.subtract(this.pos);
         if (delta.length() <= this.speed)
@@ -485,8 +492,7 @@ function endGame(msg)
     showGameOverDialog({
         score,
         won: false,
-        customMessage: msg,
-        extraLines: ['Stage ' + stage],
+        extraLines: [...(msg ? [msg] : []), 'Stage ' + stage],
         onContinue: () => quitToTitle(resetRun),
     });
 }
@@ -647,8 +653,8 @@ function gameUpdatePost()
 function gameRender()
 {
     // fit the arena every frame so window resizes just work
-    cameraPos = vec2(LEVEL_W/2, LEVEL_H/2);
-    cameraScale = min(mainCanvasSize.x/(LEVEL_W + .5), mainCanvasSize.y/(LEVEL_H + 1.5));
+    cameraPos = vec2(LEVEL_W/2, LEVEL_H/2 + .5);
+    cameraScale = min(mainCanvasSize.x/(LEVEL_W + .5), mainCanvasSize.y/(LEVEL_H + 2.5));
 
     // arena floor with a subtle checker so movement reads
     drawRect(cameraPos, vec2(LEVEL_W, LEVEL_H), hsl(.35, .2, .22));
@@ -693,7 +699,8 @@ function gameRender()
     for (const b of bombs)
     {
         const p = vec2(b.x + .5, b.y + .5);
-        const s = .72 + .12*oscillate(2 + 5*b.timer.getPercent());
+        const tAge = b.timer.getPercent()*BOMB_FUSE;
+        const s = .72 + .12*Math.sin(2*PI*tAge*(1 + tAge));
         drawTile(p, vec2(s), icons.circle, hsl(0, 0, .12));
         drawTile(p.add(vec2(.18, .3)), vec2(.22), icons.spark, hsl(.1, 1, .6));
     }
@@ -705,7 +712,7 @@ function gameRender()
         const p = vec2(x + .5, y + .5);
         const s = Math.sin(t.getPercent()*PI);
         drawTile(p, vec2(.5 + .7*s), icons.burst, hsl(.09, 1, .55));
-        drawTile(p, vec2(.3 + .5*s), icons.glow, hsl(.13, 1, .7, 0), 0, false, hsl(.1, 1, .3, 0));
+        drawTile(p, vec2(.3 + .5*s), icons.glow, hsl(.13, 1, .7, .5));
     }
 
     for (const e of enemies)
