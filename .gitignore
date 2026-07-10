@@ -8,8 +8,9 @@ docs/
 .github/
 .vscode/
 
-# Claude Code settings and skills (local only)
-.claude/
+# Claude Code settings (local only), but keep skills in the repo
+.claude/*
+!.claude/skills
 
 # playwright-mcp scratch dir
 .playwright-mcp/
