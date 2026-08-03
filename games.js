@@ -108,6 +108,7 @@ const GAMES = [
     { file:'go.html',             name:'Go',              emoji:'⚪',  category:'extra',        desc:'Surround territory on a 9×9 board.',      tags:['strategy','2-player'],            keywords:['go','baduk','weiqi','igo'] },
     { file:'captureGo.html',      name:'Capture Go',      emoji:'⭕',  category:'extra',        desc:'First to capture wins (Atari Go).',        tags:['strategy','2-player'],            keywords:['atari go','capture go','first capture','baduk'] },
     { file:'slotDemon.html',      name:'Slot Demon',      emoji:'🎰',  category:'extra',        desc:'Spin the reels and tempt fate.',          tags:['luck','casino'],                  keywords:['slots','slot machine','jackpot','gambling','fruit machine'] },
+    { file:'complements.html',    name:'Complements',     emoji:'🌈', category:'extra',        desc:'Shoot gems at their opposite color.',     tags:['matching','aim'],                 keywords:['bubble shooter','puzzle bobble','color wheel','complementary colors','gems'] },
 ];
 
 GAMES.sort((a, b) => a.name.localeCompare(b.name));
