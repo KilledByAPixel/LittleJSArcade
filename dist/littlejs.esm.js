@@ -35,7 +35,7 @@ const engineName = 'LittleJS';
  *  @type {string}
  *  @default
  *  @memberof Engine */
-const engineVersion = '1.18.20';
+const engineVersion = '1.18.30';
 
 /** Frames per second to update
  *  @type {number}
@@ -92,6 +92,8 @@ function setPaused(isPaused=true) { paused = isPaused; }
 
 // Engine internal variables
 let frameTimeLastMS = 0, frameTimeBufferMS = 0, averageFPS = 0;
+let windowWidthLast = 0, windowHeightLast = 0, windowPixelRatioLast = 0;
+let engineUpdateInternal; // assigned by engineInit so engineStep can drive it
 let showEngineVersion = true;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -214,25 +216,47 @@ async function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, game
         const debugScale = debugSpeedUp ? 10 : debugSpeedDown ? .1 : 1;
 
         // apply time deltas
+        const frameTimeDeltaUnscaledMS = frameTimeDeltaMS;
         timeReal += frameTimeDeltaMS * debugScale / 1e3;
         const combinedScale = timeScale * debugScale;
         frameTimeDeltaMS *= combinedScale;
-        frameTimeBufferMS += paused ? 0 : frameTimeDeltaMS;
-        if (combinedScale <= 1)
+        // when paused tick on unscaled time so the pause update rate stays
+        // fixed instead of following however fast the display refreshes
+        frameTimeBufferMS += paused ? frameTimeDeltaUnscaledMS : frameTimeDeltaMS;
+        if (paused || combinedScale <= 1)
             frameTimeBufferMS = min(frameTimeBufferMS, 50); // clamp min framerate
 
-        let wasUpdated = false;
-        if (paused)
+        // apply time delta smoothing, improves smoothness of framerate in some browsers
+        let wasUpdated = false, deltaSmooth = 0;
+        if (frameTimeBufferMS < 0 && frameTimeBufferMS > -9)
         {
-            // update everything except the game and objects
+            // force at least one update each frame since it is waiting for refresh
+            deltaSmooth = frameTimeBufferMS;
+            frameTimeBufferMS = 0;
+        }
+
+        // update multiple frames if necessary in case of slow framerate
+        for (; frameTimeBufferMS >= 0; frameTimeBufferMS -= 1e3 / frameRate)
+        {
+            // increment frame and update time, paused does not advance time
+            if (!paused)
+                time = frame++ / frameRate;
+
+            // update game and objects, when paused update everything except them
             wasUpdated = true;
             updateCanvas();
             inputUpdate();
+            if (!paused)
+                gameUpdate();
             pluginList.forEach(plugin=>plugin.update?.());
-
-            // update object transforms even when paused
-            for (const o of engineObjects)
-                o.parent || o.updateTransforms();
+            if (paused)
+            {
+                // update object transforms even when paused
+                for (const o of engineObjects)
+                    o.parent || o.updateTransforms();
+            }
+            else
+                engineObjectsUpdate();
 
             // do post update
             debugUpdate();
@@ -241,46 +265,29 @@ async function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, game
             if (debugVideoCaptureIsActive())
                 renderFrame();
         }
-        else
+
+        // add the time smoothing back in
+        frameTimeBufferMS += deltaSmooth;
+
+        // check if the window changed so a resize is picked up even when
+        // the game is not updating, for example when timeScale is 0
+        let windowChanged = false;
+        if (!headlessMode)
         {
-            // apply time delta smoothing, improves smoothness of framerate in some browsers
-            let deltaSmooth = 0;
-            if (frameTimeBufferMS < 0 && frameTimeBufferMS > -9)
-            {
-                // force at least one update each frame since it is waiting for refresh
-                deltaSmooth = frameTimeBufferMS;
-                frameTimeBufferMS = 0;
-            }
-
-            // update multiple frames if necessary in case of slow framerate
-            for (; frameTimeBufferMS >= 0; frameTimeBufferMS -= 1e3 / frameRate)
-            {
-                // increment frame and update time
-                time = frame++ / frameRate;
-
-                // update game and objects
-                wasUpdated = true;
-                updateCanvas();
-                inputUpdate();
-                gameUpdate();
-                pluginList.forEach(plugin=>plugin.update?.());
-                engineObjectsUpdate();
-
-                // do post update
-                debugUpdate();
-                gameUpdatePost();
-                inputUpdatePost();
-                if (debugVideoCaptureIsActive())
-                    renderFrame();
-            }
-
-            // add the time smoothing back in
-            frameTimeBufferMS += deltaSmooth;
+            const dpr = devicePixelRatio;
+            windowChanged = windowWidthLast !== innerWidth ||
+                windowHeightLast !== innerHeight || windowPixelRatioLast !== dpr;
+            windowWidthLast = innerWidth;
+            windowHeightLast = innerHeight;
+            windowPixelRatioLast = dpr;
         }
 
-        if (!debugVideoCaptureIsActive())
+        // render only when something changed, displays that refresh faster
+        // than the fixed update rate would otherwise redraw identical frames
+        if (!debugVideoCaptureIsActive() && (wasUpdated || windowChanged))
             renderFrame();
-        requestAnimationFrame(engineUpdate);
+        if (!engineManualStep)
+            requestAnimationFrame(engineUpdate);
 
         function renderFrame()
         {
@@ -308,6 +315,7 @@ async function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, game
             primitiveCount = 0;
         }
     }
+    engineUpdateInternal = engineUpdate;
 
     function updateCanvas()
     {
@@ -371,8 +379,20 @@ async function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, game
         }
 
         // clear main canvas and set size
-        mainCanvas.width  = mainCanvasSize.x;
-        mainCanvas.height = mainCanvasSize.y;
+        // only set the size when it changes, setting it invalidates the canvas
+        // frame which makes the browser rebuild the display list for the page
+        if (mainCanvas.width !== mainCanvasSize.x || mainCanvas.height !== mainCanvasSize.y)
+        {
+            mainCanvas.width  = mainCanvasSize.x;
+            mainCanvas.height = mainCanvasSize.y;
+        }
+        else
+        {
+            // setting the size also resets the context state, match that
+            mainContext.setTransform(1, 0, 0, 1, 0, 0);
+            mainContext.globalCompositeOperation = 'source-over';
+            mainContext.clearRect(0, 0, mainCanvasSize.x, mainCanvasSize.y);
+        }
 
         // apply the clear color to main canvas
         if (canvasClearColor.a > 0 && !glEnable)
@@ -462,8 +482,37 @@ async function engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, game
     {
         // wait for gameInit to load
         await gameInit();
-        engineUpdate();
+        engineManualStep || engineUpdate();
     }
+}
+
+// max frames engineStep can advance in one call, 10 minutes at 60fps
+// large counts block until they finish, so this catches runaway values
+const engineStepMaxFrames = 36000;
+
+/** Advance the engine by a number of frames
+ *  Requires setEngineManualStep(true) before engineInit
+ *  Respects paused exactly as the normal update loop does
+ *  @param {number} [frames] - number of engine update ticks, max 36000, each running one fixed update at timeScale 1
+ *  @example
+ *  setHeadlessMode(true);
+ *  setEngineManualStep(true);
+ *  await engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+ *  engineStep(600); // advance 10 seconds of game time
+ *  @memberof Engine */
+function engineStep(frames=1)
+{
+    ASSERT(engineManualStep,
+        'engineStep requires setEngineManualStep(true) before engineInit');
+    ASSERT(engineUpdateInternal, 'engineStep requires engineInit to complete');
+    // runtime guard so release builds (where the asserts are stripped) can't
+    // start a second requestAnimationFrame chain or call an undefined update
+    if (!engineManualStep || !engineUpdateInternal) return;
+    ASSERT(Number.isInteger(frames) && frames >= 0 && frames <= engineStepMaxFrames,
+        'engineStep requires a whole frame count from 0 to ' + engineStepMaxFrames);
+    frames = min(frames, engineStepMaxFrames); // release has no asserts, don't freeze
+    for (let i = frames; i > 0; --i)
+        engineUpdateInternal(frameTimeLastMS + 1e3 / frameRate);
 }
 
 /** Update each engine object, remove destroyed objects, and update time
@@ -2688,12 +2737,17 @@ function shareURL(title, url, callback)
 
 /** Read save data from local storage
  *  @param {string} saveName - unique name for the game/save
- *  @param {Object} [defaultSaveData] - default values for save
+ *  @param {Object} [defaultSaveData] - default values, result is {...default, ...loaded} so this must be an object
  *  @return {Object}
  *  @memberof Utilities */
 function readSaveData(saveName, defaultSaveData)
 {
-    ASSERT(isStringLike(saveName), 'loadData requires saveName string');
+    ASSERT(isStringLike(saveName), 'readSaveData requires saveName string');
+    ASSERT(defaultSaveData === undefined ||
+        (typeof defaultSaveData === 'object' && defaultSaveData !== null),
+        'readSaveData: default must be an object - the result is ' +
+        '{...default, ...loaded}, so a scalar default yields {}. ' +
+        'Use readSaveData(key, {best:0}).best');
 
     // tolerate localStorage being unavailable (iOS private mode, sandboxed
     // iframes) and corrupt JSON in stored data
@@ -2717,7 +2771,7 @@ function readSaveData(saveName, defaultSaveData)
  *  @memberof Utilities */
 function writeSaveData(saveName, saveData)
 {
-    ASSERT(isStringLike(saveName), 'saveData requires saveName string');
+    ASSERT(isStringLike(saveName), 'writeSaveData requires saveName string');
     // tolerate localStorage being unavailable or quota exceeded
     try { localStorage[saveName] = JSON.stringify(saveData); }
     catch { LOG('writeSaveData: failed to write', saveName); }
@@ -2885,6 +2939,13 @@ let showSplashScreen = false;
  *  @memberof Settings */
 let headlessMode = false;
 
+/** Disables the automatic requestAnimationFrame loop so the engine only
+ *  advances when engineStep is called, for tests and frame-stepping tools
+ *  @type {boolean}
+ *  @default
+ *  @memberof Settings */
+let engineManualStep = false;
+
 ///////////////////////////////////////////////////////////////////////////////
 // WebGL settings
 
@@ -2992,6 +3053,14 @@ let gamepadsEnable = true;
  *  @default
  *  @memberof Settings */
 let gamepadDirectionEmulateStick = true;
+
+/** If true, axes that do not rest near center are ignored on gamepads without
+ *  standard mapping. Steering wheels and flight sticks report pedal and throttle
+ *  axes that rest at full deflection, which otherwise reads as a stick held down.
+ *  @type {boolean}
+ *  @default
+ *  @memberof Settings */
+let gamepadAxisFilterEnable = true;
 
 /** If true the WASD keys are also routed to the direction keys (for better accessibility)
  *  @type {boolean}
@@ -3235,6 +3304,12 @@ function setShowSplashScreen(show) { showSplashScreen = show; }
  *  @memberof Settings */
 function setHeadlessMode(headless) { headlessMode = headless; }
 
+/** Set if the engine only advances when engineStep is called
+ *  Must be set before engineInit
+ *  @param {boolean} [enable]
+ *  @memberof Settings */
+function setEngineManualStep(enable=true) { engineManualStep = enable; }
+
 /** Set if WebGL rendering is enabled
  *  @param {boolean} enable
  *  @memberof Settings */
@@ -3324,6 +3399,11 @@ function setGamepadsEnable(enable) { gamepadsEnable = enable; }
  *  @param {boolean} enable
  *  @memberof Settings */
 function setGamepadDirectionEmulateStick(enable) { gamepadDirectionEmulateStick = enable; }
+
+/** Set if axes that do not rest near center are ignored on non-standard gamepads
+ *  @param {boolean} enable
+ *  @memberof Settings */
+function setGamepadAxisFilterEnable(enable) { gamepadAxisFilterEnable = enable; }
 
 /** Set if true the WASD keys are also routed to the direction keys
  *  @param {boolean} enable
@@ -4069,6 +4149,12 @@ let workReadCanvas;
  *  @memberof Draw */
 let workReadContext;
 
+/** Extra canvas to composite behind the engine canvases when combining canvases
+ *  Set by plugins that render to their own canvas below the LittleJS canvases
+ *  @type {HTMLCanvasElement}
+ *  @memberof Draw */
+let backgroundCanvas;
+
 /** The size of the main canvas (and other secondary canvases)
  *  @type {Vector2}
  *  @memberof Draw */
@@ -4167,8 +4253,9 @@ class TileInfo
      *  @param {TextureInfo} [textureInfo] - Texture info to use
      *  @param {number} [padding] - How many pixels padding around all sides of each tile (increases grid size, does not affect tile size)
      *  @param {number} [bleed] - How many pixels smaller to shrink UVS of tiles (does not affect grid size, only UVs)
+     *  @param {number} [columns] - How many frames per row for frame(), 0 to keep frames on a single row
      */
-    constructor(pos=vec2(), size=tileDefaultSize, textureInfo=textureInfos[0], padding=tileDefaultPadding, bleed=tileDefaultBleed)
+    constructor(pos=vec2(), size=tileDefaultSize, textureInfo=textureInfos[0], padding=tileDefaultPadding, bleed=tileDefaultBleed, columns=0)
     {
         /** @property {Vector2} - Top left corner of tile in pixels */
         this.pos = pos.copy();
@@ -4180,6 +4267,8 @@ class TileInfo
         this.textureInfo = textureInfo;
         /** @property {number} - Shrinks tile by this many pixels to prevent neighbors bleeding */
         this.bleed = bleed;
+        /** @property {number} - How many frames per row for frame(), 0 to keep frames on a single row */
+        this.columns = columns;
     }
 
     /** Returns a copy of this tile offset by a vector
@@ -4187,9 +4276,10 @@ class TileInfo
     *  @return {TileInfo}
     */
     offset(offset)
-    { return new TileInfo(this.pos.add(offset), this.size, this.textureInfo, this.padding, this.bleed); }
+    { return new TileInfo(this.pos.add(offset), this.size, this.textureInfo, this.padding, this.bleed, this.columns); }
 
     /** Returns a copy of this tile offset by a number of animation frames
+    *  Frames wrap down to the next row if columns is set
     *  @param {number} frame - Offset to apply in animation frames
     *  @return {TileInfo}
     */
@@ -4197,9 +4287,23 @@ class TileInfo
     {
         ASSERT(typeof frame === 'number');
         const w = this.size.x + this.padding*2;
-        const x = frame*w;
-        ASSERT(x + this.size.x <= this.textureInfo.size.x, 'frame extends beyond texture width!');
-        return this.offset(new Vector2(x));
+        const h = this.size.y + this.padding*2;
+        const x = (this.columns ? frame % this.columns : frame) * w;
+        const y = (this.columns ? frame / this.columns | 0 : 0) * h;
+        ASSERT(this.pos.x + x + this.size.x <= this.textureInfo.size.x, 'frame extends beyond texture width!');
+        ASSERT(this.pos.y + y + this.size.y <= this.textureInfo.size.y, 'frame extends beyond texture height!');
+        return this.offset(new Vector2(x, y));
+    }
+
+    /** Set how many frames per row this tile uses, so frame() can wrap
+    *  @param {number} [columns] - Frames per row, 0 to keep frames on a single row
+    *  @return {TileInfo}
+    */
+    setColumns(columns=0)
+    {
+        ASSERT(isNumber(columns) && columns >= 0, 'columns must be a number >= 0');
+        this.columns = columns;
+        return this;
     }
 
     /**
@@ -4208,7 +4312,7 @@ class TileInfo
      * @return {TileInfo}
      */
     index(index)
-    { return tile(index, this.size, this.textureInfo, this.padding, this.bleed); }
+    { return tile(index, this.size, this.textureInfo, this.padding, this.bleed).setColumns(this.columns); }
 
     /**
      * Set this tile to use a full image in a texture info
@@ -4220,7 +4324,7 @@ class TileInfo
         this.textureInfo = textureInfo;
         this.pos = new Vector2;
         this.size = textureInfo.size.copy();
-        this.bleed = this.padding = 0;
+        this.bleed = this.padding = this.columns = 0;
         return this;
     }
 }
@@ -5202,6 +5306,13 @@ function setAdditiveBlendMode(additive=true)
     drawContext.globalCompositeOperation = additive ? 'lighter' : 'source-over';
 }
 
+/** Set an extra canvas to composite behind the engine canvases when combining
+ *  Plugins that insert their own canvas below the LittleJS canvases should set
+ *  this so it appears in screenshots and video capture
+ *  @param {HTMLCanvasElement} [canvas]
+ *  @memberof Draw */
+function setBackgroundCanvas(canvas) { backgroundCanvas = canvas; }
+
 /** Combines LittleJS canvases onto the main canvas
  *  This is necessary for things like screenshots and video
  *  @memberof Draw */
@@ -5214,6 +5325,8 @@ function combineCanvases()
     // leaving workContext.fillStyle transparent can't silently no-op this
     workContext.fillStyle = '#000';
     workContext.fillRect(0,0,w,h);
+    if (backgroundCanvas)
+        workContext.drawImage(backgroundCanvas, 0, 0, w, h);
     glCopyToContext(workContext);
     workContext.drawImage(mainCanvas, 0, 0);
     mainContext.drawImage(workCanvas, 0, 0);
@@ -5457,9 +5570,15 @@ class ImageFont
                 tileInfo.pos.x = x*sizePaddedX + padding;
                 tileInfo.pos.y = y*sizePaddedY + padding;
 
-                // draw the tile
-                drawPos.x = pos.x + i * size.x - centerOffset |0;
-                drawPos.y = pos.y + j * size.y |0;
+                // snap the glyph edges to whole pixels
+                // tiles are drawn from their center, so snapping the center
+                // to a whole pixel puts the edges on half pixels when the
+                // size is even, and a row or column of the glyph then has
+                // no pixel center inside it and is not rasterized at all
+                // ceil picks the nearest aligned position, breaking ties
+                // downward to match how this used to truncate
+                drawPos.x = ceil(pos.x + i * size.x - centerOffset - size.x/2) + size.x/2 - .5;
+                drawPos.y = ceil(pos.y + j * size.y - size.y/2) + size.y/2 - .5;
                 drawTile(drawPos, size, tileInfo, color, 0, false, undefined, useWebGL, true, context);
             }
         });
@@ -5606,6 +5725,7 @@ function inputClear()
     touchGamepadStickPointerId.length = 0; // release floating sticks so they re-anchor
     gamepadStickData.length = 0;
     gamepadDpadData.length = 0;
+    gamepadAxisCentered.length = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -5843,6 +5963,11 @@ const inputData = [[]];
 
 // gamepad internal variables
 const gamepadStickData = [], gamepadDpadData = [], gamepadHadInput = [];
+// per gamepad, how many consecutive frames each axis has rested inside the
+// dead zone, used to tell stick axes from axes that rest at full deflection
+const gamepadAxisCentered = [];
+// how long an axis must rest inside the dead zone before it counts as a stick
+const gamepadAxisCenteredFrames = 15;
 
 // touch gamepad internal variables
 const touchGamepadTimer = new Timer, touchGamepadButtons = [], touchGamepadSticks = [];
@@ -6091,7 +6216,7 @@ function inputUpdate()
         // gamepad: any button held or stick moved
         let gamepadActive = false;
         for (let s = gamepadStickCount(); s-- && !gamepadActive;)
-            gamepadActive = gamepadStick(s).lengthSquared() > .04;
+            gamepadActive = gamepadStick(s).lengthSquared() > .2;
         for (let b = 17; b-- && !gamepadActive;)
             gamepadActive = gamepadIsDown(b);
 
@@ -6119,12 +6244,12 @@ function inputUpdate()
     // gamepads are updated by engine every frame automatically
     function gamepadsUpdate()
     {
+        const deadZoneMin=.3, deadZoneMax=.8;
         const applyDeadZones = (v)=>
         {
-            const min=.3, max=.8;
             const deadZone = (v)=>
-                v > min ? percent(v, min, max) :
-                v < -min ? -percent(-v, min, max) : 0;
+                v > deadZoneMin ? percent(v, deadZoneMin, deadZoneMax) :
+                v < -deadZoneMin ? -percent(-v, deadZoneMin, deadZoneMax) : 0;
             return vec2(deadZone(v.x), deadZone(-v.y)).clampLength();
         };
 
@@ -6208,6 +6333,7 @@ function inputUpdate()
                 gamepadStickData[i] = undefined;
                 gamepadDpadData[i] = undefined;
                 gamepadHadInput[i] = undefined;
+                gamepadAxisCentered[i] = undefined;
                 continue;
             }
 
@@ -6216,8 +6342,30 @@ function inputUpdate()
             const dpad = gamepadDpadData[i] ?? (gamepadDpadData[i] = vec2());
 
             // read analog sticks
+            // gamepads without standard mapping (steering wheels, flight sticks)
+            // can report axes that rest at full deflection instead of center,
+            // which would otherwise read as a stick held down forever, so only
+            // trust an axis once it has rested inside the dead zone for a moment
+            const isStandard = gamepad.mapping === 'standard';
+            const centered = gamepadAxisCentered[i] ?? (gamepadAxisCentered[i] = []);
+            const readAxis = (j)=>
+            {
+                const v = gamepad.axes[j];
+                if (isStandard && j < 4)
+                    return v; // spec guarantees axes 0-3 are the two sticks
+                if (!gamepadAxisFilterEnable)
+                    return v;
+
+                // once an axis has proven it rests at center it stays trusted,
+                // otherwise moving it would immediately disqualify it again
+                const frames = centered[j] | 0;
+                if (frames > gamepadAxisCenteredFrames)
+                    return v;
+                centered[j] = abs(v) < deadZoneMin ? frames + 1 : 0;
+                return 0;
+            };
             for (let j = 0; j < gamepad.axes.length-1; j+=2)
-                sticks[j>>1] = applyDeadZones(vec2(gamepad.axes[j],gamepad.axes[j+1]));
+                sticks[j>>1] = applyDeadZones(vec2(readAxis(j), readAxis(j+1)));
 
             // read buttons
             let hadInput = false;
@@ -6843,7 +6991,15 @@ class Sound
         this.randomness = randomness ?? 0;
         /** @property {number} - Sample rate for this sound */
         this.sampleRate = audioDefaultSampleRate;
-        /** @property {number} - Percentage of this sound currently loaded */
+        /** @property {number} - How many samples per channel this sound has */
+        this.sampleLength = 0;
+        /** @property {AudioBuffer} - Decoded audio shared by every play of this sound
+         *  @type {AudioBuffer} */
+        this.sampleBuffer = undefined;
+        /** @private @type {Array<Array<number>|Float32Array>} */
+        this._sampleChannels = undefined;
+        /** @property {number} - Percentage of this sound currently loaded, sounds
+         *  fetched from a url stay at 0 until decoding completes */
         this.loadedPercent = 0;
         /** @property {SoundLoadCallback} - function to call when sound is loaded */
         this.onloadCallback = onloadCallback;
@@ -6859,17 +7015,60 @@ class Sound
             this.randomness = zzfxSound[randomnessIndex] ?? defaultRandomness;
             zzfxSound[randomnessIndex] = 0;
 
-            // generate the zzfx samples
+            // generate the zzfx samples, then hand them to an audio buffer so
+            // the plain arrays can be released and every play shares the buffer
             this.sampleChannels = [zzfxG(...zzfxSound)];
+            this.buildSampleBuffer();
             this.loadedPercent = 1;
             onloadCallback?.(this);
         }
         else if (typeof asset === 'string')
         {
-            // load the audio file
+            // load the audio file, report failures rather than leaving an
+            // unhandled rejection, the sound just stays unloaded and silent
             const filename = asset;
-            this.loadSound(filename);
+            this.loadSound(filename).catch(e=>
+                LOG('Sound load failed for', filename, '-', e.message));
         }
+    }
+
+    /** Sample data for each channel
+     *  Sounds keep their samples in an audio buffer, so reading this rebuilds
+     *  the arrays from it and caches them. The copies are safe to hold onto,
+     *  playing a sound detaches the buffer's own channel arrays.
+     *  @type {Array<Array<number>|Float32Array>} */
+    get sampleChannels()
+    {
+        const buffer = this.sampleBuffer;
+        if (!this._sampleChannels && buffer)
+        {
+            const channels = [];
+            for (let i = 0; i < buffer.numberOfChannels; i++)
+                channels.push(buffer.getChannelData(i).slice());
+            this._sampleChannels = channels;
+        }
+        return this._sampleChannels;
+    }
+
+    /** @param {Array<Array<number>|Float32Array>} sampleChannels */
+    set sampleChannels(sampleChannels)
+    {
+        // new samples invalidate the buffer built from the old ones
+        this._sampleChannels = sampleChannels;
+        this.sampleBuffer = undefined;
+        this.sampleLength = sampleChannels?.[0]?.length || 0;
+    }
+
+    /** Move this sound's samples into an audio buffer that every play can share
+     *  Does nothing if there is already a buffer or no samples to build one from */
+    buildSampleBuffer()
+    {
+        if (this.sampleBuffer || !this._sampleChannels || headlessMode) return;
+
+        this.sampleBuffer = createAudioBuffer(this._sampleChannels, this.sampleRate);
+
+        // the buffer owns the samples now, release the arrays we built it from
+        this._sampleChannels = undefined;
     }
 
     /** Play the sound
@@ -6890,7 +7089,7 @@ class Sound
         ASSERT(isNumber(randomnessScale), 'randomnessScale must be a number');
 
         if (!soundEnable || headlessMode) return;
-        if (!this.sampleChannels) return;
+        if (!this.sampleBuffer && !this._sampleChannels) return;
 
         let pan;
         if (pos)
@@ -6957,7 +7156,7 @@ class Sound
      *  @return {number} - How long the sound is in seconds (0 if loading)
      */
     getDuration()
-    { return this.sampleChannels?.[0]?.length / this.sampleRate || 0; }
+    { return this.sampleLength / this.sampleRate || 0; }
 
     /** Check if sound is loaded, for sounds fetched from a url
      *  @return {boolean} - True if sound is loaded and ready to play
@@ -6975,36 +7174,11 @@ class Sound
         const arrayBuffer = await response.arrayBuffer();
         const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
         
-        // convert audio buffer to sample channels across multiple frames
-        const channelCount = audioBuffer.numberOfChannels;
-        const samplesPerFrame = 1e5;
-        const sampleChannels = [];
-        for (let channel = 0; channel < channelCount; channel++)
-        {
-            const channelData = audioBuffer.getChannelData(channel);
-            const channelLength = channelData.length;
-            sampleChannels[channel] = new Array(channelLength);
-            let sampleIndex = 0;
-            while (sampleIndex < channelLength)
-            {
-                // yield to next frame
-                await new Promise(resolve => setTimeout(resolve, 0));
-
-                // copy chunk of samples
-                const endIndex = min(sampleIndex + samplesPerFrame, channelLength);
-                for (; sampleIndex < endIndex; sampleIndex++)
-                    sampleChannels[channel][sampleIndex] = channelData[sampleIndex];
-
-                // update loaded percent
-                const samplesTotal = channelCount * channelLength;
-                const samplesProcessed = channel * channelLength + sampleIndex;
-                this.loadedPercent = samplesProcessed / samplesTotal;
-            }
-        }
-        
-        // setup the sound to be played
+        // keep the decoded buffer as is, it is exactly what playback needs and
+        // every play shares it, no channel data is read or copied
         this.sampleRate = audioBuffer.sampleRate;
-        this.sampleChannels = sampleChannels;
+        this.sampleLength = audioBuffer.length;
+        this.sampleBuffer = audioBuffer;
         this.loadedPercent = 1;
         this.onloadCallback?.(this);
     }
@@ -7080,7 +7254,12 @@ class SoundInstance
         if (this.isPlaying())
             this.stop();
         this.gainNode = audioContext.createGain();
-        this.source = playSamples(this.sound.sampleChannels, this.volume, this.rate, this.pan, this.loop, this.sound.sampleRate, this.gainNode, offset, this.onendedCallback);
+
+        // build the shared buffer if it was not made at load time, then play it
+        this.sound.buildSampleBuffer();
+        this.source = this.sound.sampleBuffer ?
+            playAudioBuffer(this.sound.sampleBuffer, this.volume, this.rate, this.pan, this.loop, this.gainNode, offset, this.onendedCallback) :
+            playSamples(this.sound.sampleChannels, this.volume, this.rate, this.pan, this.loop, this.sound.sampleRate, this.gainNode, offset, this.onendedCallback);
         if (this.source)
         {
             this.startTime = audioContext.currentTime - offset;
@@ -7206,7 +7385,7 @@ function speak(text, volume=1, rate=1, pitch=1, language='')
     // build utterance and speak
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = language;
-    utterance.volume = 2*volume*soundVolume;
+    utterance.volume = volume*soundVolume;
     utterance.rate = rate;
     utterance.pitch = pitch;
     speechSynthesis.speak(utterance);
@@ -7255,19 +7434,54 @@ function playSamples(sampleChannels, volume=1, rate=1, pan=0, loop=false, sample
 
     if (!audioIsRunning())
     {
+        // fix stalled audio, don't build a buffer that can't be played
+        audioContext.resume();
+        return;
+    }
+
+    const buffer = createAudioBuffer(sampleChannels, sampleRate);
+    return playAudioBuffer(buffer, volume, rate, pan, loop, gainNode, offset, onended);
+}
+
+/** Copy arrays of samples into a new audio buffer
+ *  @param {Array}  sampleChannels - Array of arrays of samples (for stereo playback)
+ *  @param {number} [sampleRate=44100] - Sample rate for the sound
+ *  @return {AudioBuffer} - The audio buffer holding the samples
+ *  @memberof Audio */
+function createAudioBuffer(sampleChannels, sampleRate=audioDefaultSampleRate)
+{
+    const channelCount = sampleChannels.length;
+    const sampleLength = sampleChannels[0].length;
+    const buffer = audioContext.createBuffer(channelCount, sampleLength, sampleRate);
+    sampleChannels.forEach((c,i)=> buffer.getChannelData(i).set(c));
+    return buffer;
+}
+
+/** Play an audio buffer with given settings
+ *  The buffer can be shared by any number of sounds playing at once
+ *  @param {AudioBuffer} buffer - The audio buffer to play
+ *  @param {number}   [volume] - How much to scale volume by
+ *  @param {number}   [rate] - The playback rate to use
+ *  @param {number}   [pan] - How much to apply stereo panning
+ *  @param {boolean}  [loop] - True if the sound should loop when it reaches the end
+ *  @param {GainNode} [gainNode] - Optional gain node for volume control while playing (disconnected when the sound ends)
+ *  @param {number}   [offset] - Offset in seconds to start playback from
+ *  @param {AudioEndedCallback} [onended] - Callback for when the sound ends
+ *  @return {AudioBufferSourceNode} - The source node of the sound played, may be undefined if play fails
+ *  @memberof Audio */
+function playAudioBuffer(buffer, volume=1, rate=1, pan=0, loop=false, gainNode, offset=0, onended)
+{
+    if (!soundEnable || headlessMode) return;
+
+    if (!audioIsRunning())
+    {
         // fix stalled audio, this sound won't be able to play
         audioContext.resume();
         return;
     }
 
-    // create buffer and source
-    const channelCount = sampleChannels.length;
-    const sampleLength = sampleChannels[0].length;
-    const buffer = audioContext.createBuffer(channelCount, sampleLength, sampleRate);
+    // setup source, many sources can share one buffer
     const source = audioContext.createBufferSource();
-
-    // copy samples to buffer and setup source
-    sampleChannels.forEach((c,i)=> buffer.getChannelData(i).set(c));
     source.buffer = buffer;
     source.playbackRate.value = rate;
     source.loop = loop;
@@ -8970,9 +9184,13 @@ function glPreRender(clear=true)
 
     if (!glRenderTarget)
     {
-        // set to same size as main canvas
-        glCanvas.width = mainCanvasSize.x;
-        glCanvas.height = mainCanvasSize.y;
+        // set to same size as main canvas, only when it changes because
+        // setting it reallocates the drawing buffer and invalidates the frame
+        if (glCanvas.width !== mainCanvasSize.x || glCanvas.height !== mainCanvasSize.y)
+        {
+            glCanvas.width = mainCanvasSize.x;
+            glCanvas.height = mainCanvasSize.y;
+        }
     }
     glContext.viewport(0, 0, mainCanvasSize.x, mainCanvasSize.y);
     clear && glClearCanvas();
@@ -14908,6 +15126,463 @@ function getCrescentPoints(pos, size=1, percent=0, angle=0, invert=false, sides=
     return points;
 }
 /**
+ * LittleJS Texture Sheet Plugin
+ * - Packs images into texture sheets as they are loaded
+ * - Sprites are placed automatically, callers get a TileInfo
+ * - Sheets are created and filled as needed
+ * - Sheets fill in call order, images decode in parallel
+ * - Animation frames keep layout and wrap across rows as needed
+ * - WebGL textures upload once per batch of loads
+ * - loadAtlas imports pre-packed atlases (TexturePacker and Aseprite json)
+ * @namespace TextureSheets
+ */
+
+/** Width and height in pixels of texture sheets created by loadSprite
+ *  @type {number}
+ *  @default
+ *  @memberof Settings */
+let textureSheetSize = 2048;
+
+/** Default padding pixels around each frame packed by loadSprite
+ *  @type {number}
+ *  @default
+ *  @memberof Settings */
+let textureSheetPadding = 1;
+
+/** Array of texture sheets created by loadSprite
+ *  @type {Array<TextureSheet>}
+ *  @memberof TextureSheets */
+let textureSheets = [];
+
+// pending loads pack through a queue so sheets fill in call order
+let textureSheetQueue = Promise.resolve();
+let textureSheetPendingCount = 0;
+
+/**
+ * Texture Sheet - A texture that images are packed into as they load
+ * Uses shelf packing, images are placed left to right then wrap to a new row
+ * @memberof TextureSheets
+ */
+class TextureSheet
+{
+    /** Create a texture sheet, called automatically by loadSprite
+     *  @param {number} [size] - Width and height of the sheet in pixels */
+    constructor(size=textureSheetSize)
+    {
+        ASSERT(size > 0, 'texture sheet size must be positive');
+
+        /** @property {number} - Width and height of the sheet in pixels */
+        this.size = size;
+        /** @property {OffscreenCanvas} - Canvas holding the packed images */
+        this.canvas = headlessMode ? undefined : new OffscreenCanvas(size, size);
+        /** @property {OffscreenCanvasRenderingContext2D} - 2d context for the canvas */
+        this.context = this.canvas?.getContext('2d');
+        /** @property {TextureInfo} - The texture info for this sheet */
+        this.textureInfo = new TextureInfo(this.canvas);
+        /** @property {Vector2} - Where the next image will be packed */
+        this.cursor = vec2();
+        /** @property {number} - Height of the row being packed */
+        this.rowHeight = 0;
+        /** @property {boolean} - Has the canvas changed since the last webgl upload? */
+        this.glDirty = false;
+
+        if (headlessMode)
+        {
+            // tiles still need bounds when there is no canvas to measure
+            this.textureInfo.size = vec2(size);
+            this.textureInfo.sizeInverse = vec2(1/size);
+        }
+    }
+
+    /** Find a spot for an image on this sheet without drawing it
+     *  @param {Vector2} imageSize - Size of the source image in pixels
+     *  @param {Vector2} [frameSize] - Size of each frame, or the whole image if not passed
+     *  @param {number} [padding] - How many pixels padding around each frame
+     *  @param {number|Vector2} [sourcePadding] - How many pixels padding around each frame in the source image
+     *  @return {TileInfo} Tile for the packed image, or undefined if the sheet is full */
+    tryAdd(imageSize, frameSize=imageSize, padding=textureSheetPadding, sourcePadding=0)
+    {
+        ASSERT(isVector2(imageSize) && isVector2(frameSize), 'sizes must be vec2');
+        ASSERT(frameSize.x > 0 && frameSize.y > 0, 'frame size must be positive');
+
+        if (isNumber(sourcePadding))
+            sourcePadding = vec2(sourcePadding);
+        ASSERT(isVector2(sourcePadding) && sourcePadding.x >= 0 && sourcePadding.y >= 0,
+            'sourcePadding must be a number or vec2 >= 0');
+
+        // the source may have its own padding baked in around each frame
+        const sourceCellWidth = frameSize.x + sourcePadding.x*2;
+        const sourceCellHeight = frameSize.y + sourcePadding.y*2;
+        ASSERT(imageSize.x % sourceCellWidth === 0 && imageSize.y % sourceCellHeight === 0,
+            'image size must be a multiple of the padded frame size');
+
+        const cellWidth = frameSize.x + padding*2;
+        const cellHeight = frameSize.y + padding*2;
+        const maxColumns = this.size / cellWidth | 0;
+        ASSERT(maxColumns > 0, 'frame is too wide to fit on a texture sheet');
+
+        // keep the layout of the source image, but narrow it if a row is too wide
+        // frames wrap down to the next row, which TileInfo.frame handles via columns
+        const sourceColumns = imageSize.x / sourceCellWidth;
+        const frameCount = sourceColumns * (imageSize.y / sourceCellHeight);
+        const columns = min(sourceColumns, maxColumns);
+        const blockWidth = columns * cellWidth;
+        const blockHeight = ceil(frameCount / columns) * cellHeight;
+
+        // probe the placement using locals so a failed try leaves the sheet unchanged
+        let x = this.cursor.x, y = this.cursor.y, rowHeight = this.rowHeight;
+        if (x + blockWidth > this.size)
+        {
+            // start a new row if this one does not have enough space left
+            x = 0;
+            y += rowHeight;
+            rowHeight = 0;
+        }
+
+        // out of space, the caller needs to use a different sheet
+        if (y + blockHeight > this.size)
+            return undefined;
+
+        // commit the placement, tile pos points inside the padding to match how tile() works
+        this.cursor.x = x + blockWidth;
+        this.cursor.y = y;
+        this.rowHeight = max(rowHeight, blockHeight);
+        return new TileInfo(vec2(x + padding, y + padding), frameSize, this.textureInfo, padding, 0, columns);
+    }
+
+    /** Draw an image into this sheet at a tile returned by tryAdd
+     *  @param {HTMLImageElement} image - Source image to copy from
+     *  @param {TileInfo} tileInfo - Where to put it, from tryAdd
+     *  @param {boolean} [update] - Upload to webgl now, pass false when batching
+     *  @param {number|Vector2} [sourcePadding] - How many pixels padding around each frame in the source image */
+    drawImage(image, tileInfo, update=true, sourcePadding=0)
+    {
+        ASSERT(!!this.context, 'texture sheet has no canvas');
+
+        if (isNumber(sourcePadding))
+            sourcePadding = vec2(sourcePadding);
+
+        // copy frames in order, reading the source left to right, top to bottom
+        // the destination wraps at tileInfo.columns which may be narrower than the source
+        const frameSize = tileInfo.size;
+        const sourceCellWidth = frameSize.x + sourcePadding.x*2;
+        const sourceCellHeight = frameSize.y + sourcePadding.y*2;
+        const sourceColumns = image.width / sourceCellWidth;
+        const frameCount = sourceColumns * (image.height / sourceCellHeight);
+        const columns = tileInfo.columns || frameCount;
+        const cellWidth = frameSize.x + tileInfo.padding*2;
+        const cellHeight = frameSize.y + tileInfo.padding*2;
+        for (let i = frameCount; i--;)
+        {
+            const sourceX = (i % sourceColumns) * sourceCellWidth + sourcePadding.x;
+            const sourceY = (i / sourceColumns | 0) * sourceCellHeight + sourcePadding.y;
+            this.context.drawImage(image,
+                sourceX, sourceY, frameSize.x, frameSize.y,
+                tileInfo.pos.x + (i % columns) * cellWidth,
+                tileInfo.pos.y + (i / columns | 0) * cellHeight,
+                frameSize.x, frameSize.y);
+        }
+
+        // upload now unless the caller is batching more images
+        this.glDirty = true;
+        update && this.updateTexture();
+    }
+
+    /** Upload the canvas to webgl if it has changed since the last upload
+     *  Only needed after batching, drawImage uploads automatically by default */
+    updateTexture()
+    {
+        if (!this.glDirty) return;
+        this.glDirty = false;
+        this.textureInfo.createWebGLTexture();
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+/** Load an image and pack it into a texture sheet
+ *  - Returns a TileInfo immediately which is filled in when the image loads
+ *  - Nothing is visible until it loads, use spritesReady to wait for it
+ *  - Pass frameSize for animations, then step through them with TileInfo.frame
+ *  - Grid images keep their layout and frames wrap down to the next row
+ *  - Pass sourcePadding if the source image has padding baked in around frames
+ *  @param {string} src - Image source path
+ *  @param {Vector2|number} [frameSize] - Size of each animation frame in pixels
+ *  @param {number} [padding] - How many pixels padding around each frame
+ *  @param {number|Vector2} [sourcePadding] - How many pixels padding around each frame in the source image
+ *  @return {TileInfo}
+ *  @example
+ *  const playerTile = loadSprite('player.png');     // a single sprite
+ *  const runTile = loadSprite('run.png', vec2(16)); // a 16x16 frame animation
+ *  @memberof TextureSheets */
+function loadSprite(src, frameSize, padding=textureSheetPadding, sourcePadding=0)
+{
+    ASSERT(isStringLike(src), 'image src must be a string');
+    ASSERT(!frameSize || isVector2(frameSize) || isNumber(frameSize), 'frameSize must be a vec2 or number');
+    ASSERT(isNumber(padding), 'padding must be a number');
+    ASSERT(isNumber(sourcePadding) || isVector2(sourcePadding), 'sourcePadding must be a number or vec2');
+
+    if (isNumber(frameSize))
+        frameSize = vec2(frameSize);
+
+    // start with an empty tile that gets filled in when the image loads
+    const tileInfo = new TileInfo(vec2(), vec2(), undefined, padding, 0);
+    if (headlessMode) return tileInfo;
+
+    // point at a sheet right away so drawing before it loads picks up empty pixels
+    tileInfo.textureInfo = (textureSheets[0] || textureSheetCreate()).textureInfo;
+
+    // start decoding right away, images decode in parallel
+    const image = new Image;
+    const imagePromise = new Promise(resolve =>
+    {
+        image.onerror = image.onload = resolve;
+        image.crossOrigin = 'anonymous';
+        image.src = src;
+    });
+
+    // pack through a queue so sheets fill in call order, not decode order
+    ++textureSheetPendingCount;
+    textureSheetQueue = textureSheetQueue.then(async ()=>
+    {
+        await imagePromise;
+        if (image.width)
+        {
+            // pack onto a sheet, then fill in the tile that was already handed out,
+            // copying every field so nothing is missed if TileInfo gains more of them
+            const imageSize = vec2(image.width, image.height);
+            const {sheet, tile} = textureSheetAdd(imageSize, frameSize, padding, sourcePadding);
+            Object.assign(tileInfo, tile);
+            sheet.drawImage(image, tileInfo, false, sourcePadding); // upload once per batch below
+        }
+        else
+        {
+            // leave the tile empty if the image failed to load
+            LOG('loadSprite failed to load image:', src);
+        }
+
+        // upload to webgl once per batch, when the last pending load finishes
+        if (!--textureSheetPendingCount)
+            textureSheets.forEach(s=> s.updateTexture());
+    });
+
+    return tileInfo;
+}
+
+/** Load a pre-packed texture atlas and repack it onto texture sheets
+ *  - Supports TexturePacker json (hash and array) and Aseprite json
+ *  - Returns an empty object which is filled with TileInfos when loaded
+ *  - Frames are named by the json, animations are grouped automatically
+ *  - Aseprite frame tags become animations, so do names like run_0, run_1
+ *  - Trimmed frames are restored to their full source size when packed
+ *  - Rotated frames are rotated back upright when packed
+ *  @param {string} imageSrc - Atlas image path
+ *  @param {string|Object} jsonSrc - Atlas json path, or already parsed json data
+ *  @param {number} [padding] - How many pixels padding around each frame
+ *  @return {Object} Object mapping frame and animation names to TileInfos
+ *  @example
+ *  const atlas = loadAtlas('sprites.png', 'sprites.json');
+ *  await spritesReady();
+ *  drawTile(pos, size, atlas.player);          // a single frame
+ *  drawTile(pos, size, atlas.run.frame(2));    // frame 2 of the run animation
+ *  @memberof TextureSheets */
+function loadAtlas(imageSrc, jsonSrc, padding=textureSheetPadding)
+{
+    ASSERT(isStringLike(imageSrc), 'atlas image src must be a string');
+    ASSERT(isStringLike(jsonSrc) || typeof jsonSrc === 'object', 'atlas json must be a path or object');
+    ASSERT(isNumber(padding), 'padding must be a number');
+
+    const atlas = {};
+    if (headlessMode) return atlas;
+
+    // start fetching the json and decoding the image right away, in parallel
+    const jsonPromise = typeof jsonSrc === 'object' ? Promise.resolve(jsonSrc) :
+        fetch(jsonSrc).then(r=> r.ok && r.json()).catch(()=> undefined);
+    const image = new Image;
+    const imagePromise = new Promise(resolve =>
+    {
+        image.onerror = image.onload = resolve;
+        image.crossOrigin = 'anonymous';
+        image.src = imageSrc;
+    });
+
+    // pack through a queue so sheets fill in call order, not decode order
+    ++textureSheetPendingCount;
+    textureSheetQueue = textureSheetQueue.then(async ()=>
+    {
+        const data = await jsonPromise;
+        await imagePromise;
+        if (image.width && data)
+        {
+            for (const group of parseAtlas(data))
+            {
+                // reserve a block of full size cells, one per frame
+                const sourceSize = group.frames[0].sourceSize;
+                const blockSize = vec2(sourceSize.x*group.frames.length, sourceSize.y);
+                const {sheet, tile} = textureSheetAdd(blockSize, sourceSize, padding);
+
+                // draw each frame untrimmed into its cell
+                const context = sheet.context;
+                const cellWidth = sourceSize.x + padding*2;
+                const cellHeight = sourceSize.y + padding*2;
+                group.frames.forEach((f, i)=>
+                {
+                    const x = tile.pos.x + (i % tile.columns)*cellWidth + f.offset.x;
+                    const y = tile.pos.y + (i / tile.columns |0)*cellHeight + f.offset.y;
+                    if (f.rotated)
+                    {
+                        // stored rotated 90 degrees clockwise, draw it back upright
+                        context.save();
+                        context.translate(x, y);
+                        context.rotate(-PI/2);
+                        context.drawImage(image, f.pos.x, f.pos.y, f.size.y, f.size.x,
+                            -f.size.y, 0, f.size.y, f.size.x);
+                        context.restore();
+                    }
+                    else
+                        context.drawImage(image, f.pos.x, f.pos.y, f.size.x, f.size.y,
+                            x, y, f.size.x, f.size.y);
+                });
+                sheet.glDirty = true;
+                atlas[group.name] = tile;
+            }
+        }
+        else
+        {
+            // leave the atlas empty if either file failed to load
+            LOG('loadAtlas failed to load:', imageSrc, jsonSrc);
+        }
+
+        // upload to webgl once per batch, when the last pending load finishes
+        if (!--textureSheetPendingCount)
+            textureSheets.forEach(s=> s.updateTexture());
+    });
+
+    return atlas;
+}
+
+/** Parse atlas json into a list of named frame groups, used by loadAtlas
+ *  - Accepts TexturePacker json (hash and array) and Aseprite json
+ *  - Frames tagged in Aseprite or named like run_0, run_1 group into animations
+ *  @param {Object} data - Parsed atlas json data
+ *  @return {Array<Object>} List of {name, frames} groups in atlas order
+ *  @memberof TextureSheets */
+function parseAtlas(data)
+{
+    ASSERT(!!data?.frames, 'unrecognized atlas format, expected TexturePacker or Aseprite json');
+
+    // normalize both hash and array frame layouts into a single list
+    const frames = (isArray(data.frames) ?
+        data.frames.map(f=> [f.filename, f]) : Object.entries(data.frames))
+        .map(([name, f])=> ({
+            name: name.replace(/\.[^.\\/]+$/, ''), // strip file extension
+            pos:        vec2(f.frame.x, f.frame.y),
+            size:       vec2(f.frame.w, f.frame.h),
+            offset:     vec2(f.spriteSourceSize?.x ?? 0, f.spriteSourceSize?.y ?? 0),
+            sourceSize: vec2(f.sourceSize?.w ?? f.frame.w, f.sourceSize?.h ?? f.frame.h),
+            rotated:    !!f.rotated,
+        }));
+
+    const groups = [];
+    const tags = data.meta?.frameTags;
+    if (tags?.length)
+    {
+        // aseprite tags are authoritative, untagged frames stay individual
+        const tagged = new Set;
+        for (const tag of tags)
+        {
+            groups.push({name: tag.name, frames: frames.slice(tag.from, tag.to + 1)});
+            for (let i = tag.from; i <= tag.to; ++i)
+                tagged.add(i);
+        }
+        frames.forEach((f, i)=> tagged.has(i) || groups.push({name: f.name, frames: [f]}));
+        return groups;
+    }
+
+    // group frames that share a name stem with contiguous trailing numbers
+    // run_0.png and run_1.png become a 2 frame animation named run
+    const stems = new Map;
+    for (const f of frames)
+    {
+        let match = f.name.match(/^(.+?)([-_ ])?(\d+)$/);
+        if (match && !match[2] && /\d$/.test(match[1]))
+            match = undefined; // all digit tails like 10 are a name, not frame 0 of 1
+        const stem = match ? match[1] : f.name;
+        f.groupIndex = match ? Number(match[3]) : undefined;
+        stems.has(stem) || stems.set(stem, []);
+        stems.get(stem).push(f);
+    }
+    for (const [stem, list] of stems)
+    {
+        // only group 2 or more frames with contiguous indices and matching sizes
+        list.sort((a, b)=> a.groupIndex - b.groupIndex);
+        const grouped = list.length > 1 &&
+            list.every((f, i)=> f.groupIndex === list[0].groupIndex + i) &&
+            list.every(f=> f.sourceSize.x === list[0].sourceSize.x &&
+                           f.sourceSize.y === list[0].sourceSize.y);
+        if (grouped)
+            groups.push({name: stem, frames: list});
+        else
+            list.forEach(f=> groups.push({name: f.name, frames: [f]}));
+    }
+    return groups;
+}
+
+/** Wait for everything started by loadSprite and loadAtlas to finish packing
+ *  @return {Promise}
+ *  @example
+ *  async function gameInit()
+ *  {
+ *      playerTile = loadSprite('player.png');
+ *      runTile = loadSprite('run.png', vec2(16));
+ *      await spritesReady();
+ *  }
+ *  @memberof TextureSheets */
+async function spritesReady()
+{
+    // keep waiting until the queue drains, more sprites may load while waiting
+    while (textureSheetPendingCount)
+        await textureSheetQueue;
+}
+
+// create a new texture sheet and add it to the list
+function textureSheetCreate()
+{
+    const sheet = new TextureSheet;
+    textureSheets.push(sheet);
+    return sheet;
+}
+
+// use the first sheet with enough space, or make a new one
+function textureSheetAdd(imageSize, frameSize, padding, sourcePadding)
+{
+    let sheet, tile;
+    for (sheet of textureSheets)
+        if (tile = sheet.tryAdd(imageSize, frameSize, padding, sourcePadding))
+            break;
+    if (!tile)
+    {
+        sheet = textureSheetCreate();
+        tile = sheet.tryAdd(imageSize, frameSize, padding, sourcePadding);
+        ASSERT(!!tile, 'image is too large to fit on a texture sheet');
+    }
+    return {sheet, tile};
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Texture sheet setting setters
+
+/** Set width and height in pixels of texture sheets created by loadSprite
+ *  @param {number} size
+ *  @memberof Settings */
+function setTextureSheetSize(size) { textureSheetSize = size; }
+
+/** Set default padding pixels around each frame packed by loadSprite
+ *  @param {number} padding
+ *  @memberof Settings */
+function setTextureSheetPadding(padding) { textureSheetPadding = padding; }
+
+/**
  * LittleJS Tween System Plugin
  * - Lightweight tweens for numbers, Vector2, Color, or any .lerp-able type
  * - Chainable easing, looping, and ping-pong
@@ -16220,6 +16895,163 @@ class PathFinder
     }
 }
 
+/**
+ * LittleJS Three.js Plugin
+ * - Renders a three.js scene on a canvas behind the LittleJS canvases
+ * - The three.js module is passed in by the user, nothing is bundled
+ * - Keep canvasClearColor transparent so the 3D scene shows through
+ * - Aligned camera mode locks the 3D camera to the LittleJS 2D camera
+ * - ThreeJSObject lets LittleJS physics drive a three.js mesh
+ * - Call new ThreeJSPlugin(THREE) in gameInit to set up
+ * @namespace ThreeJS
+ */
+
+///////////////////////////////////////////////////////////////////////////////
+
+/** Global ThreeJS plugin object
+ *  @type {ThreeJSPlugin}
+ *  @memberof ThreeJS */
+let threeJS;
+
+///////////////////////////////////////////////////////////////////////////////
+/**
+ * ThreeJS Plugin - Renders a three.js scene behind the LittleJS canvas
+ * @example
+ * // in gameInit, with three.js loaded by the user
+ * new ThreeJSPlugin(THREE);
+ * threeJS.scene.add(new THREE.AmbientLight);
+ * @memberof ThreeJS
+ */
+class ThreeJSPlugin
+{
+    /** Set up the three.js rendering layer, call in gameInit
+     *  @param {Object} THREE - The three.js module, supplied by the user
+     *  @param {number} [cameraFOV] - Vertical field of view in degrees */
+    constructor(THREE, cameraFOV=60)
+    {
+        ASSERT(!threeJS, 'ThreeJS plugin already initialized');
+        threeJS = this;
+        if (headlessMode) return;
+        ASSERT(mainCanvas, 'ThreeJS plugin must be created after engineInit, call in gameInit');
+        ASSERT(THREE && THREE.WebGLRenderer, 'three.js module must be passed in');
+
+        /** @property {Object} - The three.js module passed into the constructor */
+        this.THREE = THREE;
+        /** @property {Object} - The three.js renderer */
+        this.renderer = new THREE.WebGLRenderer({antialias: true});
+        /** @property {Object} - The three.js scene, add lights and meshes here */
+        this.scene = new THREE.Scene();
+        /** @property {Object} - The three.js perspective camera */
+        this.camera = new THREE.PerspectiveCamera(cameraFOV, 1, .1, 1e3);
+        /** @property {boolean} - Lock the camera to the LittleJS 2D camera so the z=0 plane matches world space */
+        this.cameraAlign2D = true;
+
+        // insert the canvas below the engine canvases and match the layout
+        const threeCanvas = this.renderer.domElement;
+        const rootElement = mainCanvas.parentElement;
+        rootElement.insertBefore(threeCanvas, rootElement.firstChild);
+        threeCanvas.style.cssText = mainCanvas.style.cssText;
+
+        // composite the 3D canvas into screenshots and video capture
+        setBackgroundCanvas(threeCanvas);
+
+        // render automatically each frame after the engine renders
+        engineAddPlugin(undefined, ()=> this.render());
+    }
+
+    /** Position the camera so the z=0 plane exactly matches LittleJS world space,
+     *  called automatically when cameraAlign2D is set */
+    alignCamera2D()
+    {
+        const halfHeight = mainCanvasSize.y / 2 / cameraScale; // half visible height in world units
+        const distance = halfHeight / tan(this.camera.fov/2 * PI/180);
+        this.camera.position.set(cameraPos.x, cameraPos.y, distance);
+        // reset all axes in case a free camera was used, littlejs angles are clockwise
+        this.camera.rotation.set(0, 0, -cameraAngle);
+    }
+
+    /** Sync the canvas layout and render the scene, called automatically each frame */
+    render()
+    {
+        if (!this.renderer) return; // headless mode
+
+        // keep renderer size and css in sync with the LittleJS canvas
+        const threeCanvas = this.renderer.domElement;
+        if (threeCanvas.width != mainCanvasSize.x || threeCanvas.height != mainCanvasSize.y)
+        {
+            this.renderer.setSize(mainCanvasSize.x, mainCanvasSize.y, false);
+            this.camera.aspect = mainCanvasSize.x / mainCanvasSize.y;
+            this.camera.updateProjectionMatrix();
+        }
+        if (threeCanvas.style.cssText != mainCanvas.style.cssText)
+            threeCanvas.style.cssText = mainCanvas.style.cssText;
+
+        if (this.cameraAlign2D)
+            this.alignCamera2D();
+        this.renderer.render(this.scene, this.camera);
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/**
+ * ThreeJS Object - EngineObject that drives a three.js mesh
+ * - LittleJS physics moves the object and the mesh follows automatically
+ * - Destroying the object removes the mesh from the scene
+ * @extends EngineObject
+ * @memberof ThreeJS
+ */
+class ThreeJSObject extends EngineObject
+{
+    /** Create an engine object that drives a three.js mesh
+     *  @param {Vector2} [pos] - World space position
+     *  @param {Vector2} [size] - World space size
+     *  @param {Object} [mesh] - The three.js object3d to drive
+     *  @param {number} [z] - Mesh height above the 2D plane */
+    constructor(pos, size, mesh, z=0)
+    {
+        super(pos, size);
+        ASSERT(threeJS, 'ThreeJS plugin must be initialized first');
+
+        /** @property {Object} - The three.js object3d this object drives */
+        this.mesh = mesh;
+        /** @property {number} - Mesh height above the 2D plane */
+        this.z = z;
+        if (mesh)
+        {
+            threeJS.scene.add(mesh);
+            this.syncMesh();
+        }
+    }
+
+    /** Update the object and sync the mesh to its transform */
+    update()
+    {
+        super.update();
+        this.syncMesh();
+    }
+
+    /** Copy this object's transform to the mesh */
+    syncMesh()
+    {
+        if (!this.mesh) return;
+        this.mesh.position.set(this.pos.x, this.pos.y, this.z);
+        this.mesh.rotation.z = -this.angle; // littlejs angles are clockwise
+    }
+
+    /** The mesh is this object's visual, the default 2D rendering is skipped */
+    render() {}
+
+    /** Destroy this object and remove its mesh from the scene
+     *  @param {boolean} [immediate] */
+    destroy(immediate)
+    {
+        if (this.destroyed) return;
+        // note: frequently destroyed objects should also dispose geometry and material
+        this.mesh && threeJS.scene.remove(this.mesh);
+        super.destroy(immediate);
+    }
+}
+
 
 /**
  * LittleJS Module Export
@@ -16242,6 +17074,7 @@ export
     getPaused,
     setPaused,
     engineInit,
+    engineStep,
     engineObjectsUpdate,
     engineObjectsDestroy,
     engineObjectsCollect,
@@ -16289,6 +17122,7 @@ export
     fontDefault,
     showSplashScreen,
     headlessMode,
+    engineManualStep,
     tileDefaultSize,
     tileDefaultPadding,
     tileDefaultBleed,
@@ -16305,6 +17139,7 @@ export
     glCircleSides,
     gamepadsEnable,
     gamepadDirectionEmulateStick,
+    gamepadAxisFilterEnable,
     inputWASDEmulateDirection,
     touchInputEnable,
     touchGamepadEnable,
@@ -16343,6 +17178,7 @@ export
     setFontDefault,
     setShowSplashScreen,
     setHeadlessMode,
+    setEngineManualStep,
     setGLEnable,
     setTileDefaultSize,
     setTileDefaultPadding,
@@ -16360,6 +17196,7 @@ export
     setTouchInputEnable,
     setGamepadsEnable,
     setGamepadDirectionEmulateStick,
+    setGamepadAxisFilterEnable,
     setInputWASDEmulateDirection,
     setTouchGamepadEnable,
     setTouchGamepadPassthrough,
@@ -16475,6 +17312,7 @@ export
     workContext,
     workReadCanvas,
     workReadContext,
+    backgroundCanvas,
     mainCanvasSize,
     textureInfos,
     drawCount,
@@ -16500,6 +17338,7 @@ export
     drawText,
     drawTextScreen,
     setAdditiveBlendMode,
+    setBackgroundCanvas,
     combineCanvases,
     engineImageFont,
     ImageFont,
@@ -16587,6 +17426,8 @@ export
     speakStop,
     getNoteFrequency,
     playSamples,
+    playAudioBuffer,
+    createAudioBuffer,
     zzfx,
     zzfxG,
 
@@ -16706,4 +17547,22 @@ export
     // Path Finding
     PathFinder,
     PathFinderNode,
+
+    // Three.js
+    threeJS,
+    ThreeJSPlugin,
+    ThreeJSObject,
+
+    // Texture Sheets
+    textureSheetSize,
+    textureSheetPadding,
+    setTextureSheetSize,
+    setTextureSheetPadding,
+    textureSheets,
+    TextureSheet,
+    loadSprite,
+    loadAtlas,
+    parseAtlas,
+    spritesReady,
 }
+

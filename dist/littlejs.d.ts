@@ -146,6 +146,17 @@ declare module "littlejsengine" {
      *  );
      *  @memberof Engine */
     export function engineInit(gameInit: GameInitCallback, gameUpdate: GameCallback, gameUpdatePost: GameCallback, gameRender: GameCallback, gameRenderPost: GameCallback, imageSources?: Array<string>, rootElement?: HTMLElement): Promise<void>;
+    /** Advance the engine by a number of frames
+     *  Requires setEngineManualStep(true) before engineInit
+     *  Respects paused exactly as the normal update loop does
+     *  @param {number} [frames] - number of engine update ticks, max 36000, each running one fixed update at timeScale 1
+     *  @example
+     *  setHeadlessMode(true);
+     *  setEngineManualStep(true);
+     *  await engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+     *  engineStep(600); // advance 10 seconds of game time
+     *  @memberof Engine */
+    export function engineStep(frames?: number): void;
     /** Update each engine object, remove destroyed objects, and update time
      * can be called manually if objects need to be updated outside of main loop
      *  @memberof Engine */
@@ -417,6 +428,12 @@ declare module "littlejsengine" {
      *  @default
      *  @memberof Settings */
     export let headlessMode: boolean;
+    /** Disables the automatic requestAnimationFrame loop so the engine only
+     *  advances when engineStep is called, for tests and frame-stepping tools
+     *  @type {boolean}
+     *  @default
+     *  @memberof Settings */
+    export let engineManualStep: boolean;
     /** Default size of tiles in pixels
      *  @type {Vector2}
      *  @default Vector2(16,16)
@@ -497,6 +514,13 @@ declare module "littlejsengine" {
      *  @default
      *  @memberof Settings */
     export let gamepadDirectionEmulateStick: boolean;
+    /** If true, axes that do not rest near center are ignored on gamepads without
+     *  standard mapping. Steering wheels and flight sticks report pedal and throttle
+     *  axes that rest at full deflection, which otherwise reads as a stick held down.
+     *  @type {boolean}
+     *  @default
+     *  @memberof Settings */
+    export let gamepadAxisFilterEnable: boolean;
     /** If true the WASD keys are also routed to the direction keys (for better accessibility)
      *  @type {boolean}
      *  @default
@@ -690,6 +714,11 @@ declare module "littlejsengine" {
      *  @param {boolean} headless
      *  @memberof Settings */
     export function setHeadlessMode(headless: boolean): void;
+    /** Set if the engine only advances when engineStep is called
+     *  Must be set before engineInit
+     *  @param {boolean} [enable]
+     *  @memberof Settings */
+    export function setEngineManualStep(enable?: boolean): void;
     /** Set if WebGL rendering is enabled
      *  @param {boolean} enable
      *  @memberof Settings */
@@ -758,6 +787,10 @@ declare module "littlejsengine" {
      *  @param {boolean} enable
      *  @memberof Settings */
     export function setGamepadDirectionEmulateStick(enable: boolean): void;
+    /** Set if axes that do not rest near center are ignored on non-standard gamepads
+     *  @param {boolean} enable
+     *  @memberof Settings */
+    export function setGamepadAxisFilterEnable(enable: boolean): void;
     /** Set if true the WASD keys are also routed to the direction keys
      *  @param {boolean} enable
      *  @memberof Settings */
@@ -1087,7 +1120,7 @@ declare module "littlejsengine" {
     export function shareURL(title: string, url: string, callback?: Function): void;
     /** Read save data from local storage
      *  @param {string} saveName - unique name for the game/save
-     *  @param {Object} [defaultSaveData] - default values for save
+     *  @param {Object} [defaultSaveData] - default values, result is {...default, ...loaded} so this must be an object
      *  @return {Object}
      *  @memberof Utilities */
     export function readSaveData(saveName: string, defaultSaveData?: any): any;
@@ -1669,8 +1702,9 @@ declare module "littlejsengine" {
          *  @param {TextureInfo} [textureInfo] - Texture info to use
          *  @param {number} [padding] - How many pixels padding around all sides of each tile (increases grid size, does not affect tile size)
          *  @param {number} [bleed] - How many pixels smaller to shrink UVS of tiles (does not affect grid size, only UVs)
+         *  @param {number} [columns] - How many frames per row for frame(), 0 to keep frames on a single row
          */
-        constructor(pos?: Vector2, size?: Vector2, textureInfo?: TextureInfo, padding?: number, bleed?: number);
+        constructor(pos?: Vector2, size?: Vector2, textureInfo?: TextureInfo, padding?: number, bleed?: number, columns?: number);
         /** @property {Vector2} - Top left corner of tile in pixels */
         pos: Vector2;
         /** @property {Vector2} - Size of tile in pixels */
@@ -1681,16 +1715,24 @@ declare module "littlejsengine" {
         textureInfo: TextureInfo;
         /** @property {number} - Shrinks tile by this many pixels to prevent neighbors bleeding */
         bleed: number;
+        /** @property {number} - How many frames per row for frame(), 0 to keep frames on a single row */
+        columns: number;
         /** Returns a copy of this tile offset by a vector
         *  @param {Vector2} offset - Offset to apply in pixels
         *  @return {TileInfo}
         */
         offset(offset: Vector2): TileInfo;
         /** Returns a copy of this tile offset by a number of animation frames
+        *  Frames wrap down to the next row if columns is set
         *  @param {number} frame - Offset to apply in animation frames
         *  @return {TileInfo}
         */
         frame(frame: number): TileInfo;
+        /** Set how many frames per row this tile uses, so frame() can wrap
+        *  @param {number} [columns] - Frames per row, 0 to keep frames on a single row
+        *  @return {TileInfo}
+        */
+        setColumns(columns?: number): TileInfo;
         /**
          * Returns a tile info for an index using this tile as reference
          * @param {Vector2|number} [index=0]
@@ -1786,6 +1828,11 @@ declare module "littlejsengine" {
      *  @type {OffscreenCanvasRenderingContext2D}
      *  @memberof Draw */
     export let workReadContext: OffscreenCanvasRenderingContext2D;
+    /** Extra canvas to composite behind the engine canvases when combining canvases
+     *  Set by plugins that render to their own canvas below the LittleJS canvases
+     *  @type {HTMLCanvasElement}
+     *  @memberof Draw */
+    export let backgroundCanvas: HTMLCanvasElement;
     /** The size of the main canvas (and other secondary canvases)
      *  @type {Vector2}
      *  @memberof Draw */
@@ -2019,6 +2066,12 @@ declare module "littlejsengine" {
      *  @param {boolean} [additive]
      *  @memberof Draw */
     export function setAdditiveBlendMode(additive?: boolean): void;
+    /** Set an extra canvas to composite behind the engine canvases when combining
+     *  Plugins that insert their own canvas below the LittleJS canvases should set
+     *  this so it appears in screenshots and video capture
+     *  @param {HTMLCanvasElement} [canvas]
+     *  @memberof Draw */
+    export function setBackgroundCanvas(canvas?: HTMLCanvasElement): void;
     /** Combines LittleJS canvases onto the main canvas
      *  This is necessary for things like screenshots and video
      *  @memberof Draw */
@@ -2534,11 +2587,29 @@ declare module "littlejsengine" {
         randomness: any;
         /** @property {number} - Sample rate for this sound */
         sampleRate: number;
-        /** @property {number} - Percentage of this sound currently loaded */
+        /** @property {number} - How many samples per channel this sound has */
+        sampleLength: number;
+        /** @property {AudioBuffer} - Decoded audio shared by every play of this sound
+         *  @type {AudioBuffer} */
+        sampleBuffer: AudioBuffer;
+        /** @private @type {Array<Array<number>|Float32Array>} */
+        private _sampleChannels;
+        /** @property {number} - Percentage of this sound currently loaded, sounds
+         *  fetched from a url stay at 0 until decoding completes */
         loadedPercent: number;
         /** @property {SoundLoadCallback} - function to call when sound is loaded */
         onloadCallback: (sound: Sound) => Sound;
-        sampleChannels: any[][];
+        /** @param {Array<Array<number>|Float32Array>} sampleChannels */
+        set sampleChannels(arg: (number[] | Float32Array)[]);
+        /** Sample data for each channel
+         *  Sounds keep their samples in an audio buffer, so reading this rebuilds
+         *  the arrays from it and caches them. The copies are safe to hold onto,
+         *  playing a sound detaches the buffer's own channel arrays.
+         *  @type {Array<Array<number>|Float32Array>} */
+        get sampleChannels(): (number[] | Float32Array)[];
+        /** Move this sound's samples into an audio buffer that every play can share
+         *  Does nothing if there is already a buffer or no samples to build one from */
+        buildSampleBuffer(): void;
         /** Play the sound
          *  Sounds may not play until a user interaction occurs
          *  @param {Vector2} [pos] - World space position to play the sound if any
@@ -2691,6 +2762,25 @@ declare module "littlejsengine" {
      *  @return {AudioBufferSourceNode} - The source node of the sound played, may be undefined if play fails
      *  @memberof Audio */
     export function playSamples(sampleChannels: any[], volume?: number, rate?: number, pan?: number, loop?: boolean, sampleRate?: number, gainNode?: GainNode, offset?: number, onended?: AudioEndedCallback): AudioBufferSourceNode;
+    /** Play an audio buffer with given settings
+     *  The buffer can be shared by any number of sounds playing at once
+     *  @param {AudioBuffer} buffer - The audio buffer to play
+     *  @param {number}   [volume] - How much to scale volume by
+     *  @param {number}   [rate] - The playback rate to use
+     *  @param {number}   [pan] - How much to apply stereo panning
+     *  @param {boolean}  [loop] - True if the sound should loop when it reaches the end
+     *  @param {GainNode} [gainNode] - Optional gain node for volume control while playing (disconnected when the sound ends)
+     *  @param {number}   [offset] - Offset in seconds to start playback from
+     *  @param {AudioEndedCallback} [onended] - Callback for when the sound ends
+     *  @return {AudioBufferSourceNode} - The source node of the sound played, may be undefined if play fails
+     *  @memberof Audio */
+    export function playAudioBuffer(buffer: AudioBuffer, volume?: number, rate?: number, pan?: number, loop?: boolean, gainNode?: GainNode, offset?: number, onended?: AudioEndedCallback): AudioBufferSourceNode;
+    /** Copy arrays of samples into a new audio buffer
+     *  @param {Array}  sampleChannels - Array of arrays of samples (for stereo playback)
+     *  @param {number} [sampleRate=44100] - Sample rate for the sound
+     *  @return {AudioBuffer} - The audio buffer holding the samples
+     *  @memberof Audio */
+    export function createAudioBuffer(sampleChannels: any[], sampleRate?: number): AudioBuffer;
     /** Generate and play a ZzFX sound
      *
      *  <a href=https://killedbyapixel.github.io/ZzFX/>Create sounds using the ZzFX Sound Designer.</a>
@@ -5708,4 +5798,193 @@ declare module "littlejsengine" {
         /** True if walkable and not blocked by cost. */
         isClear(): boolean;
     }
+    /**
+     * LittleJS Three.js Plugin
+     * - Renders a three.js scene on a canvas behind the LittleJS canvases
+     * - The three.js module is passed in by the user, nothing is bundled
+     * - Keep canvasClearColor transparent so the 3D scene shows through
+     * - Aligned camera mode locks the 3D camera to the LittleJS 2D camera
+     * - ThreeJSObject lets LittleJS physics drive a three.js mesh
+     * - Call new ThreeJSPlugin(THREE) in gameInit to set up
+     * @namespace ThreeJS
+     */
+    /** Global ThreeJS plugin object
+     *  @type {ThreeJSPlugin}
+     *  @memberof ThreeJS */
+    export let threeJS: ThreeJSPlugin;
+    /**
+     * ThreeJS Plugin - Renders a three.js scene behind the LittleJS canvas
+     * @example
+     * // in gameInit, with three.js loaded by the user
+     * new ThreeJSPlugin(THREE);
+     * threeJS.scene.add(new THREE.AmbientLight);
+     * @memberof ThreeJS
+     */
+    export class ThreeJSPlugin {
+        /** Set up the three.js rendering layer, call in gameInit
+         *  @param {Object} THREE - The three.js module, supplied by the user
+         *  @param {number} [cameraFOV] - Vertical field of view in degrees */
+        constructor(THREE: any, cameraFOV?: number);
+        /** @property {Object} - The three.js module passed into the constructor */
+        THREE: any;
+        /** @property {Object} - The three.js renderer */
+        renderer: any;
+        /** @property {Object} - The three.js scene, add lights and meshes here */
+        scene: any;
+        /** @property {Object} - The three.js perspective camera */
+        camera: any;
+        /** @property {boolean} - Lock the camera to the LittleJS 2D camera so the z=0 plane matches world space */
+        cameraAlign2D: boolean;
+        /** Position the camera so the z=0 plane exactly matches LittleJS world space,
+         *  called automatically when cameraAlign2D is set */
+        alignCamera2D(): void;
+        /** Sync the canvas layout and render the scene, called automatically each frame */
+        render(): void;
+    }
+    /**
+     * ThreeJS Object - EngineObject that drives a three.js mesh
+     * - LittleJS physics moves the object and the mesh follows automatically
+     * - Destroying the object removes the mesh from the scene
+     * @extends EngineObject
+     * @memberof ThreeJS
+     */
+    export class ThreeJSObject extends EngineObject {
+        /** Create an engine object that drives a three.js mesh
+         *  @param {Vector2} [pos] - World space position
+         *  @param {Vector2} [size] - World space size
+         *  @param {Object} [mesh] - The three.js object3d to drive
+         *  @param {number} [z] - Mesh height above the 2D plane */
+        constructor(pos?: Vector2, size?: Vector2, mesh?: any, z?: number);
+        /** @property {Object} - The three.js object3d this object drives */
+        mesh: any;
+        /** @property {number} - Mesh height above the 2D plane */
+        z: number;
+        /** Copy this object's transform to the mesh */
+        syncMesh(): void;
+    }
+    /**
+     * LittleJS Texture Sheet Plugin
+     * - Packs images into texture sheets as they are loaded
+     * - Sprites are placed automatically, callers get a TileInfo
+     * - Sheets are created and filled as needed
+     * - Sheets fill in call order, images decode in parallel
+     * - Animation frames keep layout and wrap across rows as needed
+     * - WebGL textures upload once per batch of loads
+     * - loadAtlas imports pre-packed atlases (TexturePacker and Aseprite json)
+     * @namespace TextureSheets
+     */
+    /** Width and height in pixels of texture sheets created by loadSprite
+     *  @type {number}
+     *  @default
+     *  @memberof Settings */
+    export let textureSheetSize: number;
+    /** Default padding pixels around each frame packed by loadSprite
+     *  @type {number}
+     *  @default
+     *  @memberof Settings */
+    export let textureSheetPadding: number;
+    /** Set width and height in pixels of texture sheets created by loadSprite
+     *  @param {number} size
+     *  @memberof Settings */
+    export function setTextureSheetSize(size: number): void;
+    /** Set default padding pixels around each frame packed by loadSprite
+     *  @param {number} padding
+     *  @memberof Settings */
+    export function setTextureSheetPadding(padding: number): void;
+    /** Array of texture sheets created by loadSprite
+     *  @type {Array<TextureSheet>}
+     *  @memberof TextureSheets */
+    export let textureSheets: Array<TextureSheet>;
+    /**
+     * Texture Sheet - A texture that images are packed into as they load
+     * Uses shelf packing, images are placed left to right then wrap to a new row
+     * @memberof TextureSheets
+     */
+    export class TextureSheet {
+        /** Create a texture sheet, called automatically by loadSprite
+         *  @param {number} [size] - Width and height of the sheet in pixels */
+        constructor(size?: number);
+        /** @property {number} - Width and height of the sheet in pixels */
+        size: number;
+        /** @property {OffscreenCanvas} - Canvas holding the packed images */
+        canvas: OffscreenCanvas;
+        /** @property {OffscreenCanvasRenderingContext2D} - 2d context for the canvas */
+        context: OffscreenCanvasRenderingContext2D;
+        /** @property {TextureInfo} - The texture info for this sheet */
+        textureInfo: TextureInfo;
+        /** @property {Vector2} - Where the next image will be packed */
+        cursor: Vector2;
+        /** @property {number} - Height of the row being packed */
+        rowHeight: number;
+        /** @property {boolean} - Has the canvas changed since the last webgl upload? */
+        glDirty: boolean;
+        /** Find a spot for an image on this sheet without drawing it
+         *  @param {Vector2} imageSize - Size of the source image in pixels
+         *  @param {Vector2} [frameSize] - Size of each frame, or the whole image if not passed
+         *  @param {number} [padding] - How many pixels padding around each frame
+         *  @param {number|Vector2} [sourcePadding] - How many pixels padding around each frame in the source image
+         *  @return {TileInfo} Tile for the packed image, or undefined if the sheet is full */
+        tryAdd(imageSize: Vector2, frameSize?: Vector2, padding?: number, sourcePadding?: number | Vector2): TileInfo;
+        /** Draw an image into this sheet at a tile returned by tryAdd
+         *  @param {HTMLImageElement} image - Source image to copy from
+         *  @param {TileInfo} tileInfo - Where to put it, from tryAdd
+         *  @param {boolean} [update] - Upload to webgl now, pass false when batching
+         *  @param {number|Vector2} [sourcePadding] - How many pixels padding around each frame in the source image */
+        drawImage(image: HTMLImageElement, tileInfo: TileInfo, update?: boolean, sourcePadding?: number | Vector2): void;
+        /** Upload the canvas to webgl if it has changed since the last upload
+         *  Only needed after batching, drawImage uploads automatically by default */
+        updateTexture(): void;
+    }
+    /** Load an image and pack it into a texture sheet
+     *  - Returns a TileInfo immediately which is filled in when the image loads
+     *  - Nothing is visible until it loads, use spritesReady to wait for it
+     *  - Pass frameSize for animations, then step through them with TileInfo.frame
+     *  - Grid images keep their layout and frames wrap down to the next row
+     *  - Pass sourcePadding if the source image has padding baked in around frames
+     *  @param {string} src - Image source path
+     *  @param {Vector2|number} [frameSize] - Size of each animation frame in pixels
+     *  @param {number} [padding] - How many pixels padding around each frame
+     *  @param {number|Vector2} [sourcePadding] - How many pixels padding around each frame in the source image
+     *  @return {TileInfo}
+     *  @example
+     *  const playerTile = loadSprite('player.png');     // a single sprite
+     *  const runTile = loadSprite('run.png', vec2(16)); // a 16x16 frame animation
+     *  @memberof TextureSheets */
+    export function loadSprite(src: string, frameSize?: Vector2 | number, padding?: number, sourcePadding?: number | Vector2): TileInfo;
+    /** Load a pre-packed texture atlas and repack it onto texture sheets
+     *  - Supports TexturePacker json (hash and array) and Aseprite json
+     *  - Returns an empty object which is filled with TileInfos when loaded
+     *  - Frames are named by the json, animations are grouped automatically
+     *  - Aseprite frame tags become animations, so do names like run_0, run_1
+     *  - Trimmed frames are restored to their full source size when packed
+     *  - Rotated frames are rotated back upright when packed
+     *  @param {string} imageSrc - Atlas image path
+     *  @param {string|Object} jsonSrc - Atlas json path, or already parsed json data
+     *  @param {number} [padding] - How many pixels padding around each frame
+     *  @return {Object} Object mapping frame and animation names to TileInfos
+     *  @example
+     *  const atlas = loadAtlas('sprites.png', 'sprites.json');
+     *  await spritesReady();
+     *  drawTile(pos, size, atlas.player);          // a single frame
+     *  drawTile(pos, size, atlas.run.frame(2));    // frame 2 of the run animation
+     *  @memberof TextureSheets */
+    export function loadAtlas(imageSrc: string, jsonSrc: string | any, padding?: number): any;
+    /** Parse atlas json into a list of named frame groups, used by loadAtlas
+     *  - Accepts TexturePacker json (hash and array) and Aseprite json
+     *  - Frames tagged in Aseprite or named like run_0, run_1 group into animations
+     *  @param {Object} data - Parsed atlas json data
+     *  @return {Array<Object>} List of {name, frames} groups in atlas order
+     *  @memberof TextureSheets */
+    export function parseAtlas(data: any): Array<any>;
+    /** Wait for everything started by loadSprite and loadAtlas to finish packing
+     *  @return {Promise}
+     *  @example
+     *  async function gameInit()
+     *  {
+     *      playerTile = loadSprite('player.png');
+     *      runTile = loadSprite('run.png', vec2(16));
+     *      await spritesReady();
+     *  }
+     *  @memberof TextureSheets */
+    export function spritesReady(): Promise<any>;
 }
