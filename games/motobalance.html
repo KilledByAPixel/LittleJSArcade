@@ -1,0 +1,702 @@
+<!DOCTYPE html><head>
+<title>Motobalance</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
+<script src="../templates/engineLoader.js"></script>
+<script src="../dist/box2d.wasm.js"></script>
+<script src="../templates/gameFx.js"></script>
+<script src="../templates/textureGenerator.js"></script>
+<script src="../templates/tweakables.js"></script>
+<script src="../templates/menus.js"></script>
+<script>
+'use strict';
+
+// engine settings (zoom is driven by VIEW_W in gameUpdatePost)
+
+// on-screen touch gamepad: left stick = lean, A = gas, B = brake, X = restart
+touchGamepadEnable = true;
+touchGamepadAnalog = true;
+touchGamepadButtonCount = 3;
+
+///////////////////////////////////////////////////////////////////////////////
+// Tuning (var so tweakables can reach them through window)
+
+var DRIVE_TORQUE  = 30;   // rear wheel motor torque
+var DRIVE_SPEED   = 45;   // max wheel spin, rad/s
+var REVERSE_SPEED = 16;
+var BRAKE_TORQUE  = 45;
+var LEAN_TORQUE   = 16;   // rider lean torque on the chassis
+var AIR_LEAN_MUL  = 1.5;  // extra lean authority while airborne
+var STABILITY     = 2.5;  // grounded upright assist (0 = full manual)
+var SPRING_HZ     = 5;    // suspension stiffness
+var SPRING_DAMP   = .8;   // suspension damping ratio
+var VIEW_W        = 26;   // visible world width, camera auto-fits to this
+
+///////////////////////////////////////////////////////////////////////////////
+// Bike geometry + level data
+
+const WHEEL_D = .82;              // wheel diameter
+const WHEEL_X = .85;              // half wheelbase
+const WHEEL_Y = -.4;              // wheel drop below chassis center
+const SPAWN_LIFT = .82;           // chassis center height above ground at rest
+const HEAD_OFFSET = vec2(0, 1.02);
+
+// track surface as one polyline (verticals make walls/steps/kicker drops)
+const TRACK = [
+    vec2(-14, 9), vec2(-14, 0), vec2(8, 0),                     // start wall + flat
+    vec2(11, 1.2), vec2(14, 0),                                 // roller warmup
+    vec2(21, 0), vec2(25, 3.6), vec2(25.3, .2), vec2(31, 0),    // steep kicker jump (42°)
+    vec2(38, 0), vec2(41.5, 4.2),                               // 50° dirt wall — lean forward!
+    vec2(45.5, 4.2), vec2(45.7, 0),                             // plateau, then sheer drop
+    vec2(68, 0),                                                // flat under the plank tower
+    vec2(70, 1), vec2(72, 0), vec2(74, 1.3), vec2(76, 0),       // big tire whoops
+    vec2(78, 1), vec2(80, 0),
+    vec2(88, 0), vec2(92, 3.8),                                 // final kicker...
+    vec2(92.2, -3), vec2(97.5, -3),                             // ...over a pit — full commit
+    vec2(97.5, 1.5), vec2(101, 0),                              // landing knoll
+    vec2(114, 0), vec2(118, 3), vec2(121, 9),                   // finish runoff wall
+];
+
+// wooden plank structures: a 45° climb plank, then a precision
+// gap jump onto a scaffold deck, then a big drop off its far end
+const RAMPS = [
+    [vec2(52.5, 0), vec2(56.5, 4)],
+    [vec2(58, 4.2), vec2(62, 4.2)],
+];
+const RAMP_POSTS = [vec2(54.5, 1.95), vec2(56.2, 3.65),
+    vec2(58.3, 4.2), vec2(60, 4.2), vec2(61.7, 4.2)];
+
+// tire piles are visual dressing on the whoop bumps — the ridable surface is
+// the smooth TRACK polyline above, so they can't endo the bike
+const TIRES = [
+    {pos: vec2(70, .1), d: 1.9},
+    {pos: vec2(74, .1), d: 2.4},
+    {pos: vec2(78, .1), d: 1.9},
+];
+const START_SPAWN = vec2(-10, SPAWN_LIFT);
+const CHECKPOINTS = [
+    {x: 33, groundY: 0},
+    {x: 64, groundY: 0},
+    {x: 84, groundY: 0},
+];
+const FINISH_X = 110, FINISH_Y = 0;
+
+// the pit under the final kicker is walled on both sides — dropping in is
+// unrecoverable, so entering it dumps the rider (checkpoint restart flow)
+const PIT = {minX: 92.1, maxX: 97.6, topY: 0};
+
+// palette
+const BIKE_RED   = rgb(.85, .15, .12);
+const SUIT_GREY  = rgb(.1, .1, .1);
+const SKY_TOP    = rgb(.22, .35, .6);
+const SKY_BOTTOM = rgb(.9, .62, .42);
+const DIRT_FILL  = rgb(.3, .22, .16);
+const DIRT_TOP   = rgb(.52, .4, .27);
+
+///////////////////////////////////////////////////////////////////////////////
+// Game state
+
+let icons;
+let bike;
+let falls = 0, runTime = 0;
+let bestTime = 0; // custom save key (not the unified bestScore) — lower is better
+let crashed = false, finished = false, pendingCrash = false;
+let respawnPos = START_SPAWN;
+let cpState = [];
+let leanInput = 0;
+let finishTimer = new Timer, cpFlashTimer = new Timer, engineSoundTimer = new Timer;
+let sndEngine, sndCrash, sndCheckpoint, sndFinish, sndRespawn, sndThud;
+
+///////////////////////////////////////////////////////////////////////////////
+// Physics objects
+
+class Terrain extends Box2dStaticObject
+{
+    constructor()
+    {
+        super(vec2(), vec2(), null, 0, WHITE, -10);
+        this.addEdgeList(TRACK, 0, .9);
+        for (const r of RAMPS)
+            this.addEdgeList(r, 0, .9);
+        this.deadly = true;
+    }
+    render()
+    {
+        // dirt fill: one convex quad per segment down past the camera bottom
+        const halfW = getCameraSize().x/2 + 2;
+        const bottom = cameraPos.y - getCameraSize().y/2 - 1;
+        for (let i = 1; i < TRACK.length; ++i)
+        {
+            const a = TRACK[i-1], b = TRACK[i];
+            if (max(a.x, b.x) < cameraPos.x - halfW || min(a.x, b.x) > cameraPos.x + halfW)
+                continue;
+            drawPoly([a, b, vec2(b.x, bottom), vec2(a.x, bottom)], DIRT_FILL);
+        }
+        drawLineList(TRACK, .25, DIRT_TOP);
+
+        // ramp structures: support posts, then plank surfaces
+        for (const p of RAMP_POSTS)
+            drawLine(p, vec2(p.x, 0), .18, rgb(.3, .2, .12));
+        for (const r of RAMPS)
+        {
+            drawLineList(r, .34, rgb(.42, .28, .14));
+            drawLineList(r, .2, rgb(.6, .42, .22));
+        }
+
+        // tire piles (visual only — drawn under the whoop bumps' surface line)
+        for (const t of TIRES)
+        {
+            drawTile(t.pos, vec2(t.d), icons.circle, rgb(.13, .13, .15));
+            drawTile(t.pos, vec2(t.d), icons.ring, rgb(.24, .24, .28));
+            drawTile(t.pos, vec2(t.d*.35), icons.circle, rgb(.07, .07, .08));
+        }
+        drawFlags();
+    }
+}
+
+class Wheel extends Box2dObject
+{
+    constructor(pos)
+    {
+        super(pos, vec2(WHEEL_D), null, 0, WHITE);
+        this.addCircle(WHEEL_D, vec2(), 1, 1.1, .1);
+        this.setFilterData(1, 0, -2); // bike group: never self-collide
+        this.renderOrder = 4;
+        this.touching = 0;
+    }
+    beginContact(o)
+    {
+        ++this.touching;
+        if (this.getLinearVelocity().y < -7)
+        {
+            sndThud.play(this.pos);
+            addScreenShake(.15, .15);
+        }
+    }
+    endContact(o) { this.touching = max(0, this.touching - 1); }
+    render()
+    {
+        // tire, rotating spokes, hub
+        drawTile(this.pos, vec2(WHEEL_D*1.12), icons.circle, rgb(.09, .09, .11));
+        for (let i = 3; i--;)
+        {
+            const d = vec2(0, WHEEL_D*.4).rotate(this.angle + i*PI/3);
+            drawLine(this.pos.add(d), this.pos.subtract(d), .05, rgb(.6, .6, .65));
+        }
+        drawTile(this.pos, vec2(.2), icons.circle, BIKE_RED);
+    }
+}
+
+class Chassis extends Box2dObject
+{
+    constructor(pos)
+    {
+        super(pos, vec2(), null, 0, WHITE);
+        // high-clearance frame: scraping it is allowed, only the head crashes
+        this.addBox(vec2(1.4, .36), vec2(0, .16), 0, 2.2, .4, .05);
+        this.setFilterData(1, 0, -2);
+        this.setAngularDamping(.4);
+        this.renderOrder = 5;
+    }
+    render() { drawBike(this); }
+}
+
+class Head extends Box2dObject
+{
+    // invisible rider-head hitbox welded above the chassis — touching the
+    // world with it is what counts as a crash (frame scrapes are fine)
+    constructor(pos)
+    {
+        super(pos, vec2(), null, 0, WHITE);
+        this.addCircle(.44, vec2(), 1.5, .3, 0);
+        this.setFilterData(1, 0, -2);
+    }
+    // creating bodies inside a physics step is unsafe, so only flag the crash
+    beginContact(o) { if (o.deadly) pendingCrash = true; }
+    render() {}
+}
+
+function createBike(pos)
+{
+    const chassis = new Chassis(pos);
+    const head = new Head(pos.add(HEAD_OFFSET));
+    new Box2dWeldJoint(chassis, head, head.pos);
+    const rear  = new Wheel(pos.add(vec2(-WHEEL_X, WHEEL_Y)));
+    const front = new Wheel(pos.add(vec2( WHEEL_X, WHEEL_Y)));
+    const rearJoint  = new Box2dWheelJoint(chassis, rear,  rear.pos,  vec2(0, 1));
+    const frontJoint = new Box2dWheelJoint(chassis, front, front.pos, vec2(0, 1));
+    for (const j of [rearJoint, frontJoint])
+    {
+        j.setSpringFrequencyHz(SPRING_HZ);
+        j.setSpringDampingRatio(SPRING_DAMP);
+        j.enableMotor(true);
+        j.setMaxMotorTorque(0);
+    }
+    return {chassis, head, rear, front, rearJoint, frontJoint};
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Run flow
+
+function resetRun()
+{
+    falls = 0;
+    runTime = 0;
+    crashed = finished = pendingCrash = false;
+    respawnPos = START_SPAWN;
+    cpState = CHECKPOINTS.map(() => false);
+    finishTimer.unset();
+    cpFlashTimer.unset();
+    placeBike(respawnPos);
+    cameraPos = respawnPos.add(vec2(3, 2));
+}
+
+function placeBike(pos)
+{
+    bike.chassis.setTransform(pos, 0);
+    bike.head.setTransform(pos.add(HEAD_OFFSET), 0);
+    bike.rear.setTransform(pos.add(vec2(-WHEEL_X, WHEEL_Y)), 0);
+    bike.front.setTransform(pos.add(vec2(WHEEL_X, WHEEL_Y)), 0);
+    for (const o of [bike.chassis, bike.head, bike.rear, bike.front])
+    {
+        o.setLinearVelocity(vec2());
+        o.setAngularVelocity(0);
+    }
+    bike.rear.touching = bike.front.touching = 0;
+}
+
+function crashBike()
+{
+    if (crashed || finished || !isPlaying())
+        return;
+    crashed = true;
+    ++falls;
+    sndCrash.play(bike.chassis.pos);
+    addScreenShake(.4, .3);
+    // rider stays on the bike — it just tumbles with the controls cut
+}
+
+function respawn()
+{
+    if (finished)
+        return;
+    crashed = pendingCrash = false;
+    placeBike(respawnPos);
+    sndRespawn.play();
+}
+
+function startGame()
+{
+    resetRun();
+    setPlaying(true);
+    clearSubmenuStack();
+    hideAllMenus();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+async function gameInit()
+{
+    await box2dInit();
+    gravity = vec2(0, -28);
+    canvasClearColor = SKY_TOP;
+
+    saveDataInit('Motobalance');
+    bestTime = getSaveData().bestTime ?? 0;
+    icons = initDefaultAtlas();
+    document.addEventListener('contextmenu', e => e.preventDefault());
+
+    sndEngine     = new SoundGenerator({volume:.3, frequency:70, sustain:.04, release:.06, noise:.15, shapeCurve:.4, randomness:.15});
+    sndCrash      = new SoundGenerator({volume:.9, frequency:100, shape:4, bitCrush:.3, sustain:.08, release:.35, sustainVolume:.5});
+    sndCheckpoint = new SoundGenerator({volume:.5, frequency:900, release:.12, pitchJump:600, pitchJumpTime:.05});
+    sndFinish     = new SoundGenerator({volume:.6, frequency:400, release:.3, slide:.4, repeatTime:.08, pitchJump:300});
+    sndRespawn    = new SoundGenerator({volume:.4, frequency:520, release:.05});
+    sndThud       = new SoundGenerator({volume:.4, frequency:200, release:.15, slide:-.4, noise:.1});
+
+    new Terrain();
+    bike = createBike(START_SPAWN);
+    resetRun();
+    buildMenus();
+
+    tweakDivider('MOTOBALANCE');
+    tweak('DRIVE_TORQUE',  {min:5,  max:80});
+    tweak('DRIVE_SPEED',   {min:10, max:90});
+    tweak('REVERSE_SPEED', {min:5,  max:40});
+    tweak('BRAKE_TORQUE',  {min:5,  max:100});
+    tweak('LEAN_TORQUE',   {min:2,  max:40});
+    tweak('AIR_LEAN_MUL',  {min:.5, max:3});
+    tweak('STABILITY',     {min:0,  max:20});
+    tweak('SPRING_HZ',     {min:1,  max:12});
+    tweak('SPRING_DAMP',   {min:0,  max:1});
+    tweak('VIEW_W',        {min:14, max:50});
+
+    showMenu('title');
+}
+
+function buildMenus()
+{
+    if (typeof createMenu != 'function')
+        return;
+    installAutoPause();
+    setMenuTheme({accent:'#ff5a36'});
+    const sndSelect   = new SoundGenerator({volume:.3, frequency:440, release:.04});
+    const sndActivate = new SoundGenerator({volume:.4, frequency:600, release:.08, pitchJump:200, pitchJumpTime:.03});
+    setMenuSounds({
+        select:   () => sndSelect.play(),
+        activate: () => sndActivate.play(),
+    });
+    // Custom-key best-time display: showBest:true only reads the unified
+    // `bestScore` key, so wire the label by hand (see microRacer.html)
+    const fmtBest = t => t > 0 ? 'BEST ' + formatTime(t) : 'BEST —';
+    createTitleMenu({
+        title: 'MOTOBALANCE',
+        titleFx: {fill:'fire', motion:'float'},
+        subtitle: 'Throttle, lean, and keep the rubber down.',
+        onPlay: startGame,
+        revealOnClick: false,
+        canReveal: () => !isPlaying(),
+        itemsBefore: [{type:'label', id:'bestLabel', text: fmtBest(bestTime)}],
+        onShow: () =>
+        {
+            const lbl = getMenu('title')?.getItem('bestLabel');
+            if (lbl) lbl.setLabel(fmtBest(bestTime));
+        },
+        items: [
+            {type:'button', label:'OPTIONS', onClick: () => pushMenu('options')},
+            {type:'button', label:'HELP',    onClick: () => pushMenu('help')},
+        ],
+    });
+    createOptionsMenu({
+        // showResetBest resets the unified bestScore key — reset bestTime by hand
+        extraItems: [
+            {type:'checkbox', label:'SCREEN SHAKE', value:isScreenShakeEnabled(), persist:'shake',
+                onChange: v => setScreenShakeEnabled(v)},
+            {type:'separator'},
+            {type:'button', label:'RESET BEST', onClick: () => showConfirmDialog({
+                message: 'Reset best time?',
+                keepStack: true,
+                onYes: () => { bestTime = 0; saveData({bestTime: 0}); },
+            })},
+        ],
+    });
+    createMenu({
+        id:'help', title:'HOW TO RIDE', onHide: popMenu,
+        items: [
+            {type:'text', text:'Reach the finish flag fast without dropping the rider. ' +
+                'Feather the throttle on steep climbs, lean forward over ledges, and ' +
+                'lean back for the landings.'},
+            {type:'text', text:'↑ gas · ↓ brake / reverse · ← lean back · → lean forward\n' +
+                'SPACE or R — restart at checkpoint'},
+            {type:'separator'},
+            {type:'button', label:'BACK', onClick: () => hideMenu('help')},
+        ],
+    });
+    createPauseMenu({onRestart: startGame, onQuit: () => quitToTitle(resetRun)});
+    installDefaultToolbar();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdate()
+{
+    if (bindPauseKey({when: () => isPlaying()}))
+        return;
+    if (!isPlaying())
+        return;
+
+    if (pendingCrash)
+    {
+        pendingCrash = false;
+        crashBike();
+    }
+
+    if (!finished)
+        runTime += timeDelta;
+
+    // restart at checkpoint (Space / R / gamepad X or Y)
+    if (keyWasPressed('Space') || keyWasPressed('KeyR') ||
+        gamepadWasPressed(2) || gamepadWasPressed(3))
+        respawn();
+
+    // safety net if the bike somehow escapes the track
+    if (bike.chassis.pos.y < -20)
+        respawn();
+
+    // dropping into the walled pit can't be ridden out of — dump the rider
+    // so the crash flow (restart hint + checkpoint respawn) takes over
+    if (bike.chassis.pos.y < PIT.topY &&
+        bike.chassis.pos.x > PIT.minX && bike.chassis.pos.x < PIT.maxX)
+        crashBike();
+
+    updateBikeControls();
+    updateCheckpoints();
+
+    // finish line
+    if (!finished && !crashed && bike.chassis.pos.x > FINISH_X)
+    {
+        finished = true;
+        sndFinish.play();
+        addScreenShake(.2, .25);
+        finishTimer.set(1.2);
+    }
+    if (finished && finishTimer.elapsed() && !isMenuVisible())
+    {
+        // custom save key: bestTime (not the unified bestScore) — lower is
+        // better, save on first finish or new record
+        const newBest = bestTime === 0 || runTime < bestTime;
+        if (newBest)
+        {
+            bestTime = runTime;
+            saveData({bestTime});
+        }
+        showGameOverDialog({
+            score: runTime,
+            won: true,
+            submitBest: false,
+            format: formatTime,
+            extraLines: newBest ? ['Falls: ' + falls, 'NEW BEST!'] : ['Falls: ' + falls],
+            onContinue: () => quitToTitle(resetRun),
+        });
+    }
+}
+
+function updateBikeControls()
+{
+    const {chassis, rearJoint, frontJoint} = bike;
+
+    // live-apply suspension tweaks
+    for (const j of [rearJoint, frontJoint])
+    {
+        j.setSpringFrequencyHz(SPRING_HZ);
+        j.setSpringDampingRatio(SPRING_DAMP);
+    }
+
+    const dir = keyDirection();
+    const stick = gamepadStick(0);
+    leanInput = crashed ? 0 : clamp(dir.x + stick.x, -1, 1);
+    const gas   = !crashed && (dir.y > 0 || gamepadIsDown(0));
+    const brake = !crashed && (dir.y < 0 || gamepadIsDown(1));
+
+    // pitch conventions (verified empirically): this.angle is clockwise-positive
+    // so nose DOWN = positive angle; applyTorque is box2d CCW-positive so
+    // positive torque = nose UP. Airborne throttle rotating the bike backward
+    // is real stunt-bike physics and stays in.
+    const airborne = !bike.rear.touching && !bike.front.touching;
+    const aw = mod(chassis.angle + PI, 2*PI) - PI; // wrapped pitch
+    if (leanInput)
+        chassis.applyTorque(-leanInput * LEAN_TORQUE * (airborne ? AIR_LEAN_MUL : 1));
+
+    // gentle upright assist while grounded so bumps don't flip the bike;
+    // fades with lean input so deliberate wheelies still work
+    if (!airborne && !crashed)
+    {
+        const w = chassis.getAngularVelocity();
+        chassis.applyTorque((aw*STABILITY - w*STABILITY*.15) * (1 - abs(leanInput)));
+
+        // looping past ~100° with wheels on the ground dumps the rider —
+        // airborne flips are fine as long as you land rubber-side down
+        if (abs(aw) > 1.75)
+            pendingCrash = true;
+    }
+
+    if (gas)
+    {
+        // last-ditch anti-loop: only past ~63° nose-up does drive torque fade
+        // (nose up = negative aw) — steep climbs get full power, so managing
+        // the wheelie with forward lean is the player's job
+        const driveScale = airborne ? 1 : percent(aw, -1.9, -1.1);
+        rearJoint.setMotorSpeed(-DRIVE_SPEED);
+        rearJoint.setMaxMotorTorque(DRIVE_TORQUE * driveScale);
+        frontJoint.setMaxMotorTorque(0);
+    }
+    else if (brake)
+    {
+        if (chassis.getLinearVelocity().x > .5)
+        {
+            // lock both wheels to a stop
+            rearJoint.setMotorSpeed(0);
+            frontJoint.setMotorSpeed(0);
+            rearJoint.setMaxMotorTorque(BRAKE_TORQUE);
+            frontJoint.setMaxMotorTorque(BRAKE_TORQUE);
+        }
+        else
+        {
+            // creep backward
+            rearJoint.setMotorSpeed(REVERSE_SPEED);
+            rearJoint.setMaxMotorTorque(DRIVE_TORQUE * .6);
+            frontJoint.setMaxMotorTorque(0);
+        }
+    }
+    else
+    {
+        // freewheel with light engine drag
+        rearJoint.setMotorSpeed(0);
+        rearJoint.setMaxMotorTorque(.4);
+        frontJoint.setMaxMotorTorque(0);
+    }
+
+    // engine putter while on the gas, pitched up with speed
+    if (gas && (!engineSoundTimer.isSet() || engineSoundTimer.elapsed()))
+    {
+        engineSoundTimer.set(.09);
+        const pitch = 1 + abs(chassis.getLinearVelocity().x) / 14;
+        sndEngine.play(chassis.pos, .5, pitch);
+    }
+}
+
+function updateCheckpoints()
+{
+    CHECKPOINTS.forEach((cp, i) =>
+    {
+        if (!cpState[i] && !crashed && bike.chassis.pos.x > cp.x)
+        {
+            cpState[i] = true;
+            respawnPos = vec2(cp.x, cp.groundY + SPAWN_LIFT);
+            sndCheckpoint.play();
+            cpFlashTimer.set(1.5);
+        }
+    });
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameUpdatePost()
+{
+    if (!bike)
+        return;
+
+    // fit the view width regardless of canvas resolution
+    cameraScale = mainCanvasSize.x / VIEW_W;
+
+    // follow the bike with velocity lookahead
+    const vel = bike.chassis.getLinearVelocity();
+    const target = bike.chassis.pos.add(vec2(clamp(vel.x*.35, -5, 6) + 1.5, 2));
+    target.y = max(target.y, 1.5);
+    cameraPos = cameraPos.lerp(target, .08);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRender()
+{
+    // dusk sky, sun, parallax hills
+    const camSize = getCameraSize();
+    drawRectGradient(cameraPos, camSize, SKY_TOP, SKY_BOTTOM);
+    const sunPos = cameraPos.add(vec2(camSize.x*.28, camSize.y*.24));
+    drawTile(sunPos, vec2(8), icons.glow, rgb(1, .7, .4, .7));
+    drawTile(sunPos, vec2(2.2), icons.circle, rgb(1, .92, .75));
+    drawHills(.2, rgb(.36, .3, .44), 5, 2.6, .1);
+    drawHills(.45, rgb(.27, .22, .33), 2.8, 1.8, .17);
+}
+
+function drawHills(parallax, color, baseY, amp, freq)
+{
+    const camSize = getCameraSize();
+    const bottom = cameraPos.y - camSize.y/2 - 1;
+    const step = 2;
+    const hillY = x =>
+    {
+        const t = x - cameraPos.x*parallax;
+        return baseY + amp*(sin(t*freq)*.6 + sin(t*freq*2.7 + 5)*.4);
+    };
+    const x0 = floor((cameraPos.x - camSize.x/2)/step)*step;
+    for (let x = x0; x < cameraPos.x + camSize.x/2 + step; x += step)
+        drawPoly([vec2(x, hillY(x)), vec2(x + step, hillY(x + step)),
+            vec2(x + step, bottom), vec2(x, bottom)], color);
+}
+
+function drawFlags()
+{
+    CHECKPOINTS.forEach((cp, i) =>
+        drawFlag(vec2(cp.x, cp.groundY), cpState[i] ? rgb(.3, .9, .4) : rgb(.95, .3, .25)));
+
+    // finish: pole + checkered banner
+    const base = vec2(FINISH_X, FINISH_Y), top = base.add(vec2(0, 3));
+    drawLine(base, top, .12, rgb(.9, .9, .95));
+    for (let ix = 3; ix--;)
+    for (let iy = 2; iy--;)
+        drawRect(top.add(vec2(.3 + ix*.5, -.3 - iy*.5)), vec2(.5),
+            (ix + iy)%2 ? rgb(.1, .1, .1) : rgb(.95, .95, .95));
+}
+
+function drawFlag(base, color)
+{
+    const top = base.add(vec2(0, 2.2));
+    drawLine(base, top, .09, rgb(.85, .85, .9));
+    drawPoly([top, top.add(vec2(1.1, -.35)), top.add(vec2(0, -.7))], color);
+}
+
+function drawBike(c)
+{
+    const L = (x, y) => c.localToWorld(vec2(x, y));
+
+    // swingarm to rear wheel, forks to front wheel (suspension is visible)
+    drawLine(L(-.35, -.05), bike.rear.pos, .1, rgb(.25, .25, .3));
+    drawLine(L(.5, .3), bike.front.pos, .09, rgb(.7, .7, .75));
+
+    // body, seat, engine block, handlebar
+    drawPoly([L(-.85, .1), L(-.55, .38), L(.05, .42), L(.5, .3), L(.72, .12),
+        L(.3, .05), L(-.4, -.02)], BIKE_RED);
+    drawRect(L(-.3, .45), vec2(.55, .14), rgb(.15, .15, .18), c.angle);
+    drawRect(L(.02, .02), vec2(.5, .32), rgb(.3, .3, .35), c.angle);
+    drawLine(L(.5, .3), L(.68, .78), .07, rgb(.4, .4, .45));
+    drawRider(c, L);
+}
+
+function drawRider(c, L)
+{
+    // slump back a little after a crash so the wipeout still reads
+    const lean = crashed ? -.18 : leanInput*.22;
+    const hip      = L(-.3 + lean*.5, .55);
+    const shoulder = L(-.08 + lean*1.2, 1.05);
+    const knee     = L(-.12 + lean*.3, .38);
+    const peg      = L(0, .12);
+    const handle   = L(.66, .8);
+    drawLine(hip, knee, .13, SUIT_GREY);
+    drawLine(knee, peg, .11, SUIT_GREY);
+    drawLine(hip, shoulder, .2, SUIT_GREY);
+    drawLine(shoulder, handle, .09, SUIT_GREY);
+
+    // helmet + visor
+    const head = L(.02 + lean*1.4, 1.28);
+    drawTile(head, vec2(.4), icons.circle, WHITE);
+    drawTile(L(.17 + lean*1.4, 1.3), vec2(.16), icons.circle, rgb(.1, .1, .15));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+function gameRenderPost()
+{
+    if (!isPlaying())
+        return;
+
+    // scale HUD text with canvas resolution
+    const s = mainCanvasSize, h = s.x/48;
+    drawTextScreen('FALLS ' + falls, vec2(h*.6, h*1.2), h, WHITE, h*.1, BLACK, 'left');
+    drawTextScreen('TIME ' + formatTime(runTime), vec2(h*.6, h*2.5), h, WHITE, h*.1, BLACK, 'left');
+
+    if (cpFlashTimer.active())
+    {
+        const a = 1 - cpFlashTimer.getPercent();
+        drawTextScreen('CHECKPOINT!', vec2(s.x/2, h*4), h*1.5,
+            rgb(.4, 1, .5, a), h*.15, rgb(0, 0, 0, a));
+    }
+    if (crashed)
+    {
+        const pulse = .7 + .3*sin(time*8);
+        drawTextScreen('PRESS SPACE TO RESTART', vec2(s.x/2, s.y*.35), h*1.4,
+            rgb(1, 1, 1, pulse), h*.14, BLACK);
+    }
+    if (finished)
+        drawTextScreen('FINISH!', vec2(s.x/2, s.y*.3), h*2, rgb(1, .85, .3), h*.2, BLACK);
+}
+
+function formatTime(t)
+{
+    // round to whole tenths BEFORE splitting so the seconds can't round up
+    // to '60.0' (or '10.0' behind a pad) and print '0:60.0' / '1:010.0'
+    const tenths = round(t*10), m = floor(tenths/600), sec = (tenths - m*600)/10;
+    return m + ':' + (sec < 10 ? '0' : '') + sec.toFixed(1);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Startup LittleJS Engine
+engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
+
+</script>
