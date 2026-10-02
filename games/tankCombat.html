@@ -9,618 +9,1093 @@
 <script>
 'use strict';
 
-// signed shortest angle difference (b - a) in [-PI, PI]
-function distanceAngle(a, b)
+// Tank Combat — arena tank battle on the engine's built-in 3D (Render3DPlugin).
+// Drive with WASD / left stick, aim the turret with the mouse / right stick.
+// Shells ricochet once off stone, smash crates, and hurt anyone — including
+// whoever fired them. Clear every enemy tank to advance to the next wave.
+//
+// All game logic runs on a flat 2D plane (Vector2, +Y is up the screen, angles
+// are LittleJS angles: 0 = +Y, clockwise). toWorld() maps that onto the 3D
+// ground, where Y is height and -Z is up the screen; a logic angle `a` is a
+// 3D yaw of `-a`.
+
+const ARENA         = vec2(60, 34);
+const TANK_RADIUS   = 1.2;
+const BULLET_RADIUS = .3;
+const BARREL_HEIGHT = 1.05;     // turret pivot / shell height above the ground
+const MUZZLE_LENGTH = 2.1;      // turret pivot to the barrel tip
+const PLAYER_SPAWN  = vec2(-27, 0);
+const CAMERA_PITCH  = 1.08;     // radians above the horizon: mostly top down
+const CAMERA_FOV    = .6;
+const MAX_LIVES     = 5;
+const MINE_BLAST    = 4;        // blast radius
+const BARREL_BLAST  = 4.5;
+
+// speed/turn/turret are per frame, fireDelay in seconds, range is the distance
+// an AI tank likes to keep from its target
+const TANK_TYPES =
 {
-    let d = (b - a + PI) % (PI*2);
-    if (d < 0) d += PI*2;
-    return d - PI;
-}
+    player: {color:hsl(.58,.75,.55), speed:.17, turn:.14, turret:1,    fireDelay:.22, bulletSpeed:.48, maxBullets:4, hp:1, scale:1,    range:0,  score:0},
+    ally:   {color:hsl(.58,.75,.55), speed:.09, turn:.07, turret:.045, fireDelay:1.4, bulletSpeed:.32, maxBullets:2, hp:1, scale:1,    range:14, score:0},
+    sentry: {color:hsl(.11,.45,.55), speed:0,   turn:.05, turret:.02,  fireDelay:2.2, bulletSpeed:.26, maxBullets:1, hp:1, scale:1,    range:0,  score:100},
+    scout:  {color:hsl(.27,.45,.42), speed:.07, turn:.06, turret:.035, fireDelay:1.8, bulletSpeed:.28, maxBullets:1, hp:1, scale:1,    range:16, score:200},
+    hunter: {color:hsl(0,.75,.5),    speed:.11, turn:.09, turret:.06,  fireDelay:1.1, bulletSpeed:.4,  maxBullets:2, hp:1, scale:1,    range:11, score:400},
+    heavy:  {color:hsl(.78,.4,.38),  speed:.05, turn:.04, turret:.03,  fireDelay:1.5, bulletSpeed:.3,  maxBullets:3, hp:3, scale:1.25, range:13, score:600},
+};
 
-// Combat-style mini prototype (Atari 2600 inspired)
+// Arena layouts in logic units, each piece mirrored into all four quadrants:
+// ['stone', x, y, width, height] or ['crate', x, y] (crates are 2x2)
+const LAYOUTS =
+[
+    [   // classic: center column, four rails, side bumpers
+        ['stone', 0, 0, 2, 8], ['stone', 13, 8, 10, 2], ['stone', 23, 0, 2, 8],
+        ['crate', 6, 3], ['crate', 13, 0], ['crate', 18, 13], ['crate', 20, 13],
+    ],
+    [   // pillars
+        ['stone', 8, 6, 4, 4], ['stone', 20, 0, 4, 4], ['stone', 19, 12, 2, 2],
+        ['crate', 0, 5], ['crate', 0, 7], ['crate', 0, 9], ['crate', 14, 12], ['crate', 14, 0],
+    ],
+    [   // cross
+        ['stone', 0, 0, 14, 2], ['stone', 0, 0, 2, 12], ['stone', 20, 10, 2, 8],
+        ['crate', 10, 6], ['crate', 12, 6], ['crate', 10, 8], ['crate', 20, 2],
+    ],
+    [   // corridors
+        ['stone', 10, 9, 2, 12], ['stone', 22, 0, 2, 10], ['stone', 0, 14, 8, 2],
+        ['crate', 10, 0], ['crate', 10, 2], ['crate', 0, 4], ['crate', 16, 10], ['crate', 26, 12],
+    ],
+];
 
-const ARENA_SIZE = vec2(60, 34);
-
-const TANK_RADIUS = 1.2;
-const TANK_BODY   = vec2(2.3, 1.6);
-
-const BULLET_RADIUS = .35;
-const BULLET_SPEED  = 1.15;   // per frame (60fps)
-const BULLET_LIFE   = 240;
-const BULLET_BOUNCES = 2;
-
-const TURN_SPEED    = 0.055;
-const ACCEL         = 0.06;   // reduced ~3x
-const MAX_SPEED     = 0.30;   // reduced ~3x
-const FRICTION      = 0.86;
-
-const RESPAWN_DELAY = 36;     // brief invuln/flicker after a knockback
-
-let walls = [];
-let bullets = [];
+let walls = [];         // {xy, size, kind, object}
+let mines = [];
+let barrels = [];
 let tanks = [];
-let scores = [0,0];
+let bullets = [];
+let scorches = [];      // {xy, size} burn marks left by explosions
+let player;
+let score = 0, wave = 0, lives = 0;
+let waveTimer = new Timer, respawnTimer = new Timer, bannerTimer = new Timer;
+let bannerText = '';
 
-let aiEnabled = true; // one player is AI by default
-let roundTimer = 0;
-let pausedLocal = false;
+// shared meshes, built in gameInit once the 3D plugin exists
+let meshHull, meshTreads, meshTurret, meshCrate, meshMine, meshBarrel;
 
-// sounds (lazy)
-let sShoot, sBounce, sHit, sBlip;
-function initSounds()
+let sShoot, sEnemyShoot, sBounce, sExplode, sCrate, sHit, sWave, sLife, sMine;
+
+///////////////////////////////////////////////////////////////////////////////
+// helpers
+
+function toWorld(xy, height=0) { return vec3(xy.x, height, -xy.y); }
+
+function isSpotFree(xy, radius)
 {
-    if (sShoot) return;
-    sShoot  = new SoundGenerator({ volume:.6,  frequency:420, attack:0, release:.08, shapeCurve:.2, slide:-.2 });
-    sBounce = new SoundGenerator({ volume:.35, frequency:260, attack:0, release:.05, shapeCurve:1.6, randomness:.15 });
-    sHit    = new SoundGenerator({ volume:.8,  frequency:90,  attack:0, release:.25, noise:.5, shapeCurve:2, bitCrush:3 });
-    sBlip   = new SoundGenerator({ volume:.25, frequency:520, attack:0, release:.05, shapeCurve:.6, randomness:.1 });
-}
-
-function randSign() { return randBool() ? 1 : -1; }
-
-function buildWalls()
-{
-    // Smaller/shorter interior obstacles (more like classic Combat)
-    walls = [
-        // center column
-        {pos:vec2(0,  0),   size:vec2(2, 10)},
-
-        // short rails (top/bottom left/right)
-        {pos:vec2(-12,  7), size:vec2(10, 2)},
-        {pos:vec2(-12, -7), size:vec2(10, 2)},
-        {pos:vec2( 12,  7), size:vec2(10, 2)},
-        {pos:vec2( 12, -7), size:vec2(10, 2)},
-
-        // side bumpers (shorter)
-        {pos:vec2(-24, 0),  size:vec2(2, 10)},
-        {pos:vec2( 24, 0),  size:vec2(2, 10)},
-
-        // small corner blocks
-        {pos:vec2(-22,  14), size:vec2(4, 2)},
-        {pos:vec2( 22,  14), size:vec2(4, 2)},
-        {pos:vec2(-22, -14), size:vec2(4, 2)},
-        {pos:vec2( 22, -14), size:vec2(4, 2)},
-    ];
-}
-
-// resolve a moving circle vs AABB by pushing out; returns {hit:boolean, normal:vec2}
-function resolveCircleAABB(pos, radius, boxPos, boxSize)
-{
-    const hx = boxSize.x/2, hy = boxSize.y/2;
-    const dx = pos.x - boxPos.x;
-    const dy = pos.y - boxPos.y;
-
-    const cx = clamp(dx, -hx, hx);
-    const cy = clamp(dy, -hy, hy);
-
-    const px = dx - cx;
-    const py = dy - cy;
-    const d2 = px*px + py*py;
-    const r2 = radius*radius;
-
-    if (d2 >= r2) return {hit:false, normal:vec2()};
-
-    let n = vec2(px, py);
-    const d = Math.sqrt(d2) || 0.0001;
-    n = n.scale(1/d);
-
-    const push = radius - d;
-    pos.x += n.x*push;
-    pos.y += n.y*push;
-    return {hit:true, normal:n};
-}
-
-function resolveCircleArena(pos, radius)
-{
-    const hx = ARENA_SIZE.x/2 - radius;
-    const hy = ARENA_SIZE.y/2 - radius;
-
-    let hitN = vec2();
-    if (pos.x < -hx) { pos.x = -hx; hitN = vec2(1,0); }
-    else if (pos.x > hx) { pos.x = hx; hitN = vec2(-1,0); }
-    if (pos.y < -hy) { pos.y = -hy; hitN = vec2(0,1); }
-    else if (pos.y > hy) { pos.y = hy; hitN = vec2(0,-1); }
-    return hitN;
-}
-
-function lineIntersectsWall(a, b, wall)
-{
-    const steps = 14;
-    for (let i=0;i<=steps;i++)
-    {
-        const t = i/steps;
-        const p = a.lerp(b, t);
-        if (abs(p.x - wall.pos.x) <= wall.size.x/2 && abs(p.y - wall.pos.y) <= wall.size.y/2)
-            return true;
-    }
-    return false;
-}
-
-function hasLineOfSight(a, b)
-{
-    for (const w of walls)
-        if (lineIntersectsWall(a, b, w))
+    const half = ARENA.scale(.5);
+    if (abs(xy.x) > half.x - radius || abs(xy.y) > half.y - radius)
+        return false;
+    for (const wall of walls)
+        if (abs(xy.x - wall.xy.x) < wall.size.x/2 + radius &&
+            abs(xy.y - wall.xy.y) < wall.size.y/2 + radius)
             return false;
     return true;
 }
 
-// Pick a respawn spot for a knocked-out tank: inside the arena, not overlapping
-// walls, as far as possible from the killer (with a bonus for line-of-sight blocked).
-function findSafeRespawnPos(killerPos)
+// can something `pad` wide travel straight from a to b without touching a wall?
+function hasLineOfSight(a, b, pad=0, ignoreWall)
 {
-    const margin = TANK_RADIUS + 1;
-    const hx = ARENA_SIZE.x/2 - margin;
-    const hy = ARENA_SIZE.y/2 - margin;
-
-    let best = null;
-    let bestScore = -Infinity;
-    for (let i = 0; i < 40; i++)
-    {
-        const c = vec2(rand(-hx, hx), rand(-hy, hy));
-
-        let blocked = false;
-        for (const w of walls)
-        {
-            const r = TANK_RADIUS + 0.4;
-            if (abs(c.x - w.pos.x) < w.size.x/2 + r &&
-                abs(c.y - w.pos.y) < w.size.y/2 + r)
-            { blocked = true; break; }
-        }
-        if (blocked) continue;
-
-        const dist = c.distance(killerPos);
-        if (dist < ARENA_SIZE.x * 0.35) continue;
-
-        const losBlocked = !hasLineOfSight(c, killerPos);
-        const score = dist + (losBlocked ? 25 : 0);
-        if (score > bestScore) { bestScore = score; best = c; }
-    }
-    return best || vec2(-killerPos.x, -killerPos.y);
+    for (const wall of walls)
+        if (wall != ignoreWall && isIntersecting(a, b, wall.xy, wall.size.add(vec2(pad*2))))
+            return false;
+    return true;
 }
 
-class Tank
+// keep a circle inside the arena and out of every wall, returns the fixed position
+function pushOutOfWalls(xy, radius)
 {
-    constructor(index, pos, ang, color, keys)
+    const half = ARENA.scale(.5).subtract(vec2(radius));
+    xy = vec2(clamp(xy.x, -half.x, half.x), clamp(xy.y, -half.y, half.y));
+    for (const wall of walls)
     {
-        this.index = index;
-        this.pos = pos.copy();
-        this.vel = vec2();
-        this.ang = ang;
-        this.color = color;
-        this.keys = keys;
-        this.cooldown = 0;
-        this.respawn = 0;
+        const delta = xy.subtract(wall.xy), h = wall.size.scale(.5);
+        const nearest = vec2(clamp(delta.x, -h.x, h.x), clamp(delta.y, -h.y, h.y));
+        const out = delta.subtract(nearest), distance = out.length();
+        if (distance >= radius)
+            continue;
+        if (distance > 0)
+            xy = xy.add(out.scale((radius - distance)/distance));
+        else if (h.x - abs(delta.x) < h.y - abs(delta.y))   // center inside: leave by the nearest face
+            xy = vec2(wall.xy.x + (delta.x < 0 ? -1 : 1)*(h.x + radius), xy.y);
+        else
+            xy = vec2(xy.x, wall.xy.y + (delta.y < 0 ? -1 : 1)*(h.y + radius));
+    }
+    return xy;
+}
+
+// distance a shell fired from origin travels before its first wall or arena edge
+function raycastArena(origin, direction)
+{
+    const half = ARENA.scale(.5).subtract(vec2(BULLET_RADIUS));
+    let best = 1e9;
+    if (direction.x) best = min(best, (sign(direction.x)*half.x - origin.x)/direction.x);
+    if (direction.y) best = min(best, (sign(direction.y)*half.y - origin.y)/direction.y);
+    for (const wall of walls)
+    {
+        const h = wall.size.scale(.5).add(vec2(BULLET_RADIUS));
+        const x1 = (wall.xy.x - h.x - origin.x)/direction.x, x2 = (wall.xy.x + h.x - origin.x)/direction.x;
+        const y1 = (wall.xy.y - h.y - origin.y)/direction.y, y2 = (wall.xy.y + h.y - origin.y)/direction.y;
+        const near = max(min(x1, x2), min(y1, y2)), far = min(max(x1, x2), max(y1, y2));
+        if (near > 0 && far >= near)
+            best = min(best, near);
+    }
+    return best;
+}
+
+function nearestEnemy(tank)
+{
+    let best, bestDistance = 1e9;
+    for (const other of tanks)
+    {
+        const distance = other.xy.distance(tank.xy);
+        if (other.team != tank.team && distance < bestDistance)
+            best = other, bestDistance = distance;
+    }
+    return best;
+}
+
+function addScorch(xy, size)
+{
+    scorches.push({xy:xy.copy(), size});
+    if (scorches.length > 40)
+        scorches.shift();
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// a point light that flares and dies, for explosions
+
+class Flash extends Light3D
+{
+    constructor(pos3D, radius, color) { super(pos3D, radius, color, 5); }
+    update()
+    {
+        this.intensity *= .86;
+        if (this.intensity < .1)
+            this.destroy();
+    }
+}
+
+function explosionFx(xy, scale)
+{
+    const pos = toWorld(xy, 1);
+    particleEffect3D('explosion', pos, {scale:scale*3});
+    particleEffect3D('debris', pos, {scale:scale*2});
+    new Flash(toWorld(xy, 2.5), 10 + scale*8, hsl(.08,1,.6));
+    addScorch(xy, scale*3.5);
+}
+
+// an explosion that hurts: damages tanks, smashes crates and sets off other hazards
+function blast(xy, radius)
+{
+    explosionFx(xy, radius/3);
+    sExplode.play();
+    addScreenShake(.6, .4);
+    for (const tank of [...tanks])
+        if (tank.xy.distance(xy) < radius + tank.radius/2)
+            tank.damage(2);
+    for (const wall of [...walls])
+        if (wall.kind == 'crate' && wall.xy.distance(xy) < radius)
+            destroyCrate(wall);
+    for (const hazard of [...mines, ...barrels])
+        if (hazard.xy.distance(xy) < radius + 1)
+            hazard.trigger(); // chain reaction, a beat later
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// mines and explosive barrels
+
+class Hazard extends EngineObject3D
+{
+    constructor(xy, height, mesh, blastRadius)
+    {
+        super(toWorld(xy, height), mesh);
+        this.xy = xy.copy();
+        this.blastRadius = blastRadius;
+        this.fuse = new Timer;
+    }
+    trigger(delay=.15) { this.fuse.isSet() || this.fuse.set(delay); }
+    update()
+    {
+        if (this.fuse.isSet())
+            this.emissive = 1;
+        if (this.fuse.isSet() && this.fuse.elapsed())
+            this.explode();
+    }
+}
+
+// goes off when a tank drives over it or a shell hits it
+class Mine extends Hazard
+{
+    constructor(xy)
+    {
+        super(xy, 0, meshMine, MINE_BLAST);
+        this.color = hsl(0,0,.3);
+        this.castShadow = false;
+        this.lamp = this.addChild(new EngineObject3D(vec3(0,.22,0), render3D.sphereMesh, undefined, RED));
+        this.lamp.scale3D = vec3(.4);
+        this.lamp.castShadow = false;
+        this.blinkOffset = rand(9);
+        mines.push(this);
+    }
+    update()
+    {
+        // the lamp blinks, faster once it is about to blow
+        const rate = this.fuse.isSet() ? 40 : 5;
+        this.lamp.emissive = sin(time*rate + this.blinkOffset) > .3 ? 3 : .1;
+        for (const tank of tanks)
+            if (!this.fuse.isSet() && !tank.spawnTimer.active() && tank.xy.distance(this.xy) < tank.radius + .4)
+            {
+                this.trigger(.3);
+                sMine.play();
+            }
+        for (const bullet of [...bullets])
+            if (bullet.xy.distance(this.xy) < .9)
+            {
+                bullet.die();
+                this.trigger(0);
+            }
+        super.update();
+    }
+    explode()
+    {
+        mines.splice(mines.indexOf(this), 1);
+        this.destroy();
+        blast(this.xy, this.blastRadius);
+    }
+}
+
+// blocks the way like a wall until a shell or another blast sets it off
+class Barrel extends Hazard
+{
+    constructor(xy)
+    {
+        super(xy, .85, meshBarrel, BARREL_BLAST);
+        this.wall = {xy:this.xy, size:vec2(1.6), kind:'barrel', object:this};
+        walls.push(this.wall);
+        barrels.push(this);
+    }
+    explode()
+    {
+        walls.splice(walls.indexOf(this.wall), 1);
+        barrels.splice(barrels.indexOf(this), 1);
+        this.destroy();
+        blast(this.xy, this.blastRadius);
+    }
+}
+
+// scatter hazards over free ground, clear of each other and of where the player starts
+function placeHazards(mineCount, barrelCount)
+{
+    const place = (count, make)=>
+    {
+        for (; count-- > 0;)
+        for (let tries = 100; tries--;)
+        {
+            const xy = vec2(rand(-1, 1)*(ARENA.x/2 - 3), rand(-1, 1)*(ARENA.y/2 - 3));
+            if (isSpotFree(xy, 2.2) && xy.distance(PLAYER_SPAWN) > 9 &&
+                [...mines, ...barrels].every(hazard=> hazard.xy.distance(xy) > 5))
+            {
+                make(xy);
+                break;
+            }
+        }
+    };
+    place(barrelCount, xy=> new Barrel(xy));
+    place(mineCount, xy=> new Mine(xy));
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+class Tank extends EngineObject3D
+{
+    constructor(typeName, team, xy, angle)
+    {
+        super(toWorld(xy), meshHull);
+        const type = this.type = TANK_TYPES[typeName];
+        this.isPlayer = typeName == 'player';
+        this.team = team;
+        this.xy = xy.copy();
+        this.hullAngle = this.turretAngle = angle;
+        this.moveSpeed = 0;
+        this.velocity2D = vec2();   // how far it moved this frame, for AI to lead its shots
+        this.hp = type.hp;
+        this.bulletCount = 0;
+        this.recoil = 0;
+        this.flash = 0;
+        this.fireTimer = new Timer(rand(1, 2));     // nobody fires the moment they appear
+        this.spawnTimer = new Timer(.4);            // pops in, untouchable while it does
+        this.shieldTimer = new Timer;
+        this.thinkTimer = new Timer;
+        this.waypoint = undefined;
+
+        this.color = type.color;
+        this.specular = .3;
+        this.treads = this.addChild(new EngineObject3D(vec3(), meshTreads, undefined, hsl(0,0,.22)));
+        this.turret = this.addChild(new EngineObject3D(vec3(0,BARREL_HEIGHT,0), meshTurret, undefined,
+            type.color.lerp(WHITE, .2)));
+        this.turret.specular = .5;
+        this.syncTransform();
+        tanks.push(this);
     }
 
-    get forward() { return vec2().setAngle(this.ang); }
+    get radius() { return TANK_RADIUS*this.type.scale; }
+
+    update()
+    {
+        const type = this.type;
+        let move = vec2(), fire = false;
+        if (this.isPlayer)
+            [move, fire] = this.playerControl();
+        else
+            [move, fire] = this.think();
+
+        // the hull turns to face where it wants to go and only drives once lined up
+        const amount = min(move.length(), 1);
+        let targetSpeed = 0;
+        if (amount > .1)
+        {
+            const diff = distanceAngle(move.angle(), this.hullAngle);
+            this.hullAngle += clamp(diff, -type.turn, type.turn);
+            targetSpeed = type.speed*amount*max(0, cos(diff));
+        }
+        this.moveSpeed = lerp(this.moveSpeed, targetSpeed, .2);
+
+        const before = this.xy;
+        let xy = this.xy.add(vec2().setAngle(this.hullAngle, this.moveSpeed));
+        for (const other of tanks)
+        {
+            // tanks shove each other apart
+            if (other == this)
+                continue;
+            const delta = xy.subtract(other.xy), distance = delta.length();
+            const reach = this.radius + other.radius;
+            if (distance < reach && distance > 0)
+                xy = xy.add(delta.scale((reach - distance)/distance*.5));
+        }
+        this.xy = pushOutOfWalls(xy, this.radius);
+        this.velocity2D = this.xy.subtract(before);
+
+        if (fire)
+            this.shoot();
+        this.syncTransform();
+    }
+
+    // returns [move, fire]
+    playerControl()
+    {
+        const keys = keyDirection(), stick = gamepadStick(0);
+        const move = keys.lengthSquared() ? keys : stick;
+        let fire = false;
+        if (isUsingGamepad)
+        {
+            // twin stick: pushing the aim stick fires
+            const aim = gamepadStick(1);
+            if (aim.length() > .3)
+            {
+                this.turretAngle = aim.angle();
+                fire = true;
+            }
+            fire ||= gamepadIsDown(7) || gamepadIsDown(0);
+        }
+        else
+        {
+            const hit = render3D.screenToGround(mousePosScreen, BARREL_HEIGHT);
+            if (hit)
+                this.turretAngle = vec2(hit.x, -hit.z).subtract(this.xy).angle();
+            fire = mouseIsDown(0) || keyIsDown('Space');
+        }
+        return [move, fire];
+    }
+
+    // AI, returns [move, fire]
+    think()
+    {
+        const type = this.type, target = nearestEnemy(this);
+        let move = vec2(), fire = false;
+        if (type.speed)
+        {
+            const arrived = this.waypoint && this.xy.distance(this.waypoint) < 1.5;
+            if (arrived || !this.thinkTimer.active())
+            {
+                this.pickWaypoint(target);
+                this.thinkTimer.set(rand(1.5, 3));
+            }
+            if (this.waypoint)
+                move = this.waypoint.subtract(this.xy).normalize();
+
+            // shoved or drifting toward a mine: back away from it first
+            for (const mine of mines)
+            {
+                const away = this.xy.subtract(mine.xy), distance = away.length();
+                if (distance < 3.5 && distance > 0)
+                    move = move.add(away.scale((3.5 - distance)/distance));
+            }
+        }
+        if (!target)
+            return [move, fire];
+
+        // lead the target a little, then swing the turret onto it
+        const flightTime = this.xy.distance(target.xy)/type.bulletSpeed;
+        let aimAt = target.xy.add(target.velocity2D.scale(flightTime*.6)), aimWall;
+        const friends = tanks.filter(tank=> tank.team == this.team);
+        const friendsClearOf = hazard=>
+            friends.every(friend=> friend.xy.distance(hazard.xy) > hazard.blastRadius + 1.5);
+
+        // a mine or barrel beside the target is the better shot, if no friend is in its blast
+        for (const hazard of [...mines, ...barrels])
+            if (target.xy.distance(hazard.xy) < hazard.blastRadius*.8 && friendsClearOf(hazard) &&
+                hasLineOfSight(this.xy, hazard.xy, BULLET_RADIUS, hazard.wall))
+                aimAt = hazard.xy, aimWall = hazard.wall;
+
+        const diff = distanceAngle(aimAt.subtract(this.xy).angle(), this.turretAngle);
+        this.turretAngle += clamp(diff, -type.turret, type.turret);
+        if (abs(diff) < .06 && !target.spawnTimer.active() &&
+            hasLineOfSight(this.xy, aimAt, BULLET_RADIUS, aimWall))
+        {
+            // hold fire while a friend is in the way, or the shell would set off a mine beside one
+            fire = true;
+            for (const friend of friends)
+                if (friend != this && isIntersecting(this.xy, aimAt, friend.xy, vec2(friend.radius*2.4)))
+                    fire = false;
+            for (const mine of mines)
+                if (isIntersecting(this.xy, aimAt, mine.xy, vec2(1.8)) && !friendsClearOf(mine))
+                    fire = false;
+        }
+        return [move, fire];
+    }
+
+    pickWaypoint(target)
+    {
+        const type = this.type;
+        let bestScore = -1e9;
+        this.waypoint = undefined;
+        for (let i = 12; i--;)
+        {
+            const spot = this.xy.add(randInCircle(14, 4));
+            if (!isSpotFree(spot, TANK_RADIUS + .3) || !hasLineOfSight(this.xy, spot, TANK_RADIUS))
+                continue;
+            if (mines.some(mine=> isIntersecting(this.xy, spot, mine.xy, vec2((TANK_RADIUS + 1.3)*2))))
+                continue; // the way there crosses a mine
+            let spotScore = rand(4);
+            for (const hazard of [...mines, ...barrels])
+                if (spot.distance(hazard.xy) < hazard.blastRadius + 1)
+                    spotScore -= 4; // not somewhere to park
+            if (target)
+            {
+                // keep its favorite distance, and prefer somewhere it can shoot from
+                spotScore -= abs(spot.distance(target.xy) - type.range);
+                if (hasLineOfSight(spot, target.xy, BULLET_RADIUS))
+                    spotScore += 5;
+            }
+            if (spotScore > bestScore)
+                bestScore = spotScore, this.waypoint = spot;
+        }
+    }
 
     shoot()
     {
-        if (this.cooldown > 0 || this.respawn > 0) return;
+        const type = this.type;
+        if (this.fireTimer.active() || this.spawnTimer.active() || this.bulletCount >= type.maxBullets)
+            return;
+        const muzzle = this.xy.add(vec2().setAngle(this.turretAngle, MUZZLE_LENGTH*type.scale));
+        if (!hasLineOfSight(this.xy, muzzle, BULLET_RADIUS))
+            return; // barrel is jammed against a wall
 
-        this.cooldown = 18;
-        const muzzle = this.pos.add(this.forward.scale(TANK_BODY.y*.55 + 1.0));
-        const v = this.forward.scale(BULLET_SPEED);
-        bullets.push(new Bullet(this.index, muzzle, v));
-
-        initSounds();
-        sShoot.play();
+        this.fireTimer.set(type.fireDelay*(this.isPlayer ? 1 : rand(.8, 1.4)));
+        this.recoil = .4;
+        new Bullet(this, muzzle, this.turretAngle);
+        const effect = particleEffect3D('muzzle', toWorld(muzzle, BARREL_HEIGHT), {scale:1.5});
+        if (effect)
+            effect.rotation3D = vec3(-PI/2, -this.turretAngle, 0); // spray along the barrel
+        (this.isPlayer ? sShoot : sEnemyShoot).play();
     }
 
-    damage(byIndex)
+    damage(amount=1)
     {
-        if (this.respawn > 0) return;
-        this.respawn = RESPAWN_DELAY;
-
-        initSounds();
-        sHit.play();
-
-        // Only the killed tank gets knocked to a new safe spot. The killer stays put.
-        const killerPos = byIndex >= 0 ? tanks[byIndex].pos : vec2();
-        this.pos = findSafeRespawnPos(killerPos);
-        this.vel = vec2();
-        // Face away from the killer with a little jitter so they get a moment to recover
-        if (byIndex >= 0)
+        if (this.destroyed || this.spawnTimer.active() || this.shieldTimer.active())
+            return;
+        this.hp -= amount;
+        if (this.hp > 0)
         {
-            const away = this.pos.subtract(killerPos);
-            this.ang = away.angle() + rand(-.4, .4);
-            scores[byIndex] += 1;
-        }
-        else
-        {
-            this.ang = rand(0, PI*2);
-        }
-        this.cooldown = 0;
-    }
-
-    updateHuman()
-    {
-        const k = this.keys;
-
-        // ---- gamepad (twin-stick): left stick = move/steer, right stick = aim turret ----
-        const leftStick  = gamepadStick(0);
-        const rightStick = gamepadStick(1);
-        const leftActive  = leftStick.lengthSquared()  > .04;
-        const rightActive = rightStick.lengthSquared() > .04;
-
-        // turn direction: make left rotate left (counter-clockwise) in player feel
-        const turn = (keyIsDown(k.right)?1:0) - (keyIsDown(k.left)?1:0);
-        this.ang += TURN_SPEED*turn;
-
-        // gamepad aiming: right stick aims the barrel; else left stick steers toward
-        // its push direction. Steer toward the chosen target angle (additive to keyboard turn).
-        const aimStick = rightActive ? rightStick : (leftActive ? leftStick : null);
-        if (aimStick)
-        {
-            const desiredAng = aimStick.angle();
-            let da = clamp(distanceAngle(this.ang, desiredAng), -1, 1);
-            this.ang += TURN_SPEED*clamp(da*1.4, -1, 1);
-        }
-
-        const thrust = (keyIsDown(k.up)?1:0) - (keyIsDown(k.down)?1:0);
-        if (thrust)
-        {
-            const accel = thrust > 0 ? ACCEL : ACCEL*.65;
-            this.vel = this.vel.add(this.forward.scale(accel*thrust));
-        }
-        // gamepad thrust: push forward when the left stick is engaged
-        if (leftActive)
-            this.vel = this.vel.add(this.forward.scale(ACCEL*min(leftStick.length(), 1)));
-
-        // fire: keyboard key, A(0), RT(7), or auto-fire while right stick is aiming
-        if (keyWasPressed(k.fire) || gamepadWasPressed(0) || gamepadWasPressed(7) || rightActive)
-            this.shoot();
-    }
-
-    updateAI(target)
-    {
-        const to = target.pos.subtract(this.pos);
-        const desired = to.normalize();
-        const desiredAng = desired.angle();
-
-        let da = distanceAngle(this.ang, desiredAng);
-        da = clamp(da, -1, 1);
-        this.ang += TURN_SPEED*clamp(da*1.4, -1, 1);
-
-        const d2 = to.lengthSquared();
-        if (d2 > 140) this.vel = this.vel.add(this.forward.scale(ACCEL*.75));
-        else if (d2 < 80) this.vel = this.vel.add(this.forward.scale(-ACCEL*.55));
-
-        const lined = abs(da) < .18;
-        if (lined && hasLineOfSight(this.pos, target.pos) && this.cooldown==0)
-            this.shoot();
-    }
-
-    update()
-    {
-        if (this.respawn > 0)
-        {
-            this.respawn--;
+            this.flash = 1;
+            sHit.play();
             return;
         }
+        this.explode();
+    }
 
-        if (this.cooldown > 0) this.cooldown--;
-
-        if (this.index === 1 && aiEnabled)
-            this.updateAI(tanks[0]);
-        else
-            this.updateHuman();
-
-        this.vel = this.vel.scale(FRICTION);
-        if (this.vel.length() > MAX_SPEED)
-            this.vel = this.vel.clampLength(MAX_SPEED);
-
-        this.pos = this.pos.add(this.vel);
-
-        const hitN = resolveCircleArena(this.pos, TANK_RADIUS);
-        if (hitN.lengthSquared())
-            this.vel = this.vel.scale(.5);
-
-        for (const w of walls)
+    explode()
+    {
+        explosionFx(this.xy, this.type.scale);
+        sExplode.play();
+        addScreenShake(this.isPlayer ? .8 : .4, .35);
+        tanks.splice(tanks.indexOf(this), 1);
+        this.destroy();
+        if (!isPlaying())
+            return;
+        score += this.type.score;
+        if (this.isPlayer)
         {
-            const r = resolveCircleAABB(this.pos, TANK_RADIUS, w.pos, w.size);
-            if (r.hit)
-                this.vel = this.vel.subtract(r.normal.scale(this.vel.dot(r.normal))).scale(.6);
+            player = undefined;
+            --lives;
+            respawnTimer.set(1.5);
         }
     }
 
-    render()
+    syncTransform()
     {
-        if (this.respawn > 0 && (this.respawn%6)<3)
-            return;
+        const pop = this.spawnTimer.active() ? smoothStep(this.spawnTimer.getPercent()) : 1;
+        this.pos3D = toWorld(this.xy);
+        this.rotation3D = vec3(0, -this.hullAngle, 0);
+        this.scale3D = vec3(this.type.scale*pop);
 
-        // Body frame: local +Y is forward (because forward = vec2().setAngle(ang) = (sin ang, cos ang)
-        // matches drawRect's local +Y after a clockwise rotation by `ang`). Anything
-        // we want to extend along the barrel/forward direction goes in size.y.
-        const ang = this.ang;
-        const fwd = this.forward;
-        const right = vec2(fwd.y, -fwd.x);
+        // the turret swings on its own and kicks back when it fires
+        const turretYaw = this.hullAngle - this.turretAngle;
+        this.turret.rotation3D = vec3(0, turretYaw, 0);
+        this.turret.pos3D = vec3(0, BARREL_HEIGHT, this.recoil).rotateY(turretYaw);
+        this.recoil *= .8;
 
-        const halfLen = 1.05;
-        const halfWid = 0.75;
-        const treadW  = 0.42;
-        const turretR = 0.55;
-        const barrelLen = 1.4;
-        const barrelWid = 0.28;
-
-        const hullCol  = this.color;
-        const hullDark = this.color.lerp(rgb(0,0,0), .55);
-        const treadCol  = rgb(.42, .42, .42);   // bright enough to read on the dark arena
-        const treadDark = rgb(.18, .18, .18);
-
-        // soft drop shadow
-        drawRect(this.pos.add(vec2(.18, -.18)), vec2(halfWid*2 + .55, halfLen*2 + .55), rgb(0,0,0,.3), ang);
-
-        // tread base strips, running along forward, one on each side
-        const treadOff = halfWid - treadW/2 + 0.18;
-        const treadLen = halfLen*2 + 0.15;
-        drawRect(this.pos.add(right.scale( treadOff)), vec2(treadW, treadLen), treadCol, ang);
-        drawRect(this.pos.add(right.scale(-treadOff)), vec2(treadW, treadLen), treadCol, ang);
-
-        // animated tread slats — short bars across each tread that march opposite to motion
-        const speedSign = sign(this.vel.dot(fwd));
-        const phase = ((time * speedSign * 6) % 1 + 1) % 1;
-        const segs = 6;
-        for (let i = 0; i < segs; i++)
-        {
-            const t = ((i + phase) / segs) - 0.5;
-            const yOff = t * treadLen;
-            drawRect(this.pos.add(right.scale( treadOff)).add(fwd.scale(yOff)), vec2(treadW * 0.95, 0.11), treadDark, ang);
-            drawRect(this.pos.add(right.scale(-treadOff)).add(fwd.scale(yOff)), vec2(treadW * 0.95, 0.11), treadDark, ang);
-        }
-
-        // hull (colored chassis) with a darker outline
-        const hullW = halfWid * 1.55;
-        const hullL = halfLen * 1.8;
-        drawRect(this.pos, vec2(hullW + 0.14, hullL + 0.14), hullDark, ang);
-        drawRect(this.pos, vec2(hullW, hullL), hullCol, ang);
-
-        // turret (circle on top — rotation doesn't matter)
-        drawTile(this.pos, vec2(turretR * 2 + 0.1), icons.circle, hullDark);
-        drawTile(this.pos, vec2(turretR * 2), icons.circle, hullCol);
-
-        // barrel extending forward from the turret — long axis in size.y
-        const barrelPos = this.pos.add(fwd.scale(turretR + barrelLen * 0.5 - 0.05));
-        drawRect(barrelPos, vec2(barrelWid + 0.1, barrelLen + 0.1), hullDark, ang);
-        drawRect(barrelPos, vec2(barrelWid, barrelLen), hullCol, ang);
+        // glow white when hit, pulse while shielded after a respawn
+        this.flash *= .85;
+        const glow = this.shieldTimer.active() ? .35 + .35*sin(time*18) : this.flash;
+        this.emissive = this.turret.emissive = this.treads.emissive = glow;
     }
 }
 
-class Bullet
+///////////////////////////////////////////////////////////////////////////////
+
+class Bullet extends EngineObject3D
 {
-    constructor(owner, pos, vel)
+    constructor(owner, xy, angle)
     {
+        const color = owner.team ? hsl(.06,1,.6) : hsl(.5,1,.7);
+        super(toWorld(xy, BARREL_HEIGHT), render3D.sphereMesh, undefined, color);
+        this.scale3D = vec3(BULLET_RADIUS*2);
+        this.emissive = 2;
+        this.castShadow = false;
         this.owner = owner;
-        this.pos = pos.copy();
-        this.vel = vel.copy();
-        this.life = BULLET_LIFE;
-        this.bounces = BULLET_BOUNCES;
+        this.xy = xy.copy();
+        this.velocity2D = vec2().setAngle(angle, owner.type.bulletSpeed);
+        this.bounces = 1;
+        this.armed = false;     // can hit its own tank once it has bounced
+        this.addChild(new Light3D(vec3(), 6, color, 2));
+        this.addChild(new Trail3D(vec3(), .25, .4, undefined, color, color.scale(1, 0), true));
+        ++owner.bulletCount;
+        bullets.push(this);
     }
 
     update()
     {
-        const subSteps = 2;
-        for (let s=0;s<subSteps;s++)
+        const steps = 3;
+        for (let step = steps; step-- && !this.destroyed;)
+            this.step(this.velocity2D.scale(1/steps));
+        this.pos3D = toWorld(this.xy, BARREL_HEIGHT);
+    }
+
+    step(delta)
+    {
+        const radius = BULLET_RADIUS, velocity = this.velocity2D;
+        this.xy = this.xy.add(delta);
+
+        // arena edge
+        const half = ARENA.scale(.5).subtract(vec2(radius));
+        if (abs(this.xy.x) > half.x && this.xy.x*velocity.x > 0)
         {
-            this.pos = this.pos.add(this.vel.scale(1/subSteps));
-
-            const hx = ARENA_SIZE.x/2 - BULLET_RADIUS;
-            const hy = ARENA_SIZE.y/2 - BULLET_RADIUS;
-            if (this.pos.x < -hx) { this.pos.x = -hx; this.vel.x *= -1; this.bounces--; initSounds(); sBounce.play(); }
-            else if (this.pos.x > hx) { this.pos.x = hx; this.vel.x *= -1; this.bounces--; initSounds(); sBounce.play(); }
-            if (this.pos.y < -hy) { this.pos.y = -hy; this.vel.y *= -1; this.bounces--; initSounds(); sBounce.play(); }
-            else if (this.pos.y > hy) { this.pos.y = hy; this.vel.y *= -1; this.bounces--; initSounds(); sBounce.play(); }
-
-            for (const w of walls)
-            {
-                const expandedSize = w.size.add(vec2(BULLET_RADIUS*2));
-                if (abs(this.pos.x - w.pos.x) <= expandedSize.x/2 &&
-                    abs(this.pos.y - w.pos.y) <= expandedSize.y/2)
-                {
-                    const dx = this.pos.x - w.pos.x;
-                    const dy = this.pos.y - w.pos.y;
-                    const px = (w.size.x/2 + BULLET_RADIUS) - abs(dx);
-                    const py = (w.size.y/2 + BULLET_RADIUS) - abs(dy);
-                    if (px < py)
-                    {
-                        this.pos.x += sign(dx)*px;
-                        this.vel.x *= -1;
-                    }
-                    else
-                    {
-                        this.pos.y += sign(dy)*py;
-                        this.vel.y *= -1;
-                    }
-                    this.bounces--;
-                    initSounds();
-                    sBounce.play();
-                }
-            }
-
-            for (const t of tanks)
-            {
-                if (t.respawn > 0) continue;
-                if (t.index === this.owner) continue;
-                const r = TANK_RADIUS + BULLET_RADIUS;
-                if (this.pos.distanceSquared(t.pos) < r*r)
-                {
-                    t.damage(this.owner);
-                    this.life = 0;
-                    return;
-                }
-            }
-
-            if (this.bounces < 0) { this.life = 0; return; }
+            this.xy.x = sign(this.xy.x)*half.x;
+            velocity.x *= -1;
+            if (!this.bounce()) return;
+        }
+        if (abs(this.xy.y) > half.y && this.xy.y*velocity.y > 0)
+        {
+            this.xy.y = sign(this.xy.y)*half.y;
+            velocity.y *= -1;
+            if (!this.bounce()) return;
         }
 
-        this.life--;
+        for (const wall of walls)
+        {
+            const offset = this.xy.subtract(wall.xy);
+            const overlapX = wall.size.x/2 + radius - abs(offset.x);
+            const overlapY = wall.size.y/2 + radius - abs(offset.y);
+            if (overlapX <= 0 || overlapY <= 0)
+                continue;
+            if (wall.kind == 'crate')
+            {
+                destroyCrate(wall);
+                return this.die();
+            }
+            if (wall.kind == 'barrel')
+            {
+                wall.object.trigger(0);
+                return this.die();
+            }
+            // leave by the shallower side and reflect off it
+            if (overlapX < overlapY)
+            {
+                this.xy.x += sign(offset.x)*overlapX;
+                velocity.x = sign(offset.x)*abs(velocity.x);
+            }
+            else
+            {
+                this.xy.y += sign(offset.y)*overlapY;
+                velocity.y = sign(offset.y)*abs(velocity.y);
+            }
+            if (!this.bounce()) return;
+            break;
+        }
+
+        for (const tank of tanks)
+        {
+            if (tank == this.owner && !this.armed)
+                continue;
+            if (this.xy.distance(tank.xy) < tank.radius + radius)
+            {
+                tank.damage();
+                return this.die();
+            }
+        }
+
+        // shells shoot each other down
+        for (const other of bullets)
+            if (other != this && this.xy.distance(other.xy) < radius*2.2)
+            {
+                other.die();
+                return this.die();
+            }
     }
 
-    render()
+    // returns false if the shell is spent
+    bounce()
     {
-        drawTile(this.pos, vec2(BULLET_RADIUS*2), icons.circle, rgb(1,1,1));
+        if (this.bounces-- <= 0)
+        {
+            this.die();
+            return false;
+        }
+        this.armed = true;
+        sBounce.play();
+        particleEffect3D('hit', toWorld(this.xy, BARREL_HEIGHT), {scale:.8, hue:.12});
+        return true;
+    }
+
+    die()
+    {
+        if (this.destroyed)
+            return;
+        particleEffect3D('hit', toWorld(this.xy, BARREL_HEIGHT), {scale:1.2, hue:.1});
+        bullets.splice(bullets.indexOf(this), 1);
+        --this.owner.bulletCount;
+        this.destroy();
     }
 }
 
-function resetRound(scoredBy = -1)
+///////////////////////////////////////////////////////////////////////////////
+// arena
+
+function addWall(kind, xy, size)
 {
-    bullets.length = 0;
-    roundTimer = 0;
+    const stone = kind == 'stone', height = stone ? 1.8 : 1.5;
+    const mesh = stone ? buildBox(vec3(size.x, height, size.y), .15) : meshCrate;
+    const color = stone ? hsl(.08, .08, rand(.5, .58)) : hsl(.09, .55, rand(.42, .5));
+    const object = new EngineObject3D(toWorld(xy, height/2), mesh, undefined, color);
+    walls.push({xy, size, kind, object});
+}
 
-    tanks[0].pos = vec2(-ARENA_SIZE.x*.32, 0);
-    tanks[1].pos = vec2( ARENA_SIZE.x*.32, 0);
-    tanks[0].vel = vec2();
-    tanks[1].vel = vec2();
-    tanks[0].ang = randSign()*PI/2 + rand(-.3,.3);
-    tanks[1].ang = randSign()*PI/2 + rand(-.3,.3);
+function buildArena(layout)
+{
+    for (const wall of walls)
+        wall.object.destroy();
+    walls = [];
+    barrels = [];
+    const placed = new Set;
+    for (const [kind, x, y, width=2, height=2] of layout)
+        for (const mirrorX of [1, -1])
+        for (const mirrorY of [1, -1])
+        {
+            // pieces on an axis mirror onto themselves, place those once
+            const xy = vec2(x*mirrorX, y*mirrorY), key = xy.x + ',' + xy.y;
+            if (placed.has(key))
+                continue;
+            placed.add(key);
+            addWall(kind, xy, vec2(width, height));
+        }
+}
 
-    tanks[0].cooldown = 0;
-    tanks[1].cooldown = 0;
+function destroyCrate(wall)
+{
+    walls.splice(walls.indexOf(wall), 1);
+    wall.object.destroy();
+    particleEffect3D('debris', toWorld(wall.xy, .8), {scale:2.5});
+    particleEffect3D('dust', toWorld(wall.xy, .5), {scale:3});
+    sCrate.play();
+}
 
-    tanks[0].respawn = 0;
-    tanks[1].respawn = 0;
+function buildMeshes()
+{
+    // a tank is three meshes so the hull, treads and turret can be tinted apart;
+    // each is modeled facing -Z with the ground at y = 0
+    meshHull = new Mesh()
+        .combine(buildBox(vec3(1.5, .5, 2.5), .1),   vec3(0, .6, 0))
+        .combine(buildBox(vec3(1.2, .16, .8), .05),  vec3(0, .9, .7));
+    meshTreads = new Mesh()
+        .combine(buildBox(vec3(.55, .7, 2.8), .2, 2), vec3(-.85, .35, 0))
+        .combine(buildBox(vec3(.55, .7, 2.8), .2, 2), vec3( .85, .35, 0));
+    // the turret's origin is its pivot
+    meshTurret = new Mesh()
+        .combine(buildCylinder(1.25, .45, 12, true, true, .08))
+        .combine(buildCylinder(.5, .12, 8), vec3(.2, .28, .15))
+        .combine(buildBox(vec3(.24, .24, 1.5)), vec3(0, 0, -1.2))
+        .combine(buildBox(vec3(.34, .34, .3)),  vec3(0, 0, -1.9));
+    meshCrate = buildBox(vec3(1.9, 1.5, 1.9), .08);
+    meshMine = new Mesh().combine(buildCylinder(1.3, .16, 12), vec3(0, .08, 0));
+    // the barrel carries its own colors, red with a yellow warning band
+    meshBarrel = new Mesh()
+        .combine(buildCylinder(1.5, 1.7, 14, true, true, .12), undefined, hsl(0,.8,.45))
+        .combine(buildCylinder(1.56, .3, 14), undefined, hsl(.14,.9,.55));
+}
 
-    if (scoredBy >= 0)
+function buildScenery()
+{
+    // checkered floor, a darker plain around it, and a low stone rim
+    const tileA = hsl(.1,.3,.52), tileB = hsl(.1,.3,.47);
+    const ground = new EngineObject3D(vec3(), buildGrid(ARENA, ARENA.scale(.5),
+        (x, z)=> (floor2(x) + floor2(z)) & 1 ? tileA : tileB));
+    ground.castShadow = false;
+    const plain = new EngineObject3D(vec3(0,-.05,0), render3D.planeMesh, undefined, hsl(.1,.25,.28));
+    plain.scale3D = vec3(400, 1, 400);
+    plain.castShadow = false;
+
+    const rimColor = hsl(.08,.1,.4), rim = 2, height = 1.2;
+    for (const side of [1, -1])
     {
-        initSounds();
-        sHit.play();
+        new EngineObject3D(toWorld(vec2(0, side*(ARENA.y/2 + rim/2)), height/2),
+            buildBox(vec3(ARENA.x + rim*2, height, rim), .15), undefined, rimColor);
+        new EngineObject3D(toWorld(vec2(side*(ARENA.x/2 + rim/2), 0), height/2),
+            buildBox(vec3(rim, height, ARENA.y), .15), undefined, rimColor);
     }
 }
 
-function initGameState()
+// which 2 unit floor tile a coordinate is in
+function floor2(value) { return floor(value/2); }
+
+///////////////////////////////////////////////////////////////////////////////
+// game flow
+
+function clearField()
 {
-    buildWalls();
+    for (const tank of tanks) tank.destroy();
+    for (const bullet of bullets) bullet.destroy();
+    for (const mine of mines) mine.destroy();
+    tanks = [];
+    mines = [];
     bullets = [];
-    scores = [0,0];
-    aiEnabled = true;
-
-    tanks = [
-        new Tank(0, vec2(-ARENA_SIZE.x*.32, 0), 0,  rgb(1, .25, .25), {up:'KeyW', down:'KeyS', left:'KeyA', right:'KeyD', fire:'Space'}),
-        new Tank(1, vec2( ARENA_SIZE.x*.32, 0), PI, rgb(.25, .55, 1),  {up:'ArrowUp', down:'ArrowDown', left:'ArrowLeft', right:'ArrowRight', fire:'Enter'}),
-    ];
-
-    resetRound(-1);
+    scorches = [];
+    player = undefined;
+    waveTimer.unset();
+    respawnTimer.unset();
 }
 
-// -------------------------------------------------------------------------
-// Menus
+// a free spot on one side of the arena (-1 left, 1 right), clear of other tanks
+function findSpawn(side)
+{
+    for (let i = 200; i--;)
+    {
+        const xy = vec2(side*rand(4, ARENA.x/2 - 2), rand(-1, 1)*(ARENA.y/2 - 2));
+        if (isSpotFree(xy, TANK_RADIUS + .6) && tanks.every(tank=> tank.xy.distance(xy) > 5) &&
+            [...mines, ...barrels].every(hazard=> hazard.xy.distance(xy) > hazard.blastRadius + 1))
+            return xy;
+    }
+    return vec2(side*20, 0);
+}
+
+function spawnPlayer()
+{
+    player = new Tank('player', 0, pushOutOfWalls(PLAYER_SPAWN, TANK_RADIUS), PI/2);
+    player.shieldTimer.set(2);
+    respawnTimer.unset();
+}
+
+function waveRoster(number)
+{
+    const pool = ['scout', 'scout', 'sentry'];
+    if (number >= 3) pool.push('hunter');
+    if (number >= 5) pool.push('heavy', 'hunter');
+    if (number >= 8) pool.push('heavy', 'hunter');
+    const roster = [];
+    for (let i = min(2 + (number*.7|0), 8); i--;)
+        roster.push(pool[randInt(pool.length)]);
+    return roster;
+}
+
+function startWave(number)
+{
+    wave = number;
+    clearField();
+    buildArena(LAYOUTS[(number - 1)%LAYOUTS.length]);
+    // mines from wave 2 and barrels from wave 3, more of each as the waves go on
+    placeHazards(clamp(number - 1, 0, 6), clamp(number - 2, 0, 5));
+    spawnPlayer();
+    for (const typeName of waveRoster(number))
+        new Tank(typeName, 1, findSpawn(1), -PI/2);
+    bannerText = 'WAVE ' + number;
+    bannerTimer.set(2);
+    sWave.play();
+}
 
 function startGame()
 {
-    initGameState();
+    score = 0;
+    lives = 3;
     setPlaying(true);
     clearSubmenuStack();
     hideAllMenus();
+    startWave(1);
 }
+
+// two AI teams fight it out behind the title menu
+function startAttract()
+{
+    clearField();
+    buildArena(LAYOUTS[randInt(LAYOUTS.length)]);
+    placeHazards(3, 3);
+    for (let i = 3; i--;)
+    {
+        new Tank('ally', 0, findSpawn(-1), PI/2);
+        new Tank(i ? 'scout' : 'hunter', 1, findSpawn(1), -PI/2);
+    }
+}
+
+function gameOver()
+{
+    showGameOverDialog({
+        score,
+        extraLines: ['Wave ' + wave],
+        onContinue: ()=> quitToTitle(startAttract),
+    });
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// menus
 
 function buildMenus()
 {
-    if (typeof createMenu !== 'function') return;
+    // only pause while a game is running, the title keeps its battle going
+    installAutoPause(()=> isPlaying());
 
-    // Only pause when a game is actually running. Title menu sits over
-    // the canvas without freezing anything.
-    installAutoPause();
-
-    setMenuTheme({accent:'#e23d3d', font:'"Arial Black", Impact, sans-serif'});
+    setMenuTheme({accent:'#e8a33d', font:'"Arial Black", Impact, sans-serif'});
     createTitleMenu({
         title: 'TANK COMBAT',
         titleFx: {fill:'3d'},
         subtitle: '',
         onPlay: startGame,
         revealOnClick: false,
+        showBest: true,
+        playGlow: true,
         items: [
-            {type:'button', label:'HELP', onClick: () => pushMenu('help')},
+            {type:'button', label:'OPTIONS', onClick: ()=> pushMenu('options')},
+            {type:'button', label:'HELP',    onClick: ()=> pushMenu('help')},
+        ],
+    });
+
+    createOptionsMenu({
+        showResetBest: true,
+        extraItems: [
+            {type:'checkbox', label:'SHADOWS', value:true, persist:'shadows',
+                onChange: v=> render3D.shadows = v},
+            // glow is a full screen pass, off by default on phones
+            {type:'checkbox', label:'GLOW', value:!isTouchDevice, persist:'glow',
+                onChange: v=> postProcess.setShaderCode(v ? postProcessBloomShader(.8, 1.2, 6) : undefined)},
+            {type:'checkbox', label:'SCREEN SHAKE', value:true, persist:'shake',
+                onChange: v=> setScreenShakeEnabled(v)},
         ],
     });
 
     createHelpMenu({
         title: 'HELP',
-        text: 'Two-player tank battle on a walled arena — shoot the enemy tank to score points. Bullets bounce off walls, so bank your shots. Red plays WASD + Space; Blue plays Arrows + Enter.',
+        text: 'Destroy every enemy tank to clear the wave. Shells bounce once off stone and smash crates — bank your shots around corners, but watch out: a ricochet can hit you too. Later waves add mines and explosive barrels: shoot them to blow up anything nearby, and keep your distance.',
         extraItems: [
-            {type:'text', text:'Red: WASD move · Space fire  |  Blue: Arrows move · Enter fire'},
+            {type:'text', text:'Move: WASD / arrows / left stick\nAim: mouse / right stick\nFire: click / Space / right stick'},
         ],
     });
 
     createPauseMenu({
         onRestart: startGame,
-        onQuit:    quitToTitle,
+        onQuit:    ()=> quitToTitle(startAttract),
     });
 
     installDefaultToolbar();
+    setOrientationLock('landscape');
 }
 
-// -------------------------------------------------------------------------
+///////////////////////////////////////////////////////////////////////////////
 // LittleJS callbacks
-
-let icons;   // default-atlas icon map (name -> TileInfo), tinted per draw
 
 function gameInit()
 {
-    // low-res + pixelated for a 2600-ish vibe
-    icons = initDefaultAtlas();
+    saveDataInit('TankCombat');
 
-    // touch twin-stick gamepad: left stick moves, right (face-button) stick aims+fires
+    // on screen twin sticks for touch: left drives, right aims and fires
     touchGamepadEnable = true;
-    touchGamepadAnalog = false;
-    touchGamepadButtonCount = 1;
+    touchGamepadAnalog = true;
+    touchGamepadRightStick = true;
+    touchGamepadButtonCount = 0;
 
-    initSounds();
-    initGameState();
+    // the 3D scene: a low warm sun casting shadows across the arena
+    new Render3DPlugin;
+    new PostProcessPlugin;      // the GLOW option gives it a bloom shader
+    render3D.setSky(hsl(.58,.5,.6), hsl(.55,.3,.8), hsl(.1,.3,.35), .55);
+    render3D.sunDirection = vec3(-.55, 1, .4);
+    render3D.sunColor = hsl(.1,.5,.95);
+    render3D.shadows = true;
+    render3D.shadowCenter = vec3();
+    render3D.shadowRange = 90;
+    render3D.shadowMapSize = 2048;
+    render3D.camera.fov = CAMERA_FOV;
+    new DirectionalLight3D(vec3(.6,.5,-1), hsl(.6,.4,.22)); // cool fill opposite the sun
+
+    sShoot      = new SoundGenerator({volume:.5,  frequency:300, release:.12, slide:-1.2, noise:.3, shapeCurve:.6});
+    sEnemyShoot = new SoundGenerator({volume:.3,  frequency:210, release:.12, slide:-1,   noise:.3, shapeCurve:.6});
+    sBounce     = new SoundGenerator({volume:.3,  frequency:700, release:.05, randomness:.15});
+    sExplode    = new SoundGenerator({volume:.9,  frequency:70,  release:.5,  noise:8, bitCrush:.4, slide:-.3});
+    sCrate      = new SoundGenerator({volume:.5,  frequency:140, release:.15, noise:4, bitCrush:.2});
+    sHit        = new SoundGenerator({volume:.6,  frequency:180, release:.12, noise:1.5, slide:-.5});
+    sWave       = new SoundGenerator({volume:.4,  frequency:330, release:.25, pitchJump:160, pitchJumpTime:.1});
+    sMine       = new SoundGenerator({volume:.4,  frequency:900, release:.08, repeatTime:.06});
+    sLife       = new SoundGenerator({volume:.5,  frequency:520, release:.3,  pitchJump:260, pitchJumpTime:.08});
+
+    buildMeshes();
+    buildScenery();
+
+    // burn marks and the player's aiming laser, both see through
+    render3D.onRenderTransparent = renderOverlays;
 
     buildMenus();
+    startAttract();
+    updateCamera();
     showMenu('title');
 }
 
 function gameUpdate()
 {
-    if (bindPauseKey({when: () => isPlaying()})) return;
-    if (!isPlaying()) return;
+    if (bindPauseKey({when: ()=> isPlaying()}))
+        return;
 
-    if (keyWasPressed('KeyP')) { pausedLocal = !pausedLocal; initSounds(); sBlip.play(); }
-    if (keyWasPressed('KeyR')) { initGameState();           initSounds(); sBlip.play(); }
-    if (keyWasPressed('KeyT')) { aiEnabled = !aiEnabled;    initSounds(); sBlip.play(); }
+    const enemiesLeft = tanks.some(tank=> tank.team == 1);
+    if (!isPlaying())
+    {
+        // attract mode: when one side is wiped out, start a new battle
+        if (!waveTimer.isSet() && (!enemiesLeft || !tanks.some(tank=> tank.team == 0)))
+            waveTimer.set(2.5);
+        if (waveTimer.elapsed())
+            startAttract();
+        return;
+    }
 
-    if (pausedLocal) return;
+    if (!player && respawnTimer.elapsed())
+    {
+        respawnTimer.unset();
+        if (lives <= 0)
+            return gameOver();
+        spawnPlayer();
+    }
+    if (lives <= 0)
+        return;
 
-    roundTimer++;
+    if (!enemiesLeft && !waveTimer.isSet())
+    {
+        // wave cleared: a bonus, and an extra life every third wave
+        waveTimer.set(2);
+        score += wave*100;
+        bannerText = 'WAVE CLEAR';
+        if (wave%3 == 0 && lives < MAX_LIVES)
+        {
+            ++lives;
+            bannerText = 'WAVE CLEAR  +1 LIFE';
+            sLife.play();
+        }
+        bannerTimer.set(2);
+    }
+    if (waveTimer.elapsed())
+        startWave(wave + 1);
+}
 
-    for (const t of tanks) t.update();
+// pull the camera back until the whole arena fits the canvas, whatever its shape
+function updateCamera()
+{
+    const sinPitch = sin(CAMERA_PITCH), cosPitch = cos(CAMERA_PITCH);
+    const aspect = mainCanvasSize.x/mainCanvasSize.y, slope = tan(CAMERA_FOV/2)*.94;
+    const half = ARENA.scale(.5).add(vec2(2.5));
+    let distance = 0;
+    for (const x of [-1, 1])
+    for (const z of [-1, 1])
+    for (const y of [0, 2])
+    {
+        // each corner of the arena's box, in the camera's right, up and forward
+        const corner = vec3(x*half.x, y, z*half.y);
+        const up = cosPitch*corner.y - sinPitch*corner.z;
+        const forward = -sinPitch*corner.y - cosPitch*corner.z;
+        distance = max(distance, abs(up)/slope - forward, abs(corner.x)/(slope*aspect) - forward);
+    }
 
-    for (const b of bullets) b.update();
-    bullets = bullets.filter(b=>b.life > 0);
+    // gameFx's screen shake nudges the 2D camera, which otherwise stays at the origin
+    const target = vec3(cameraPos.x, 0, -cameraPos.y);
+    render3D.camera.orbit(target, distance, 0, CAMERA_PITCH);
 }
 
 function gameUpdatePost()
 {
-    // letterbox-fit the arena with a ~4% border (inflate the framed size by 1/.96)
-    cameraFit(vec2(0,0), ARENA_SIZE.scale(1/.96));
-    cameraAngle = 0;
+    updateCamera();
+}
+
+// drawn inside the 3D pass, after the transparent objects
+function renderOverlays()
+{
+    const up = vec3(0, 1, 0), scorchColor = rgb(0, 0, 0, .45);
+    for (const scorch of scorches)
+        render3D.drawSoftDisc(toWorld(scorch.xy, .04), scorch.size, scorchColor, up);
+
+    if (!player || !isPlaying())
+        return;
+
+    // aiming laser, out to the first thing a shell would hit
+    const direction = vec2().setAngle(player.turretAngle);
+    const start = player.xy.add(direction.scale(MUZZLE_LENGTH));
+    const end = start.add(direction.scale(raycastArena(start, direction)));
+    const laserColor = rgb(1, .15, .1, .35);
+    render3D.additive = true;
+    render3D.drawLine(toWorld(start, BARREL_HEIGHT), toWorld(end, BARREL_HEIGHT), .1, laserColor);
+    render3D.drawSoftDisc(toWorld(end, BARREL_HEIGHT), .7, laserColor);
 }
 
 function gameRender()
 {
-    drawRect(cameraPos, ARENA_SIZE.add(vec2(6)), rgb(0,0,0));
-    drawRect(cameraPos, ARENA_SIZE, rgb(.08,.08,.08));
-
-    const hx = ARENA_SIZE.x/2, hy = ARENA_SIZE.y/2;
-    drawLine(vec2(-hx, -hy), vec2(hx, -hy), .2, rgb(.25,.25,.25));
-    drawLine(vec2(-hx,  hy), vec2(hx,  hy), .2, rgb(.25,.25,.25));
-    drawLine(vec2(-hx, -hy), vec2(-hx, hy), .2, rgb(.25,.25,.25));
-    drawLine(vec2( hx, -hy), vec2( hx, hy), .2, rgb(.25,.25,.25));
-
-    for (const w of walls)
-        drawRect(w.pos, w.size, rgb(.18,.18,.18));
-
-    for (const b of bullets) b.render();
-    for (const t of tanks) t.render();
 }
 
 function gameRenderPost()
 {
-    drawTextScreen(`TANK COMBAT  |  Red ${scores[0]} - ${scores[1]} Blue`, vec2(mainCanvasSize.x/2, 18), 28, hsl(0,0,1), 3, hsl(0,0,0));
+    if (!isPlaying())
+        return;
 
-    if (pausedLocal)
-        drawTextScreen('PAUSED', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2), 70, hsl(0,0,1), 6, hsl(0,0,0));
+    // HUD, kept clear of the toolbar in the top right
+    const size = clamp(mainCanvasSize.y/22, 18, 40);
+    const text = (label, x, y, scale=1, align='left')=>
+        drawTextScreen(label, vec2(x, y), size*scale, WHITE, size*scale/6, BLACK, align);
+    text('SCORE ' + score, size*.6, size);
+    text('WAVE ' + wave, size*.6, size*2.2, .8);
+    text('LIVES ' + max(lives, 0), size*.6, size*3.2, .8);
+
+    if (bannerTimer.active())
+    {
+        const fade = 1 - bannerTimer.getPercent()**4;
+        drawTextScreen(bannerText, vec2(mainCanvasSize.x/2, mainCanvasSize.y*.3), size*2.4,
+            hsl(.1, 1, .7, fade), size/3, rgb(0, 0, 0, fade));
+    }
 }
 
 engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost);
