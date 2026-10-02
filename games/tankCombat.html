@@ -25,8 +25,9 @@ const BULLET_RADIUS = .3;
 const BARREL_HEIGHT = 1.05;     // turret pivot / shell height above the ground
 const MUZZLE_LENGTH = 2.1;      // turret pivot to the barrel tip
 const PLAYER_SPAWN  = vec2(-27, 0);
-const CAMERA_PITCH  = 1.08;     // radians above the horizon: mostly top down
+const CAMERA_PITCH  = 1.;     // radians above the horizon: mostly top down
 const CAMERA_FOV    = .6;
+const CAMERA_SHIFT  = 2.5;      // look this far toward the viewer, which moves the arena up the screen
 const MAX_LIVES     = 5;
 const MINE_BLAST    = 4;        // blast radius
 const BARREL_BLAST  = 4.5;
@@ -1037,14 +1038,14 @@ function updateCamera()
     for (const y of [0, 2])
     {
         // each corner of the arena's box, in the camera's right, up and forward
-        const corner = vec3(x*half.x, y, z*half.y);
+        const corner = vec3(x*half.x, y, z*half.y - CAMERA_SHIFT);
         const up = cosPitch*corner.y - sinPitch*corner.z;
         const forward = -sinPitch*corner.y - cosPitch*corner.z;
         distance = max(distance, abs(up)/slope - forward, abs(corner.x)/(slope*aspect) - forward);
     }
 
     // gameFx's screen shake nudges the 2D camera, which otherwise stays at the origin
-    const target = vec3(cameraPos.x, 0, -cameraPos.y);
+    const target = vec3(cameraPos.x, 0, CAMERA_SHIFT - cameraPos.y);
     render3D.camera.orbit(target, distance, 0, CAMERA_PITCH);
 }
 
