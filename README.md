@@ -2,7 +2,7 @@
 
 *A collection of classic games built with LittleJS. Each one is a single, self-contained file and playable instantly in your browser.*
 
-## 🎮 [▶ Play in LittleJS Arcade](https://killedbyapixel.github.io/LittleJSArcade)
+## 🎮 [▶ Play LittleJS Arcade](https://killedbyapixel.github.io/LittleJSArcade)
 
 ![LittleJS Logo](images/screenshots.png)
 
