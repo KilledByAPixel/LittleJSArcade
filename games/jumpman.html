@@ -2,10 +2,10 @@
 <title>LittleJS Jumpman</title>
 <meta charset=utf-8>
 </head><body>
-<script src="../templates/engineLoader.js?1780767748506"></script>
-<script src="../templates/textureGenerator.js?1780767748506"></script>
-<script src="../templates/gameFx.js?1780767748506"></script>
-<script src="../templates/menus.js?1780767748506"></script>
+<script src="../templates/engineLoader.js?1790954611926"></script>
+<script src="../templates/textureGenerator.js?1790954611926"></script>
+<script src="../templates/gameFx.js?1790954611926"></script>
+<script src="../templates/menus.js?1790954611926"></script>
 <script>
 'use strict';
 
@@ -634,7 +634,7 @@ class Enemy extends EngineObject
     onKilled(dir)
     {
         this.dead = true;
-        this.collideTiles = false;
+        this.collideLevel = false;
         this.velocity = vec2(.1 * (dir || 1), .35);
     }
 }
@@ -1268,7 +1268,7 @@ class Player extends EngineObject
         this.warpTimer = 1;
         this.warpDest = dest;
         this.velocity = vec2(0, 0);
-        this.collideTiles = false; // we'll sink through the pipe
+        this.collideLevel = false; // we'll sink through the pipe
         sfxWin.play(this.pos);
     }
 
@@ -1293,7 +1293,7 @@ class Player extends EngineObject
             return;
         }
         // post-teleport: hand control back to normal physics
-        this.collideTiles = true;
+        this.collideLevel = true;
         this.warpTimer = 0;
         this.warpDest = null;
     }

@@ -2,11 +2,10 @@
 <title>LittleJS Speedway</title>
 <meta charset=utf-8>
 </head><body>
-<script src="../templates/engineLoader.js?1780767748506"></script>
-<script src="../templates/gameFx.js?1780767748506"></script>
-<script src="../templates/menus.js?1780767748506"></script>
-<script src="../templates/tweakables.js?1780767748506"></script>
-<script src="../templates/textureGenerator.js?1780767748506"></script>
+<script src="../templates/engineLoader.js?1790954611926"></script>
+<script src="../templates/gameFx.js?1790954611926"></script>
+<script src="../templates/menus.js?1790954611926"></script>
+<script src="../templates/textureGenerator.js?1790954611926"></script>
 <script>
 'use strict';
 
@@ -197,10 +196,9 @@ function gameInit()
 
     proj = new Array(DRAW_DIST+2);
 
-    // live view/projection tuning — press \ to toggle the tweakables panel.
+    // live view/projection tuning — debug build: Esc, then 9.
     // These are read fresh every frame by computeView/projectPoint, so dragging
     // a slider re-frames the road immediately (great for dialing in portrait).
-    if (typeof tweak === 'function')
     {
         tweakDivider('View');
         tweak('HORIZON_FRAC',        {min:0.20, max:0.55}); // lower = higher horizon, more road

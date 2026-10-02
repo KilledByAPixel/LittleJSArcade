@@ -10,12 +10,10 @@
   </style>
 </head>
 <body>
-<script src="../templates/engineLoader.js?1780767748506"></script>
-<script src="../templates/gameFx.js?1780767748506"></script>
-<script src="../templates/textureGenerator.js?1780767748506"></script>
-<script src="../templates/bloom.js?1780767748506"></script>
-<script src="../templates/tweakables.js?1780767748506"></script>
-<script src="../templates/menus.js?1780767748506"></script>
+<script src="../templates/engineLoader.js?1790954611926"></script>
+<script src="../templates/gameFx.js?1790954611926"></script>
+<script src="../templates/textureGenerator.js?1790954611926"></script>
+<script src="../templates/menus.js?1790954611926"></script>
 <script>
 'use strict';
 
@@ -157,6 +155,9 @@ function circlesHit(posA, rA, posB, rB)
 // wrappers exist so callers stay declarative and the look stays tunable
 // from one place.
 // ============================================================
+// Glow + vignette shader code for the PostProcessPlugin (threshold, strength, size).
+const BLOOM_SHADER = () => postProcessEffects(postProcessGlow(.15, 3, 10), postProcessVignette(1, 6));
+
 function drawGlowLine(a, b, width, col)
 {
     drawLine(a, b, width, col);
@@ -907,12 +908,9 @@ function gameInit()
     // Bake the default icon atlas so circles draw from the circle tile.
     atlasIcons = initDefaultAtlas();
 
-    // Multi-pass bloom post-process (templates/bloom.js). Defaults are tuned
-    // for this vector look; tweak via bloomInit({...}) or bloomSetParams({...}).
-    bloomInit();
-
-    // Live bloom controls in the tweak panel (press ~). See templates/bloom.js.
-    bloomTweaks();
+    // Bloom post-process (engine glow + vignette), tuned for this vector look.
+    // Starts as a pass-through; the POST PROCESSING option switches it on.
+    new PostProcessPlugin;
 
     // stars — stateless seeded starfield (gameFx.js Starfield).
     // area/size match the old rand() field; twinkleBase:.1 + twinkleAmp:.9
@@ -965,13 +963,13 @@ function buildMenus()
 
     createOptionsMenu({
         extraItems: [
-            // Toggle the bloom post-process (templates/bloom.js). Persisted under
-            // 'postfx'; onChange fires once at init with the stored value, so the
-            // saved choice is applied on load. Defaults off on touch devices —
-            // the multi-pass blur is costly on mobile GPUs — but a saved choice wins.
+            // Toggle the bloom post-process. Persisted under 'postfx'; onChange
+            // fires once at init with the stored value, so the saved choice is
+            // applied on load. Defaults off on touch devices — the glow samples
+            // are costly on mobile GPUs — but a saved choice wins.
             {type:'checkbox', label:'POST PROCESSING', value:!isTouchDevice,
                 persist:'postfx',
-                onChange: v => { if (typeof setBloomEnabled === 'function') setBloomEnabled(v); }},
+                onChange: v => postProcess.setShaderCode(v ? BLOOM_SHADER() : undefined)},
         ],
     });
 

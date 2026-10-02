@@ -18,11 +18,10 @@
 */
 </style>
 </head>
-<script src="../templates/engineLoader.js?1780767748506"></script>
-<script src="../templates/gameFx.js?1780767748506"></script>
-<script src="../templates/textureGenerator.js?1780767748506"></script>
-<script src="../templates/tweakables.js?1780767748506"></script>
-<script src="../templates/menus.js?1780767748506"></script>
+<script src="../templates/engineLoader.js?1790954611926"></script>
+<script src="../templates/gameFx.js?1790954611926"></script>
+<script src="../templates/textureGenerator.js?1790954611926"></script>
+<script src="../templates/menus.js?1790954611926"></script>
 <script>
 'use strict';
 
@@ -194,7 +193,7 @@ function spawnWinBurst(pos, big)
     // ParticleEmitter(pos, angle, emitSize, emitTime, emitRate, emitConeAngle,
     //   tileInfo, colorStartA, colorStartB, colorEndA, colorEndB, particleTime,
     //   sizeStart, sizeEnd, speed, angleSpeed, damping, angleDamping,
-    //   gravityScale, particleConeAngle, fadeRate, randomness, collideTiles, additive)
+    //   gravityScale, particleConeAngle, fadeRate, randomness, collideLevel, additive)
     // Finite burst: emitTime ~0.1s, emitRate sized so total ≈ count.
     const count = big ? 60 : 20;
     new ParticleEmitter(
@@ -820,9 +819,9 @@ async function gameInit()
     // (volume/shake) are restored separately by the menu persist: items.
     loadGame();
 
-    // ----- live-balancing tweakables (press \ to toggle the panel) -----
+    // ----- live-balancing tweakables (debug build: Esc, then 9) -----
     // Expose BALANCE on window so tweak() dotted paths resolve to the SAME
-    // object the game reads each frame. (getByPath in tweakables.js resolves
+    // object the game reads each frame. (the engine's tweak() resolves
     // via indirect eval, which would already see the top-level `const BALANCE`,
     // but window.BALANCE makes the binding explicit and guaranteed.) These
     // three fields are READ from BALANCE every frame and never reassigned, so

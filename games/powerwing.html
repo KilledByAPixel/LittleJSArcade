@@ -2,10 +2,10 @@
 <title>LittleJS Powerwing</title>
 <meta charset="utf-8">
 </head>
-<script src="../templates/engineLoader.js?1780767748506"></script>
-<script src="../templates/textureGenerator.js?1780767748506"></script>
-<script src="../templates/gameFx.js?1780767748506"></script>
-<script src="../templates/menus.js?1780767748506"></script>
+<script src="../templates/engineLoader.js?1790954611926"></script>
+<script src="../templates/textureGenerator.js?1790954611926"></script>
+<script src="../templates/gameFx.js?1790954611926"></script>
+<script src="../templates/menus.js?1790954611926"></script>
 <script>
 'use strict';
 
@@ -114,7 +114,7 @@ function spawnParticles(pos, color, count = 10, speed = 8)
         0,                   // particleConeAngle
         .1,                  // fadeRate
         .6,                  // randomness
-        false, true          // collideTiles, additive (explosion glow)
+        false, true          // collideLevel, additive (explosion glow)
     );
 }
 
@@ -1106,7 +1106,7 @@ function makeFlameEmitter()
         0, .96, 1,           // angleSpeed, damping, angleDamping
         0,                   // gravityScale (no gravity)
         0, .15, .4,          // particleConeAngle, fadeRate, randomness
-        false, true          // collideTiles, additive (fire glow)
+        false, true          // collideLevel, additive (fire glow)
     );
 }
 
@@ -1130,7 +1130,7 @@ function makeSmokeEmitter()
         0, .98, 1,           // angleSpeed, damping, angleDamping
         0,                   // gravityScale (no gravity)
         0, .2, .4,           // particleConeAngle, fadeRate, randomness
-        false, false         // collideTiles, additive (smoke = matte)
+        false, false         // collideLevel, additive (smoke = matte)
     );
 }
 

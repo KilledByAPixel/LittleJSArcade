@@ -18,11 +18,10 @@
 */
 </style>
 </head>
-<script src="../templates/engineLoader.js?1780767748506"></script>
-<script src="../templates/menus.js?1780767748506"></script>
-<script src="../templates/gameFx.js?1780767748506"></script>
-<script src="../templates/textureGenerator.js?1780767748506"></script>
-<script src="../templates/tweakables.js?1780767748506"></script>
+<script src="../templates/engineLoader.js?1790954611926"></script>
+<script src="../templates/menus.js?1790954611926"></script>
+<script src="../templates/gameFx.js?1790954611926"></script>
+<script src="../templates/textureGenerator.js?1790954611926"></script>
 <script>
 'use strict';
 
@@ -164,7 +163,7 @@ function killPlayer()
             PI,                      // particleConeAngle
             0.1,                     // fadeRate
             0.5,                     // randomness
-            false,                   // collideTiles
+            false,                   // collideLevel
             true,                    // additive
             true,                    // randomColorLinear
             1e9                      // renderOrder
@@ -625,7 +624,7 @@ class Player extends EngineObject
             0.4,                    // particleConeAngle
             0.1,                    // fadeRate
             0.3,                    // randomness
-            false,                  // collideTiles
+            false,                  // collideLevel
             true,                   // additive
             true,                   // randomColorLinear
             1e9                     // renderOrder
@@ -906,7 +905,7 @@ async function gameInit()
     showMenu('title');
     attachClickToReveal('title', () => !isPlaying());
 
-    // ----- tweakables panel (press \ to toggle) -----
+    // ----- tweakables panel (debug build: Esc, then 9) -----
     tweakEngineDefaults();
 
     tweakDivider('Player');

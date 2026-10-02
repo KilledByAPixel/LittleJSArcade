@@ -2,10 +2,10 @@
 <title>LittleJS Gem Fighter</title>
 <meta charset="utf-8">
 </head>
-<script src="../templates/engineLoader.js?1780767748506"></script>
-<script src="../templates/textureGenerator.js?1780767748506"></script>
-<script src="../templates/gameFx.js?1780767748506"></script>
-<script src="../templates/menus.js?1780767748506"></script>
+<script src="../templates/engineLoader.js?1790954611926"></script>
+<script src="../templates/textureGenerator.js?1790954611926"></script>
+<script src="../templates/gameFx.js?1790954611926"></script>
+<script src="../templates/menus.js?1790954611926"></script>
 <script>
 'use strict';
 
@@ -1545,7 +1545,7 @@ function spawnClearParticles(boardIdx, cell, delay = 0, intensity = 1)
         0,                       // particleConeAngle
         .15,                     // fadeRate
         .35,                     // randomness
-        false, true              // collideTiles, additive (glow)
+        false, true              // collideLevel, additive (glow)
     );
 
     // central white flash — one stationary particle that shrinks and fades
@@ -1565,7 +1565,7 @@ function spawnClearParticles(boardIdx, cell, delay = 0, intensity = 1)
         0,                       // particleConeAngle
         0,                       // fadeRate
         0,                       // randomness
-        false, true              // collideTiles, additive (glow)
+        false, true              // collideLevel, additive (glow)
     );
 }
 

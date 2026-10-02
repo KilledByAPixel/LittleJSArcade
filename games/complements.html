@@ -18,12 +18,10 @@
 */
 </style>
 </head>
-<script src="../templates/engineLoader.js"></script>
-<script src="../templates/bloom.js"></script>
-<script src="../templates/menus.js"></script>
-<script src="../templates/gameFx.js"></script>
-<script src="../templates/textureGenerator.js"></script>
-<script src="../templates/tweakables.js"></script>
+<script src="../templates/engineLoader.js?1790954611926"></script>
+<script src="../templates/menus.js?1790954611926"></script>
+<script src="../templates/gameFx.js?1790954611926"></script>
+<script src="../templates/textureGenerator.js?1790954611926"></script>
 <script>
 'use strict';
 
@@ -130,7 +128,7 @@ function spawnBreakBurst(p) {
     //   particleTime, sizeStart, sizeEnd,
     //   speed, angleSpeed,
     //   damping, angleDamping, gravityScale, particleConeAngle,
-    //   fadeRate, randomness, collideTiles, additive)
+    //   fadeRate, randomness, collideLevel, additive)
     new ParticleEmitter(
         p.pos.copy(), 0, emitSz, 0.1, rate, PI,
         icons.spark,
@@ -1034,18 +1032,17 @@ async function gameInit()
     saveDataInit('Complements');
     initDrawToTexture();
     icons = initDefaultAtlas();
-    // bloomInit({threshold:0.3, intensity:1.5});  // disabled for now — post-process washed hues together
+    // postProcessBloom(.3, 1.5);  // disabled for now — post-process washed hues together
     cameraPos = vec2(0, 0);
     fitCamera();
 
-    // Tweakables panel — press \ to toggle.
+    // Tweakables panel (debug build: Esc, then 9).
     tweakDivider('Complements');
     tweak('settings.gravity',             {min: -5,   max: 0});
     tweak('settings.launchSpeed',         {min:  0.5, max: 5});
     tweak('settings.elasticity',          {min:  0,   max: 1});
     tweak('settings.maxRadius',           {min:  0.06, max: 0.25});
     tweak('settings.timeAttackRiseSpeed', {min:  0,   max: 0.02});
-    // bloomTweaks();  // disabled with bloom
 
     setSoundVolume(.8);
 
