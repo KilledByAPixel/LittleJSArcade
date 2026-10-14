@@ -200,63 +200,74 @@ function drawTextToTexture(tileIndex, text, options)
 
     return drawToTexture(tileIndex, ctx =>
     {
-        ctx.font = (DRAW_SIZE * .96 * sizeMul) + 'px ' + font;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
+        // Render the glyph exactly ONCE, into a tile-resolution scratch
+        // canvas, then composite it with drawImage. Never fillText under a
+        // ctx.filter: Firefox is pathologically slow at filtered colour-emoji
+        // text — the old 16-stamp filtered outline took ~1.2s per tile with
+        // Twemoji, over a minute for emojiSurvivors' atlas, and locked up
+        // the browser. Image draws stay fast in every browser.
+        const glyph = getTextureScratch(0);
+        const gctx = glyph.getContext('2d');
+        gctx.clearRect(0, 0, glyph.width, glyph.height);
+        gctx.save();
+        gctx.scale(glyph.width / DRAW_SIZE, glyph.height / DRAW_SIZE);
+        gctx.font = (DRAW_SIZE * .96 * sizeMul) + 'px ' + font;
+        gctx.textAlign = 'center';
+        gctx.textBaseline = 'middle';
         // emoji glyphs sit a few px above the math-center of their em box —
         // nudge down so the visual centre lands at the tile centre.
-        const cx = DRAW_SIZE / 2;
-        const cy = DRAW_SIZE / 2 + DRAW_SIZE * .04;
-
-        // Paint the glyph once at (x,y), honouring the optional flip.
-        const paint = (x, y) =>
-        {
-            if (flipX || flipY)
-            {
-                // Translate + scale so the flip pivots around the glyph centre.
-                ctx.save();
-                ctx.translate(x, y);
-                ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
-                ctx.fillText(text, 0, 0);
-                ctx.restore();
-            }
-            else
-                ctx.fillText(text, x, y);
-        };
+        // Translate + scale so an optional flip pivots around the glyph centre.
+        gctx.translate(DRAW_SIZE / 2, DRAW_SIZE / 2 + DRAW_SIZE * .04);
+        gctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+        gctx.fillText(text, 0, 0);
+        gctx.restore();
 
         if (outline)
         {
-            // brightness(0) flattens the colour glyph to solid black while
-            // keeping its alpha shape; stamping the whole glyph (not a point)
-            // at each ring offset fully covers the dilated band, so a modest
-            // sample count leaves no gaps.
+            // Flatten the glyph to a solid silhouette in the outline colour
+            // (source-in keeps its alpha shape), then stamp that silhouette
+            // around a ring. Stamping the whole shape (not a point) at each
+            // ring offset fully covers the dilated band, so a modest sample
+            // count leaves no gaps.
+            const silhouette = getTextureScratch(1);
+            const sctx = silhouette.getContext('2d');
+            sctx.clearRect(0, 0, silhouette.width, silhouette.height);
+            sctx.drawImage(glyph, 0, 0);
+            sctx.globalCompositeOperation = 'source-in';
+            sctx.fillStyle = outline.color;
+            sctx.fillRect(0, 0, silhouette.width, silhouette.height);
+            sctx.globalCompositeOperation = 'source-over';
+
             const r = outline.width * DRAW_SIZE;
             const samples = 16;
-            ctx.save();
-            ctx.filter = 'brightness(0)';
             for (let i = 0; i < samples; ++i)
             {
                 const a = i / samples * 2 * Math.PI;
-                paint(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-            }
-            ctx.restore();
-
-            // Recolour the black silhouette if a non-black outline was asked
-            // for. source-atop tints only the pixels already drawn.
-            if (outline.color !== '#000' && outline.color !== 'black')
-            {
-                ctx.save();
-                ctx.globalCompositeOperation = 'source-atop';
-                ctx.fillStyle = outline.color;
-                ctx.fillRect(0, 0, DRAW_SIZE, DRAW_SIZE);
-                ctx.restore();
+                ctx.drawImage(silhouette, Math.cos(a) * r, Math.sin(a) * r, DRAW_SIZE, DRAW_SIZE);
             }
         }
 
-        // The colour glyph on top of its outline.
+        // The colour glyph on top of its outline. The optional filter applies
+        // to an image draw, not to text, so it's cheap everywhere.
+        ctx.save();
         if (filter) ctx.filter = filter;
-        paint(cx, cy);
+        ctx.drawImage(glyph, 0, 0, DRAW_SIZE, DRAW_SIZE);
+        ctx.restore();
     }, description);
+}
+
+// Reusable tile-sized scratch canvases for drawTextToTexture (0 = glyph,
+// 1 = outline silhouette). Sized to TILE_SIZE so the glyph is rasterised at
+// the tile's real pixel resolution and lands 1:1 in the atlas — no blur.
+const textureScratch = [];
+function getTextureScratch(index)
+{
+    let canvas = textureScratch[index];
+    if (!canvas)
+        canvas = textureScratch[index] = document.createElement('canvas');
+    if (canvas.width !== TILE_SIZE)
+        canvas.width = canvas.height = TILE_SIZE;
+    return canvas;
 }
 
 function flushAtlas()
