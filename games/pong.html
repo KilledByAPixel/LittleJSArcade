@@ -719,7 +719,7 @@ function gameRenderPost()
 // ------------------------------------------------------------
 // CRT post-process shader, juiced up from the Space Invaders version:
 // barrel curvature + chromatic aberration + neon bloom + static + scanlines + vignette.
-// (includeMainCanvas=true pulls the HUD/menus through the shader too — kept mild so text stays readable.)
+// (the HUD draws with WebGL, so it goes through the shader too — kept mild so text stays readable.)
 const tvShader = `
     uniform float uEnable; // 0 = bypass the CRT effect (options toggle)
 

@@ -233,6 +233,23 @@ function drawSpriteBitmap(centerPos, bitmap, pixelSize, color)
     }
 }
 
+// HUD text in the engine's pixel font, drawn with WebGL so the CRT shader shades
+// it too; size is the glyph's cell in screen pixels, a multiple of 8 keeps each
+// font pixel whole, and the outline is the text again in black a font pixel off
+function drawHudText(text, pos, size, color, align='center', outline=false)
+{
+    if (align === 'right')
+        pos = vec2(pos.x - text.length * size / 2, pos.y);
+    if (outline)
+    {
+        const o = size / 8;
+        for (let x = -1; x <= 1; x++)
+        for (let y = -1; y <= 1; y++)
+            (x || y) && engineImageFont.drawTextScreen(text, pos.add(vec2(x * o, y * o)), size, true, BLACK);
+    }
+    engineImageFont.drawTextScreen(text, pos, size, true, color);
+}
+
 function drawSpriteBitmapScreen(centerScreenX, centerScreenY, bitmap, pixelSize, color)
 {
     const rows = bitmap.length;
@@ -241,14 +258,14 @@ function drawSpriteBitmapScreen(centerScreenX, centerScreenY, bitmap, pixelSize,
     const px = round(pixelSize);
     const startX = round(centerScreenX - cols * px * 0.5);
     const startY = round(centerScreenY - rows * px * 0.5);
-    mainContext.fillStyle = color.toString();
+    const cellSize = vec2(px);
     for (let y = 0; y < rows; y++)
     {
         const row = bitmap[y];
         for (let x = 0; x < cols; x++)
         {
             if (row[x] !== '.')
-                mainContext.fillRect(startX + x * px, startY + y * px, px, px);
+                drawRect(vec2(startX + (x + .5) * px, startY + (y + .5) * px), cellSize, color, 0, true, true);
         }
     }
 }
@@ -861,9 +878,9 @@ function gameInit()
     // sounds still play. Un-mutes automatically on setPlaying(true).
     setSilentAttract(true);
 
-    // CRT vibe: scanlines + bloom + static + vignette over the whole frame
-    // (includeMainCanvas=true pulls HUD text/menus through the shader too)
-    new PostProcessPlugin(tvShader, true);
+    // CRT vibe: scanlines + bloom + static + vignette over the whole frame;
+    // the HUD draws with WebGL (drawHudText) so the shader shades it too
+    new PostProcessPlugin(tvShader);
 
     buildMenus();
 
@@ -1072,8 +1089,8 @@ function gameRenderPost()
     
     // SCORE at top left (always — the cabinet demo shows it too, as an exception
     // to the usual "no HUD in demo" rule).
-    drawTextScreen('SCORE', vec2(80, hudY), 26, color);
-    drawTextScreen(String(score).padStart(4, '0'), vec2(80, hudY + 32), 26, rgb(.95,.95,.95));
+    drawHudText('SCORE', vec2(90, hudY), 24, color);
+    drawHudText(String(score).padStart(4, '0'), vec2(90, hudY + 32), 24, rgb(.95,.95,.95));
 
     // In the cabinet demo, also show the all-time HI-SCORE tucked into the very
     // top-right corner (mirrors SCORE's top-left spot; the corner is free there
@@ -1081,8 +1098,8 @@ function gameRenderPost()
     if (inCabinet)
     {
         const rx = mainCanvasSize.x - 30;
-        drawTextScreen('HI-SCORE', vec2(rx, hudY), 26, color, undefined, undefined, 'right');
-        drawTextScreen(String(getBestScore()).padStart(4, '0'), vec2(rx, hudY + 32), 26, rgb(.95,.95,.95), undefined, undefined, 'right');
+        drawHudText('HI-SCORE', vec2(rx, hudY), 24, color, 'right');
+        drawHudText(String(getBestScore()).padStart(4, '0'), vec2(rx, hudY + 32), 24, rgb(.95,.95,.95), 'right');
     }
     
     // Lives indicator with ship icons at bottom - below the green line
@@ -1094,24 +1111,24 @@ function gameRenderPost()
     }
     
     // Level indicator at bottom right (cyan like player)
-    drawTextScreen(`LEVEL ${currentLevel}`, vec2(mainCanvasSize.x - 80, livesY + 3), 26, rgb(.2,.9,.95));
+    drawHudText(`LEVEL ${currentLevel}`, vec2(mainCanvasSize.x - 110, livesY), 24, rgb(.2,.9,.95));
 
     // Level announcement
     if (levelAnnounce > 0)
     {
         const pulse = 0.7 + sin(levelAnnounce * 0.15) * 0.3;
         const announceColor = rgb(.2 * pulse, .95 * pulse, .25 * pulse);
-        drawTextScreen(`LEVEL ${currentLevel}`, vec2(mainCanvasSize.x/2, mainCanvasSize.y/2), 90, announceColor, 10, rgb(0,0,0));
+        drawHudText(`LEVEL ${currentLevel}`, vec2(mainCanvasSize.x/2, mainCanvasSize.y/2), 80, announceColor, 'center', true);
         
         // Show "GET READY" below
         if (levelAnnounce < 90)
-            drawTextScreen('GET READY', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 + 60), 36, rgb(.95,.95,.95), 6, rgb(0,0,0));
+            drawHudText('GET READY', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 + 72), 32, rgb(.95,.95,.95), 'center', true);
     }
     
     // Brief on-canvas banner while the delay timer runs; the gameOver menu surfaces after.
     if (gameOver && gameOverTimer > 0)
     {
-        drawTextScreen('GAME OVER', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 - 20), 80, rgb(.95,.25,.25), 8, rgb(0,0,0));
+        drawHudText('GAME OVER', vec2(mainCanvasSize.x/2, mainCanvasSize.y/2 - 20), 80, rgb(.95,.25,.25), 'center', true);
     }
 }
 
